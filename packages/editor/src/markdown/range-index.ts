@@ -35,6 +35,7 @@ import type {
   MarkdownNodePolicy,
   MarkdownParseCoverage,
   MarkdownDirectiveMetadata,
+  MarkdownGraphicalCodeBlockMetadata,
   MarkdownRangeRecord,
   MarkdownRangeSegment,
   MarkdownSyntaxKind,
@@ -488,6 +489,9 @@ function createParserRecord(
     node.name === "FencedCode" || node.name === "CodeBlock"
       ? createCodeBlockMetadata(node, children, source, parserCoverage)
       : undefined;
+  const graphicalCodeBlock =
+    (customMetadata?.graphicalCodeBlock as MarkdownGraphicalCodeBlockMetadata | undefined) ??
+    undefined;
   const tableBlock =
     node.name === "Table" ? createTableBlockMetadata(node, children, source) : undefined;
   const segments: MarkdownRangeSegment[] = markerRanges.map((range) => ({
@@ -521,6 +525,7 @@ function createParserRecord(
     sourceFingerprint: fingerprint,
     parserCoverage,
     ...(codeBlock ? { codeBlock } : {}),
+    ...(graphicalCodeBlock ? { graphicalCodeBlock } : {}),
     ...(tableBlock ? { tableBlock } : {}),
     ...(directive ? { directive } : {}),
     ...(alert ? { alert } : {}),
@@ -559,6 +564,9 @@ function mapRecord(
   const codeBlock = record.codeBlock
     ? mapCodeBlockMetadata(record.codeBlock, changes, newSource)
     : undefined;
+  const graphicalCodeBlock = record.graphicalCodeBlock
+    ? mapGraphicalCodeBlockMetadata(record.graphicalCodeBlock, changes)
+    : undefined;
   const tableBlock = record.tableBlock
     ? mapTableBlockMetadata(record.tableBlock, changes, newSource)
     : undefined;
@@ -567,6 +575,7 @@ function mapRecord(
     markerRanges.some((range) => !range) ||
     segments.some((segment) => !segment) ||
     (record.codeBlock && !codeBlock) ||
+    (record.graphicalCodeBlock && !graphicalCodeBlock) ||
     (record.tableBlock && !tableBlock)
   ) {
     return null;
@@ -580,8 +589,23 @@ function mapRecord(
     markerRanges: markerRanges as SourceRange[],
     segments: segments as MarkdownRangeSegment[],
     ...(codeBlock ? { codeBlock } : {}),
+    ...(graphicalCodeBlock ? { graphicalCodeBlock } : {}),
     ...(tableBlock ? { tableBlock } : {}),
   });
+}
+
+function mapGraphicalCodeBlockMetadata(
+  metadata: MarkdownGraphicalCodeBlockMetadata,
+  changes: ChangeDesc,
+): MarkdownGraphicalCodeBlockMetadata | null {
+  const bodyRange = mapRange(metadata.bodyRange, changes);
+  const openingFenceRange = mapRange(metadata.openingFenceRange, changes);
+  const closingFenceRange = metadata.closingFenceRange
+    ? mapRange(metadata.closingFenceRange, changes)
+    : null;
+  if (!bodyRange || !openingFenceRange || (metadata.closingFenceRange && !closingFenceRange))
+    return null;
+  return { ...metadata, bodyRange, openingFenceRange, closingFenceRange };
 }
 
 /**

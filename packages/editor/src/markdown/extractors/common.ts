@@ -322,6 +322,18 @@ export function freezeRecord(record: MarkdownRangeRecord): MarkdownRangeRecord {
     contentRange: record.contentRange ? freezeSourceRange(record.contentRange) : null,
     markerRanges: Object.freeze(record.markerRanges.map(freezeSourceRange)),
     segments: Object.freeze(record.segments.map((segment) => Object.freeze({ ...segment }))),
+    ...(record.graphicalCodeBlock
+      ? {
+          graphicalCodeBlock: Object.freeze({
+            ...record.graphicalCodeBlock,
+            bodyRange: freezeSourceRange(record.graphicalCodeBlock.bodyRange),
+            openingFenceRange: freezeSourceRange(record.graphicalCodeBlock.openingFenceRange),
+            closingFenceRange: record.graphicalCodeBlock.closingFenceRange
+              ? freezeSourceRange(record.graphicalCodeBlock.closingFenceRange)
+              : null,
+          }),
+        }
+      : {}),
     ...(record.directive ? { directive: freezeDirectiveMetadata(record.directive) } : {}),
     ...(record.metadata ? { metadata: Object.freeze({ ...record.metadata }) } : {}),
   });

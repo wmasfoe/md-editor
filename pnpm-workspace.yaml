@@ -4,6 +4,9 @@ packages:
   - "infra/*"
   - "packages/*"
 
+patchedDependencies:
+  "@visimer/dom@1.1.3": patches/@visimer__dom@1.1.3.patch
+
 catalog:
   "@playwright/test": ^1.51.1
   "@codemirror/lang-markdown": ^6.5.0

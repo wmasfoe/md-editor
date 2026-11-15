@@ -57,7 +57,7 @@ export interface UseDesktopEditorControllerInput {
 }
 
 function dispatchEditorFormattingCommand(id: string, ports: CodeMirrorEditorPorts): boolean {
-  if (id.startsWith("format.")) {
+  if (id.startsWith("format.") || id.startsWith("insert.mermaid.")) {
     ports.executeFormatting(id);
     return true;
   }

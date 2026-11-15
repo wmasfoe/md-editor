@@ -24,6 +24,33 @@ import {
 } from "../src/index.ts";
 
 describe("core AI writing feature", () => {
+  it("forwards diagram creation commands to the editor without adding shortcuts", async () => {
+    const commands = createCommandRegistry();
+    const keymaps = createKeymapRegistry();
+    const received: string[] = [];
+    createBuiltInEditorFeature().setup({ commands, keymaps });
+
+    for (const id of ["insert.mermaid.flowchart", "insert.mermaid.sequence"]) {
+      expect(
+        commands
+          .listAvailable({ document: createDocumentState(), actions: {} }, "command-palette")
+          .map((command) => command.id),
+      ).toContain(id);
+      expect(
+        await commands.dispatch(id, {
+          document: createDocumentState(),
+          actions: {
+            executeFormatting: (command) => {
+              received.push(command);
+            },
+          },
+        }),
+      ).toBe(true);
+      expect(keymaps.list().some((keymap) => keymap.commandId === id)).toBe(false);
+    }
+    expect(received).toEqual(["insert.mermaid.flowchart", "insert.mermaid.sequence"]);
+  });
+
   it("registers the AI writing commands and keymaps as a built-in feature", async () => {
     const commands = createCommandRegistry();
     const keymaps = createKeymapRegistry();
@@ -369,6 +396,8 @@ describe("built-in feature registry", () => {
       "lint.run",
       "lint.fixAll",
       "lint.clear",
+      "insert.mermaid.flowchart",
+      "insert.mermaid.sequence",
     ]);
     expect(keymaps.list().map((keymap) => `${keymap.key}:${keymap.commandId}`)).toContain(
       "Mod-Shift-B:view.toggleSidebarPrimary",

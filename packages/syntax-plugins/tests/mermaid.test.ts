@@ -59,6 +59,17 @@ describe("mermaidPlugin (@md-editor/syntax-plugins)", () => {
           code: "graph TD\n  Client --> Server",
         }),
       );
+      const graphicalCodeBlock = mermaidRecord?.metadata?.graphicalCodeBlock as
+        Record<string, unknown> | undefined;
+      expect(graphicalCodeBlock).toEqual({
+        bodyRange: { from: 11, to: 40 },
+        openingFenceRange: { from: 0, to: 10 },
+        closingFenceRange: { from: 40, to: 43 },
+        fenceCharacter: "`",
+        fenceLength: 3,
+        infoString: "mermaid",
+        isClosed: true,
+      });
     });
 
     it("does not treat other languages like ```ts as MermaidBlock", () => {
@@ -103,6 +114,7 @@ describe("mermaidPlugin (@md-editor/syntax-plugins)", () => {
           code: "graph TD\n  A --> B",
         }),
       );
+      expect(mermaidRecord?.metadata?.graphicalCodeBlock).toBeUndefined();
 
       const quoteRecord = index.records.find((r) => r.nodeName === "Blockquote");
       expect(quoteRecord).toBeDefined();
@@ -131,6 +143,7 @@ describe("mermaidPlugin (@md-editor/syntax-plugins)", () => {
           code: "graph TD\n  A --> B",
         }),
       );
+      expect(mermaidRecord?.metadata?.graphicalCodeBlock).toBeUndefined();
     });
   });
 

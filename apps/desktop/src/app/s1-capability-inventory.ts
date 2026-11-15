@@ -63,6 +63,9 @@ const d2ViewModeCommands = ["view.toggleFocusMode", "view.toggleTypewriterMode"]
 /** 文档历史版本与快照回滚命令 */
 const historyCommands = ["file.history"] as const;
 
+/** Mermaid creation opens a default-layout draft and writes only on Apply. */
+const diagramCreationCommands = ["insert.mermaid.flowchart", "insert.mermaid.sequence"] as const;
+
 /** 专业输出与质量检查命令（HTML/PDF 导出、剪贴板富文本与链接检查） */
 const exportAndQualityCommands = [
   "file.exportHtml",
@@ -82,11 +85,19 @@ export const S1_REGISTERED_COMMAND_IDS = [
   ...deferredLegacyCommands,
   ...d3BlockCommands,
   ...d2ViewModeCommands,
+  ...diagramCreationCommands,
 ] as const;
 
 export const S1_REMOVED_COMMAND_IDS = silentNoopCommands;
 
 export const S1_CAPABILITY_INVENTORY: readonly S1CapabilityInventoryEntry[] = Object.freeze([
+  ...diagramCreationCommands.map((id) => ({
+    id,
+    kind: "command" as const,
+    baseline: "implemented" as const,
+    s1Disposition: "new-capability" as const,
+    note: "Create a default-layout Mermaid diagram in an editor-owned draft with one undoable Apply.",
+  })),
   ...implementedCommands.map((id) => ({
     id,
     kind: "command" as const,

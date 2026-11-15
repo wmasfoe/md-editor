@@ -13,14 +13,7 @@ import { lintLanguageField } from "../lint/markdown-lint-i18n.ts";
  * 对外门面（`CodeMirrorRenderer`）由 `renderer/index.ts` 在控制器之后装配，避免 TDZ。
  */
 
-import {
-  Compartment,
-  EditorSelection,
-  EditorState,
-  Transaction,
-  type Extension,
-  type StateEffect,
-} from "@codemirror/state";
+import { Compartment, EditorSelection, type EditorState, type Extension } from "@codemirror/state";
 import type { ViewUpdate } from "@codemirror/view";
 import { injectEditorStyles } from "../styles/index.ts";
 import type {
@@ -32,22 +25,11 @@ import type {
   ModeRequest,
   RendererSyncResult,
 } from "@md-editor/core";
-import { normalizeLineEndings } from "@md-editor/shared";
 import { WysiwygDiagnostics } from "../diagnostics.ts";
-import { createModeExtensions, editorModeField } from "../mode.ts";
-import { rendererTransactionOrigin, type RendererTransactionOrigin } from "../origin.ts";
+import { editorModeField } from "../mode.ts";
+import type { RendererTransactionOrigin } from "../origin.ts";
 import type { MarkdownSyntaxPlugin } from "@md-editor/plugin-sdk/syntax";
 import { SyntaxPluginRegistry } from "../plugins/syntax-registry.ts";
-import { typewriterModeInitialFacet } from "../wysiwyg/input/typewriter-mode.ts";
-import {
-  initialCodeBlockLineNumbersFacet,
-  setCodeBlockLineNumbersEffect,
-} from "../wysiwyg/projections/code-block-projection.ts";
-import {
-  initialInlineStyleMarkersFacet,
-  setInlineStyleMarkersEffect,
-} from "../wysiwyg/projections/inline-heading.ts";
-import { focusModeInitialFacet } from "../wysiwyg/view/focus-mode.ts";
 import {
   aiSuggestionLabelsFacet,
   type AiSuggestionInput,
@@ -68,7 +50,6 @@ import { TransactionLedger } from "./controller/transaction-ledger.ts";
 import {
   acceptViewAiSuggestion,
   clearViewMarkdownLint,
-  createMarkdownLintClearEffects,
   deleteViewBlock,
   dismissViewAiSuggestion,
   duplicateViewBlock,
@@ -86,6 +67,9 @@ import {
   runViewMarkdownLint,
   scrollViewToLine,
   setFormattingViewKeymaps,
+  setViewInlineStyleMarkers,
+  setViewCodeBlockLineNumbers,
+  configureViewMarkdownLint,
   setViewSelection,
   setViewLanguage,
   showViewAiSuggestion,
@@ -113,9 +97,14 @@ import {
   applyReservedExternalEdit,
   applyMode,
   rollbackMode,
+  notifyExternalEditCancellation,
   type DocumentProtocolContext,
 } from "./controller/document-protocol.ts";
-import { createRootExtensions } from "./controller/root-extensions.ts";
+import { createInitialEditorState, createRootExtensions } from "./controller/root-extensions.ts";
+import {
+  GraphicalCodeEditorCoordinator,
+  isGraphicalCodeEditorBusy,
+} from "./graphical-code-editor.ts";
 
 import { createRendererProbe } from "./controller/probe.ts";
 import { setHostVisibility } from "./controller/host-visibility.ts";
@@ -123,7 +112,6 @@ import { setHostVisibility } from "./controller/host-visibility.ts";
 import { startComposition, finishComposition } from "./controller/composition.ts";
 import {
   executeDocumentLint,
-  createRealtimeMarkdownLintExtension,
   type DocumentLinterOptions,
   type MarkdownLintRunResult,
   type MarkdownLintFixAllResult,
@@ -131,6 +119,10 @@ import {
 import { type Diagnostic } from "@codemirror/lint";
 
 let nextRendererId = 1;
+type ExternalEditCancellationReason = Extract<
+  ExternalEditResult,
+  { readonly status: "cancelled" }
+>["reason"];
 
 export class CodeMirrorRendererController {
   readonly clientId: string;
@@ -170,6 +162,7 @@ export class CodeMirrorRendererController {
   #explicitStateCreationCount = 0;
   #stateReplacementCount = 0;
   readonly #ledger = new TransactionLedger();
+  #graphicalCodeEditors!: GraphicalCodeEditorCoordinator;
   #lastSyncStatus: RendererSyncResult["status"] | null = null;
   #lastErrorCode: string | null = null;
   #hiddenViewState: { readonly focused: boolean; readonly scrollTop: number } | null = null;
@@ -208,6 +201,26 @@ export class CodeMirrorRendererController {
 
     const initialPlugins = options.plugins ?? options.syntaxPlugins ?? [];
     this.#syntaxRegistry = new SyntaxPluginRegistry(initialPlugins);
+    this.#graphicalCodeEditors = new GraphicalCodeEditorCoordinator({
+      view: () => this.#view,
+      parent: options.parent,
+      getDocumentState: () => ({
+        documentGeneration: this.#documentGeneration,
+        contentRevision: this.#contentRevision,
+        stateRevision: this.#stateRevision,
+      }),
+      isBusy: () => this.#isGraphicalEditBusy(),
+      isComposing: () => this.isComposing,
+      isDestroyed: () => this.#destroyed,
+      isDark: () => {
+        const root = options.parent.ownerDocument.documentElement;
+        return (
+          root.classList.contains("dark") ||
+          root.dataset.theme === "dark" ||
+          root.dataset.themeScheme === "dark"
+        );
+      },
+    });
     this.#rootExtensions = createRootExtensions({
       language: () => (this.#view ? this.#view.state.field(lintLanguageField) : options.language),
       aiSuggestionLabels: this.#aiSuggestionLabels,
@@ -216,7 +229,10 @@ export class CodeMirrorRendererController {
       formattingKeymapCompartment: this.#formattingKeymapCompartment,
       handleViewUpdate: (update) => this.#handleViewUpdate(update),
       markdownLanguageCompartment: this.#markdownLanguageCompartment,
-      options: options,
+      options: {
+        ...options,
+        syntaxPluginHostPorts: this.#graphicalCodeEditors.hostPorts(options.syntaxPluginHostPorts),
+      },
       startComposition: () => this.#startComposition(),
       syntaxRegistry: this.#syntaxRegistry,
       syntaxRegistryCompartment: this.#syntaxRegistryCompartment,
@@ -292,45 +308,21 @@ export class CodeMirrorRendererController {
     if (enabled === this.#inlineStyleMarkers) {
       return { status: "noop" };
     }
-    this.#view.dispatch({
-      effects: setInlineStyleMarkersEffect.of(enabled),
-      annotations: [
-        Transaction.addToHistory.of(false),
-        rendererTransactionOrigin.of({ kind: "inline-style-markers" }),
-      ],
-    });
+    setViewInlineStyleMarkers(this.#view, enabled);
     this.#inlineStyleMarkers = enabled;
     return { status: "applied" };
   }
 
   setMarkdownLint(enabled: boolean): MarkdownLintPortResult {
-    if (this.#destroyed) {
-      return { status: "destroyed" };
-    }
-    if (enabled === this.#markdownLintEnabled) {
-      return { status: "noop" };
-    }
+    if (this.#destroyed) return { status: "destroyed" };
+    if (enabled === this.#markdownLintEnabled) return { status: "noop" };
     this.#markdownLintEnabled = enabled;
-    const reconfigureEffect = this.#markdownLintCompartment.reconfigure(
-      createRealtimeMarkdownLintExtension(enabled),
-    );
-    const clearEffects: readonly StateEffect<unknown>[] = enabled
-      ? []
-      : createMarkdownLintClearEffects(this.#view.state);
-
-    this.#view.dispatch({
-      effects: [reconfigureEffect, ...clearEffects],
-      annotations: [
-        Transaction.addToHistory.of(false),
-        rendererTransactionOrigin.of({ kind: "markdown-lint" }),
-      ],
-    });
+    configureViewMarkdownLint(this.#view, this.#markdownLintCompartment, enabled);
     return { status: "applied" };
   }
 
   setLanguage(language: string | undefined): MarkdownLintPortResult {
-    if (this.#destroyed) return { status: "destroyed" };
-    return setViewLanguage(this.#view, language, this.#markdownLintEnabled);
+    return setViewLanguage(this.#view, language, this.#markdownLintEnabled, this.#destroyed);
   }
 
   recomputeMarkdownLint(): MarkdownLintPortResult {
@@ -347,13 +339,7 @@ export class CodeMirrorRendererController {
     if (enabled === this.#codeBlockLineNumbers) {
       return { status: "noop" };
     }
-    this.#view.dispatch({
-      effects: setCodeBlockLineNumbersEffect.of(enabled),
-      annotations: [
-        Transaction.addToHistory.of(false),
-        rendererTransactionOrigin.of({ kind: "code-block-line-numbers" }),
-      ],
-    });
+    setViewCodeBlockLineNumbers(this.#view, enabled);
     this.#codeBlockLineNumbers = enabled;
     this.#wysiwygDiagnostics.recordCodeBlockLineNumbersToggle();
     return { status: "applied" };
@@ -410,7 +396,26 @@ export class CodeMirrorRendererController {
   }
 
   executeFormatting(commandId: string): boolean {
-    return !this.#destroyed && executeViewFormatting(this.#view, commandId);
+    if (this.#destroyed) return false;
+    const graphical = this.#graphicalCodeEditors.executeFormatting(
+      commandId,
+      this.#syntaxRegistry.plugins.flatMap((plugin) =>
+        plugin.graphicalEditor ? [plugin.graphicalEditor] : [],
+      ),
+    );
+    if (graphical !== null) return graphical;
+    return executeViewFormatting(this.#view, commandId);
+  }
+
+  #isGraphicalEditBusy(): boolean {
+    return isGraphicalCodeEditorBusy({
+      destroyed: this.#destroyed,
+      documentBusy: this.#options.isDocumentBusy?.() ?? false,
+      hasPendingExternalEdit: this.#pendingExternalEdit !== null,
+      hasQueuedExternalEdit: this.#queuedExternalEdit !== null,
+      hasPendingModeChange: this.#pendingModeReceipt !== null,
+      requiresReconcile: this.#lastSyncStatus === "reconcile-required",
+    });
   }
 
   openFind(): boolean {
@@ -510,6 +515,7 @@ export class CodeMirrorRendererController {
     this.#modeScrollTopsByMode.clear();
     this.#modeCursorPosByMode.clear();
     this.#destroyed = true;
+    this.#graphicalCodeEditors.destroy();
     this.#view.destroy();
     this.#viewDestructionCount += 1;
     this.#pendingExternalEdit = null;
@@ -531,21 +537,16 @@ export class CodeMirrorRendererController {
     selection: EditorSelection = EditorSelection.single(0),
   ): EditorState {
     this.#explicitStateCreationCount += 1;
-    return EditorState.create({
-      doc: normalizeLineEndings(snapshot.markdown),
+    return createInitialEditorState({
+      snapshot,
+      viewAxis: viewAxisAlignment,
       selection,
-      extensions: [
-        ...this.#rootExtensions,
-        initialCodeBlockLineNumbersFacet.of(this.#codeBlockLineNumbers),
-        initialInlineStyleMarkersFacet.of(this.#inlineStyleMarkers),
-        this.#modeCompartment.of(createModeExtensions(snapshot.mode)),
-        this.#markdownLintCompartment.of(
-          createRealtimeMarkdownLintExtension(this.#markdownLintEnabled),
-        ),
-        // 视图轴继承（与文档正交）：作为初值注入，避免「先默认后 dispatch」的副作用
-        focusModeInitialFacet.of(viewAxisAlignment.focus),
-        typewriterModeInitialFacet.of(viewAxisAlignment.typewriter),
-      ],
+      rootExtensions: this.#rootExtensions,
+      codeBlockLineNumbers: this.#codeBlockLineNumbers,
+      inlineStyleMarkers: this.#inlineStyleMarkers,
+      modeCompartment: this.#modeCompartment,
+      markdownLintCompartment: this.#markdownLintCompartment,
+      markdownLintEnabled: this.#markdownLintEnabled,
     });
   }
 
@@ -734,24 +735,16 @@ export class CodeMirrorRendererController {
     return result;
   }
 
-  #notifyQueuedCancellation(
-    reason: Extract<ExternalEditResult, { readonly status: "cancelled" }>["reason"],
-  ): void {
-    if (this.#queuedExternalEdit === null) {
-      return;
-    }
+  #notifyQueuedCancellation(reason: ExternalEditCancellationReason): void {
+    if (this.#queuedExternalEdit === null) return;
     this.#queuedExternalEdit = null;
     this.#notifyCancellation(reason);
   }
 
-  #notifyCancellation(
-    reason: Extract<ExternalEditResult, { readonly status: "cancelled" }>["reason"],
-  ): void {
-    try {
-      this.#options.onQueuedExternalEditCancelled({ status: "cancelled", reason });
-    } catch {
+  #notifyCancellation(reason: ExternalEditCancellationReason): void {
+    notifyExternalEditCancellation(this.#options.onQueuedExternalEditCancelled, reason, () => {
       this.#lastErrorCode = "QUEUED_CANCELLATION_CALLBACK_FAILED";
-    }
+    });
   }
 
   #startComposition(): void {

@@ -3,9 +3,14 @@ import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { codeFolding } from "@codemirror/language";
 import { search, searchKeymap } from "@codemirror/search";
-import { EditorState, type Compartment, type Extension } from "@codemirror/state";
+import {
+  EditorState,
+  type EditorSelection,
+  type Compartment,
+  type Extension,
+} from "@codemirror/state";
 import { EditorView, keymap, type ViewUpdate } from "@codemirror/view";
-import { createLintBaseExtensions } from "../../lint/index.ts";
+import { createLintBaseExtensions, createRealtimeMarkdownLintExtension } from "../../lint/index.ts";
 
 import type { WysiwygDiagnostics } from "../../diagnostics.ts";
 import { provideWysiwygDiagnostics } from "../../diagnostics.ts";
@@ -20,16 +25,21 @@ import {
   mdxModeFacet,
   syntaxPluginRegistryFacet,
 } from "../../markdown/range-index.ts";
-import { editorModeField } from "../../mode.ts";
+import { createModeExtensions, editorModeField } from "../../mode.ts";
+import { normalizeLineEndings } from "@md-editor/shared";
+import type { DocumentSnapshot } from "@md-editor/core";
 
 import type { SyntaxPluginRegistry } from "../../plugins/syntax-registry.ts";
 import { createDefaultSyntaxPluginHostPorts } from "../../plugins/syntax-plugin-ports.ts";
 import { blockToolbarExtension } from "../../wysiwyg/blocks/block-toolbar.ts";
 import { codeBlockSelectionExtension } from "../../wysiwyg/editing/code-block-selection.ts";
+import { initialCodeBlockLineNumbersFacet } from "../../wysiwyg/projections/code-block-projection.ts";
+import { initialInlineStyleMarkersFacet } from "../../wysiwyg/projections/inline-heading.ts";
 import { createWysiwygProjectionExtensions } from "../../wysiwyg/index.ts";
 import { mdxComponentRegistryFacet } from "../../wysiwyg/projections/mdx-projection.ts";
 
-import { focusDimOpacityFacet } from "../../wysiwyg/view/focus-mode.ts";
+import { focusDimOpacityFacet, focusModeInitialFacet } from "../../wysiwyg/view/focus-mode.ts";
+import { typewriterModeInitialFacet } from "../../wysiwyg/input/typewriter-mode.ts";
 import { provideImagePreviewResolver } from "../../wysiwyg/view/image-resolver.ts";
 import {
   linkInteractionExtension,
@@ -43,7 +53,7 @@ import {
   aiSuggestionAcceptedAnnotation,
 } from "../../wysiwyg/view/suggestion-model.ts";
 
-import type { CodeMirrorRendererOptions } from "../types.ts";
+import type { CodeMirrorRendererOptions, ViewAxisState } from "../types.ts";
 
 /** Constructor-only extension assembly; no controller state is retained here. */
 export interface RootExtensionContext {
@@ -147,4 +157,32 @@ export function createRootExtensions(context: RootExtensionContext): readonly Ex
       },
     }),
   ]);
+}
+
+export function createInitialEditorState(input: {
+  readonly snapshot: DocumentSnapshot;
+  readonly viewAxis: ViewAxisState;
+  readonly selection: EditorSelection;
+  readonly rootExtensions: readonly Extension[];
+  readonly codeBlockLineNumbers: boolean;
+  readonly inlineStyleMarkers: boolean;
+  readonly modeCompartment: Compartment;
+  readonly markdownLintCompartment: Compartment;
+  readonly markdownLintEnabled: boolean;
+}): EditorState {
+  return EditorState.create({
+    doc: normalizeLineEndings(input.snapshot.markdown),
+    selection: input.selection,
+    extensions: [
+      ...input.rootExtensions,
+      initialCodeBlockLineNumbersFacet.of(input.codeBlockLineNumbers),
+      initialInlineStyleMarkersFacet.of(input.inlineStyleMarkers),
+      input.modeCompartment.of(createModeExtensions(input.snapshot.mode)),
+      input.markdownLintCompartment.of(
+        createRealtimeMarkdownLintExtension(input.markdownLintEnabled),
+      ),
+      focusModeInitialFacet.of(input.viewAxis.focus),
+      typewriterModeInitialFacet.of(input.viewAxis.typewriter),
+    ],
+  });
 }

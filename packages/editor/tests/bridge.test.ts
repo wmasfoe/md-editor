@@ -1,4 +1,4 @@
-import { createDocumentState } from "@md-editor/core";
+import { createDocumentState, type DocumentState } from "@md-editor/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createCodeMirrorEditorBridge, type CodeMirrorEditorClipboardWriter } from "../src/bridge";
 
@@ -34,6 +34,24 @@ describe("CodeMirrorEditor clipboard bridge", () => {
   beforeEach(() => {
     rendererMock.calls.length = 0;
     rendererMock.createCodeMirrorRenderer.mockClear();
+  });
+
+  it("accepts custom document states without the optional busy capability and refuses guarded edits", () => {
+    const { isMutationBusy: _isMutationBusy, ...legacyState } = createDocumentState({
+      markdown: "Legacy custom state",
+    });
+    // This assignment also checks compatibility for structural implementations.
+    const document: DocumentState = legacyState;
+    const bridge = createCodeMirrorEditorBridge({
+      parent: createParent(),
+      document,
+      onSyncError: vi.fn(),
+      onQueuedExternalEditResult: vi.fn(),
+    });
+    const options = rendererMock.calls.at(-1) as { isDocumentBusy: () => boolean };
+    expect(options.isDocumentBusy()).toBe(true);
+    expect(document.getSnapshot().markdown).toBe("Legacy custom state");
+    bridge.destroy();
   });
 
   it("把渲染器的组合输入状态透传给宿主端口（iOS 壳子据此推迟重排与桥接上报）", () => {

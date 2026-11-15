@@ -624,6 +624,8 @@ export const zhHant: TranslationSchema = {
       "format.highlight": "文字醒目標記 (Highlight)",
       "format.link": "插入 / 包裹連結",
       "format.codeBlock": "插入程式碼區塊",
+      "insert.mermaid.flowchart": "新增 Mermaid 流程圖",
+      "insert.mermaid.sequence": "新增 Mermaid 循序圖",
       "format.blockquote": "切換引用區塊",
       "format.bulletList": "無序清單",
       "format.orderedList": "有序清單",
@@ -735,6 +737,7 @@ export const zhHant: TranslationSchema = {
   },
   web: {
     header: {
+      insertDiagram: "插入圖表",
       modeVisual: "所見即所得",
       modeSource: "原始碼",
       draftName: "未命名草稿",

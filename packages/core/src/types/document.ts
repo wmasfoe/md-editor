@@ -57,6 +57,9 @@ export interface DocumentState {
    */
   getSnapshot(): DocumentSnapshot;
 
+  /** Optional availability check; renderers must decline guarded edits when unavailable. */
+  isMutationBusy?(): boolean;
+
   /**
    * 应用来自渲染器层直接提交的用户输入与文本变更
    *

@@ -150,6 +150,8 @@ PR3 的 `state/` 成员固定为 `types.ts`、`projection-field.ts`、`decoratio
 6. **登记义务（pr3 起机器强制）**：新增/重命名协作者必须同步登记：`wysiwyg/**` 与 `widgets/**` 走 `WYSIWYG_DOMAIN_MEMBERS`；`renderer/**` 走 `RENDERER_CLUSTER_MEMBERS`（顶层与 `controller/` 两个作用域）。未登记成员会被判为"多出未登记的簇成员"而失败；已登记但缺失同样失败。
 7. **不留副本**：抽取后必须删除原位置实现；禁止保留兼容 re-export（`index.ts` 仅作目录聚合）。
 
+`renderer/graphical-code-editor.ts` 承担图形代码块弹窗、草稿与局部事务校验；文档版本与生命周期仍由 controller 通过窄 context 提供。
+
 ---
 
 ## 7. 规则分批上线（ruleset rollout）与基线自检铁律

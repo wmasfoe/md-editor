@@ -1,14 +1,19 @@
 import type MermaidType from "mermaid";
 
+interface SerializedMermaidRuntime {
+  render(id: string, source: string): Promise<{ svg: string }>;
+  parse(source: string): Promise<unknown>;
+}
+
 let mermaidInstance: typeof MermaidType | null = null;
 let mermaidPromise: Promise<typeof MermaidType> | null = null;
+let operationQueue: Promise<void> = Promise.resolve();
 
 const mermaidSvgCache = new Map<string, { svg: string; error?: string }>();
 // 模块级并发渲染 Promise 缓存池，避免组件重绘或并发水合时触发重复渲染竞争
 const inFlightPromises = new Map<string, Promise<{ svg: string; error?: string }>>();
 const MAX_CACHE_SIZE = 200;
 let globalDiagramCounter = 0;
-let currentTheme: "dark" | "default" | null = null;
 
 /**
  * 动态按需加载 Mermaid 运行时模块（单例与并发去重）。
@@ -21,11 +26,6 @@ async function loadMermaid(): Promise<typeof MermaidType> {
     mermaidPromise = import("mermaid")
       .then((mod) => {
         mermaidInstance = mod.default ?? mod;
-        mermaidInstance.initialize({
-          startOnLoad: false,
-          securityLevel: "strict",
-          suppressErrorRendering: true,
-        });
         return mermaidInstance;
       })
       .catch((err) => {
@@ -34,6 +34,35 @@ async function loadMermaid(): Promise<typeof MermaidType> {
       });
   }
   return mermaidPromise;
+}
+
+/** Serialize config changes with parsing and rendering because Mermaid config is global. */
+export function runMermaidOperation<T>(
+  isDark: boolean,
+  operation: (mermaid: SerializedMermaidRuntime) => Promise<T>,
+): Promise<T> {
+  const result = operationQueue.then(async () => {
+    const mermaid = await loadMermaid();
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: "strict",
+      suppressErrorRendering: true,
+      theme: isDark ? "dark" : "default",
+    });
+    return operation(mermaid);
+  });
+  operationQueue = result.then(
+    () => undefined,
+    () => undefined,
+  );
+  return result;
+}
+
+/** Validate with the same strict, serialized runtime used for normal rendering. */
+export function parseMermaid(code: string, isDark = false): Promise<void> {
+  return runMermaidOperation(isDark, async (mermaid) => {
+    await mermaid.parse(code);
+  });
 }
 
 /**
@@ -65,19 +94,7 @@ export function renderMermaidSvg(
     const id = `cm-mermaid-${Date.now()}-${++globalDiagramCounter}`;
 
     try {
-      const mermaid = await loadMermaid();
-      const targetTheme = isDark ? "dark" : "default";
-      if (currentTheme !== targetTheme) {
-        mermaid.initialize({
-          startOnLoad: false,
-          securityLevel: "strict",
-          theme: targetTheme,
-          suppressErrorRendering: true,
-        });
-        currentTheme = targetTheme;
-      }
-
-      const { svg } = await mermaid.render(id, trimmed);
+      const { svg } = await runMermaidOperation(isDark, (mermaid) => mermaid.render(id, trimmed));
       const result = { svg };
 
       if (mermaidSvgCache.size >= MAX_CACHE_SIZE) {

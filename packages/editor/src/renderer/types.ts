@@ -39,6 +39,8 @@ export interface CodeMirrorRendererOptions {
   /** Per-editor lint language; omitted values follow the host document. */
   readonly language?: string;
   readonly initialSnapshot: DocumentSnapshot;
+  /** Host mutation-lock probe; used to refuse editor-owned local transactions while reserved. */
+  readonly isDocumentBusy?: () => boolean;
   /**
    * 是否自动注入渲染器自带样式（默认 `true`）。
    *

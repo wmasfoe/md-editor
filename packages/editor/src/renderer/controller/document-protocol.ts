@@ -99,6 +99,19 @@ export interface DocumentProtocolContext {
   visibilityRestoreSequence: number;
 }
 
+/** Delivers cancellation without allowing a host callback to break protocol cleanup. */
+export function notifyExternalEditCancellation(
+  callback: CodeMirrorRendererOptions["onQueuedExternalEditCancelled"],
+  reason: Extract<ExternalEditResult, { status: "cancelled" }>["reason"],
+  onFailure: () => void,
+): void {
+  try {
+    callback({ status: "cancelled", reason });
+  } catch {
+    onFailure();
+  }
+}
+
 export function sync(
   context: DocumentProtocolContext,
   event: DocumentStateEvent,

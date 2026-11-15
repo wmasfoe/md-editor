@@ -36,7 +36,14 @@ export const MIRROR_EXEMPT_DIRS = new Set(["support", "fixtures", "helpers", "__
 /** `wysiwyg/` 顶层（PR2 起）必须精确等于该集合。 */
 /** `renderer/` 簇成员登记（PR3 拆分后）：顶层文件 + `controller/` 协作者。 */
 export const RENDERER_CLUSTER_MEMBERS = {
-  ".": ["index.ts", "types.ts", "view-adapter.ts", "controller.ts", "controller"],
+  ".": [
+    "index.ts",
+    "types.ts",
+    "view-adapter.ts",
+    "controller.ts",
+    "graphical-code-editor.ts",
+    "controller",
+  ],
   controller: [
     "composition.ts",
     "document-protocol.ts",

@@ -130,6 +130,9 @@ catalogs:
 overrides:
   mermaid>katex: 0.18.6
 
+patchedDependencies:
+  '@visimer/dom@1.1.3': 5658185cc6e14afadae5031b44c4b641e68d492f43095314d2cc5944bf4d5f5e
+
 importers:
 
   .:
@@ -1001,6 +1004,12 @@ importers:
       '@md-editor/plugin-sdk':
         specifier: workspace:*
         version: link:../plugin-sdk
+      '@visimer/core':
+        specifier: 1.1.3
+        version: 1.1.3
+      '@visimer/dom':
+        specifier: 1.1.3
+        version: 1.1.3(patch_hash=5658185cc6e14afadae5031b44c4b641e68d492f43095314d2cc5944bf4d5f5e)
       katex:
         specifier: 'catalog:'
         version: 0.18.6
@@ -3554,6 +3563,12 @@ packages:
 
   '@vercel/static-config@3.1.2':
     resolution: {integrity: sha512-2d+TXr6K30w86a+WbMbGm2W91O0UzO5VeemZYBBUJbCjk/5FLLGIi8aV6RS2+WmaRvtcqNTn2pUA7nCOK3bGcQ==}
+
+  '@visimer/core@1.1.3':
+    resolution: {integrity: sha512-Kp0Wnb3Y7g/OpeIYEwH9Q01LPhFKDYJ3CSCpsK4XqofarVPakUaXEx55wCZ2QSC0CMxlgNlzPFdx2mByK/xvaA==}
+
+  '@visimer/dom@1.1.3':
+    resolution: {integrity: sha512-mcGw+BCGznqcgaP+BZMsSGI5LQu9bj34BPIhW8ljwtNkfuNZLqXaSXwly8og9ycMbGSln7hb+l7i8Wvx17lSpg==}
 
   '@vitejs/plugin-react@4.7.0':
     resolution: {integrity: sha512-gUu9hwfWvvEDBBmgtAowQCojwZmJ5mcLn3aufeCsitijs3+f2NsrPtlAWIR6OPiqljl96GVCUbLe0HyqIpVaoA==}
@@ -8036,6 +8051,12 @@ snapshots:
       ajv: 8.6.3
       json-schema-to-ts: 1.6.4
       ts-morph: 12.0.0
+
+  '@visimer/core@1.1.3': {}
+
+  '@visimer/dom@1.1.3(patch_hash=5658185cc6e14afadae5031b44c4b641e68d492f43095314d2cc5944bf4d5f5e)':
+    dependencies:
+      '@visimer/core': 1.1.3
 
   '@vitejs/plugin-react@4.7.0(vite@6.4.3(@types/node@22.19.21)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.19.2)(yaml@2.9.1))':
     dependencies:

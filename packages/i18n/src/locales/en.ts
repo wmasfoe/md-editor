@@ -629,6 +629,8 @@ export const en: TranslationSchema = {
       "format.highlight": "Highlight",
       "format.link": "Insert Link",
       "format.codeBlock": "Insert Code Block",
+      "insert.mermaid.flowchart": "New Mermaid Flowchart",
+      "insert.mermaid.sequence": "New Mermaid Sequence Diagram",
       "format.blockquote": "Toggle Blockquote",
       "format.bulletList": "Bullet List",
       "format.orderedList": "Ordered List",
@@ -745,6 +747,7 @@ export const en: TranslationSchema = {
   },
   web: {
     header: {
+      insertDiagram: "Insert diagram",
       modeVisual: "Visual",
       modeSource: "Source",
       draftName: "Untitled draft",

@@ -59,6 +59,8 @@ const INTENTIONAL_A11Y_ALLOWLIST: Readonly<Record<string, string>> = Object.free
   "wysiwyg:image-widget.ts":
     "图片放大查看/源输入为可达操作（与代码块工具栏同类的可访问性判断；无对应 spec，属判断而非规格）",
   "wysiwyg:search-panel.ts": "搜索面板是编辑器**外置** UI，不在 .cm-content 文档内容内",
+  "syntax-plugins:mermaid-graphical-editor.ts":
+    "图形编辑弹窗中的工具与输入字段属于宿主 UI，不在 .cm-content，必须键盘可达",
 });
 
 function sourceFiles(dir: string): string[] {
@@ -148,6 +150,7 @@ describe("文档内可聚焦控件约定（源码级结构护栏）", () => {
 
   it("白名单必须是精确集合且逐条写明依据（防止无声扩张）", () => {
     expect(Object.keys(INTENTIONAL_A11Y_ALLOWLIST).toSorted()).toEqual([
+      "syntax-plugins:mermaid-graphical-editor.ts",
       "wysiwyg:code-block-toolbar-widget.ts",
       "wysiwyg:image-widget.ts",
       "wysiwyg:search-panel.ts",

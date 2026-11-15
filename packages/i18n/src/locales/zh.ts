@@ -622,6 +622,8 @@ export const zh = {
       "format.highlight": "文本高亮 (Highlight)",
       "format.link": "插入 / 包裹链接",
       "format.codeBlock": "插入代码块",
+      "insert.mermaid.flowchart": "新建 Mermaid 流程图",
+      "insert.mermaid.sequence": "新建 Mermaid 时序图",
       "format.blockquote": "切换引用块",
       "format.bulletList": "无序列表",
       "format.orderedList": "有序列表",
@@ -733,6 +735,7 @@ export const zh = {
   },
   web: {
     header: {
+      insertDiagram: "插入图表",
       modeVisual: "所见即所得",
       modeSource: "源码",
       draftName: "未命名草稿",
