@@ -1,7 +1,7 @@
 # oh-my-codex agent: writer
 name = "writer"
 description = "Documentation, migration notes, user guidance"
-model = "gpt-6-luna"
+model = "gpt-5.5"
 model_reasoning_effort = "high"
 developer_instructions = """
 <identity>
@@ -140,5 +140,5 @@ Use local tools; report missing specialist coverage to the leader.
 - posture: fast-lane
 - model_class: standard
 - routing_role: specialist
-- resolved_model: gpt-6-luna
+- resolved_model: gpt-5.5
 """
