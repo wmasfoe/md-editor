@@ -219,6 +219,94 @@ describe("Mermaid graphical editor capability", () => {
     vi.restoreAllMocks();
   });
 
+  it("renames a selected flowchart label through the production toolbar", async () => {
+    const svgPrototype = window.SVGElement.prototype as SVGElement & {
+      getBBox?: () => DOMRect;
+      getComputedTextLength?: () => number;
+    };
+    svgPrototype.getBBox ??= () => ({ x: 0, y: 0, width: 80, height: 24 }) as DOMRect;
+    svgPrototype.getComputedTextLength ??= () => 64;
+    const container = document.createElement("div");
+    document.body.append(container);
+    const updates: string[] = [];
+    const handle = await mermaidGraphicalEditor.mount({
+      container,
+      source: "flowchart TD\n A[Original]",
+      isDark: false,
+      onChange: (source) => updates.push(source),
+    });
+    for (
+      let attempt = 0;
+      attempt < 50 && !container.querySelector('[data-mw-entity="node:A"]');
+      attempt++
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    const node = container.querySelector<SVGElement>('[data-mw-entity="node:A"]');
+    expect(node).not.toBeNull();
+    node!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    const toolbar = container.querySelector(".cm-md-mermaid-graphical-toolbar")!;
+    const renameButton = [...toolbar.querySelectorAll("button")].find(
+      (button) => button.textContent === "修改节点文字",
+    );
+    renameButton!.click();
+    const input = container.querySelector<HTMLInputElement>(".cm-md-mermaid-graphical-input input");
+    expect(input).not.toBeNull();
+    input!.value = "Renamed";
+    container.querySelector<HTMLButtonElement>(".cm-md-mermaid-graphical-input button")!.click();
+    for (let attempt = 0; attempt < 50 && updates.length === 0; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    expect(updates).toEqual(["flowchart TD\n A[Renamed]"]);
+    handle.destroy();
+    container.remove();
+  });
+
+  it("edits the selected duplicate sequence message without changing its twin", async () => {
+    const svgPrototype = window.SVGElement.prototype as SVGElement & {
+      getBBox?: () => DOMRect;
+      getComputedTextLength?: () => number;
+    };
+    svgPrototype.getBBox ??= () => ({ x: 0, y: 0, width: 80, height: 24 }) as DOMRect;
+    svgPrototype.getComputedTextLength ??= () => 64;
+    const container = document.createElement("div");
+    document.body.append(container);
+    const updates: string[] = [];
+    const handle = await mermaidGraphicalEditor.mount({
+      container,
+      source: "sequenceDiagram\n participant A\n participant B\n A->>B: same\n A->>B: same",
+      isDark: false,
+      onChange: (source) => updates.push(source),
+    });
+    for (
+      let attempt = 0;
+      attempt < 50 && container.querySelectorAll('[data-mw-entity="event:4"]').length === 0;
+      attempt++
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    const secondMessage = container.querySelector<SVGElement>('[data-mw-entity="event:4"]');
+    expect(secondMessage).not.toBeNull();
+    secondMessage!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    const toolbar = container.querySelector(".cm-md-mermaid-graphical-toolbar")!;
+    const editButton = [...toolbar.querySelectorAll("button")].find(
+      (button) => button.textContent === "修改消息文字",
+    );
+    editButton!.click();
+    const input = container.querySelector<HTMLInputElement>(".cm-md-mermaid-graphical-input input");
+    expect(input).not.toBeNull();
+    input!.value = "second only";
+    container.querySelector<HTMLButtonElement>(".cm-md-mermaid-graphical-input button")!.click();
+    for (let attempt = 0; attempt < 50 && updates.length === 0; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    expect(updates).toEqual([
+      "sequenceDiagram\n participant A\n participant B\n A->>B: same\n A->>B: second only",
+    ]);
+    handle.destroy();
+    container.remove();
+  });
+
   it("keeps a pending input busy and ignores Enter during IME composition", async () => {
     const svgPrototype = window.SVGElement.prototype as SVGElement & {
       getBBox?: () => DOMRect;

@@ -12,7 +12,9 @@ const viteEntry = require.resolve("vite");
 const { createServer } = await import(viteEntry);
 const { chromium } = require("@playwright/test");
 const deps = path.join(root, "scratch/mermaid-visual-editing-p0/dependencies/node_modules");
-const mermaid = path.join(root, "packages/syntax-plugins/node_modules/mermaid");
+// Resolve from the owning workspace instead of assuming a node_modules layout.
+const syntaxRequire = createRequire(path.join(root, "packages/syntax-plugins/package.json"));
+const mermaid = path.dirname(syntaxRequire.resolve("mermaid/package.json"));
 const errors = [];
 const results = [];
 const mark = (id, status, detail) => results.push({ id, status, detail });
@@ -33,7 +35,11 @@ const expectedVersions = {
 };
 for (const [name, expected] of Object.entries(expectedVersions)) {
   if (versions[name] !== expected)
-    throw new Error(`${name} version mismatch: expected ${expected}, found ${versions[name]}`);
+    throw new Error(
+      `${name} version mismatch: expected ${expected}, found ${versions[name]}. ` +
+        "After a dependency upgrade, rerun the probes before updating expectedVersions and test assertions; " +
+        "see docs/agent/status/mermaid-default-layout-editing.md#探针依赖维护。",
+    );
 }
 let server;
 let browser;

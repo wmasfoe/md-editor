@@ -13,7 +13,9 @@ const require = createRequire(path.join(root, "apps/desktop/package.json"));
 const { createServer } = await import(require.resolve("vite"));
 const { chromium } = require("@playwright/test");
 const deps = path.join(root, "scratch/mermaid-visual-editing-p0/dependencies/node_modules");
-const mermaidPath = path.join(root, "packages/syntax-plugins/node_modules/mermaid");
+// Resolve from the owning workspace instead of assuming a node_modules layout.
+const syntaxRequire = createRequire(path.join(root, "packages/syntax-plugins/package.json"));
+const mermaidPath = path.dirname(syntaxRequire.resolve("mermaid/package.json"));
 const upstreamDomDir = path.join(deps, "@visimer/dom");
 const patchedDomDir = path.join(
   root,

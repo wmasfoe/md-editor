@@ -147,6 +147,21 @@ jobs:
       - name: Run E2E tests
         run: pnpm --filter @md-editor/desktop test:browser
 
+      - name: Install Chromium for web diagram tests
+        run: pnpm --filter @md-editor/web exec playwright install chromium
+
+      - name: Run web Mermaid diagram tests
+        run: pnpm --filter @md-editor/web exec playwright test --config playwright.diagram.config.ts
+
+      - name: Upload web Mermaid test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-mermaid-diagram-test-results
+          path: apps/web/test-results/diagram-e2e
+          if-no-files-found: ignore
+          retention-days: 7
+
   test-rust:
     name: Rust Validation (${{ matrix.platform.name }})
     runs-on: ${{ matrix.platform.os }}
