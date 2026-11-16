@@ -1,16 +1,49 @@
-import {
-  MermaidWysiwygEditor,
-  parse as parseVisimer,
-  type FlowGraph,
-  type SequenceGraph,
-} from "@visimer/core";
-import { MermaidCanvasView } from "@visimer/dom";
+import type { FlowGraph, MermaidWysiwygEditor, SequenceGraph } from "@visimer/core";
+// Type-only namespace: `import type` is fully erased, so it does not defeat the lazy loading below.
+import type * as VisimerCore from "@visimer/core";
+import type { MermaidCanvasView } from "@visimer/dom";
 import type {
   GraphicalCodeBlockEditorProvider,
   GraphicalCodeBlockEditorHandle,
 } from "@md-editor/plugin-sdk/syntax";
 import { parseMermaid, runMermaidOperation } from "./mermaid-loader.ts";
 import { mermaidGraphicalEditorCss } from "./mermaid-graphical-editor-css.ts";
+
+/**
+ * Visimer is imported on demand rather than at module scope.
+ *
+ * `mermaidPlugin` is re-exported from the package root, so this module sits in the
+ * host's eagerly loaded chunk. Static imports of `@visimer/core` + `@visimer/dom`
+ * (~53 KB gzip) would then ship to every host, including hosts that never render a
+ * diagram. Both entry points below are async already, so the loader cost is paid
+ * only when a diagram actually exists.
+ */
+type VisimerCoreModule = {
+  MermaidWysiwygEditor: typeof MermaidWysiwygEditor;
+  parse: typeof VisimerCore.parse;
+};
+type VisimerDomModule = { MermaidCanvasView: typeof MermaidCanvasView };
+type ParsedMermaid = ReturnType<typeof VisimerCore.parse>;
+
+let corePromise: Promise<VisimerCoreModule> | null = null;
+let domPromise: Promise<VisimerDomModule> | null = null;
+
+function loadVisimerCore(): Promise<VisimerCoreModule> {
+  corePromise ??= import("@visimer/core").catch((error: unknown) => {
+    // A rejected import must stay retryable; a cached rejection would poison the session.
+    corePromise = null;
+    throw error;
+  });
+  return corePromise;
+}
+
+function loadVisimerDom(): Promise<VisimerDomModule> {
+  domPromise ??= import("@visimer/dom").catch((error: unknown) => {
+    domPromise = null;
+    throw error;
+  });
+  return domPromise;
+}
 
 const DIAGRAM_TYPES = Object.freeze([
   { id: "flowchart", label: "流程图", initialSource: "flowchart TD" },
@@ -55,7 +88,8 @@ function isSimpleSequence(graph: SequenceGraph): string | null {
 }
 
 async function inspectSource(source: string): Promise<Inspection> {
-  let parsed: ReturnType<typeof parseVisimer>;
+  const { parse: parseVisimer } = await loadVisimerCore();
+  let parsed: ParsedMermaid;
   try {
     parsed = parseVisimer(source);
   } catch {
@@ -89,10 +123,7 @@ function safeIdentifier(value: string): boolean {
   return /^[\p{L}\p{N}_.-]+$/u.test(value);
 }
 
-function labelsAreSafe(
-  before: ReturnType<typeof parseVisimer>,
-  after: ReturnType<typeof parseVisimer>,
-): boolean {
+function labelsAreSafe(before: ParsedMermaid, after: ParsedMermaid): boolean {
   const prior = new Map<string, string>();
   const next = new Map<string, string>();
   for (const node of before.flowchart?.nodes ?? []) prior.set(node.entityId, node.label);
@@ -517,6 +548,9 @@ export const mermaidGraphicalEditor: GraphicalCodeBlockEditorProvider = Object.f
     const inspection = await inspectSource(input.source);
     if (input.signal?.aborted) return inertHandle;
     if (!inspection.supported) throw new Error(inspection.reason ?? "此图表不支持图形编辑");
+    const [{ MermaidWysiwygEditor, parse: parseVisimer }, { MermaidCanvasView }] =
+      await Promise.all([loadVisimerCore(), loadVisimerDom()]);
+    if (input.signal?.aborted) return inertHandle;
     const initial = parseVisimer(input.source);
     const sourceKind = initial.flowchart ? "flowchart" : "sequence";
     // Visimer removes incident edges/messages and their style references in one semantic edit.
@@ -582,6 +616,8 @@ export const mermaidGraphicalEditor: GraphicalCodeBlockEditorProvider = Object.f
       validationBusy = true;
       notifyBusy();
       void (async () => {
+        // Reuse the module the session already loaded instead of re-resolving it per edit.
+        const { parse: parseForValidation } = await loadVisimerCore();
         const changedLines = code.split("\n");
         if (
           changedLines.some(
@@ -591,8 +627,8 @@ export const mermaidGraphicalEditor: GraphicalCodeBlockEditorProvider = Object.f
           editor.setCode(acceptedSource, "external");
           return;
         }
-        const nextParsed = parseVisimer(code);
-        if (!labelsAreSafe(parseVisimer(acceptedSource), nextParsed)) {
+        const nextParsed = parseForValidation(code);
+        if (!labelsAreSafe(parseForValidation(acceptedSource), nextParsed)) {
           editor.setCode(acceptedSource, "external");
           input.onError?.(new Error("文字包含 Mermaid 特殊语法，无法安全地作为单个标签写入。"));
           return;

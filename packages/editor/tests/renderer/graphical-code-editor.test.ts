@@ -680,6 +680,46 @@ describe("graphical code editor", () => {
       .click();
   });
 
+  it("closes without a dangling dialog when its abort signal is already aborted", async () => {
+    const host = setup();
+    const record = host.view.state.field(markdownRangeIndexField).byKind("deferred-code")[0]!;
+    const controller = new AbortController();
+    controller.abort();
+    const mountSpy = vi.fn(async () => ({ destroy: vi.fn() }));
+    await openGraphicalCodeEditor({
+      view: host.view as unknown as RendererViewAdapter,
+      parent: host.parent,
+      provider: { ...provider(() => {}), mount: mountSpy },
+      recordId: record.id,
+      getDocumentState: () => {
+        const snapshot = host.documentState.getSnapshot();
+        return {
+          documentGeneration: snapshot.documentGeneration,
+          contentRevision: snapshot.contentRevision,
+          stateRevision: snapshot.stateRevision,
+        };
+      },
+      isBusy: () => host.documentState.isMutationBusy(),
+      isComposing: () => host.renderer.isComposing,
+      isDestroyed: () => false,
+      isDark: () => false,
+      signal: controller.signal,
+    });
+    // An already-aborted signal never dispatches to new listeners, so the dialog
+    // must be closed eagerly instead of leaking its modal slot.
+    expect(document.querySelectorAll("dialog")).toHaveLength(0);
+    expect(mountSpy).not.toHaveBeenCalled();
+    // The slot must be free again: a fresh open still produces a dialog.
+    await open(
+      host,
+      provider(() => {}),
+    );
+    expect(activeDialog()).toBeTruthy();
+    [...activeDialog().querySelectorAll<HTMLButtonElement>("button")]
+      .find((buttonElement) => buttonElement.textContent === "Cancel")!
+      .click();
+  });
+
   it("reads and observes the desktop theme scheme while the dialog is open", async () => {
     const previousScheme = document.documentElement.dataset.themeScheme;
     document.documentElement.dataset.themeScheme = "dark";

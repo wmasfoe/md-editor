@@ -219,6 +219,10 @@ export async function openGraphicalCodeEditor(context: GraphicalCodeEditorContex
   let closed = false;
   const sessionAbortController = new AbortController();
   let mounted: Awaited<ReturnType<GraphicalCodeBlockEditorProvider["mount"]>> | null = null;
+  // Declared before `close` reads it: the abort listener can fire before the
+  // observer is created, and a `let` referenced early would throw a TDZ error
+  // and leave the dialog unclosable.
+  let themeObserver: MutationObserver | null = null;
   const close = () => {
     if (closed) return;
     closed = true;
@@ -233,6 +237,12 @@ export async function openGraphicalCodeEditor(context: GraphicalCodeEditorContex
       priorFocus.focus();
     else context.view.focus();
   };
+  // A signal that was already aborted never dispatches `abort` to new listeners,
+  // so the listener alone would leave this dialog (and its modal slot) stuck.
+  if (context.signal.aborted) {
+    close();
+    return;
+  }
   context.signal.addEventListener("abort", close, { once: true });
   const failClosed = (message: string) => {
     status.textContent = message;
@@ -334,7 +344,7 @@ export async function openGraphicalCodeEditor(context: GraphicalCodeEditorContex
   });
 
   const MutationObserverConstructor = document.defaultView?.MutationObserver;
-  const themeObserver = MutationObserverConstructor
+  themeObserver = MutationObserverConstructor
     ? new MutationObserverConstructor(() => mounted?.setTheme?.(context.isDark()))
     : null;
   themeObserver?.observe(document.documentElement, {

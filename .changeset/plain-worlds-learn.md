@@ -9,3 +9,5 @@ Add default-layout Mermaid diagram creation and editing with editor-owned draft 
 Keep diagram viewing and editing as the two block actions, with compact contextual tools outside the diagram viewport and single-step connection forms.
 
 Support explicit drag-to-connect tools, geometry-based selection feedback, and cascading deletion of incident edges or messages while preserving surviving entities and styles.
+
+Load the diagram canvas dependency on demand so hosts that never render a diagram no longer pay for it at startup.
