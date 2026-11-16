@@ -191,26 +191,28 @@ test("IME composition Enter does not submit a diagram input form", async ({ page
   expect(markdown).toContain("After");
 });
 
-test("double-clicking empty canvas adds a node through the shared form", async ({ page }) => {
+test("double-clicking empty canvas opens an inline dashed placeholder", async ({ page }) => {
   await openApp(page);
   await openCreation(page, "新建 Mermaid 流程图");
   const dialog = page.getByRole("dialog", { name: "新建图表" });
   const canvas = dialog.locator(".mw-canvas");
-  // A double-click on the empty canvas opens the same validated label form the
-  // toolbar button uses.
+  // A double-click on the empty canvas drops a dashed box that takes the label
+  // in place — no modal form, no toolbar round-trip.
   await canvas.dblclick({ position: { x: 60, y: 60 } });
-  const field = page.getByLabel("节点文字", { exact: true });
-  await expect(field).toBeVisible();
-  await field.fill("FromCanvas");
-  await page.getByRole("button", { name: "确定", exact: true }).click();
+  const placeholder = dialog.locator(".mw-new-node");
+  await expect(placeholder).toBeVisible();
   await expect(dialog.locator(".cm-md-mermaid-graphical-input")).toHaveCount(0);
-  // Double-clicking a node keeps the library's inline label editor (requirement 1)
-  // instead of opening the add-node form again.
+  const field = dialog.locator(".mw-new-node__input");
+  await expect(field).toBeFocused();
+  await field.fill("FromCanvas");
+  // Losing focus commits, which is the "type the name, click away" gesture.
+  // Clicking the diagram canvas (not a node) blurs the field.
+  await canvas.click({ position: { x: 300, y: 240 } });
+  await expect(placeholder).toHaveCount(0);
   const node = dialog.locator('[data-mw-entity="node:n1"]').first();
   await expect(node).toBeVisible();
+  // Double-clicking a node keeps the library's inline label editor (requirement 1).
   await node.dblclick();
-  // Requirement 1: double-clicking a node edits its label in place. The library
-  // injects an editable element inside the node's `.nodeLabel`.
   await expect(dialog.locator('.nodeLabel [contenteditable="true"]')).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.locator(".cm-md-mermaid-graphical-input")).toHaveCount(0);
@@ -218,6 +220,26 @@ test("double-clicking empty canvas adds a node through the shared form", async (
   const markdown = await readMarkdown(page);
   expect(markdown).toContain("n1[FromCanvas]");
   expect(markdown.match(/n1\[/g)).toHaveLength(1);
+});
+
+test("the inline placeholder commits on Enter and cancels on Escape", async ({ page }) => {
+  await openApp(page);
+  await openCreation(page, "新建 Mermaid 流程图");
+  const dialog = page.getByRole("dialog", { name: "新建图表" });
+  const canvas = dialog.locator(".mw-canvas");
+  // Escape drops the placeholder without adding anything.
+  await canvas.dblclick({ position: { x: 60, y: 60 } });
+  await expect(dialog.locator(".mw-new-node")).toBeVisible();
+  await dialog.locator(".mw-new-node__input").fill("Discarded");
+  await page.keyboard.press("Escape");
+  await expect(dialog.locator(".mw-new-node")).toHaveCount(0);
+  await expect(dialog.locator('[data-mw-entity^="node:"]')).toHaveCount(0);
+  // Enter commits.
+  await canvas.dblclick({ position: { x: 80, y: 80 } });
+  await dialog.locator(".mw-new-node__input").fill("Committed");
+  await page.keyboard.press("Enter");
+  await expect(dialog.locator(".mw-new-node")).toHaveCount(0);
+  await expect(dialog.locator('[data-mw-entity="node:n1"]')).toHaveCount(1);
 });
 
 test("creating a flowchart applies one undoable fenced block", async ({ page }) => {
@@ -421,13 +443,41 @@ test("drag connections preview, select, cancel and keep the default layout", asy
   await expect(dialog.locator(".mw-connect-ghost--active")).toHaveCount(0);
   await expect(edges).toHaveCount(0);
   await expect(dialog.locator(".mw-connect-handle")).toHaveCount(4);
-  // Dropping on another node creates the edge.
+  // Dropping on another node snaps the preview onto that node first.
   await dragFromHandle();
   const target = (await node("B").boundingBox())!;
   await page.mouse.move(target.x + target.width / 2, target.y + target.height / 2, { steps: 12 });
+  // Snapping is visible before release: the ghost becomes solid and the target
+  // node is highlighted, so the user knows where the edge will land.
+  await expect(dialog.locator(".mw-connect-ghost--snapped")).toBeVisible();
+  await expect(dialog.locator(".mw-connect-snap-target")).toHaveCount(1);
+  const ghostEnd = await dialog.locator(".mw-connect-ghost line").evaluate((line) => ({
+    x: Number(line.getAttribute("x2")),
+    y: Number(line.getAttribute("y2")),
+  }));
+  const targetRect = await node("B").evaluate((element) => {
+    const box = element.getBoundingClientRect();
+    return {
+      left: box.left,
+      right: box.left + box.width,
+      top: box.top,
+      bottom: box.top + box.height,
+    };
+  });
+  const canvasRect = (await dialog.locator(".mw-canvas").boundingBox())!;
+  const endX = ghostEnd.x + canvasRect.x;
+  const endY = ghostEnd.y + canvasRect.y;
+  // The snapped endpoint sits on the node's border, not at its centre.
+  const onBorder =
+    Math.abs(endX - targetRect.left) < 2 ||
+    Math.abs(endX - targetRect.right) < 2 ||
+    Math.abs(endY - targetRect.top) < 2 ||
+    Math.abs(endY - targetRect.bottom) < 2;
+  expect(onBorder).toBe(true);
   await page.mouse.up();
   await expect(edges).toHaveCount(1);
   await expect(dialog.locator(".mw-connect-ghost--active")).toHaveCount(0);
+  await expect(dialog.locator(".mw-connect-snap-target")).toHaveCount(0);
   const edge = edges.first();
   const point = await edge.evaluate((element) => {
     const path = element as SVGPathElement;

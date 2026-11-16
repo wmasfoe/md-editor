@@ -8,6 +8,7 @@ import type {
 } from "@md-editor/plugin-sdk/syntax";
 import { parseMermaid, runMermaidOperation } from "./mermaid-loader.ts";
 import { installConnectHandles } from "./mermaid-connect-handles.ts";
+import { installInlineNodeCreation } from "./mermaid-inline-node-creation.ts";
 import { mermaidGraphicalEditorCss } from "./mermaid-graphical-editor-css.ts";
 
 /**
@@ -563,6 +564,15 @@ export const mermaidGraphicalEditor: GraphicalCodeBlockEditorProvider = Object.f
     let destroyed = false;
     let inputBusy = false;
     let validationBusy = false;
+    // `setReadOnly` is a single boolean shared by several owners (toolbar forms and
+    // the inline placeholder). Tracking the lock sources instead of overwriting a
+    // flag keeps one owner's release from unlocking another owner's lock.
+    const readOnlyLocks = new Set<string>();
+    const setReadOnlyLock = (owner: string, locked: boolean): void => {
+      if (locked) readOnlyLocks.add(owner);
+      else readOnlyLocks.delete(owner);
+      view.setReadOnly(readOnlyLocks.size > 0);
+    };
     const notifyBusy = (): void => input.onBusyChange?.(inputBusy || validationBusy);
     const mermaidFacade = {
       initialize: (_config: Record<string, unknown>) => undefined,
@@ -600,7 +610,7 @@ export const mermaidGraphicalEditor: GraphicalCodeBlockEditorProvider = Object.f
       (message) => input.onError?.(new Error(message)),
       (busy) => {
         // Pending forms keep selection available but suspend competing canvas mutations.
-        view.setReadOnly(busy);
+        setReadOnlyLock("toolbar-form", busy);
         inputBusy = busy;
         notifyBusy();
       },
@@ -611,14 +621,31 @@ export const mermaidGraphicalEditor: GraphicalCodeBlockEditorProvider = Object.f
       sourceKind === "flowchart"
         ? installConnectHandles({ view, editor, container: canvas })
         : null;
-    // Double-clicking empty canvas appends a node through the same validated form
-    // the toolbar uses. Nodes and edges keep their own double-click behaviour.
+    // Double-clicking empty canvas drops a dashed placeholder that takes a label
+    // in place; committing appends the node (its position comes from the layout).
+    // Nodes and edges keep their own double-click behaviour.
+    const inlineNode =
+      sourceKind === "flowchart"
+        ? installInlineNodeCreation({
+            editor,
+            container: canvas,
+            onError: (message) => input.onError?.(new Error(message)),
+            // The placeholder owns its own lock. Sharing the mount-level
+            // `inputBusy` flag let an async validation callback clear it while
+            // the canvas was still meant to be read-only, which left the view
+            // permanently non-editable after committing a node.
+            onBusyChange: (busy) => {
+              setReadOnlyLock("inline-node", busy);
+              notifyBusy();
+            },
+          })
+        : null;
     const onCanvasDoubleClick = (event: MouseEvent): void => {
-      if (sourceKind !== "flowchart" || destroyed) return;
+      if (sourceKind !== "flowchart" || destroyed || !inlineNode) return;
       const target = event.target as Element | null;
       if (target?.closest?.("[data-mw-entity]")) return;
       event.preventDefault();
-      void toolbar.requestAddNode();
+      inlineNode.open(event.clientX, event.clientY);
     };
     canvas.addEventListener("dblclick", onCanvasDoubleClick);
     const onEditorChange = editor.on("change", ({ code }) => {
@@ -673,6 +700,7 @@ export const mermaidGraphicalEditor: GraphicalCodeBlockEditorProvider = Object.f
         validationBusy = false;
         input.signal?.removeEventListener("abort", abortHandle);
         canvas.removeEventListener("dblclick", onCanvasDoubleClick);
+        inlineNode?.destroy();
         connectHandles?.destroy();
         toolbar.destroy();
         inputBusy = false;

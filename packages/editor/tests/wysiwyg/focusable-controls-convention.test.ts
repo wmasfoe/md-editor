@@ -63,6 +63,8 @@ const INTENTIONAL_A11Y_ALLOWLIST: Readonly<Record<string, string>> = Object.free
     "图形编辑弹窗中的工具与输入字段属于宿主 UI，不在 .cm-content，必须键盘可达",
   "syntax-plugins:mermaid-connect-handles.ts":
     "节点四边连线手柄属于图形编辑弹窗的宿主 UI（不在 .cm-content），需键盘可达与焦点环",
+  "syntax-plugins:mermaid-inline-node-creation.ts":
+    "双击空白画布的新节点占位输入框属于图形编辑弹窗的宿主 UI，必须可输入与键盘可达",
 });
 
 function sourceFiles(dir: string): string[] {
@@ -154,6 +156,7 @@ describe("文档内可聚焦控件约定（源码级结构护栏）", () => {
     expect(Object.keys(INTENTIONAL_A11Y_ALLOWLIST).toSorted()).toEqual([
       "syntax-plugins:mermaid-connect-handles.ts",
       "syntax-plugins:mermaid-graphical-editor.ts",
+      "syntax-plugins:mermaid-inline-node-creation.ts",
       "wysiwyg:code-block-toolbar-widget.ts",
       "wysiwyg:image-widget.ts",
       "wysiwyg:search-panel.ts",

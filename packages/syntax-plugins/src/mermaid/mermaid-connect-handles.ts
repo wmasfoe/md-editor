@@ -83,12 +83,67 @@ export function installConnectHandles(options: ConnectHandleOptions): ConnectHan
 
   const isReadOnly = (): boolean => container.classList.contains("mw-readonly");
 
+  let snapHighlighted: Element | null = null;
+
+  /** Marks the node the ghost line is currently snapped to. */
+  const setSnapHighlight = (element: Element | null): void => {
+    if (snapHighlighted === element) return;
+    snapHighlighted?.classList.remove("mw-connect-snap-target");
+    snapHighlighted = element;
+    snapHighlighted?.classList.add("mw-connect-snap-target");
+  };
+
   const hideGhost = (): void => {
     ghostLine.removeAttribute("x1");
     ghostLine.removeAttribute("y1");
     ghostLine.removeAttribute("x2");
     ghostLine.removeAttribute("y2");
-    ghost.classList.remove("mw-connect-ghost--active");
+    ghost.classList.remove("mw-connect-ghost--active", "mw-connect-ghost--snapped");
+    setSnapHighlight(null);
+  };
+
+  /**
+   * Resolve the node the pointer would connect to, plus the point on that node's
+   * border the ghost line should terminate at.
+   *
+   * Snapping to the border rather than the centre keeps the preview visually
+   * attached to the shape and tells the user the drop will land on that node.
+   */
+  const snapTarget = (
+    clientX: number,
+    clientY: number,
+    source: string,
+  ): { readonly x: number; readonly y: number; readonly element: Element } | null => {
+    const targetId = nodeAtPoint(clientX, clientY);
+    if (!targetId || targetId === source) return null;
+    const element = nodeElement(targetId);
+    if (!element) return null;
+    const box = element.getBoundingClientRect();
+    if (box.width === 0 && box.height === 0) return null;
+    // Clamp the pointer to the node's box, then pull it onto the nearest edge so
+    // the preview line stops at the shape instead of piercing it.
+    const localX = Math.min(Math.max(clientX, box.left), box.left + box.width);
+    const localY = Math.min(Math.max(clientY, box.top), box.top + box.height);
+    const distances = [
+      { edge: "left", value: Math.abs(localX - box.left), x: box.left, y: localY },
+      {
+        edge: "right",
+        value: Math.abs(localX - (box.left + box.width)),
+        x: box.left + box.width,
+        y: localY,
+      },
+      { edge: "top", value: Math.abs(localY - box.top), x: localX, y: box.top },
+      {
+        edge: "bottom",
+        value: Math.abs(localY - (box.top + box.height)),
+        x: localX,
+        y: box.top + box.height,
+      },
+    ];
+    distances.sort((left, right) => left.value - right.value);
+    const nearest = distances[0]!;
+    const point = toCanvasPoint(nearest.x, nearest.y);
+    return { x: point.x, y: point.y, element };
   };
 
   /** Node id under a client point, ignoring the handle layer itself. */
@@ -180,8 +235,20 @@ export function installConnectHandles(options: ConnectHandleOptions): ConnectHan
     ghost.classList.add("mw-connect-ghost--active");
     ghostLine.setAttribute("x1", String(drag.origin.x));
     ghostLine.setAttribute("y1", String(drag.origin.y));
-    ghostLine.setAttribute("x2", String(point.x));
-    ghostLine.setAttribute("y2", String(point.y));
+    // Snap the preview onto the node under the pointer so the user sees exactly
+    // which node the edge will attach to before releasing.
+    const snap = snapTarget(event.clientX, event.clientY, drag.source);
+    if (snap) {
+      ghostLine.setAttribute("x2", String(snap.x));
+      ghostLine.setAttribute("y2", String(snap.y));
+      ghost.classList.add("mw-connect-ghost--snapped");
+      setSnapHighlight(snap.element);
+    } else {
+      ghostLine.setAttribute("x2", String(point.x));
+      ghostLine.setAttribute("y2", String(point.y));
+      ghost.classList.remove("mw-connect-ghost--snapped");
+      setSnapHighlight(null);
+    }
   };
 
   const onPointerUp = (event: PointerEvent): void => {

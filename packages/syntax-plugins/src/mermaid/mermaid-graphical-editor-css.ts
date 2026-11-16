@@ -94,6 +94,27 @@ export const mermaidGraphicalEditorCss = `
 .cm-md-mermaid-graphical-editor .mw-canvas .mw-connect-handles--dragging .mw-connect-handle {
   pointer-events: none;
 }
+/* The node the ghost line is snapped to: same accent, no layout shift. */
+.cm-md-mermaid-graphical-editor .mw-canvas .mw-connect-snap-target {
+  filter: drop-shadow(0 0 4px var(--mw-accent)) !important;
+}
+.cm-md-mermaid-graphical-editor .mw-canvas .mw-connect-ghost--snapped line {
+  stroke-dasharray: none; stroke-width: 2.5px;
+}
+/* Dashed placeholder shown while typing a new node's label. */
+.cm-md-mermaid-graphical-editor .mw-canvas .mw-new-node {
+  position: absolute; z-index: 9; transform: translate(-50%, -50%);
+  min-width: 96px; padding: 8px 12px; border: 2px dashed var(--mw-accent);
+  border-radius: 6px; background: var(--theme-surface, #fff);
+  color: var(--theme-text, #24292f); font: inherit; font-size: 13px;
+}
+.cm-md-mermaid-graphical-editor .mw-canvas .mw-new-node__input {
+  min-width: 72px; outline: none; white-space: pre; text-align: center;
+  caret-color: var(--mw-accent);
+}
+.cm-md-mermaid-graphical-editor .mw-canvas .mw-new-node__input:empty::before {
+  content: attr(data-placeholder); color: var(--theme-muted, #57606a);
+}
 @media (max-width: 600px) {
   .cm-md-mermaid-graphical-toolbar { padding: 8px; }
   .cm-md-mermaid-graphical-toolbar__actions { gap: 4px; }

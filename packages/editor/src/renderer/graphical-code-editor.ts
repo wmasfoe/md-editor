@@ -313,16 +313,23 @@ export async function openGraphicalCodeEditor(context: GraphicalCodeEditorContex
   // An in-place label editor inside the diagram swallows Escape to cancel only
   // that edit. Without this the native dialog `cancel` closes the whole editor
   // and the user loses their draft context for a one-level undo.
+  //
+  // Only the native dialog default must be suppressed here: the event still has
+  // to reach the content layer, which owns what Escape means for its own widget
+  // (cancel a label edit, drop a new-node placeholder, ...).
   dialog.addEventListener(
     "keydown",
     (event) => {
       if (event.key !== "Escape" || event.defaultPrevented) return;
-      const editing = dialog.querySelector<HTMLElement>(
-        '.mw-inplace-editor[contenteditable="true"], [contenteditable="true"]',
+      const target = event.target as HTMLElement | null;
+      // "Is the user typing into something inside this dialog?" — if so the
+      // dialog must not close, but the widget still decides what happens next.
+      const typing = target?.closest?.(
+        '[contenteditable="true"], input, textarea, select, .mw-inplace-editor',
       );
-      if (!editing) return;
+      if (!typing) return;
+      // Suppress the dialog's own Escape handling without stealing the event.
       event.preventDefault();
-      event.stopPropagation();
     },
     true,
   );
