@@ -417,11 +417,16 @@ test("drag connections preview, select, cancel and keep the default layout", asy
   await expect(dialog.locator(".mw-connect-handle")).toHaveCount(4);
   const handle = dialog.locator('.mw-connect-handle[data-side="right"]');
   const dragFromHandle = async () => {
-    // The handles are rebuilt after every selection/render change, so wait for a
-    // laid-out box before computing pointer coordinates.
+    // Handles are torn down and rebuilt on every selection/render change, so the
+    // element a previous call resolved is stale by the time we drag again. Wait
+    // for a non-null box (not just visibility) before reading coordinates.
     await expect(handle).toBeVisible();
-    await expect.poll(async () => (await handle.boundingBox())?.width ?? 0).toBeGreaterThan(0);
-    const box = (await handle.boundingBox())!;
+    let box = await handle.boundingBox();
+    for (let attempt = 0; attempt < 40 && !box; attempt++) {
+      await page.waitForTimeout(50);
+      box = await handle.boundingBox();
+    }
+    if (!box) throw new Error("connect handle has no laid-out box");
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down();
     await page.mouse.move(box.x + box.width / 2 + 24, box.y + box.height / 2 + 24, { steps: 8 });
@@ -431,6 +436,8 @@ test("drag connections preview, select, cancel and keep the default layout", asy
   await dragFromHandle();
   await page.keyboard.press("Escape");
   await expect(dialog.locator(".mw-connect-ghost--active")).toHaveCount(0);
+  // Release after the cancel so the pointer state and the handle layer settle
+  // before the next gesture re-resolves the handle element.
   await page.mouse.up();
   await expect(dialog).toBeVisible();
   await expect(edges).toHaveCount(0);

@@ -161,6 +161,44 @@ export function installConnectHandles(options: ConnectHandleOptions): ConnectHan
     for (const handle of layer.querySelectorAll(".mw-connect-handle")) handle.remove();
   };
 
+  /** Node id the handles currently belong to, so an unchanged refresh can reuse them. */
+  let placedFor: string | null = null;
+  /** Last geometry, to detect a layout change that requires repositioning. */
+  let placedBox = { left: 0, top: 0, width: 0, height: 0 };
+
+  /**
+   * Move the existing handles to the current geometry without recreating them.
+   *
+   * Rebuilding the buttons on every refresh detaches the elements the pointer is
+   * interacting with, which makes the handles flicker and forces callers (and
+   * tests) to re-resolve them after any selection or gesture change.
+   */
+  const repositionHandles = (nodeBox: DOMRect): boolean => {
+    const handles = [...layer.querySelectorAll<HTMLElement>(".mw-connect-handle")];
+    if (handles.length !== HANDLE_SIDES.length) return false;
+    const origin = toCanvasPoint(nodeBox.left, nodeBox.top);
+    const anchors: Record<HandleSide, { x: number; y: number }> = {
+      top: { x: origin.x + nodeBox.width / 2, y: origin.y },
+      right: { x: origin.x + nodeBox.width, y: origin.y + nodeBox.height / 2 },
+      bottom: { x: origin.x + nodeBox.width / 2, y: origin.y + nodeBox.height },
+      left: { x: origin.x, y: origin.y + nodeBox.height / 2 },
+    };
+    for (const handle of handles) {
+      const side = handle.dataset.side as HandleSide | undefined;
+      const anchor = side ? anchors[side] : undefined;
+      if (!anchor) return false;
+      handle.style.left = `${anchor.x}px`;
+      handle.style.top = `${anchor.y}px`;
+    }
+    placedBox = {
+      left: nodeBox.left,
+      top: nodeBox.top,
+      width: nodeBox.width,
+      height: nodeBox.height,
+    };
+    return true;
+  };
+
   const placeHandles = (nodeId: string, element: Element): void => {
     const nodeBox = element.getBoundingClientRect();
     if (nodeBox.width === 0 && nodeBox.height === 0) return;
@@ -193,14 +231,38 @@ export function installConnectHandles(options: ConnectHandleOptions): ConnectHan
     // during the gesture (pan/zoom transform, resize, selection repaint), so an
     // unconditional repaint here would wipe the ghost mid-drag.
     if (drag) return;
+    const nodeId = selectedNodeId(editor);
+    if (!nodeId || isReadOnly()) {
+      clearHandles();
+      hideGhost();
+      placedFor = null;
+      return;
+    }
+    const element = nodeElement(nodeId);
+    if (!element) {
+      clearHandles();
+      hideGhost();
+      placedFor = null;
+      return;
+    }
+    const nodeBox = element.getBoundingClientRect();
+    if (nodeBox.width === 0 && nodeBox.height === 0) return;
+    // Same node and unchanged geometry: move in place, keep the same elements.
+    if (
+      placedFor === nodeId &&
+      nodeBox.left === placedBox.left &&
+      nodeBox.top === placedBox.top &&
+      nodeBox.width === placedBox.width &&
+      nodeBox.height === placedBox.height &&
+      repositionHandles(nodeBox)
+    ) {
+      hideGhost();
+      return;
+    }
     clearHandles();
     hideGhost();
-    if (isReadOnly()) return;
-    const nodeId = selectedNodeId(editor);
-    if (!nodeId) return;
-    const element = nodeElement(nodeId);
-    if (!element) return;
     placeHandles(nodeId, element);
+    placedFor = nodeId;
   };
 
   /** Coalesce bursts (scroll, pan/zoom, resize) into one layout pass. */
