@@ -7,6 +7,7 @@ import type {
   GraphicalCodeBlockEditorHandle,
 } from "@md-editor/plugin-sdk/syntax";
 import { parseMermaid, runMermaidOperation } from "./mermaid-loader.ts";
+import { installConnectHandles } from "./mermaid-connect-handles.ts";
 import { mermaidGraphicalEditorCss } from "./mermaid-graphical-editor-css.ts";
 
 /**
@@ -170,6 +171,13 @@ function selected(editor: MermaidWysiwygEditor, kind: string): string | null {
   return editor.selection.find((id) => id.startsWith(`${kind}:`)) ?? null;
 }
 
+/** Toolbar surface handed back to the mount layer so canvas gestures can reuse it. */
+interface ToolbarHandle {
+  destroy(): void;
+  /** Open the validated "node label" form and append the node. */
+  requestAddNode(): Promise<void>;
+}
+
 function appendToolbar(
   parent: HTMLElement,
   editor: MermaidWysiwygEditor,
@@ -177,7 +185,7 @@ function appendToolbar(
   sourceKind: "flowchart" | "sequence",
   reportError: (message: string) => void,
   onInputBusyChange: (busy: boolean) => void,
-): () => void {
+): ToolbarHandle {
   const doc = parent.ownerDocument;
   const toolbar = doc.createElement("nav");
   toolbar.className = "cm-md-mermaid-graphical-toolbar";
@@ -197,9 +205,6 @@ function appendToolbar(
   const controls = new Map<HTMLButtonElement, () => string | null>();
   let cancelPendingInput: (() => void) | undefined;
   let pendingInputCount = 0;
-  let connecting = false;
-  let connectButton: HTMLButtonElement | undefined;
-  let connectByName: HTMLButtonElement | undefined;
   const add = (
     label: string,
     action: () => void | Promise<void>,
@@ -316,33 +321,22 @@ function appendToolbar(
       toolbar.append(panel);
       fields[0]?.focus();
     });
+  /**
+   * Prompt for a node label and append the node.
+   *
+   * Shared by the toolbar button and the canvas double-click gesture so both
+   * paths go through one validated form (busy locking, IME handling, label
+   * alphabet check) instead of duplicating them.
+   */
+  const requestAddNode = async (): Promise<void> => {
+    if (sourceKind !== "flowchart" || pendingInputCount > 0) return;
+    const label = (await askFields([{ label: "节点文字" }]))?.[0] ?? null;
+    if (label !== null) editor.dispatch({ type: "addNode", label });
+  };
   if (sourceKind === "flowchart") {
-    add("添加节点", async () => {
-      const label = (await askFields([{ label: "节点文字" }]))?.[0] ?? null;
-      if (label !== null) editor.dispatch({ type: "addNode", label });
-    });
-    connectButton = add(
-      "连接节点",
-      () => view.setTool(connecting ? "select" : "connect"),
-      () => ((editor.result.flowchart?.nodes.length ?? 0) < 2 ? "请先添加两个节点" : null),
-    );
-    connectButton.setAttribute("aria-pressed", "false");
-    connectByName = add(
-      "选择起终点",
-      async () => {
-        const choices = (editor.result.flowchart?.nodes ?? []).map((node) => ({
-          value: node.id,
-          label: node.label,
-        }));
-        const values = await askFields([
-          { label: "起点节点", initial: selected(editor, "node")?.slice(5), choices },
-          { label: "终点节点", initial: choices[1]?.value, choices },
-        ]);
-        const [source, target] = values ?? [];
-        if (source && target) editor.dispatch({ type: "connect", source, target });
-      },
-      () => ((editor.result.flowchart?.nodes.length ?? 0) === 0 ? "请先添加节点" : null),
-    );
+    // Connecting no longer needs a toolbar mode: selecting a node reveals drag
+    // handles on its edges (see mermaid-connect-handles.ts).
+    add("添加节点", () => requestAddNode());
     add(
       "修改节点文字",
       async () => {
@@ -510,10 +504,7 @@ function appendToolbar(
     for (const button of actions.querySelectorAll<HTMLButtonElement>("button[data-context]")) {
       button.hidden = !selected(editor, button.dataset.context!);
     }
-    hint.textContent = connecting ? "从起点拖向终点 · Esc 退出" : "选择图中元素以编辑";
-    hint.hidden = !connecting && editor.selection.length > 0;
-    connectButton?.setAttribute("aria-pressed", String(connecting));
-    if (connectByName) connectByName.hidden = !connecting;
+    hint.hidden = editor.selection.length > 0;
     for (const [button, reasonFor] of controls) {
       const reason = reasonFor();
       button.disabled = pendingInputCount > 0 || Boolean(reason);
@@ -521,36 +512,19 @@ function appendToolbar(
     }
   };
   const offSelection = editor.on("selectionChange", refresh);
-  // A completed connection returns to selection, so later drags never create accidental edges.
-  const offChange = editor.on("change", () => {
-    if (connecting) view.setTool("select");
-    refresh();
-  });
-  const offTool = view.on("toolChange", (tool) => {
-    connecting = tool === "connect";
-    refresh();
-  });
-  const exitConnect = (event: KeyboardEvent): void => {
-    if (event.key !== "Escape" || !connecting || pendingInputCount > 0) return;
-    event.preventDefault();
-    event.stopPropagation();
-    view.setTool("select");
-    connectButton?.focus();
-  };
-  parent.addEventListener("keydown", exitConnect, true);
+  const offChange = editor.on("change", refresh);
   refresh();
   actions.append(hint);
   toolbar.prepend(actions, status);
   parent.prepend(toolbar);
+
   const destroyToolbar = (): void => {
     cancelPendingInput?.();
     offSelection();
     offChange();
-    offTool();
-    parent.removeEventListener("keydown", exitConnect, true);
     toolbar.remove();
   };
-  return destroyToolbar;
+  return { destroy: destroyToolbar, requestAddNode };
 }
 
 /** Mermaid SVG loading and graphical edits share a serialized strict runtime. */
@@ -618,7 +592,7 @@ export const mermaidGraphicalEditor: GraphicalCodeBlockEditorProvider = Object.f
         onEntityDoubleClick: (entityId) => entityId.startsWith("participant:"),
       },
     });
-    const destroyToolbar = appendToolbar(
+    const toolbar = appendToolbar(
       input.container,
       editor,
       view,
@@ -631,6 +605,22 @@ export const mermaidGraphicalEditor: GraphicalCodeBlockEditorProvider = Object.f
         notifyBusy();
       },
     );
+    // Selecting a node reveals drag handles on its four edges; dragging one onto
+    // another node connects them without a toolbar mode or a pick-two form.
+    const connectHandles =
+      sourceKind === "flowchart"
+        ? installConnectHandles({ view, editor, container: canvas })
+        : null;
+    // Double-clicking empty canvas appends a node through the same validated form
+    // the toolbar uses. Nodes and edges keep their own double-click behaviour.
+    const onCanvasDoubleClick = (event: MouseEvent): void => {
+      if (sourceKind !== "flowchart" || destroyed) return;
+      const target = event.target as Element | null;
+      if (target?.closest?.("[data-mw-entity]")) return;
+      event.preventDefault();
+      void toolbar.requestAddNode();
+    };
+    canvas.addEventListener("dblclick", onCanvasDoubleClick);
     const onEditorChange = editor.on("change", ({ code }) => {
       const sequence = ++changeSequence;
       validationBusy = true;
@@ -682,7 +672,9 @@ export const mermaidGraphicalEditor: GraphicalCodeBlockEditorProvider = Object.f
         changeSequence++;
         validationBusy = false;
         input.signal?.removeEventListener("abort", abortHandle);
-        destroyToolbar();
+        canvas.removeEventListener("dblclick", onCanvasDoubleClick);
+        connectHandles?.destroy();
+        toolbar.destroy();
         inputBusy = false;
         notifyBusy();
         onEditorChange();

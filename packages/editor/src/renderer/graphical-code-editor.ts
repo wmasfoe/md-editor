@@ -310,6 +310,22 @@ export async function openGraphicalCodeEditor(context: GraphicalCodeEditorContex
     event.preventDefault();
     close();
   });
+  // An in-place label editor inside the diagram swallows Escape to cancel only
+  // that edit. Without this the native dialog `cancel` closes the whole editor
+  // and the user loses their draft context for a one-level undo.
+  dialog.addEventListener(
+    "keydown",
+    (event) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      const editing = dialog.querySelector<HTMLElement>(
+        '.mw-inplace-editor[contenteditable="true"], [contenteditable="true"]',
+      );
+      if (!editing) return;
+      event.preventDefault();
+      event.stopPropagation();
+    },
+    true,
+  );
   copy.addEventListener("click", async () => {
     try {
       const clipboard = document.defaultView?.navigator.clipboard;

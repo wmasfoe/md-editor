@@ -46,6 +46,28 @@ async function openGraphicalEditor(page: Page, blockIndex = 0): Promise<void> {
   await button.click();
 }
 
+/**
+ * Connect two flowchart nodes through the per-node drag handles.
+ *
+ * Selecting a node reveals one dot per edge midpoint; dragging a dot onto the
+ * target node creates the edge. This replaced the old toolbar "connect" mode.
+ */
+async function dragConnect(page: Page, sourceLabel: string, targetLabel: string): Promise<void> {
+  const dialog = page.getByRole("dialog");
+  const source = dialog.locator(".node").filter({ hasText: sourceLabel }).first();
+  await source.click();
+  const handle = dialog.locator('.mw-connect-handle[data-side="right"]');
+  await expect(handle).toBeVisible();
+  const target = dialog.locator(".node").filter({ hasText: targetLabel }).first();
+  const from = (await handle.boundingBox())!;
+  const to = (await target.boundingBox())!;
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 10 });
+  await page.mouse.up();
+  await expect(dialog.locator(".mw-connect-handles--dragging")).toHaveCount(0);
+}
+
 async function submitToolInput(
   page: Page,
   buttonName: string,
@@ -53,8 +75,6 @@ async function submitToolInput(
 ): Promise<void> {
   const toolbar = page.getByRole("navigation", { name: /编辑工具$/ });
   await toolbar.getByRole("button", { name: buttonName, exact: true }).click();
-  if (buttonName === "连接节点")
-    await toolbar.getByRole("button", { name: "选择起终点", exact: true }).click();
   for (const { label, value } of fields) {
     const input = page.getByLabel(label, { exact: true });
     await expect(input).toBeVisible();
@@ -171,15 +191,41 @@ test("IME composition Enter does not submit a diagram input form", async ({ page
   expect(markdown).toContain("After");
 });
 
+test("double-clicking empty canvas adds a node through the shared form", async ({ page }) => {
+  await openApp(page);
+  await openCreation(page, "新建 Mermaid 流程图");
+  const dialog = page.getByRole("dialog", { name: "新建图表" });
+  const canvas = dialog.locator(".mw-canvas");
+  // A double-click on the empty canvas opens the same validated label form the
+  // toolbar button uses.
+  await canvas.dblclick({ position: { x: 60, y: 60 } });
+  const field = page.getByLabel("节点文字", { exact: true });
+  await expect(field).toBeVisible();
+  await field.fill("FromCanvas");
+  await page.getByRole("button", { name: "确定", exact: true }).click();
+  await expect(dialog.locator(".cm-md-mermaid-graphical-input")).toHaveCount(0);
+  // Double-clicking a node keeps the library's inline label editor (requirement 1)
+  // instead of opening the add-node form again.
+  const node = dialog.locator('[data-mw-entity="node:n1"]').first();
+  await expect(node).toBeVisible();
+  await node.dblclick();
+  // Requirement 1: double-clicking a node edits its label in place. The library
+  // injects an editable element inside the node's `.nodeLabel`.
+  await expect(dialog.locator('.nodeLabel [contenteditable="true"]')).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".cm-md-mermaid-graphical-input")).toHaveCount(0);
+  await page.getByRole("button", { name: "应用" }).click();
+  const markdown = await readMarkdown(page);
+  expect(markdown).toContain("n1[FromCanvas]");
+  expect(markdown.match(/n1\[/g)).toHaveLength(1);
+});
+
 test("creating a flowchart applies one undoable fenced block", async ({ page }) => {
   await openApp(page);
   await openCreation(page, "新建 Mermaid 流程图");
   await submitToolInput(page, "添加节点", [{ label: "节点文字", value: "Alpha" }]);
   await submitToolInput(page, "添加节点", [{ label: "节点文字", value: "Beta" }]);
-  await submitToolInput(page, "连接节点", [
-    { label: "起点节点", value: "Alpha" },
-    { label: "终点节点", value: "Beta" },
-  ]);
+  await dragConnect(page, "Alpha", "Beta");
   await page.getByRole("button", { name: "应用" }).click();
   await expect(page.getByRole("dialog", { name: "新建图表" })).toHaveCount(0);
   let markdown = await readMarkdown(page);
@@ -291,7 +337,7 @@ for (const viewport of [
     const visibleActions = toolbar.locator(
       ".cm-md-mermaid-graphical-toolbar__actions button:visible",
     );
-    await expect(visibleActions).toHaveText(["添加节点", "连接节点"]);
+    await expect(visibleActions).toHaveText(["添加节点"]);
     const canvas = dialog.locator(".mw-canvas");
     const assertClearCanvas = async () => {
       const bar = (await toolbar.boundingBox())!;
@@ -305,25 +351,19 @@ for (const viewport of [
     await assertClearCanvas();
     const node = dialog.locator('[data-mw-entity="node:A"]').first();
     await node.click();
-    await expect(visibleActions).toHaveText(["添加节点", "连接节点", "修改节点文字", "删除节点"]);
-    await toolbar.getByRole("button", { name: "连接节点", exact: true }).click();
-    await toolbar.getByRole("button", { name: "选择起终点", exact: true }).click();
-    await expect(page.getByLabel("起点节点", { exact: true })).toHaveValue("A");
-    await expect(page.getByLabel("终点节点", { exact: true })).toBeVisible();
+    await expect(visibleActions).toHaveText(["添加节点", "修改节点文字", "删除节点"]);
+    // Selecting a node reveals four edge handles instead of a toolbar connect mode.
+    await expect(dialog.locator(".mw-connect-handle")).toHaveCount(4);
     await assertClearCanvas();
     const labelBox = (await node.locator(".nodeLabel").boundingBox())!;
     expect(labelBox.height).toBeGreaterThanOrEqual(11);
     await page.screenshot({ path: testInfo.outputPath(`diagram-controls-${viewport.width}.png`) });
     // Escape dismisses the pending form first and returns to the same selected entity.
-    await page.keyboard.press("Escape");
-    await expect(dialog.locator(".cm-md-mermaid-graphical-input")).toHaveCount(0);
-    await expect(toolbar.getByRole("button", { name: "选择起终点", exact: true })).toBeFocused();
-    await page.keyboard.press("Escape");
-    await expect(dialog).toBeVisible();
-    await expect(toolbar.getByRole("button", { name: "修改节点文字", exact: true })).toBeVisible();
     await toolbar.getByRole("button", { name: "修改节点文字", exact: true }).click();
     await expect(page.getByLabel("节点文字", { exact: true })).toHaveValue("Alpha");
     await page.keyboard.press("Escape");
+    await expect(dialog.locator(".cm-md-mermaid-graphical-input")).toHaveCount(0);
+    await expect(toolbar.getByRole("button", { name: "修改节点文字", exact: true })).toBeFocused();
     await page.keyboard.press("Escape");
     await expect(dialog).toHaveCount(0);
   });
@@ -339,7 +379,6 @@ test("drag connections preview, select, cancel and keep the default layout", asy
   await enterWysiwyg(page);
   await openGraphicalEditor(page);
   const dialog = page.getByRole("dialog", { name: "编辑图表" });
-  const connect = dialog.getByRole("button", { name: "连接节点", exact: true });
   const node = (id: string) => dialog.locator(`[data-mw-entity="node:${id}"]`).first();
   const edges = dialog.locator(
     '.edgePaths path[data-mw-entity^="edge:"]:not([data-mw-hit-overlay])',
@@ -350,37 +389,45 @@ test("drag connections preview, select, cancel and keep the default layout", asy
   await expect(node("A").locator("rect").first()).toHaveCSS("stroke-width", "3px");
   await node("B").click();
   await expect(node("A")).not.toHaveClass(/mw-selected/);
-  const dragStart = async (id: string) => {
-    const box = (await node(id).boundingBox())!;
+  // Handles belong to the selected node only.
+  await expect(dialog.locator(".mw-connect-handle")).toHaveCount(4);
+  await node("A").click();
+  await expect(dialog.locator(".mw-connect-handle")).toHaveCount(4);
+  const handle = dialog.locator('.mw-connect-handle[data-side="right"]');
+  const dragFromHandle = async () => {
+    // The handles are rebuilt after every selection/render change, so wait for a
+    // laid-out box before computing pointer coordinates.
+    await expect(handle).toBeVisible();
+    await expect.poll(async () => (await handle.boundingBox())?.width ?? 0).toBeGreaterThan(0);
+    const box = (await handle.boundingBox())!;
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down();
-    await page.mouse.move(box.x + box.width / 2 + 12, box.y + box.height / 2 + 12, { steps: 8 });
-    await expect(dialog.locator(".mw-ghost-edge")).toBeVisible();
+    await page.mouse.move(box.x + box.width / 2 + 24, box.y + box.height / 2 + 24, { steps: 8 });
+    await expect(dialog.locator(".mw-connect-ghost--active")).toBeVisible();
   };
-  await connect.click();
-  await expect(connect).toHaveAttribute("aria-pressed", "true");
-  await dragStart("A");
+  // Escape cancels the in-flight gesture without leaving a dangling ghost line.
+  await dragFromHandle();
   await page.keyboard.press("Escape");
-  await expect(dialog.locator(".mw-ghost-edge")).toHaveCount(0);
+  await expect(dialog.locator(".mw-connect-ghost--active")).toHaveCount(0);
   await page.mouse.up();
-  await expect(connect).toHaveAttribute("aria-pressed", "false");
   await expect(dialog).toBeVisible();
   await expect(edges).toHaveCount(0);
-  // Releasing on empty canvas cancels only that gesture and leaves the tool available.
-  await connect.click();
-  await dragStart("A");
+  await expect(dialog.locator(".mw-connect-handle")).toHaveCount(4);
+  // Releasing on empty canvas cancels only that gesture; handles come back.
+  await dragFromHandle();
   const canvas = (await dialog.locator(".mw-canvas").boundingBox())!;
   await page.mouse.move(canvas.x + canvas.width - 80, canvas.y + canvas.height - 80, { steps: 8 });
   await page.mouse.up();
-  await expect(dialog.locator(".mw-ghost-edge")).toHaveCount(0);
+  await expect(dialog.locator(".mw-connect-ghost--active")).toHaveCount(0);
   await expect(edges).toHaveCount(0);
-  await expect(connect).toHaveAttribute("aria-pressed", "true");
-  await dragStart("A");
+  await expect(dialog.locator(".mw-connect-handle")).toHaveCount(4);
+  // Dropping on another node creates the edge.
+  await dragFromHandle();
   const target = (await node("B").boundingBox())!;
   await page.mouse.move(target.x + target.width / 2, target.y + target.height / 2, { steps: 12 });
   await page.mouse.up();
   await expect(edges).toHaveCount(1);
-  await expect(connect).toHaveAttribute("aria-pressed", "false");
+  await expect(dialog.locator(".mw-connect-ghost--active")).toHaveCount(0);
   const edge = edges.first();
   const point = await edge.evaluate((element) => {
     const path = element as SVGPathElement;

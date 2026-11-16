@@ -141,6 +141,33 @@ describe("Mermaid graphical editor capability", () => {
     };
     svgPrototype.getBBox ??= () => ({ x: 0, y: 0, width: 80, height: 24 }) as DOMRect;
     svgPrototype.getComputedTextLength ??= () => 64;
+    // jsdom has no layout, so every rect is zero-sized. The connect handles are
+    // positioned from real geometry and correctly refuse to render for a
+    // zero-sized node, so give the fixture a deterministic box per entity.
+    const elementPrototype = window.Element.prototype as Element & {
+      getBoundingClientRect: () => DOMRect;
+    };
+    const originalRect = elementPrototype.getBoundingClientRect;
+    elementPrototype.getBoundingClientRect = function (this: Element) {
+      const entity = this.getAttribute?.("data-mw-entity");
+      if (entity === "node:A")
+        return { x: 0, y: 0, top: 0, left: 0, width: 100, height: 40 } as DOMRect;
+      if (entity === "node:B")
+        return { x: 200, y: 0, top: 0, left: 200, width: 100, height: 40 } as DOMRect;
+      return originalRect.call(this);
+    };
+    // jsdom also lacks hit testing; resolve the drop target from the same boxes.
+    const originalElementFromPoint = document.elementFromPoint;
+    document.elementFromPoint = (x: number, y: number) => {
+      for (const id of ["node:A", "node:B"]) {
+        const element = container.querySelector(`[data-mw-entity="${id}"]`);
+        const box = element?.getBoundingClientRect();
+        if (!box) continue;
+        if (x >= box.left && x <= box.left + box.width && y >= box.top && y <= box.top + box.height)
+          return element as Element;
+      }
+      return null;
+    };
     const dialog = document.createElement("dialog");
     dialog.open = true;
     const container = document.createElement("div");
@@ -168,24 +195,52 @@ describe("Mermaid graphical editor capability", () => {
     const connectButton = [...container.querySelectorAll("button")].find(
       (button) => button.textContent === "连接节点",
     );
-    expect(connectButton).toBeDefined();
-    connectButton?.click();
-    expect(connectButton).toHaveProperty("ariaPressed", "true");
-    [...container.querySelectorAll("button")]
-      .find((button) => button.textContent === "选择起终点")!
-      .click();
-    const firstSelect = container.querySelector<HTMLSelectElement>(
-      ".cm-md-mermaid-graphical-input select",
+    // Connecting moved from a toolbar mode to per-node drag handles.
+    expect(connectButton).toBeUndefined();
+    expect(
+      [...container.querySelectorAll("button")].some(
+        (button) => button.textContent === "选择起终点",
+      ),
+    ).toBe(false);
+    // Selecting a node reveals one handle per edge midpoint.
+    for (
+      let attempt = 0;
+      attempt < 20 && !container.querySelector('[data-mw-entity="node:A"]');
+      attempt++
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    container
+      .querySelector<SVGElement>('[data-mw-entity="node:A"]')!
+      .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await vi.waitFor(() =>
+      expect(container.querySelectorAll(".mw-connect-handle")).toHaveLength(4),
     );
-    expect(firstSelect).not.toBeNull();
-    expect([...firstSelect!.options].map((option) => option.textContent)).toEqual(["one", "two"]);
-    firstSelect!.value = "A";
-    const secondSelect = container.querySelectorAll<HTMLSelectElement>(
-      ".cm-md-mermaid-graphical-input select",
-    )[1];
-    expect(secondSelect).toBeDefined();
-    secondSelect!.value = "B";
-    container.querySelector<HTMLButtonElement>(".cm-md-mermaid-graphical-input button")!.click();
+    // Dragging a handle onto another node dispatches the same semantic connect op.
+    const rightHandle = container.querySelector<HTMLElement>(
+      '.mw-connect-handle[data-side="right"]',
+    )!;
+    const target = container.querySelector<SVGElement>('[data-mw-entity="node:B"]')!;
+    const targetBox = target.getBoundingClientRect();
+    rightHandle.dispatchEvent(
+      new PointerEvent("pointerdown", { bubbles: true, pointerId: 1, clientX: 5, clientY: 5 }),
+    );
+    document.dispatchEvent(
+      new PointerEvent("pointermove", {
+        bubbles: true,
+        pointerId: 1,
+        clientX: targetBox.left + targetBox.width / 2,
+        clientY: targetBox.top + targetBox.height / 2,
+      }),
+    );
+    document.dispatchEvent(
+      new PointerEvent("pointerup", {
+        bubbles: true,
+        pointerId: 1,
+        clientX: targetBox.left + targetBox.width / 2,
+        clientY: targetBox.top + targetBox.height / 2,
+      }),
+    );
     await expect(changed).resolves.toContain("A --> B");
     expect(prompt).not.toHaveBeenCalled();
     for (
@@ -219,6 +274,8 @@ describe("Mermaid graphical editor capability", () => {
     expect(changeCount).toBe(2);
     dialog.remove();
     vi.restoreAllMocks();
+    document.elementFromPoint = originalElementFromPoint;
+    elementPrototype.getBoundingClientRect = originalRect;
   });
 
   it("renames a selected flowchart label through the production toolbar", async () => {

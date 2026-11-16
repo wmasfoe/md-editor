@@ -11,3 +11,5 @@ Keep diagram viewing and editing as the two block actions, with compact contextu
 Support explicit drag-to-connect tools, geometry-based selection feedback, and cascading deletion of incident edges or messages while preserving surviving entities and styles.
 
 Load the diagram canvas dependency on demand so hosts that never render a diagram no longer pay for it at startup.
+
+Connect flowchart nodes by dragging a handle from the selected node's edges onto a target node, replacing the toolbar connect mode and its source/target form. Double-click a node to edit its label in place, and double-click empty canvas to append a node through the same validated form.

@@ -64,6 +64,36 @@ export const mermaidGraphicalEditorCss = `
 }
 .cm-md-mermaid-graphical-editor .mw-canvas .mw-connect-source :is(rect, circle, ellipse, polygon, path) { stroke-dasharray: 4 3; }
 .cm-md-mermaid-graphical-editor .mw-canvas .mw-ghost-edge { stroke: var(--mw-accent); stroke-width: 2px; filter: none; }
+/* Connection handles: one dot per node edge, revealed only for a single selected node. */
+.cm-md-mermaid-graphical-editor .mw-canvas .mw-connect-handles {
+  position: absolute; inset: 0; pointer-events: none; z-index: 8;
+}
+.cm-md-mermaid-graphical-editor .mw-canvas .mw-connect-handle {
+  position: absolute; width: 14px; height: 14px; padding: 0; margin: 0;
+  transform: translate(-50%, -50%); border-radius: 50%; pointer-events: auto;
+  border: 2px solid var(--mw-accent); background: var(--theme-surface, #fff);
+  cursor: crosshair; touch-action: none;
+}
+.cm-md-mermaid-graphical-editor .mw-canvas .mw-connect-handle:hover,
+.cm-md-mermaid-graphical-editor .mw-canvas .mw-connect-handle:focus-visible {
+  background: var(--mw-accent); outline: 2px solid var(--mw-accent); outline-offset: 2px;
+}
+/* The dot sits on the border; growing the hit area keeps a 14px visual. */
+.cm-md-mermaid-graphical-editor .mw-canvas .mw-connect-handle::after {
+  content: ""; position: absolute; inset: -6px; border-radius: 50%;
+}
+.cm-md-mermaid-graphical-editor .mw-canvas .mw-connect-ghost {
+  position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none;
+  display: none; overflow: visible;
+}
+.cm-md-mermaid-graphical-editor .mw-canvas .mw-connect-ghost--active { display: block; }
+.cm-md-mermaid-graphical-editor .mw-canvas .mw-connect-ghost line {
+  stroke: var(--mw-accent); stroke-width: 2px; stroke-dasharray: 6 4;
+}
+/* While dragging, the dots must not intercept the drop target hit test. */
+.cm-md-mermaid-graphical-editor .mw-canvas .mw-connect-handles--dragging .mw-connect-handle {
+  pointer-events: none;
+}
 @media (max-width: 600px) {
   .cm-md-mermaid-graphical-toolbar { padding: 8px; }
   .cm-md-mermaid-graphical-toolbar__actions { gap: 4px; }
