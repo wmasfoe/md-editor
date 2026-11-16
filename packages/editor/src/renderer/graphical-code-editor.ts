@@ -184,19 +184,32 @@ export async function openGraphicalCodeEditor(context: GraphicalCodeEditorContex
   const priorFocus = document.activeElement;
   const dialog = document.createElement("dialog");
   dialog.className = "md-editor-graphical-code-editor";
-  dialog.setAttribute("aria-label", isCreate ? "Create diagram" : "Edit diagram source");
+  const chinese = document.documentElement.lang.toLowerCase().startsWith("zh");
+  const title = chinese
+    ? isCreate
+      ? "新建图表"
+      : "编辑图表"
+    : isCreate
+      ? "Create diagram"
+      : "Edit diagram";
+  dialog.setAttribute("aria-label", title);
   const heading = document.createElement("h2");
-  heading.textContent = isCreate ? "Create diagram" : "Edit diagram";
+  heading.textContent = title;
   const editor = document.createElement("div");
   editor.className = "md-editor-graphical-code-editor__surface";
   const status = document.createElement("p");
   status.setAttribute("role", "status");
-  const apply = button(document, "Apply");
+  const apply = button(document, chinese ? "应用" : "Apply");
+  apply.className = "md-editor-graphical-code-editor__apply";
   apply.disabled = true;
-  const cancel = button(document, "Cancel");
-  const copy = button(document, "Copy draft");
+  const cancel = button(document, chinese ? "取消" : "Cancel");
+  const copy = button(document, chinese ? "复制草稿" : "Copy draft");
+  copy.className = "md-editor-graphical-code-editor__copy";
   copy.hidden = true;
-  dialog.append(heading, editor, status, apply, cancel, copy);
+  const footer = document.createElement("footer");
+  footer.className = "md-editor-graphical-code-editor__footer";
+  footer.append(status, copy, cancel, apply);
+  dialog.append(heading, editor, footer);
   document.body.append(dialog);
   dialog.showModal();
 

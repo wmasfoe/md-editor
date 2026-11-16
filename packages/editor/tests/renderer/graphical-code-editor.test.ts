@@ -220,9 +220,9 @@ describe("graphical code editor", () => {
     const cancelButton = [...activeDialog().querySelectorAll<HTMLButtonElement>("button")].find(
       (buttonElement) => buttonElement.textContent === "Cancel",
     )!;
-    cancelButton.focus();
-    cancelButton.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true }));
-    expect(document.activeElement).toBe(applyButton);
+    applyButton.focus();
+    applyButton.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true }));
+    expect(document.activeElement).toBe(cancelButton);
     onChange("flowchart TD\n  A[new]");
     applyButton.click();
     applyButton.click();
@@ -278,7 +278,9 @@ describe("graphical code editor", () => {
       noop,
       provider(() => {}),
     );
-    activeDialog().querySelector<HTMLButtonElement>("button")!.click();
+    activeDialog()
+      .querySelector<HTMLButtonElement>(".md-editor-graphical-code-editor__apply")!
+      .click();
     expect(noop.documentState.getSnapshot().contentRevision).toBe(0);
     expect(noop.renderer.undo()).toBe(false);
 
@@ -291,7 +293,9 @@ describe("graphical code editor", () => {
       }),
     );
     onChange("flowchart TD\n```");
-    activeDialog().querySelector<HTMLButtonElement>("button")!.click();
+    activeDialog()
+      .querySelector<HTMLButtonElement>(".md-editor-graphical-code-editor__apply")!
+      .click();
     expect(invalid.view.state.doc.toString()).toBe(invalid.markdown);
     expect(invalid.documentState.getSnapshot().contentRevision).toBe(0);
   });
@@ -406,11 +410,14 @@ describe("graphical code editor", () => {
     expect(
       duplicate.view.state.field(markdownRangeIndexField).byKind("deferred-code"),
     ).toHaveLength(1);
-    activeDialog().querySelector<HTMLButtonElement>("button")!.click();
+    activeDialog()
+      .querySelector<HTMLButtonElement>(".md-editor-graphical-code-editor__apply")!
+      .click();
     expect(duplicate.documentState.getSnapshot().contentRevision).toBe(1);
-    expect(activeDialog().querySelector<HTMLButtonElement>("button:last-of-type")?.hidden).toBe(
-      false,
-    );
+    expect(
+      activeDialog().querySelector<HTMLButtonElement>(".md-editor-graphical-code-editor__copy")
+        ?.hidden,
+    ).toBe(false);
     [...activeDialog().querySelectorAll<HTMLButtonElement>("button")]
       .find((buttonElement) => buttonElement.textContent === "Copy draft")!
       .click();
@@ -437,7 +444,9 @@ describe("graphical code editor", () => {
     });
     expect(lock.status).toBe("reserved");
     expect(reserved.documentState.isMutationBusy()).toBe(true);
-    activeDialog().querySelector<HTMLButtonElement>("button")!.click();
+    activeDialog()
+      .querySelector<HTMLButtonElement>(".md-editor-graphical-code-editor__apply")!
+      .click();
     expect(reserved.view.state.doc.toString()).toBe(reserved.markdown);
     expect(reserved.documentState.getSnapshot().contentRevision).toBe(0);
     if (lock.status === "reserved")
@@ -472,7 +481,9 @@ describe("graphical code editor", () => {
       "graphical-editor-pending-edit",
     );
     const pendingMarkdown = pending.view.state.doc.toString();
-    activeDialog().querySelector<HTMLButtonElement>("button")!.click();
+    activeDialog()
+      .querySelector<HTMLButtonElement>(".md-editor-graphical-code-editor__apply")!
+      .click();
     expect(pending.view.state.doc.toString()).toBe(pendingMarkdown);
     expect(pending.documentState.getSnapshot().contentRevision).toBe(0);
 
@@ -499,7 +510,9 @@ describe("graphical code editor", () => {
       "reconcile-required",
     );
     const beforeReconcileApply = reconciling.view.state.doc.toString();
-    activeDialog().querySelector<HTMLButtonElement>("button")!.click();
+    activeDialog()
+      .querySelector<HTMLButtonElement>(".md-editor-graphical-code-editor__apply")!
+      .click();
     expect(reconciling.view.state.doc.toString()).toBe(beforeReconcileApply);
     expect(reconciling.documentState.getSnapshot().contentRevision).toBe(0);
   });
@@ -517,11 +530,14 @@ describe("graphical code editor", () => {
     edited.view.dispatch({ changes: { from: 0, insert: "outside " }, userEvent: "input.probe" });
     expect(edited.renderer.undo()).toBe(true);
     expect(edited.view.state.doc.toString()).toBe(edited.markdown);
-    activeDialog().querySelector<HTMLButtonElement>("button")!.click();
+    activeDialog()
+      .querySelector<HTMLButtonElement>(".md-editor-graphical-code-editor__apply")!
+      .click();
     expect(edited.documentState.getSnapshot().contentRevision).toBe(2);
-    expect(activeDialog().querySelector<HTMLButtonElement>("button:last-of-type")?.hidden).toBe(
-      false,
-    );
+    expect(
+      activeDialog().querySelector<HTMLButtonElement>(".md-editor-graphical-code-editor__copy")
+        ?.hidden,
+    ).toBe(false);
 
     const reloaded = setup();
     let reloadDraft!: (source: string) => void;
@@ -537,7 +553,9 @@ describe("graphical code editor", () => {
       { markdown: reloaded.markdown, replaceIntent: "same" },
       { kind: "command", commandId: "file.reload" },
     );
-    activeDialog().querySelector<HTMLButtonElement>("button")!.click();
+    activeDialog()
+      .querySelector<HTMLButtonElement>(".md-editor-graphical-code-editor__apply")!
+      .click();
     expect(reloaded.documentState.getSnapshot().documentGeneration).toBe(
       generationBeforeReload + 1,
     );
@@ -551,7 +569,9 @@ describe("graphical code editor", () => {
       { markdown: created.markdown, replaceIntent: "same" },
       { kind: "command", commandId: "file.reload" },
     );
-    activeDialog().querySelector<HTMLButtonElement>("button")!.click();
+    activeDialog()
+      .querySelector<HTMLButtonElement>(".md-editor-graphical-code-editor__apply")!
+      .click();
     expect(created.documentState.getSnapshot().contentRevision).toBe(0);
     expect(created.view.state.doc.toString()).toBe(created.markdown);
   });
@@ -578,11 +598,16 @@ describe("graphical code editor", () => {
     const opening = open(busySetup, validating);
     await vi.waitFor(() => expect(activeDialog()).toBeTruthy());
     update("flowchart TD\n  A[busy]");
-    expect(activeDialog().querySelector<HTMLButtonElement>("button")!.disabled).toBe(true);
+    expect(
+      activeDialog().querySelector<HTMLButtonElement>(".md-editor-graphical-code-editor__apply")!
+        .disabled,
+    ).toBe(true);
     setBusy(false);
     resolveMount({ destroy });
     await opening;
-    activeDialog().querySelector<HTMLButtonElement>("button")!.click();
+    activeDialog()
+      .querySelector<HTMLButtonElement>(".md-editor-graphical-code-editor__apply")!
+      .click();
     expect(busySetup.documentState.getSnapshot().contentRevision).toBe(1);
 
     let resolveLate!: (handle: { destroy: () => void }) => void;

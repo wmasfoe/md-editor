@@ -1,0 +1,57 @@
+/** Provider chrome stays outside the measured canvas so fitting never hides graph content. */
+export const mermaidGraphicalEditorCss = `
+.cm-md-mermaid-graphical-editor {
+  display: flex; flex-direction: column; min-height: 18rem;
+  border: 1px solid var(--theme-border, #d8dee4); border-radius: 8px; overflow: hidden;
+  color: var(--theme-text, #24292f); background: var(--theme-surface, #fff);
+  --mw-accent: var(--theme-primary, #0969da);
+  --mw-chrome-bg: var(--theme-surface, #fff);
+  --mw-chrome-fg: var(--theme-text, #24292f);
+  --mw-chrome-border: var(--theme-border, #d8dee4);
+}
+.cm-md-mermaid-graphical-editor .mw-canvas { flex: 1; min-height: 10rem; }
+.cm-md-mermaid-graphical-toolbar {
+  flex: none; padding: 8px 12px; border-bottom: 1px solid var(--theme-border, #d8dee4);
+}
+.cm-md-mermaid-graphical-toolbar__actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cm-md-mermaid-graphical-toolbar__hint { margin-inline-start: auto; font-size: 12px; color: var(--theme-muted, #57606a); }
+.cm-md-mermaid-graphical-toolbar button {
+  min-height: 32px; padding: 4px 8px; border: 1px solid transparent; border-radius: 6px;
+  background: transparent; color: inherit; cursor: pointer; font: inherit; font-size: 13px;
+}
+.cm-md-mermaid-graphical-toolbar button:hover:not(:disabled) { background: var(--theme-primary-soft, #f0f3f6); }
+.cm-md-mermaid-graphical-toolbar button:focus-visible {
+  outline: 2px solid var(--theme-primary, #0969da); outline-offset: 2px;
+}
+.cm-md-mermaid-graphical-toolbar button:disabled { cursor: not-allowed; opacity: 0.5; }
+.cm-md-mermaid-graphical-toolbar button[data-context] { border-inline-start-color: var(--theme-border, #d8dee4); }
+.cm-md-mermaid-graphical-toolbar output { display: block; font-size: 12px; margin-top: 8px; }
+.cm-md-mermaid-graphical-toolbar output:empty { display: none; }
+.cm-md-mermaid-graphical-input {
+  display: flex; flex-wrap: wrap; align-items: end; gap: 8px; margin-top: 8px;
+  padding-top: 12px; border-top: 1px solid var(--theme-border, #d8dee4);
+}
+.cm-md-mermaid-graphical-input__field { display: grid; gap: 4px; flex: 1 1 140px; min-width: 0; }
+.cm-md-mermaid-graphical-input label { font-size: 12px; }
+.cm-md-mermaid-graphical-input input, .cm-md-mermaid-graphical-input select {
+  box-sizing: border-box; width: 100%; min-height: 36px; min-width: 0; padding: 6px 8px;
+  border: 1px solid var(--theme-border, #d8dee4); border-radius: 6px;
+  background: var(--theme-surface, #fff); color: inherit; font: inherit; font-size: 13px;
+}
+.cm-md-mermaid-graphical-input input:focus-visible, .cm-md-mermaid-graphical-input select:focus-visible {
+  outline: 2px solid var(--theme-primary, #0969da); outline-offset: 1px;
+}
+.cm-md-mermaid-graphical-input button { min-height: 36px; }
+.cm-md-mermaid-graphical-input button:first-of-type { background: var(--theme-text, #24292f); color: var(--theme-surface, #fff); }
+/* The provider exposes one context toolbar; upstream popovers duplicate its actions. */
+.cm-md-mermaid-graphical-editor .mw-popover { display: none !important; }
+.cm-md-mermaid-graphical-editor .mw-canvas [data-mw-entity]:hover { filter: none; }
+.cm-md-mermaid-graphical-editor .mw-canvas .mw-selected {
+  filter: none !important; outline: 2px solid var(--theme-primary, #0969da); outline-offset: 3px;
+}
+@media (max-width: 600px) {
+  .cm-md-mermaid-graphical-toolbar { padding: 8px; }
+  .cm-md-mermaid-graphical-toolbar__actions { gap: 4px; }
+  .cm-md-mermaid-graphical-toolbar__hint { display: none; }
+}
+`;

@@ -30,7 +30,7 @@ async function readMarkdown(page: Page): Promise<string> {
 async function openCreation(page: Page, label: string): Promise<void> {
   await page.locator('summary[aria-label="插入图表"]').click();
   await page.getByRole("button", { name: label }).click();
-  await expect(page.getByRole("dialog", { name: "Create diagram" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "新建图表" })).toBeVisible();
 }
 
 async function enterWysiwyg(page: Page): Promise<void> {
@@ -53,7 +53,7 @@ async function submitToolInput(
 ): Promise<void> {
   const toolbar = page.getByRole("navigation", { name: /编辑工具$/ });
   await toolbar.getByRole("button", { name: buttonName, exact: true }).click();
-  for (const [index, { label, value }] of fields.entries()) {
+  for (const { label, value } of fields) {
     const input = page.getByLabel(label, { exact: true });
     await expect(input).toBeVisible();
     if (await input.evaluate((element) => element.tagName === "SELECT")) {
@@ -61,8 +61,6 @@ async function submitToolInput(
     } else {
       await input.fill(value);
     }
-    if (index < fields.length - 1)
-      await page.getByRole("button", { name: "确定", exact: true }).click();
   }
   await page.getByRole("button", { name: "确定", exact: true }).click();
   await expect(page.locator(".cm-md-mermaid-graphical-input")).toHaveCount(0);
@@ -76,9 +74,9 @@ test("canceling either new diagram leaves the document unchanged and restores me
   await page.getByRole("button", { name: "所见即所得", exact: true }).click();
   for (const label of ["新建 Mermaid 流程图", "新建 Mermaid 时序图"]) {
     await openCreation(page, label);
-    const dialog = page.getByRole("dialog", { name: "Create diagram" });
-    await expect(dialog).toContainText("Apply");
-    await expect(dialog).toContainText("Cancel");
+    const dialog = page.getByRole("dialog", { name: "新建图表" });
+    await expect(dialog).toContainText("应用");
+    await expect(dialog).toContainText("取消");
     await page.keyboard.press("Escape");
     await expect(dialog).toHaveCount(0);
     await expect(page.locator('summary[aria-label="插入图表"]')).toBeFocused();
@@ -98,7 +96,7 @@ test("the diagram dialog keeps background editing inert and restores focus after
   const editorText = await editor.innerText();
   const insertMenu = page.locator('summary[aria-label="插入图表"]');
   await openCreation(page, "新建 Mermaid 流程图");
-  const dialog = page.getByRole("dialog", { name: "Create diagram" });
+  const dialog = page.getByRole("dialog", { name: "新建图表" });
   for (let index = 0; index < 6; index += 1) await page.keyboard.press("Tab");
   await expect
     .poll(() => page.evaluate(() => document.activeElement?.closest("dialog") !== null))
@@ -123,8 +121,8 @@ test("the diagram dialog keeps background editing inert and restores focus after
 test("IME composition Enter does not submit a diagram input form", async ({ page }) => {
   await openApp(page);
   await openCreation(page, "新建 Mermaid 流程图");
-  const dialog = page.getByRole("dialog", { name: "Create diagram" });
-  const apply = dialog.getByRole("button", { name: "Apply" });
+  const dialog = page.getByRole("dialog", { name: "新建图表" });
+  const apply = dialog.getByRole("button", { name: "应用" });
   const draftBeforeInput = await page.evaluate(() => localStorage.getItem("md-editor:web:draft"));
   await page
     .getByRole("navigation", { name: "流程图编辑工具" })
@@ -180,8 +178,8 @@ test("creating a flowchart applies one undoable fenced block", async ({ page }) 
     { label: "起点节点", value: "Alpha" },
     { label: "终点节点", value: "Beta" },
   ]);
-  await page.getByRole("button", { name: "Apply" }).click();
-  await expect(page.getByRole("dialog", { name: "Create diagram" })).toHaveCount(0);
+  await page.getByRole("button", { name: "应用" }).click();
+  await expect(page.getByRole("dialog", { name: "新建图表" })).toHaveCount(0);
   let markdown = await readMarkdown(page);
   expect(markdown).toContain("flowchart TD");
   expect(markdown).toContain("n1[Alpha]");
@@ -223,7 +221,7 @@ test("creating a sequence diagram preserves participant and message semantics", 
     { label: "接收方", value: "B" },
     { label: "消息文字", value: "Request" },
   ]);
-  await page.getByRole("button", { name: "Apply" }).click();
+  await page.getByRole("button", { name: "应用" }).click();
   const markdown = await readMarkdown(page);
   expect(markdown).toContain("sequenceDiagram");
   expect(markdown).toContain("participant A");
@@ -242,7 +240,7 @@ test("creating a sequence diagram preserves participant and message semantics", 
   await expect(source).toContainText("sequenceDiagram");
 });
 
-test("an existing Mermaid block keeps the source edit and read-only viewer paths", async ({
+test("an existing Mermaid block offers exactly view and edit while source mode remains available", async ({
   page,
 }, testInfo) => {
   const markdown = "Before\n\n```mermaid\nflowchart TD\n  A[Alpha] --> B[Beta]\n```\n\nAfter";
@@ -259,7 +257,8 @@ test("an existing Mermaid block keeps the source edit and read-only viewer paths
   });
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await page.getByRole("button", { name: "编辑图表源码" }).click();
+  const actions = page.locator(".cm-md-mermaid-toolbar button");
+  await expect(actions).toHaveText(["查看", "编辑"]);
   await page.getByRole("button", { name: "源码", exact: true }).click();
   const source = page.locator(".cm-content").first();
   await expect(source).toContainText("flowchart TD");
@@ -267,13 +266,71 @@ test("an existing Mermaid block keeps the source edit and read-only viewer paths
   await expect(source).toContainText("After");
 });
 
+for (const viewport of [
+  { width: 1280, height: 720 },
+  { width: 760, height: 520 },
+]) {
+  test(`diagram controls keep the canvas clear at ${viewport.width} x ${viewport.height}`, async ({
+    page,
+  }, testInfo) => {
+    // The host replaces its mode switch with a compact menu in narrow windows.
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await openApp(
+      page,
+      "Before\n\n```mermaid\nflowchart TD\n  A[Alpha] --> B[Beta]\n  A --> C[Gamma]\n  B --> D[Done]\n  C --> D\n```\n\nAfter",
+    );
+    if (viewport.width === 760) await page.getByRole("button", { name: "切换为深色模式" }).click();
+    await enterWysiwyg(page);
+    if (viewport.width === 760) await page.getByRole("button", { name: /收起侧边栏/ }).click();
+    await page.setViewportSize(viewport);
+    await openGraphicalEditor(page);
+    const dialog = page.getByRole("dialog", { name: "编辑图表" });
+    const toolbar = dialog.getByRole("navigation", { name: "流程图编辑工具" });
+    const visibleActions = toolbar.locator(
+      ".cm-md-mermaid-graphical-toolbar__actions button:visible",
+    );
+    await expect(visibleActions).toHaveText(["添加节点", "连接节点"]);
+    const canvas = dialog.locator(".mw-canvas");
+    const assertClearCanvas = async () => {
+      const bar = (await toolbar.boundingBox())!;
+      const area = (await canvas.boundingBox())!;
+      expect(bar.y + bar.height).toBeLessThanOrEqual(area.y + 1);
+      expect(area.height).toBeGreaterThan(150);
+      expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+        true,
+      );
+    };
+    await assertClearCanvas();
+    const node = dialog.locator('[data-mw-entity="node:A"]').first();
+    await node.click();
+    await expect(visibleActions).toHaveText(["添加节点", "连接节点", "修改节点文字", "删除节点"]);
+    await toolbar.getByRole("button", { name: "连接节点", exact: true }).click();
+    await expect(page.getByLabel("起点节点", { exact: true })).toHaveValue("A");
+    await expect(page.getByLabel("终点节点", { exact: true })).toBeVisible();
+    await assertClearCanvas();
+    const labelBox = (await node.locator(".nodeLabel").boundingBox())!;
+    expect(labelBox.height).toBeGreaterThanOrEqual(11);
+    await page.screenshot({ path: testInfo.outputPath(`diagram-controls-${viewport.width}.png`) });
+    // Escape dismisses the pending form first and returns to the same selected entity.
+    await page.keyboard.press("Escape");
+    await expect(dialog.locator(".cm-md-mermaid-graphical-input")).toHaveCount(0);
+    await expect(toolbar.getByRole("button", { name: "连接节点", exact: true })).toBeFocused();
+    await expect(toolbar.getByRole("button", { name: "修改节点文字", exact: true })).toBeVisible();
+    await toolbar.getByRole("button", { name: "修改节点文字", exact: true }).click();
+    await expect(page.getByLabel("节点文字", { exact: true })).toHaveValue("Alpha");
+    await page.keyboard.press("Escape");
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+  });
+}
+
 test("a flow node cannot be deleted by toolbar or keyboard while an edge references it", async ({
   page,
 }) => {
   await openApp(page, "Before\n\n```mermaid\nflowchart TD\n  A[Alpha] --> B[Beta]\n```\n\nAfter");
   await enterWysiwyg(page);
   await openGraphicalEditor(page);
-  const dialog = page.getByRole("dialog", { name: "Edit diagram source" });
+  const dialog = page.getByRole("dialog", { name: "编辑图表" });
   const node = dialog.locator('[data-mw-entity="node:A"]').first();
   await expect(node).toBeVisible({ timeout: 20_000 });
   await node.click();
@@ -281,11 +338,7 @@ test("a flow node cannot be deleted by toolbar or keyboard while an edge referen
     localStorage.getItem("md-editor:web:draft"),
   );
   const nativeDelete = dialog.locator('.mw-popover button[title="Delete"]');
-  await expect(nativeDelete).toBeVisible();
-  await nativeDelete.click();
-  await expect(dialog.locator('p[role="status"]')).toContainText(
-    "请先删除引用此节点的关系或样式。",
-  );
+  await expect(nativeDelete).toBeHidden();
   await expect(dialog.locator('[data-mw-entity="node:A"]').first()).toBeVisible();
   await expect
     .poll(() => page.evaluate(() => localStorage.getItem("md-editor:web:draft")))
@@ -314,7 +367,7 @@ test("a sequence participant cannot be deleted while a message references it", a
   );
   await enterWysiwyg(page);
   await openGraphicalEditor(page);
-  const dialog = page.getByRole("dialog", { name: "Edit diagram source" });
+  const dialog = page.getByRole("dialog", { name: "编辑图表" });
   const participant = dialog.locator('[data-mw-entity="participant:A"]').first();
   await expect(participant).toBeVisible({ timeout: 20_000 });
   await participant.click();
@@ -322,11 +375,7 @@ test("a sequence participant cannot be deleted while a message references it", a
     localStorage.getItem("md-editor:web:draft"),
   );
   const nativeDelete = dialog.locator('.mw-popover button[title="Delete"]');
-  await expect(nativeDelete).toBeVisible();
-  await nativeDelete.click();
-  await expect(dialog.locator('p[role="status"]')).toContainText(
-    "请先删除引用此参与者的消息或注释。",
-  );
+  await expect(nativeDelete).toBeHidden();
   await expect(dialog.locator('[data-mw-entity="participant:A"]').first()).toBeVisible();
   await expect
     .poll(() => page.evaluate(() => localStorage.getItem("md-editor:web:draft")))
@@ -359,12 +408,12 @@ test("editing a supported existing diagram preserves surrounding Markdown bytes"
   );
   await enterWysiwyg(page);
   await openGraphicalEditor(page);
-  await expect(page.getByRole("dialog", { name: "Edit diagram source" })).toBeVisible();
-  const dialog = page.getByRole("dialog", { name: "Edit diagram source" });
+  await expect(page.getByRole("dialog", { name: "编辑图表" })).toBeVisible();
+  const dialog = page.getByRole("dialog", { name: "编辑图表" });
   await expect(dialog.locator(".node").filter({ hasText: "Alpha" }).first()).toBeVisible();
   await dialog.locator(".node").filter({ hasText: "Alpha" }).first().click();
   await submitToolInput(page, "修改节点文字", [{ label: "节点文字", value: "Renamed" }]);
-  await page.getByRole("button", { name: "Apply" }).click();
+  await page.getByRole("button", { name: "应用" }).click();
   const updated = await readMarkdown(page);
   expect(updated).toContain("A[Renamed]");
   expect(updated.startsWith(outsidePrefix)).toBe(true);
@@ -391,9 +440,9 @@ test("editing the second of two identical Mermaid blocks leaves the first block 
   await openApp(page, `Before\n\n${firstBlock}${middle}${firstBlock}\n\nAfter`);
   await enterWysiwyg(page);
   await openGraphicalEditor(page, 1);
-  const dialog = page.getByRole("dialog", { name: "Edit diagram source" });
+  const dialog = page.getByRole("dialog", { name: "编辑图表" });
   await submitToolInput(page, "添加节点", [{ label: "节点文字", value: "Only second" }]);
-  await page.getByRole("button", { name: "Apply" }).click();
+  await page.getByRole("button", { name: "应用" }).click();
   const markdown = await readMarkdown(page);
   const blocks = [...markdown.matchAll(/```mermaid\n[\s\S]*?\n```/g)];
   expect(blocks).toHaveLength(2);
@@ -452,7 +501,7 @@ test("offline diagram creation still applies to local Markdown", async ({ page }
   await page.context().setOffline(true);
   await openCreation(page, "新建 Mermaid 流程图");
   await submitToolInput(page, "添加节点", [{ label: "节点文字", value: "Local" }]);
-  await page.getByRole("button", { name: "Apply" }).click();
+  await page.getByRole("button", { name: "应用" }).click();
   const markdown = await readMarkdown(page);
   expect(markdown).toContain("flowchart TD");
   expect(markdown).toContain("n1[Local]");

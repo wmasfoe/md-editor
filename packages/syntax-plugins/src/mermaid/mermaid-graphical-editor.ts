@@ -12,38 +12,13 @@ import type {
   GraphicalCodeBlockEditorHandle,
 } from "@md-editor/plugin-sdk/syntax";
 import { parseMermaid, runMermaidOperation } from "./mermaid-loader.ts";
+import { mermaidGraphicalEditorCss } from "./mermaid-graphical-editor-css.ts";
 
 const DIAGRAM_TYPES = Object.freeze([
   { id: "flowchart", label: "流程图", initialSource: "flowchart TD" },
   { id: "sequence", label: "时序图", initialSource: "sequenceDiagram" },
 ]);
 const styledDocuments = new WeakSet<Document>();
-const GRAPHICAL_EDITOR_CSS = `
-.mw-canvas { position: relative; }
-.mw-canvas .cm-md-mermaid-graphical-toolbar {
-  position: absolute; inset: 0.5rem auto auto 0.5rem; z-index: 20;
-  display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem;
-  max-width: calc(100% - 1rem); padding: 0.35rem;
-  border: 1px solid var(--theme-border, #d8dee4); border-radius: 0.5rem;
-  background: var(--theme-surface, #fff); color: var(--theme-text, #24292f);
-  box-shadow: var(--theme-shadow, 0 2px 8px rgba(0, 0, 0, 0.12));
-}
-.mw-canvas .cm-md-mermaid-graphical-toolbar button {
-  min-height: 2rem; padding: 0.3rem 0.55rem; border: 1px solid var(--theme-border, #d8dee4);
-  border-radius: 0.35rem; background: transparent; color: inherit; cursor: pointer;
-  font: inherit; font-size: 0.78rem;
-}
-.mw-canvas .cm-md-mermaid-graphical-toolbar button:hover:not(:disabled),
-.mw-canvas .cm-md-mermaid-graphical-toolbar button:focus-visible {
-  border-color: var(--theme-primary, #0969da); outline: 2px solid var(--theme-primary, #0969da);
-  outline-offset: 1px;
-}
-.mw-canvas .cm-md-mermaid-graphical-toolbar button:disabled { cursor: not-allowed; opacity: 0.55; }
-.mw-canvas .cm-md-mermaid-graphical-toolbar output { flex-basis: 100%; font-size: 0.75rem; }
-.mw-canvas .cm-md-mermaid-graphical-input { display: flex; flex-basis: 100%; flex-wrap: wrap; gap: 0.35rem; align-items: center; }
-.mw-canvas .cm-md-mermaid-graphical-input label { flex-basis: 100%; font-size: 0.78rem; }
-.mw-canvas .cm-md-mermaid-graphical-input input, .mw-canvas .cm-md-mermaid-graphical-input select { min-width: 12rem; min-height: 2rem; flex: 1; padding: 0.3rem 0.45rem; border: 1px solid var(--theme-border, #d8dee4); border-radius: 0.35rem; background: var(--theme-surface, #fff); color: inherit; font: inherit; }
-`;
 
 type Inspection = { readonly supported: boolean; readonly reason?: string };
 
@@ -233,6 +208,11 @@ function appendToolbar(
     sourceKind === "flowchart" ? "流程图编辑工具" : "时序图编辑工具",
   );
   const status = doc.createElement("output");
+  const actions = doc.createElement("div");
+  actions.className = "cm-md-mermaid-graphical-toolbar__actions";
+  const hint = doc.createElement("span");
+  hint.className = "cm-md-mermaid-graphical-toolbar__hint";
+  hint.textContent = "选择图中元素以编辑";
   status.setAttribute("role", "status");
   status.setAttribute("aria-live", "polite");
   toolbar.append(status);
@@ -243,42 +223,54 @@ function appendToolbar(
     label: string,
     action: () => void | Promise<void>,
     disabledReason?: () => string | null,
+    context?: string,
   ): void => {
     const button = doc.createElement("button");
     button.type = "button";
     button.textContent = label;
     button.addEventListener("click", action);
+    if (context) button.dataset.context = context;
     if (disabledReason) controls.set(button, disabledReason);
-    toolbar.append(button);
+    actions.append(button);
   };
-  const ask = (
-    label: string,
-    initial = "",
-    choices?: readonly { readonly value: string; readonly label: string }[],
-  ): Promise<string | null> =>
+  const askFields = (
+    specs: readonly {
+      readonly label: string;
+      readonly initial?: string;
+      readonly choices?: readonly { readonly value: string; readonly label: string }[];
+    }[],
+  ): Promise<string[] | null> =>
     new Promise((resolve) => {
       pendingInputCount++;
       onInputBusyChange(true);
       const panel = doc.createElement("div");
       panel.className = "cm-md-mermaid-graphical-input";
-      const inputId = `mermaid-graphical-input-${Math.random().toString(36).slice(2)}`;
-      const inputLabel = doc.createElement("label");
-      inputLabel.htmlFor = inputId;
-      inputLabel.textContent = label;
-      const field = choices ? doc.createElement("select") : doc.createElement("input");
-      field.id = inputId;
-      if (field.tagName === "INPUT") {
-        const textField = field as HTMLInputElement;
-        textField.type = "text";
-        textField.value = initial;
-      } else {
-        for (const choice of choices ?? []) {
-          const option = doc.createElement("option");
-          option.value = choice.value;
-          option.textContent = choice.label;
-          field.append(option);
+      const fields = specs.map(({ label, initial = "", choices }) => {
+        const inputId = `mermaid-graphical-input-${Math.random().toString(36).slice(2)}`;
+        const inputLabel = doc.createElement("label");
+        inputLabel.htmlFor = inputId;
+        inputLabel.textContent = label;
+        const field = choices ? doc.createElement("select") : doc.createElement("input");
+        field.id = inputId;
+        if (field.tagName === "INPUT") {
+          const textField = field as HTMLInputElement;
+          textField.type = "text";
+          textField.value = initial;
+        } else {
+          for (const choice of choices ?? []) {
+            const option = doc.createElement("option");
+            option.value = choice.value;
+            option.textContent = choice.label;
+            field.append(option);
+          }
+          if (initial) field.value = initial;
         }
-      }
+        const fieldGroup = doc.createElement("div");
+        fieldGroup.className = "cm-md-mermaid-graphical-input__field";
+        fieldGroup.append(inputLabel, field);
+        panel.append(fieldGroup);
+        return field;
+      });
       const confirm = doc.createElement("button");
       confirm.type = "button";
       confirm.textContent = "确定";
@@ -286,22 +278,15 @@ function appendToolbar(
       cancel.type = "button";
       cancel.textContent = "取消";
       const returnFocus = doc.activeElement instanceof HTMLElement ? doc.activeElement : null;
-      const previousDisabled = [...toolbar.querySelectorAll("button")].map(
-        (button) => button.disabled,
-      );
       for (const button of toolbar.querySelectorAll("button")) button.disabled = true;
       let settled = false;
-      const finish = (value: string | null): void => {
+      const finish = (value: string[] | null): void => {
         if (settled) return;
         settled = true;
         cancelPendingInput = undefined;
         pendingInputCount--;
-        [...toolbar.querySelectorAll("button")]
-          .filter((button) => button !== confirm && button !== cancel)
-          .forEach((button, index) => {
-            button.disabled = previousDisabled[index] ?? false;
-          });
         panel.remove();
+        refresh();
         if (returnFocus?.isConnected) returnFocus.focus();
         resolve(value);
         // Promise continuation runs first; it may dispatch an edit that starts
@@ -310,24 +295,26 @@ function appendToolbar(
       };
       cancelPendingInput = () => finish(null);
       const submit = (): void => {
-        const value = field.value;
-        if (choices && choices.length === 0) {
+        if (specs.some((spec) => spec.choices?.length === 0)) {
           status.textContent = "请先添加可选择的图表元素。";
           reportError(status.textContent);
           return;
         }
-        if (!choices && !safeLabel(value)) {
+        const invalidField = fields.find(
+          (field, index) => !specs[index]?.choices && !safeLabel(field.value),
+        );
+        if (invalidField) {
           status.textContent = "文字包含不支持的符号或换行，请使用单行文字和常规标点。";
           reportError(status.textContent);
-          field.focus();
+          invalidField.focus();
           return;
         }
         status.textContent = "";
-        finish(value);
+        finish(fields.map((field) => field.value));
       };
       confirm.addEventListener("click", submit);
       cancel.addEventListener("click", () => finish(null));
-      field.addEventListener("keydown", (event) => {
+      panel.addEventListener("keydown", (event) => {
         const keyEvent = event as KeyboardEvent;
         if (keyEvent.key === "Enter") {
           if (keyEvent.isComposing || keyEvent.keyCode === 229) {
@@ -343,14 +330,13 @@ function appendToolbar(
           finish(null);
         }
       });
-      panel.append(inputLabel, field, confirm, cancel);
+      panel.append(confirm, cancel);
       toolbar.append(panel);
-      field.focus();
+      fields[0]?.focus();
     });
-
   if (sourceKind === "flowchart") {
     add("添加节点", async () => {
-      const label = await ask("节点文字");
+      const label = (await askFields([{ label: "节点文字" }]))?.[0] ?? null;
       if (label !== null) editor.dispatch({ type: "addNode", label });
     });
     add(
@@ -360,24 +346,41 @@ function appendToolbar(
           value: node.id,
           label: node.label,
         }));
-        const source = await ask("起点节点", "", choices);
-        const target = source !== null ? await ask("终点节点", "", choices) : null;
+        const values = await askFields([
+          { label: "起点节点", initial: selected(editor, "node")?.slice(5), choices },
+          { label: "终点节点", initial: choices[1]?.value, choices },
+        ]);
+        const [source, target] = values ?? [];
         if (source && target) editor.dispatch({ type: "connect", source, target });
       },
       () => ((editor.result.flowchart?.nodes.length ?? 0) === 0 ? "请先添加节点" : null),
     );
-    add("修改节点文字", async () => {
-      const id = selected(editor, "node");
-      const node = id && editor.result.flowchart?.nodeById.get(id.slice(5));
-      const label = node ? await ask("节点文字", node.label) : null;
-      if (id && label !== null) editor.dispatch({ type: "renameNode", id: id.slice(5), label });
-    });
-    add("修改关系文字", async () => {
-      const id = selected(editor, "edge");
-      const edge = id && editor.result.flowchart?.edges.find((item) => item.entityId === id);
-      const label = edge ? await ask("关系文字", edge.label ?? "") : null;
-      if (id && label !== null) editor.dispatch({ type: "setEdgeLabel", edgeId: id, label });
-    });
+    add(
+      "修改节点文字",
+      async () => {
+        const id = selected(editor, "node");
+        const node = id && editor.result.flowchart?.nodeById.get(id.slice(5));
+        const label = node
+          ? ((await askFields([{ label: "节点文字", initial: node.label }]))?.[0] ?? null)
+          : null;
+        if (id && label !== null) editor.dispatch({ type: "renameNode", id: id.slice(5), label });
+      },
+      undefined,
+      "node",
+    );
+    add(
+      "修改关系文字",
+      async () => {
+        const id = selected(editor, "edge");
+        const edge = id && editor.result.flowchart?.edges.find((item) => item.entityId === id);
+        const label = edge
+          ? ((await askFields([{ label: "关系文字", initial: edge.label ?? "" }]))?.[0] ?? null)
+          : null;
+        if (id && label !== null) editor.dispatch({ type: "setEdgeLabel", edgeId: id, label });
+      },
+      undefined,
+      "edge",
+    );
     add(
       "删除关系",
       () => {
@@ -385,6 +388,7 @@ function appendToolbar(
         if (id) editor.dispatch({ type: "deleteEdge", edgeId: id });
       },
       () => (selected(editor, "edge") ? null : "先选择一条关系"),
+      "edge",
     );
     add(
       "删除节点",
@@ -402,10 +406,11 @@ function appendToolbar(
         if (!id || !graph) return "先选择一个节点";
         return flowNodeIsReferenced(graph, id) ? "请先删除引用此节点的关系或样式" : null;
       },
+      "node",
     );
   } else {
     add("添加参与者", async () => {
-      const name = await ask("参与者名称");
+      const name = (await askFields([{ label: "参与者名称" }]))?.[0] ?? null;
       if (name !== null) editor.dispatch({ type: "seq.addParticipant", name });
     });
     add(
@@ -415,47 +420,63 @@ function appendToolbar(
           value: participant.id,
           label: participant.label,
         }));
-        const source = await ask("发送方", "", choices);
-        const target = source !== null ? await ask("接收方", "", choices) : null;
-        const text = target !== null ? await ask("消息文字") : null;
-        if (source !== null && target !== null && text !== null) {
+        const values = await askFields([
+          { label: "发送方", initial: selected(editor, "participant")?.slice(12), choices },
+          { label: "接收方", initial: choices[1]?.value, choices },
+          { label: "消息文字" },
+        ]);
+        if (values) {
+          const [source, target, text] = values as [string, string, string];
           editor.dispatch({ type: "seq.addMessage", source, target, text });
         }
       },
       () => ((editor.result.sequence?.participants.length ?? 0) < 2 ? "请先添加两个参与者" : null),
     );
-    add("修改参与者名称", async () => {
-      const id = selected(editor, "participant");
-      const person = id ? editor.result.sequence?.participantById.get(id.slice(12)) : undefined;
-      const name = person ? await ask("参与者名称", person.label) : null;
-      if (id && person && name !== null) {
-        if (!person?.decl?.alias && !safeIdentifier(name)) {
-          status.textContent = "无别名参与者的 ID 只能使用字母、数字、点、下划线或短横线。";
-          reportError(status.textContent);
-          return;
+    add(
+      "修改参与者名称",
+      async () => {
+        const id = selected(editor, "participant");
+        const person = id ? editor.result.sequence?.participantById.get(id.slice(12)) : undefined;
+        const name = person
+          ? ((await askFields([{ label: "参与者名称", initial: person.label }]))?.[0] ?? null)
+          : null;
+        if (id && person && name !== null) {
+          if (!person?.decl?.alias && !safeIdentifier(name)) {
+            status.textContent = "无别名参与者的 ID 只能使用字母、数字、点、下划线或短横线。";
+            reportError(status.textContent);
+            return;
+          }
+          if (
+            !person?.decl?.alias &&
+            editor.result.sequence?.participantById.has(name) &&
+            name !== person.id
+          ) {
+            status.textContent = "该参与者 ID 已被使用。";
+            reportError(status.textContent);
+            return;
+          }
+          editor.dispatch({ type: "seq.renameParticipant", id: id.slice(12), name });
         }
-        if (
-          !person?.decl?.alias &&
-          editor.result.sequence?.participantById.has(name) &&
-          name !== person.id
-        ) {
-          status.textContent = "该参与者 ID 已被使用。";
-          reportError(status.textContent);
-          return;
+      },
+      undefined,
+      "participant",
+    );
+    add(
+      "修改消息文字",
+      async () => {
+        const id = selected(editor, "event");
+        const event = id
+          ? editor.result.sequence?.events.find((item) => item.entityId === id)
+          : undefined;
+        if (id && event?.kind === "message") {
+          const text =
+            (await askFields([{ label: "消息文字", initial: event.stmt.text }]))?.[0] ?? null;
+          if (text !== null) editor.dispatch({ type: "seq.setEventText", eventId: id, text });
         }
-        editor.dispatch({ type: "seq.renameParticipant", id: id.slice(12), name });
-      }
-    });
-    add("修改消息文字", async () => {
-      const id = selected(editor, "event");
-      const event = id
-        ? editor.result.sequence?.events.find((item) => item.entityId === id)
-        : undefined;
-      if (id && event?.kind === "message") {
-        const text = await ask("消息文字", event.stmt.text);
-        if (text !== null) editor.dispatch({ type: "seq.setEventText", eventId: id, text });
-      }
-    });
+      },
+      undefined,
+      "event",
+    );
     add(
       "删除消息",
       () => {
@@ -473,6 +494,7 @@ function appendToolbar(
           : undefined;
         return event?.kind === "message" ? null : "先选择一条消息";
       },
+      "event",
     );
     add(
       "删除参与者",
@@ -492,12 +514,20 @@ function appendToolbar(
           ? "请先删除引用此参与者的消息或注释"
           : null;
       },
+      "participant",
     );
   }
   const refresh = (): void => {
+    // Selection can change while a form is open; it must not unlock a second operation.
+    for (const button of actions.querySelectorAll("button"))
+      button.disabled = pendingInputCount > 0;
+    for (const button of actions.querySelectorAll<HTMLButtonElement>("button[data-context]")) {
+      button.hidden = !selected(editor, button.dataset.context!);
+    }
+    hint.hidden = editor.selection.length > 0;
     for (const [button, reasonFor] of controls) {
       const reason = reasonFor();
-      button.disabled = Boolean(reason);
+      button.disabled = pendingInputCount > 0 || Boolean(reason);
       button.title = reason ?? "";
     }
   };
@@ -507,6 +537,8 @@ function appendToolbar(
     if (event.key === "Escape") view.setTool("select");
   });
   refresh();
+  actions.append(hint);
+  toolbar.prepend(actions, status);
   parent.prepend(toolbar);
   const destroyToolbar = (): void => {
     cancelPendingInput?.();
@@ -542,7 +574,7 @@ export const mermaidGraphicalEditor: GraphicalCodeBlockEditorProvider = Object.f
     if (!styledDocuments.has(ownerDocument)) {
       const style = ownerDocument.createElement("style");
       style.dataset.mdMermaidGraphicalEditor = "";
-      style.textContent = GRAPHICAL_EDITOR_CSS;
+      style.textContent = mermaidGraphicalEditorCss;
       ownerDocument.head.append(style);
       styledDocuments.add(ownerDocument);
     }
@@ -559,9 +591,14 @@ export const mermaidGraphicalEditor: GraphicalCodeBlockEditorProvider = Object.f
         runMermaidOperation(currentTheme, (mermaid) => mermaid.render(id, code)),
       parse: (code: string) => parseMermaid(code, currentTheme),
     };
+    input.container.classList.add("cm-md-mermaid-graphical-editor");
+    const canvas = ownerDocument.createElement("div");
+    input.container.append(canvas);
     const view = new MermaidCanvasView({
       editor,
-      container: input.container,
+      container: canvas,
+      // Controls share selection ownership, but not the viewport used by fit/pan/zoom.
+      interactionRoot: input.container,
       mermaid: mermaidFacade,
       mermaidConfig: {
         securityLevel: "strict",
@@ -594,6 +631,7 @@ export const mermaidGraphicalEditor: GraphicalCodeBlockEditorProvider = Object.f
         target instanceof HTMLElement &&
         (target.isContentEditable ||
           target instanceof HTMLInputElement ||
+          target instanceof HTMLSelectElement ||
           target instanceof HTMLTextAreaElement)
       )
         return;
@@ -673,6 +711,8 @@ export const mermaidGraphicalEditor: GraphicalCodeBlockEditorProvider = Object.f
         onEditorChange();
         input.container.removeEventListener("keydown", guardNativeDelete, true);
         view.destroy();
+        canvas.remove();
+        input.container.classList.remove("cm-md-mermaid-graphical-editor");
       },
       setTheme(isDark: boolean) {
         if (destroyed) return;

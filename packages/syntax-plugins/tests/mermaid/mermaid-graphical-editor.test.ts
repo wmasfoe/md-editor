@@ -33,7 +33,7 @@ describe("Mermaid graphical editor capability", () => {
     }
 
     expect(button.disabled).toBe(false);
-    expect(button.title).toBe("图形编辑");
+    expect(button.title).toBe("编辑");
     document.body.append(dom);
     button.click();
     expect(openGraphicalCodeBlockEditor).toHaveBeenCalledWith({
@@ -176,12 +176,10 @@ describe("Mermaid graphical editor capability", () => {
     expect(firstSelect).not.toBeNull();
     expect([...firstSelect!.options].map((option) => option.textContent)).toEqual(["one", "two"]);
     firstSelect!.value = "A";
-    container.querySelector<HTMLButtonElement>(".cm-md-mermaid-graphical-input button")!.click();
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    const secondSelect = container.querySelector<HTMLSelectElement>(
+    const secondSelect = container.querySelectorAll<HTMLSelectElement>(
       ".cm-md-mermaid-graphical-input select",
-    );
-    expect(secondSelect).not.toBeNull();
+    )[1];
+    expect(secondSelect).toBeDefined();
     secondSelect!.value = "B";
     container.querySelector<HTMLButtonElement>(".cm-md-mermaid-graphical-input button")!.click();
     await expect(changed).resolves.toContain("A --> B");
@@ -231,7 +229,7 @@ describe("Mermaid graphical editor capability", () => {
     const updates: string[] = [];
     const handle = await mermaidGraphicalEditor.mount({
       container,
-      source: "flowchart TD\n A[Original]",
+      source: "flowchart TD\n A[Original]\n B[Other]",
       isDark: false,
       onChange: (source) => updates.push(source),
     });
@@ -250,6 +248,15 @@ describe("Mermaid graphical editor capability", () => {
       (button) => button.textContent === "修改节点文字",
     );
     renameButton!.click();
+    const other = container.querySelector<SVGElement>('[data-mw-entity="node:B"]')!;
+    other.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(
+      [
+        ...toolbar.querySelectorAll<HTMLButtonElement>(
+          ".cm-md-mermaid-graphical-toolbar__actions button",
+        ),
+      ].every((button) => button.disabled),
+    ).toBe(true);
     const input = container.querySelector<HTMLInputElement>(".cm-md-mermaid-graphical-input input");
     expect(input).not.toBeNull();
     input!.value = "Renamed";
@@ -257,7 +264,7 @@ describe("Mermaid graphical editor capability", () => {
     for (let attempt = 0; attempt < 50 && updates.length === 0; attempt++) {
       await new Promise((resolve) => setTimeout(resolve, 10));
     }
-    expect(updates).toEqual(["flowchart TD\n A[Renamed]"]);
+    expect(updates).toEqual(["flowchart TD\n A[Renamed]\n B[Other]"]);
     handle.destroy();
     container.remove();
   });

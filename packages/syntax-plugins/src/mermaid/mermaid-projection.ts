@@ -123,7 +123,7 @@ function enterSourceEdit(view: EditorView, anchorPos: number): void {
  * v7 交互契约（鼠标/键盘有意分离，详见 docs/agent/architecture/markdown_syntax_plugin_architecture.md §6.3）：
  * - **单击块体 = 只读查看**：打开共享媒体查看器（适应宽度 + 滚轮缩放 + 拖拽平移 + 双击复位），
  *   不修改选区、不展开源码；判定在 `click` 阶段（`detail === 1` + 位移阈值 + 目标非工具栏按钮）；
- * - **编辑入口显式化**：块内悬浮工具栏「编辑源码」与浮层内「编辑源码」；
+ * - **双入口**：块内工具栏「查看」「编辑」；源码可在源码模式中修改；
  * - **键盘仍按 Typora 习惯**：光标/方向键进入块（含块边界）即原位暴露源码（由渲染核心的激活判定
  *   对空选区做闭区间包含实现，本文件不再自己 dispatch 选区）；
  * - **加载/失败态**：SVG 未就绪时「放大查看」禁用且单击不打开；失败卡片单击 = 进入源码编辑
@@ -166,31 +166,23 @@ export class MermaidBlockWidget extends WidgetType {
     viewerButton.type = "button";
     viewerButton.className = "cm-md-mermaid-toolbar__viewer";
     viewerButton.setAttribute("aria-label", "放大查看图表");
-    viewerButton.title = "放大查看";
-    viewerButton.textContent = "⤢";
+    viewerButton.title = "查看";
+    viewerButton.textContent = "查看";
     // 文档内可聚焦控件一律 tabIndex=-1（结构护栏 focusable-controls-convention 会逐文件校验字面量）
     viewerButton.tabIndex = -1;
     viewerButton.disabled = true;
-
-    const editButton = doc.createElement("button");
-    editButton.type = "button";
-    editButton.className = "cm-md-mermaid-toolbar__edit";
-    editButton.setAttribute("aria-label", "编辑图表源码");
-    editButton.title = "编辑源码";
-    editButton.textContent = "编辑源码";
-    editButton.tabIndex = -1;
 
     const graphicalEditButton = doc.createElement("button");
     graphicalEditButton.type = "button";
     graphicalEditButton.className = "cm-md-mermaid-toolbar__graphical-edit";
     graphicalEditButton.setAttribute("aria-label", "图形编辑图表");
-    graphicalEditButton.title = "图形编辑";
-    graphicalEditButton.textContent = "图形编辑";
+    graphicalEditButton.title = "编辑";
+    graphicalEditButton.textContent = "编辑";
     graphicalEditButton.tabIndex = -1;
     graphicalEditButton.disabled = true;
     graphicalEditButton.hidden = !hostPorts.openGraphicalCodeBlockEditor;
 
-    toolbar.append(viewerButton, editButton, graphicalEditButton);
+    toolbar.append(viewerButton, graphicalEditButton);
     wrapper.append(container, toolbar);
 
     const isDark = documentIsDark(doc);
@@ -297,7 +289,6 @@ export class MermaidBlockWidget extends WidgetType {
         fit: "width",
         zoomPan: {},
         takeFocus: true,
-        onRequestEdit: () => enterSourceEdit(view, this.anchorPos),
         restoreFocus: () => view.focus(),
       });
     };
@@ -328,13 +319,6 @@ export class MermaidBlockWidget extends WidgetType {
       openViewer();
     });
 
-    editButton.addEventListener("mousedown", (event) => event.stopPropagation());
-    editButton.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      enterSourceEdit(view, this.anchorPos);
-    });
-
     if (hostPorts.openGraphicalCodeBlockEditor) {
       void mermaidGraphicalEditor
         .inspect(this.code)
@@ -344,7 +328,7 @@ export class MermaidBlockWidget extends WidgetType {
           // losing the one-shot capability result during that mount window.
           graphicalEditButton.disabled = !result.supported;
           graphicalEditButton.title = result.supported
-            ? "图形编辑"
+            ? "编辑"
             : (result.reason ?? "此图表不支持图形编辑");
         })
         .catch((error: unknown) => {
