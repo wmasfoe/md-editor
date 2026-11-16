@@ -45,6 +45,22 @@ function loadVisimerDom(): Promise<VisimerDomModule> {
   return domPromise;
 }
 
+/**
+ * Preload the canvas module once a diagram is known to be graphically editable.
+ *
+ * The editor chunk is otherwise fetched on the first edit, which breaks offline
+ * use: a host that is already offline cannot resolve a chunk it never downloaded,
+ * so an existing diagram becomes uneditable and a new one cannot be created
+ * (test spec H3 requires offline preview/create/edit). Warming here keeps the
+ * startup chunk free of Visimer for documents without diagrams, while a document
+ * that does contain one has the module cached before any network loss.
+ */
+function warmEditorModules(): void {
+  void loadVisimerDom().catch(() => {
+    // A failed preload must not fail the capability check; `mount` reports it.
+  });
+}
+
 const DIAGRAM_TYPES = Object.freeze([
   { id: "flowchart", label: "流程图", initialSource: "flowchart TD" },
   { id: "sequence", label: "时序图", initialSource: "sequenceDiagram" },
@@ -105,11 +121,15 @@ async function inspectSource(source: string): Promise<Inspection> {
   }
   if (parsed.flowchart) {
     const reason = isSimpleFlowchart(parsed.flowchart);
-    return reason ? unsupported(reason) : Object.freeze({ supported: true });
+    if (reason) return unsupported(reason);
+    warmEditorModules();
+    return Object.freeze({ supported: true });
   }
   if (parsed.sequence) {
     const reason = isSimpleSequence(parsed.sequence);
-    return reason ? unsupported(reason) : Object.freeze({ supported: true });
+    if (reason) return unsupported(reason);
+    warmEditorModules();
+    return Object.freeze({ supported: true });
   }
   return unsupported("无法识别此 Mermaid 图表结构");
 }

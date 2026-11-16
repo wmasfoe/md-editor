@@ -77,4 +77,19 @@ describe("Visimer 按需加载护栏", () => {
     expect(source).toContain('import("@visimer/core")');
     expect(source).toContain('import("@visimer/dom")');
   });
+
+  it("能力检查通过后预取画布模块，否则离线时既有图表不可编辑", () => {
+    const source = readFileSync(join(MERMAID_SRC, "mermaid-graphical-editor.ts"), "utf-8");
+    // Regression: the canvas chunk is fetched on first edit. A host that is already
+    // offline cannot resolve a chunk it never downloaded, so `inspect()` — which runs
+    // while the document is still online — must warm it (test spec H3: offline
+    // preview/create/edit must work with local resources only).
+    // The behavioural contract itself is covered by the Web offline e2e; this guards
+    // that the warm-up is not deleted as "unused" during a refactor.
+    expect(source).toMatch(/function warmEditorModules\(\): void/u);
+    expect(source).toContain("void loadVisimerDom()");
+    const inspectStart = source.indexOf("async function inspectSource");
+    const inspectEnd = source.indexOf("\n}\n", inspectStart);
+    expect(source.slice(inspectStart, inspectEnd)).toContain("warmEditorModules();");
+  });
 });

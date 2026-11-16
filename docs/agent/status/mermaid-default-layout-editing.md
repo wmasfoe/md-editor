@@ -16,6 +16,8 @@
 
 `@visimer/core` 与 `@visimer/dom` 由 `mermaid-graphical-editor.ts` 按需 `import()`，不在模块顶层静态引入。原因是 `mermaidPlugin` 从包根再导出，该模块处于宿主**启动即加载**的 chunk 内；静态引入会让从未渲染图表的宿主也付约 53 KB gzip。改为动态导入后，Web 的启动 chunk 从 122 KB 降到 82 KB gzip（-40 KB），Visimer 只在真正存在图表时加载。新增静态引入会让该收益回退，改动此处前先确认体积。
 
+懒加载必须配合**能力检查时预热**：画布 chunk 否则要等到首次点「编辑」才下载，已离线的宿主无法解析从未下载过的 chunk，导致既有图表不可编辑、新建图表失败（违反 H3「断网预览/创建/编辑使用本地资源」）。因此 `inspect()` 在判定为可编辑后调用 `warmEditorModules()` 预取画布模块：此时文档仍在线，且存在图表就说明用户可能编辑。启动 chunk 仍不含 Visimer，无图表的文档不受影响。回归由 Web 的离线用例与 `mermaid-visimer-lazy-load.test.ts` 双重覆盖。
+
 ## 验收
 
 真实 Web 浏览器交互 17/17 通过，覆盖两图创建与已有图编辑、撤销重做、级联删除、拖拽连线预览与取消、主题、多图、离线、导出和合成 IME Enter。合成输入事件不能替代系统输入法验收。
