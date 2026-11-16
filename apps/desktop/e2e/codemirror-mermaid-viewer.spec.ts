@@ -39,9 +39,8 @@ const INVALID_MERMAID_DOC = [
   "",
 ].join("\n");
 
-/** AC5 用：**浅图**。fit=width 下高度远小于视口 ⇒ 上下留有空白遮罩可点。
- *  反之高瘦图（graph TD）在 fit=width 下会铺满整屏——那时“点空白关闭”天然不可用，
- *  只能靠 Escape / 关闭按钮（已登记为固有取舍）。 */
+/** AC5 用：**浅图**，与高图区分。图表现以 `fit: "contain"` 打开（整图可见），
+ *  所以无论图多高都会在视口内留下遮罩空白，不再有"高图铺满全屏"的例外。 */
 const SHALLOW_MERMAID_DOC = [
   "# 浅图",
   "",
@@ -312,7 +311,7 @@ test.describe("Mermaid 图表查看与编辑解耦", () => {
         await page.keyboard.press("Escape");
       } else if (channel === "backdrop") {
         // 左上角空白：缩放平移模式下 stage 与 root 重合，两者都应被视为遮罩。
-        // 夹具必须是**浅图**——高图在 fit=width 下铺满全屏，没有空白可点。
+        // 图表现以 fit=contain 打开，整图在视口内，四角始终有可点的遮罩空白。
         await overlay.click({ position: { x: 4, y: 4 } });
       } else {
         await overlay.locator(".cm-md-media-viewer__close").click();

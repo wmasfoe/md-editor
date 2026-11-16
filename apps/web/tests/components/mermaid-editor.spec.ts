@@ -670,6 +670,46 @@ test("offline diagram creation still applies to local Markdown", async ({ page }
   expect(markdown).toContain("After");
 });
 
+test("the viewer fits the whole diagram instead of only its width", async ({ page }) => {
+  // A tall flowchart: width-fitting scaled it to ~4x and pushed most nodes
+  // off-screen, so the initial view has to fit both axes.
+  const tall = [
+    "Before",
+    "",
+    "```mermaid",
+    "flowchart TD",
+    "  A[Start] --> B{Choice}",
+    "  B -->|yes| C[Do the thing]",
+    "  B -->|no| D[Skip it]",
+    "  C --> E[Verify]",
+    "  D --> E",
+    "  E --> F[Report]",
+    "  F --> G[Done]",
+    "  G --> H[Archive]",
+    "  H --> I[Notify]",
+    "```",
+    "",
+    "After",
+  ].join("\n");
+  await openApp(page, tall);
+  await enterWysiwyg(page);
+  await expect(page.locator(".cm-md-mermaid-container svg")).toBeVisible({ timeout: 20_000 });
+  await page.locator(".cm-md-mermaid-container").first().click();
+  const viewer = page.locator(".cm-md-media-viewer");
+  await expect(viewer).toBeVisible();
+  const box = await viewer.evaluate((root) => {
+    const stage = root.querySelector(".cm-md-media-viewer__stage")!.getBoundingClientRect();
+    const media = root.querySelector(".cm-md-media-viewer__media")!.getBoundingClientRect();
+    return {
+      stage: { width: stage.width, height: stage.height },
+      media: { width: media.width, height: media.height },
+    };
+  });
+  // The rendered diagram must fit inside the viewport on both axes.
+  expect(box.media.height).toBeLessThanOrEqual(box.stage.height + 2);
+  expect(box.media.width).toBeLessThanOrEqual(box.stage.width + 2);
+});
+
 test("Markdown export retains Mermaid fenced source", async ({ page }, testInfo) => {
   await openApp(page, "Before\n\n```mermaid\nflowchart TD\n  A[Alpha] --> B[Beta]\n```\n\nAfter");
   const downloadPromise = page.waitForEvent("download", { timeout: 10_000 });

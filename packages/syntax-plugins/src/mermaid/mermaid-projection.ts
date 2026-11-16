@@ -286,7 +286,11 @@ export class MermaidBlockWidget extends WidgetType {
         document: doc,
         host: wrapper,
         content: { kind: "svg", svg, label: "Mermaid 图表" },
-        fit: "width",
+        // Fit the whole diagram, not just its width. A tall flowchart or a wide
+        // sequence diagram is taller/wider than the viewport, and width-fitting
+        // scaled it to ~4x and pushed most nodes off-screen. Users can still
+        // zoom in with the wheel; the initial view must show the entire graph.
+        fit: "contain",
         zoomPan: {},
         takeFocus: true,
         restoreFocus: () => view.focus(),
