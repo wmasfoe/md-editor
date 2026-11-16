@@ -131,6 +131,8 @@ export type BuiltInCommandId =
   | "format.inlineCode"
   | "format.highlight"
   | "format.codeBlock"
+  | "insert.mermaid.flowchart"
+  | "insert.mermaid.sequence"
   | "format.blockquote"
   | "format.bulletList"
   | "format.orderedList"
@@ -497,6 +499,23 @@ export function createBuiltInEditorFeature(): FeatureDescriptor {
         key: "Shift-Alt-L",
         commandId: "lint.run",
       });
+
+      // The host forwards creation to the editor, which owns the draft and insertion transaction.
+      for (const [id, title] of [
+        ["insert.mermaid.flowchart", "New Mermaid Flowchart"],
+        ["insert.mermaid.sequence", "New Mermaid Sequence Diagram"],
+      ] as const) {
+        context.commands.register({
+          id,
+          title,
+          placement: ["command-palette"],
+          group: "插入",
+          keywords: ["mermaid", "diagram", "图表", "流程图", "时序图"],
+          run(ctx) {
+            return ctx.actions?.executeFormatting?.(id);
+          },
+        });
+      }
       context.keymaps.register({
         id: "lint.fixAll",
         key: "Shift-Alt-F",

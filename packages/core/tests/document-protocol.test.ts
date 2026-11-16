@@ -40,6 +40,27 @@ function reserve(document: DocumentState, operationId = "external:1") {
   return result.reservation;
 }
 
+describe("local mutation availability", () => {
+  it("reports active reservations and notifications without mutating the snapshot", () => {
+    const document = createDocumentState({ markdown: "Before" });
+    const initial = document.getSnapshot();
+    expect(document.isMutationBusy()).toBe(false);
+    const reservation = reserve(document);
+    expect(document.isMutationBusy()).toBe(true);
+    expect(document.getSnapshot()).toBe(initial);
+    document.releaseExternalEdit(reservation, "cancelled");
+    expect(document.isMutationBusy()).toBe(false);
+
+    let busyDuringNotification = false;
+    document.subscribeTransitions(() => {
+      busyDuringNotification = document.isMutationBusy();
+    });
+    expect(document.applyEditorChange("After", rendererOrigin()).status).toBe("applied");
+    expect(busyDuringNotification).toBe(true);
+    expect(document.isMutationBusy()).toBe(false);
+  });
+});
+
 function committed(filePath: string, withWarning = false): SaveOutcome {
   return {
     status: "succeeded",

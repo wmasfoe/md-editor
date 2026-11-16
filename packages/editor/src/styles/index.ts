@@ -32,6 +32,7 @@ import { canInjectInto, createDocumentStylePort, ensureStyleElement } from "./cr
 import { coreEditorCss } from "./core-css.ts";
 import { directiveCss } from "./directive-css.ts";
 import { lintCss } from "./lint-css.ts";
+import { graphicalCodeEditorCss } from "./graphical-code-editor-css.ts";
 import { mathCss } from "./math-css.ts";
 import { mermaidCss } from "./mermaid-css.ts";
 import { searchCss } from "./search-css.ts";
@@ -54,6 +55,7 @@ export const EDITOR_STYLE_CSS = [
   mathCss,
   mermaidCss,
   lintCss,
+  graphicalCodeEditorCss,
 ].join("\n");
 
 export interface InjectEditorStylesOptions {

@@ -8,11 +8,13 @@ import type {
 import { mermaidMarkdownExtension } from "./mermaid-parser.ts";
 import { buildMermaidLayoutDecorations } from "./mermaid-projection.ts";
 import { MERMAID_NODES, type MermaidMetadata } from "./mermaid-types.ts";
+import { mermaidGraphicalEditor } from "./mermaid-graphical-editor.ts";
 
 export { MERMAID_NODES, type MermaidMetadata } from "./mermaid-types.ts";
 export { mermaidMarkdownExtension } from "./mermaid-parser.ts";
 export { buildMermaidLayoutDecorations, MermaidBlockWidget } from "./mermaid-projection.ts";
 export { renderMermaidSvg } from "./mermaid-loader.ts";
+export { mermaidGraphicalEditor } from "./mermaid-graphical-editor.ts";
 
 /**
  * 官方 Mermaid 图表扩展插件（Mermaid Syntax Plugin）。
@@ -24,6 +26,7 @@ export const mermaidPlugin: MarkdownSyntaxPlugin = Object.freeze({
   id: "markdown.mermaid",
   name: "Mermaid Diagram",
   markdownExtension: mermaidMarkdownExtension,
+  graphicalEditor: mermaidGraphicalEditor,
   nodePolicies: Object.freeze({
     [MERMAID_NODES.MermaidBlock]: Object.freeze({
       kind: "mermaid-block" as MarkdownSyntaxKind,
@@ -95,7 +98,28 @@ export const mermaidPlugin: MarkdownSyntaxPlugin = Object.freeze({
       contentRange: Object.freeze({ from: codeStart, to: codeEnd }),
     });
 
-    return { mermaid };
+    // Only expose the generic editing boundary for a plain top-level fence.
+    // Nested Markdown containers need per-line prefix rewriting, which a single
+    // contiguous body range cannot represent safely.
+    const graphicalCodeBlock =
+      quoteDepth === 0 && fenceIndent === 0 && openMarker
+        ? Object.freeze({
+            bodyRange: mermaid.contentRange,
+            openingFenceRange: Object.freeze({ from: openMarker.from, to: openMarker.to }),
+            closingFenceRange: closeMarker
+              ? Object.freeze({ from: closeMarker.from, to: closeMarker.to })
+              : null,
+            fenceCharacter: source[openMarker.from] as "`" | "~",
+            fenceLength: /^(`+|~+)/.exec(source.slice(openMarker.from))?.[0].length ?? 0,
+            infoString: source
+              .slice(openMarker.from, openMarker.to)
+              .replace(/^(`+|~+)/, "")
+              .trim(),
+            isClosed: closeMarker !== null,
+          })
+        : undefined;
+
+    return { mermaid, ...(graphicalCodeBlock ? { graphicalCodeBlock } : {}) };
   },
   resolveContentRange(
     node: SyntaxNode,

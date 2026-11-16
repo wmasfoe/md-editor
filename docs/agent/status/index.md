@@ -4,6 +4,8 @@
 
 ## 文档
 
+- Mermaid 可视化编辑 P0 的固定依赖、浏览器原型、能力缺口与生产接入门槛：[mermaid-visual-editing-p0.md](./mermaid-visual-editing-p0.md)
+- Mermaid 默认布局的新一轮图形操作、渲染修补和编辑器事务进度：[mermaid-default-layout-editing.md](./mermaid-default-layout-editing.md)
 - CM6 单编辑器迁移实时状态（S1-M6 核心已完成；v0.18.0 已交付 Hot Exit、文档历史、MarkdownLint 与 HTML/PDF 导出；v0.20.0 已交付智能粘贴、HTML 块就地编辑与文末虚拟空行，并记录其遗留缺口）： [codemirror_renderer_migration_status.md](./codemirror_renderer_migration_status.md)
 - 迁移前 M0 技术尖刺结论： [markdown_editor_m0_spike_findings.md](./markdown_editor_m0_spike_findings.md)
 - 迁移前 v0.1 侧栏、Runtime 托管和 Raw 编辑状态： [markdown_editor_v0_1_sidebar_runtime_mdx_status.md](./markdown_editor_v0_1_sidebar_runtime_mdx_status.md)

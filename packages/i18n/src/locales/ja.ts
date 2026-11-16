@@ -634,6 +634,8 @@ export const ja: TranslationSchema = {
       "format.highlight": "ハイライト (Highlight)",
       "format.link": "リンクを挿入 / 囲む",
       "format.codeBlock": "コードブロックを挿入",
+      "insert.mermaid.flowchart": "Mermaid フローチャートを作成",
+      "insert.mermaid.sequence": "Mermaid シーケンス図を作成",
       "format.blockquote": "引用ブロックを切替",
       "format.bulletList": "箇条書きリスト",
       "format.orderedList": "番号付きリスト",
@@ -751,6 +753,7 @@ export const ja: TranslationSchema = {
   },
   web: {
     header: {
+      insertDiagram: "図表を挿入",
       modeVisual: "ビジュアル",
       modeSource: "ソース",
       draftName: "無題の下書き",

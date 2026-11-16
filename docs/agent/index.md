@@ -7,7 +7,7 @@
 - 产品需求、路线与竞品分析（含 VMark 能力现状、AI 隐私边界和风格学习近期计划）： [product/index.md](./product/index.md)
 - 设计规范（含编辑器提示卡片的留白与源码披露约束）： [design/index.md](./design/index.md)
 - 技术架构、能力边界与方案（含文档保存与图片插入职责契约及 IME 延迟限制、GitHub 外部插件、用户命令快捷键与跨窗口即时冲突校验、SDK/host、AI Harness/本地 SLM 接口契约、macOS 本地推理打包与签名、PR3 模块拆分与结构护栏）： [architecture/index.md](./architecture/index.md)
-- 实现状态、迁移进度、Beta 缺口与阶段验证记录： [status/index.md](./status/index.md)
+- 实现状态、迁移进度、Beta 缺口与阶段验证记录（含 Mermaid 可视化编辑 P0、默认布局验收及探针依赖升级维护）： [status/index.md](./status/index.md)
 - 高风险问题规范（选区、IME、AI 修复预览等编辑器交互契约）： [specs/index.md](./specs/index.md)
 - 发布与仓库流程： [release/index.md](./release/index.md)
 - 评审、体验与问题审查记录： [review/index.md](./review/index.md)
@@ -22,7 +22,7 @@
 | `specs/` | **高风险交互契约**："改这块代码前必须知道的不可变量" | 选区完整性、表格编辑生命周期、Inclusivity 契约 |
 | `status/` | **进度快照**："现在做到哪、还缺什么" | 迁移进度、Beta 缺口、阶段验证记录 |
 | `review/` | **审查与体检记录**："某次评审发现了什么" | UX 审查、问题清单 |
-| `design/` | **视觉与交互语言**："长什么样、动效如何" | DESIGN.md、玻璃材质、动效系统 |
+| `design/` | **视觉与交互语言**："长什么样、动效如何" | DESIGN.md（含图表选中、拖拽连线与关联删除交互）、玻璃材质、动效系统 |
 | `product/` | **需求与路线**："为什么做、优先做什么" | PRD、竞品分析、任务优先级 |
 | `release/` | **发布与仓库流程**："怎么发、怎么回滚" | 发版流程、分发链路 |
 

@@ -13,6 +13,9 @@ export interface MarkdownSyntaxPlugin {
   /** 插件唯一标识符，例如 "markdown.directive" */
   readonly id: string;
 
+  /** Optional interactive editor for supported fenced code blocks. */
+  readonly graphicalEditor?: GraphicalCodeBlockEditorProvider;
+
   /** 插件展示名称 */
   readonly name: string;
 
@@ -75,6 +78,35 @@ export interface MarkdownSyntaxPlugin {
       context?: { active: boolean; selected: boolean },
     ) => readonly Range<Decoration>[];
   };
+}
+
+/** A syntax plugin's optional source editor, owned and hosted by the editor renderer. */
+export interface GraphicalCodeBlockEditorProvider {
+  readonly id: string;
+  readonly diagramTypes: readonly GraphicalCodeBlockDiagramType[];
+  inspect(source: string): Promise<{ readonly supported: boolean; readonly reason?: string }>;
+  mount(input: {
+    readonly container: HTMLElement;
+    readonly source: string;
+    readonly isDark: boolean;
+    readonly onChange: (source: string) => void;
+    /** Aborted when the editor dialog closes or its renderer is destroyed. */
+    readonly signal?: AbortSignal;
+    /** True while the provider is validating an asynchronous source update. */
+    readonly onBusyChange?: (busy: boolean) => void;
+    readonly onError?: (error: Error) => void;
+  }): Promise<GraphicalCodeBlockEditorHandle>;
+}
+
+export interface GraphicalCodeBlockDiagramType {
+  readonly id: string;
+  readonly label: string;
+  readonly initialSource: string;
+}
+
+export interface GraphicalCodeBlockEditorHandle {
+  destroy(): void;
+  setTheme?(isDark: boolean): void;
 }
 
 /**
@@ -206,6 +238,19 @@ export interface MarkdownCodeBlockMetadata {
   readonly languageInfo: MarkdownCodeBlockLanguageInfo;
 }
 
+/** Exact parser-provided body and fence boundaries for an editor-owned graphical code editor. */
+export interface MarkdownGraphicalCodeBlockMetadata {
+  readonly bodyRange: SourceRange;
+  /** Whole opening fence line, including indentation and info string. */
+  readonly openingFenceRange: SourceRange;
+  /** Whole closing fence line; null means the parser did not find a close marker. */
+  readonly closingFenceRange: SourceRange | null;
+  readonly fenceCharacter: "`" | "~";
+  readonly fenceLength: number;
+  readonly infoString: string;
+  readonly isClosed: boolean;
+}
+
 export type MarkdownTableCellAlignment = "left" | "center" | "right" | "none";
 
 export interface MarkdownTableCellRange extends SourceRange {
@@ -264,6 +309,7 @@ export interface MarkdownRangeRecord {
   readonly sourceFingerprint: string;
   readonly parserCoverage: "complete" | "partial";
   readonly codeBlock?: MarkdownCodeBlockMetadata;
+  readonly graphicalCodeBlock?: MarkdownGraphicalCodeBlockMetadata;
   readonly tableBlock?: MarkdownTableBlockMetadata;
   readonly mdxBlock?: MarkdownMdxBlockMetadata;
   readonly directive?: MarkdownDirectiveMetadata;
@@ -397,6 +443,11 @@ export interface SyntaxPluginHostPorts {
   readonly openMediaViewer?: (options: MediaViewerOpenOptions) => MediaViewerHandle;
   /** 按宿主元素关闭媒体查看器；未提供时由宿主自行在 destroy 时清理。 */
   readonly closeMediaViewerFor?: (host: HTMLElement) => void;
+  /** Open a protected, editor-owned source session for a plugin code block. */
+  readonly openGraphicalCodeBlockEditor?: (input: {
+    readonly recordId: string;
+    readonly provider: GraphicalCodeBlockEditorProvider;
+  }) => void;
   /**
    * 创建 Callout 头部 widget。
    *

@@ -49,7 +49,14 @@ import {
   deleteBlock as deleteCmBlock,
 } from "../../wysiwyg/blocks/block-move.ts";
 import { lintLanguageField, setLintLanguageEffect } from "../../lint/markdown-lint-i18n.ts";
-import type { MarkdownLintPortResult, RendererViewAdapter } from "../types.ts";
+import { setInlineStyleMarkersEffect } from "../../wysiwyg/projections/inline-heading.ts";
+import { setCodeBlockLineNumbersEffect } from "../../wysiwyg/projections/code-block-projection.ts";
+import type {
+  CodeBlockLineNumberPortResult,
+  InlineStyleMarkerPortResult,
+  MarkdownLintPortResult,
+  RendererViewAdapter,
+} from "../types.ts";
 
 /**
  * 读取**视图轴**（专注/打字机）当前开关态。
@@ -65,6 +72,54 @@ export function readViewModeState(view: RendererViewAdapter): {
     focus: view.state.field(focusModeField, false) === true,
     typewriter: view.state.field(typewriterModeField, false) === true,
   };
+}
+
+export function configureViewMarkdownLint(
+  view: RendererViewAdapter,
+  compartment: Compartment,
+  enabled: boolean,
+): void {
+  const reconfigureEffect = compartment.reconfigure(createRealtimeMarkdownLintExtension(enabled));
+  const clearEffects: readonly StateEffect<unknown>[] = enabled
+    ? []
+    : createMarkdownLintClearEffects(view.state);
+  view.dispatch({
+    effects: [reconfigureEffect, ...clearEffects],
+    annotations: [
+      Transaction.addToHistory.of(false),
+      rendererTransactionOrigin.of({ kind: "markdown-lint" }),
+    ],
+  });
+}
+
+/** Toggles inline heading markers without adding a document history entry. */
+export function setViewInlineStyleMarkers(
+  view: RendererViewAdapter,
+  enabled: boolean,
+): InlineStyleMarkerPortResult {
+  view.dispatch({
+    effects: setInlineStyleMarkersEffect.of(enabled),
+    annotations: [
+      Transaction.addToHistory.of(false),
+      rendererTransactionOrigin.of({ kind: "inline-style-markers" }),
+    ],
+  });
+  return { status: "applied" };
+}
+
+/** Toggles diagram line numbers without recording a content edit. */
+export function setViewCodeBlockLineNumbers(
+  view: RendererViewAdapter,
+  enabled: boolean,
+): CodeBlockLineNumberPortResult {
+  view.dispatch({
+    effects: setCodeBlockLineNumbersEffect.of(enabled),
+    annotations: [
+      Transaction.addToHistory.of(false),
+      rendererTransactionOrigin.of({ kind: "code-block-line-numbers" }),
+    ],
+  });
+  return { status: "applied" };
 }
 
 /** 切换专注模式（纯视图态：dispatch effect 改 StateField，零文档变更）。 */
@@ -226,6 +281,7 @@ export function openViewReplace(view: RendererViewAdapter): boolean {
 import {
   clearMarkdownLintCommand,
   collectPreservedNonMarkdownDiagnostics,
+  createRealtimeMarkdownLintExtension,
   fixAllMarkdownLintIssues,
   runMarkdownLint,
   runMarkdownLintCommand,
@@ -342,7 +398,9 @@ export function setViewLanguage(
   view: RendererViewAdapter,
   language: string | undefined,
   lintEnabled: boolean,
+  destroyed = false,
 ): MarkdownLintPortResult {
+  if (destroyed) return { status: "destroyed" };
   if (view.state.field(lintLanguageField) === language) return { status: "noop" };
   view.dispatch({
     effects: setLintLanguageEffect.of(language),

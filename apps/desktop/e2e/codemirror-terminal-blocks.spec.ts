@@ -59,8 +59,8 @@ test("terminal Mermaid source folds when ArrowDown enters the virtual line", asy
   const source = "Before\n\n" + diagram;
   await openFullApp(page);
   await loadDoc(page, source);
-  await page.locator(".cm-md-mermaid-container").click();
-  await page.locator(".cm-md-media-viewer__edit").click();
+  await expect(page.locator(".cm-md-mermaid-block")).toHaveCount(1);
+  // Caret entry still reveals the source; the read-only viewer has no edit action.
   await setCaret(page, source.length);
   await expect(page.locator(".cm-md-marker--mermaid").first()).toBeVisible();
   await page.keyboard.press("ArrowDown");

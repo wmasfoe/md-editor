@@ -561,6 +561,11 @@ function MainWebEditorApp({
         onTriggerAi={() => void handleTriggerAi()}
         onCopy={handleCopy}
         onExport={handleExport}
+        onInsertDiagram={
+          ports && settings.plugins.enabled["markdown.mermaid"] !== false
+            ? (type) => ports.executeFormatting(`insert.mermaid.${type}`)
+            : undefined
+        }
       />
 
       {/* 主工作区（左侧栏 + 拖拽调宽 + 编辑器） */}

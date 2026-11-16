@@ -261,6 +261,8 @@ export function createCodeMirrorEditorBridge(
     parent: options.parent,
     language: options.language,
     initialSnapshot: options.document.getSnapshot(),
+    // Older custom states remain valid, but cannot authorize guarded graphical edits.
+    isDocumentBusy: () => options.document.isMutationBusy?.() ?? true,
     resolveImagePreview: ({ source }) => options.resolveImageSrc?.(source) ?? source,
     writeClipboardText: options.writeClipboardText ?? defaultWriteClipboardText,
     mdxMode: options.mdxMode ?? false,

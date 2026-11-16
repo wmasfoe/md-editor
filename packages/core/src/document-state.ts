@@ -142,7 +142,9 @@ interface SaveRecord {
  * @param input 初始 Markdown 内容、文件路径与异常回调
  * @returns 符合 DocumentState 契约的单向数据流协调器
  */
-export function createDocumentState(input: DocumentStateInput = {}): DocumentState {
+export function createDocumentState(
+  input: DocumentStateInput = {},
+): DocumentState & Required<Pick<DocumentState, "isMutationBusy">> {
   const instanceId = nextDocumentStateInstanceId++;
   const transitionListeners = new Set<(event: DocumentStateEvent) => void>();
   const snapshotListeners = new Set<() => void>();
@@ -398,7 +400,7 @@ export function createDocumentState(input: DocumentStateInput = {}): DocumentSta
     return selected;
   }
 
-  const state: DocumentState = {
+  const state: DocumentState & Required<Pick<DocumentState, "isMutationBusy">> = {
     subscribe(listener) {
       return state.subscribeSnapshot(listener);
     },
@@ -412,6 +414,9 @@ export function createDocumentState(input: DocumentStateInput = {}): DocumentSta
     },
     getSnapshot() {
       return currentSnapshot;
+    },
+    isMutationBusy() {
+      return notifying || activeReservation !== null;
     },
     applyEditorChange(markdown, origin) {
       return applyContent(markdown, origin, mutationOriginOperationId(origin));

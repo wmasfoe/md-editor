@@ -7,6 +7,7 @@ import {
   ArrowDownTrayIcon,
   DocumentDuplicateIcon,
   CheckIcon,
+  ShareIcon,
 } from "@heroicons/react/24/outline";
 import { useTranslation } from "@md-editor/i18n";
 
@@ -24,6 +25,7 @@ export interface WebHeaderProps {
   readonly onTriggerAi: () => void;
   readonly onCopy: () => void;
   readonly onExport: () => void;
+  readonly onInsertDiagram?: (type: "flowchart" | "sequence") => void;
 }
 
 /** 按钮提示文案：名称加快捷键 */
@@ -49,6 +51,7 @@ export function WebHeader({
   onTriggerAi,
   onCopy,
   onExport,
+  onInsertDiagram,
 }: WebHeaderProps) {
   const { t } = useTranslation();
   const isMac =
@@ -121,6 +124,37 @@ export function WebHeader({
 
       {/* 右侧：操作区 */}
       <div className="flex items-center gap-1">
+        {onInsertDiagram && (
+          <details className="relative">
+            <summary
+              className={`${iconButtonClassName} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}
+              aria-label={t("web.header.insertDiagram")}
+              title={t("web.header.insertDiagram")}
+            >
+              <ShareIcon className="size-4" />
+            </summary>
+            <div className="absolute right-0 z-50 mt-1 min-w-52 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-surface)] p-1 shadow-lg">
+              {(["flowchart", "sequence"] as const).map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  className="block w-full rounded-md px-3 py-2 text-left text-xs hover:bg-[var(--theme-control-hover)] focus-visible:bg-[var(--theme-control-hover)]"
+                  onClick={(event) => {
+                    const details = event.currentTarget.closest("details");
+                    if (details) {
+                      details.open = false;
+                      // Return focus to a visible trigger before the editor opens its modal.
+                      details.querySelector("summary")?.focus();
+                    }
+                    onInsertDiagram(type);
+                  }}
+                >
+                  {t(`commands.titles.insert.mermaid.${type}`)}
+                </button>
+              ))}
+            </div>
+          </details>
+        )}
         {/* AI 续写按钮 */}
         <button
           type="button"

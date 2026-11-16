@@ -17,6 +17,8 @@
     "prepack": "pnpm build"
   },
   "dependencies": {
+    "@visimer/core": "1.1.3",
+    "@visimer/dom": "1.1.3",
     "@codemirror/state": "catalog:",
     "@codemirror/view": "catalog:",
     "@lezer/common": "catalog:",

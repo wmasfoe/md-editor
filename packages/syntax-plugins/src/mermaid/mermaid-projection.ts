@@ -6,6 +6,7 @@ import {
   type SyntaxPluginHostPorts,
 } from "@md-editor/plugin-sdk/syntax";
 import { renderMermaidSvg } from "./mermaid-loader.ts";
+import { mermaidGraphicalEditor } from "./mermaid-graphical-editor.ts";
 import type { MermaidMetadata } from "./mermaid-types.ts";
 
 /** 指针位移阈值（px）：超过即视为拖拽，不打开查看器（避免“想拖选区却弹浮层”）。 */
@@ -31,6 +32,66 @@ export function shouldOpenViewerFromClick(detail: number, dragDistance: number):
  * 零二次渲染，且 id 隔离交给浮层侧统一处理。
  */
 const renderedSvgByDom = new WeakMap<HTMLElement, string>();
+
+interface MermaidDomRenderState {
+  generation: number;
+  readonly render: (isDark: boolean) => void;
+}
+
+interface MermaidThemeObserverState {
+  readonly observer: MutationObserver;
+  readonly widgets: Set<HTMLElement>;
+  isDark: boolean;
+}
+
+const renderStateByWrapper = new WeakMap<HTMLElement, MermaidDomRenderState>();
+const themeObserverByDocument = new WeakMap<Document, MermaidThemeObserverState>();
+
+function documentIsDark(doc: Document): boolean {
+  const root = doc.documentElement;
+  return (
+    root.classList.contains("dark") ||
+    root.dataset.theme === "dark" ||
+    root.dataset.themeScheme === "dark"
+  );
+}
+
+function observeDocumentTheme(doc: Document, wrapper: HTMLElement): void {
+  let observerState = themeObserverByDocument.get(doc);
+  if (!observerState) {
+    const MutationObserverConstructor = doc.defaultView?.MutationObserver;
+    if (!MutationObserverConstructor) return;
+    const state: MermaidThemeObserverState = {
+      observer: new MutationObserverConstructor(() => {
+        const isDark = documentIsDark(doc);
+        if (isDark === state.isDark) return;
+        state.isDark = isDark;
+        for (const widget of state.widgets) {
+          renderStateByWrapper.get(widget)?.render(isDark);
+        }
+      }),
+      widgets: new Set(),
+      isDark: documentIsDark(doc),
+    };
+    observerState = state;
+    themeObserverByDocument.set(doc, state);
+    state.observer.observe(doc.documentElement, {
+      attributes: true,
+      attributeFilter: ["class", "data-theme", "data-theme-scheme"],
+    });
+  }
+  observerState.widgets.add(wrapper);
+}
+
+function stopObservingDocumentTheme(doc: Document, wrapper: HTMLElement): void {
+  const state = themeObserverByDocument.get(doc);
+  if (!state) return;
+  state.widgets.delete(wrapper);
+  if (state.widgets.size === 0) {
+    state.observer.disconnect();
+    themeObserverByDocument.delete(doc);
+  }
+}
 
 function scheduleHeightMeasure(view: EditorView, key: string): void {
   view.requestMeasure({
@@ -62,7 +123,7 @@ function enterSourceEdit(view: EditorView, anchorPos: number): void {
  * v7 交互契约（鼠标/键盘有意分离，详见 docs/agent/architecture/markdown_syntax_plugin_architecture.md §6.3）：
  * - **单击块体 = 只读查看**：打开共享媒体查看器（适应宽度 + 滚轮缩放 + 拖拽平移 + 双击复位），
  *   不修改选区、不展开源码；判定在 `click` 阶段（`detail === 1` + 位移阈值 + 目标非工具栏按钮）；
- * - **编辑入口显式化**：块内悬浮工具栏「编辑源码」与浮层内「编辑源码」；
+ * - **双入口**：块内工具栏「查看」「编辑」；源码可在源码模式中修改；
  * - **键盘仍按 Typora 习惯**：光标/方向键进入块（含块边界）即原位暴露源码（由渲染核心的激活判定
  *   对空选区做闭区间包含实现，本文件不再自己 dispatch 选区）；
  * - **加载/失败态**：SVG 未就绪时「放大查看」禁用且单击不打开；失败卡片单击 = 进入源码编辑
@@ -105,24 +166,26 @@ export class MermaidBlockWidget extends WidgetType {
     viewerButton.type = "button";
     viewerButton.className = "cm-md-mermaid-toolbar__viewer";
     viewerButton.setAttribute("aria-label", "放大查看图表");
-    viewerButton.title = "放大查看";
-    viewerButton.textContent = "⤢";
+    viewerButton.title = "查看";
+    viewerButton.textContent = "查看";
     // 文档内可聚焦控件一律 tabIndex=-1（结构护栏 focusable-controls-convention 会逐文件校验字面量）
     viewerButton.tabIndex = -1;
     viewerButton.disabled = true;
 
-    const editButton = doc.createElement("button");
-    editButton.type = "button";
-    editButton.className = "cm-md-mermaid-toolbar__edit";
-    editButton.setAttribute("aria-label", "编辑图表源码");
-    editButton.title = "编辑源码";
-    editButton.textContent = "编辑源码";
-    editButton.tabIndex = -1;
+    const graphicalEditButton = doc.createElement("button");
+    graphicalEditButton.type = "button";
+    graphicalEditButton.className = "cm-md-mermaid-toolbar__graphical-edit";
+    graphicalEditButton.setAttribute("aria-label", "图形编辑图表");
+    graphicalEditButton.title = "编辑";
+    graphicalEditButton.textContent = "编辑";
+    graphicalEditButton.tabIndex = -1;
+    graphicalEditButton.disabled = true;
+    graphicalEditButton.hidden = !hostPorts.openGraphicalCodeBlockEditor;
 
-    toolbar.append(viewerButton, editButton);
+    toolbar.append(viewerButton, graphicalEditButton);
     wrapper.append(container, toolbar);
 
-    const isDark = doc.documentElement.classList.contains("dark");
+    const isDark = documentIsDark(doc);
 
     // 渲染加载中骨架屏占位
     container.innerHTML = `<div class="cm-md-mermaid-loading"><div class="cm-md-mermaid-loading__spinner"></div><span>正在渲染图表...</span></div>`;
@@ -152,26 +215,38 @@ export class MermaidBlockWidget extends WidgetType {
       container.append(errorCard);
     };
 
-    // 异步拉取并渲染 SVG
-    void renderMermaidSvg(this.code, isDark)
-      .then(({ svg, error }) => {
-        if (error) {
-          renderError(error);
-        } else {
-          container.innerHTML = "";
-          container.classList.remove("cm-md-mermaid--has-error");
-          container.innerHTML = svg;
-          renderedSvgByDom.set(container, svg);
-          // 空围栏（renderMermaidSvg 返回空串）时保持禁用；否则任务栏按钮可点却无反应
-          viewerButton.disabled = svg.trim() === "";
-        }
-        scheduleHeightMeasure(view, `mermaid-${this.recordId}`);
-      })
-      .catch((err) => {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        renderError(`模块加载失败: ${errorMsg}`);
-        scheduleHeightMeasure(view, `mermaid-${this.recordId}`);
-      });
+    // Each theme render gets a generation token so an older queued light render
+    // cannot overwrite the latest dark SVG (or vice versa).
+    const renderState: MermaidDomRenderState = {
+      generation: 0,
+      render: (nextIsDark) => {
+        const generation = ++renderState.generation;
+        void renderMermaidSvg(this.code, nextIsDark)
+          .then(({ svg, error }) => {
+            if (generation !== renderState.generation) return;
+            if (error) {
+              renderError(error);
+            } else {
+              container.innerHTML = "";
+              container.classList.remove("cm-md-mermaid--has-error");
+              container.innerHTML = svg;
+              renderedSvgByDom.set(container, svg);
+              // Empty fences have no SVG to open in the media viewer.
+              viewerButton.disabled = svg.trim() === "";
+            }
+            scheduleHeightMeasure(view, `mermaid-${this.recordId}`);
+          })
+          .catch((err: unknown) => {
+            if (generation !== renderState.generation) return;
+            const errorMsg = err instanceof Error ? err.message : String(err);
+            renderError(`模块加载失败: ${errorMsg}`);
+            scheduleHeightMeasure(view, `mermaid-${this.recordId}`);
+          });
+      },
+    };
+    renderStateByWrapper.set(wrapper, renderState);
+    observeDocumentTheme(doc, wrapper);
+    renderState.render(isDark);
 
     // 点击语义：只读查看（不改选区、不进入源码态）
     let pointerDownAt: { readonly x: number; readonly y: number } | null = null;
@@ -211,10 +286,13 @@ export class MermaidBlockWidget extends WidgetType {
         document: doc,
         host: wrapper,
         content: { kind: "svg", svg, label: "Mermaid 图表" },
-        fit: "width",
+        // Fit the whole diagram, not just its width. A tall flowchart or a wide
+        // sequence diagram is taller/wider than the viewport, and width-fitting
+        // scaled it to ~4x and pushed most nodes off-screen. Users can still
+        // zoom in with the wheel; the initial view must show the entire graph.
+        fit: "contain",
         zoomPan: {},
         takeFocus: true,
-        onRequestEdit: () => enterSourceEdit(view, this.anchorPos),
         restoreFocus: () => view.focus(),
       });
     };
@@ -245,12 +323,33 @@ export class MermaidBlockWidget extends WidgetType {
       openViewer();
     });
 
-    editButton.addEventListener("mousedown", (event) => event.stopPropagation());
-    editButton.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      enterSourceEdit(view, this.anchorPos);
-    });
+    if (hostPorts.openGraphicalCodeBlockEditor) {
+      void mermaidGraphicalEditor
+        .inspect(this.code)
+        .then((result) => {
+          // CodeMirror may create widget DOM before inserting it into the live view.
+          // The detached button still belongs to this widget; updating it here avoids
+          // losing the one-shot capability result during that mount window.
+          graphicalEditButton.disabled = !result.supported;
+          graphicalEditButton.title = result.supported
+            ? "编辑"
+            : (result.reason ?? "此图表不支持图形编辑");
+        })
+        .catch((error: unknown) => {
+          graphicalEditButton.disabled = true;
+          graphicalEditButton.title = error instanceof Error ? error.message : "无法安全检查图表";
+        });
+      graphicalEditButton.addEventListener("mousedown", (event) => event.stopPropagation());
+      graphicalEditButton.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (graphicalEditButton.disabled) return;
+        hostPorts.openGraphicalCodeBlockEditor?.({
+          recordId: this.recordId,
+          provider: mermaidGraphicalEditor,
+        });
+      });
+    }
 
     return wrapper;
   }
@@ -259,6 +358,8 @@ export class MermaidBlockWidget extends WidgetType {
     if (!dom || typeof dom.querySelector !== "function") {
       return;
     }
+    stopObservingDocumentTheme(dom.ownerDocument, dom);
+    renderStateByWrapper.delete(dom);
     // 浮层句柄按 host DOM 键控：CM6 复用 DOM 时会丢弃旧实例且不调其 destroy ⇒ 必须按 DOM 关闭
     const view =
       EditorView.findFromDOM(dom) ??

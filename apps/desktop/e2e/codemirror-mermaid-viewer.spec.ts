@@ -13,8 +13,8 @@ import { MOD_KEY, loadDoc, openFullApp, readDoc, setCaret } from "./editor-e2e-h
  * 类名契约（实现必须匹配，G003）：
  * - `.cm-md-mermaid-block`：外层包装（承载工具栏，避免被 `overflow-x:auto` 裁剪）
  * - `.cm-md-mermaid-container`：SVG 滚动层（既有类名保持不变，既有 spec 依赖它）
- * - `.cm-md-mermaid-toolbar` + `__viewer` / `__edit`
- * - 共享浮层：`.cm-md-media-viewer`（根）+ `__stage` / `__media` / `__close` / `__edit`
+ * - `.cm-md-mermaid-toolbar` + `__viewer` / `__graphical-edit`
+ * - 共享浮层：`.cm-md-media-viewer`（根）+ `__stage` / `__media` / `__close`
  */
 
 const MERMAID_DOC = [
@@ -39,9 +39,8 @@ const INVALID_MERMAID_DOC = [
   "",
 ].join("\n");
 
-/** AC5 用：**浅图**。fit=width 下高度远小于视口 ⇒ 上下留有空白遮罩可点。
- *  反之高瘦图（graph TD）在 fit=width 下会铺满整屏——那时“点空白关闭”天然不可用，
- *  只能靠 Escape / 关闭按钮（已登记为固有取舍）。 */
+/** AC5 用：**浅图**，与高图区分。图表现以 `fit: "contain"` 打开（整图可见），
+ *  所以无论图多高都会在视口内留下遮罩空白，不再有"高图铺满全屏"的例外。 */
 const SHALLOW_MERMAID_DOC = [
   "# 浅图",
   "",
@@ -146,45 +145,44 @@ test.describe("Mermaid 图表查看与编辑解耦", () => {
     await expect(page.locator(".cm-md-media-viewer")).toHaveCount(0);
   });
 
-  test("AC3: 悬浮工具栏——放大查看只开浮层，编辑源码只进编辑", async ({ page }) => {
+  test("查看只开阅读浮层，编辑打开图形编辑器", async ({ page }) => {
     test.setTimeout(90_000);
     await openMermaidDoc(page, MERMAID_DOC);
     await waitForSvg(page);
-
     const block = page.locator(".cm-md-mermaid-block").first();
     await block.hover();
     const toolbar = page.locator(".cm-md-mermaid-toolbar").first();
-    await expect(toolbar).toBeVisible();
-    const viewerButton = toolbar.locator(".cm-md-mermaid-toolbar__viewer");
-    const editButton = toolbar.locator(".cm-md-mermaid-toolbar__edit");
-    await expect(viewerButton).toBeVisible();
-    await expect(editButton).toBeVisible();
-
-    await viewerButton.click({ force: true });
+    await expect(toolbar.locator("button")).toHaveText(["查看", "编辑"]);
+    await toolbar.locator(".cm-md-mermaid-toolbar__viewer").click();
     await expect(page.locator(".cm-md-media-viewer")).toBeVisible();
     await expect(page.locator(".cm-md-marker--mermaid")).toHaveCount(0);
-
+    await expect(page.locator(".cm-md-media-viewer__edit")).toHaveCount(0);
     await page.keyboard.press("Escape");
     await expect(page.locator(".cm-md-media-viewer")).toHaveCount(0);
-
     await block.hover();
-    await editButton.click({ force: true });
-    await expect(page.locator(".cm-md-marker--mermaid").first()).toBeVisible();
+    await toolbar.locator(".cm-md-mermaid-toolbar__graphical-edit").click();
+    const dialog = page.locator(".md-editor-graphical-code-editor");
+    await expect(dialog).toBeVisible();
+    await expect(page.locator(".cm-md-marker--mermaid")).toHaveCount(0);
     await expect(page.locator(".cm-md-media-viewer")).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
   });
 
-  test("AC4: 浮层内「编辑源码」→ 关浮层并进入源码态", async ({ page }) => {
+  test("图表源码通过源码模式编辑", async ({ page }) => {
     test.setTimeout(90_000);
     await openMermaidDoc(page, MERMAID_DOC);
     await waitForSvg(page);
-
-    await page.locator(".cm-md-mermaid-container").first().click();
-    const overlay = page.locator(".cm-md-media-viewer");
-    await expect(overlay).toBeVisible();
-    await overlay.locator(".cm-md-media-viewer__edit").click();
-
-    await expect(overlay).toHaveCount(0);
-    await expect(page.locator(".cm-md-marker--mermaid").first()).toBeVisible();
+    await page.keyboard.press(`${MOD_KEY}+/`);
+    await expect(page.locator(".cm-md-mermaid-container")).toHaveCount(0);
+    await expect(page.locator(".cm-content")).toContainText("A[开始] --> B[结束]");
+    await setCaret(page, (await readDoc(page)).indexOf("结束"));
+    await page.keyboard.type("新的");
+    await expect(page.locator(".cm-content")).toContainText("B[新的结束]");
+    await setCaret(page, 0);
+    await page.keyboard.press(`${MOD_KEY}+/`);
+    await waitForSvg(page);
+    await expect(page.locator(".cm-md-mermaid-container svg")).toContainText("新的结束");
   });
 
   test("AC17/AC18: 浮层计算样式生效、dialog 语义、焦点接管（键入不改文档）", async ({ page }) => {
@@ -313,7 +311,7 @@ test.describe("Mermaid 图表查看与编辑解耦", () => {
         await page.keyboard.press("Escape");
       } else if (channel === "backdrop") {
         // 左上角空白：缩放平移模式下 stage 与 root 重合，两者都应被视为遮罩。
-        // 夹具必须是**浅图**——高图在 fit=width 下铺满全屏，没有空白可点。
+        // 图表现以 fit=contain 打开，整图在视口内，四角始终有可点的遮罩空白。
         await overlay.click({ position: { x: 4, y: 4 } });
       } else {
         await overlay.locator(".cm-md-media-viewer__close").click();

@@ -25,6 +25,8 @@ import {
   MOVE_HEADROOM,
   SPLIT_TARGETS,
   WYSIWYG_DOMAIN_MEMBERS,
+  RENDERER_CLUSTER_MEMBERS,
+  checkRendererCluster,
   checkSplitTargets,
   checkWysiwygDomains,
 } from "./check.mjs";
@@ -413,6 +415,36 @@ test("PR3：renderer 簇新增未登记协作者必须失败", () => {
       );
     },
   );
+});
+
+test("PR3：图形编辑协作者必须存在且不能增加未登记副本", () => {
+  const files = {};
+  for (const [scope, members] of Object.entries(RENDERER_CLUSTER_MEMBERS)) {
+    for (const member of members) {
+      if (scope === "." && member === "controller") continue;
+      const path = `packages/editor/src/renderer/${scope === "." ? "" : `${scope}/`}${member}`;
+      files[path] = "export {};\n";
+    }
+  }
+  withFixture(files, (root) => {
+    assert.deepEqual(checkRendererCluster({ root }).failures, []);
+    const path = join(root, "packages/editor/src/renderer/graphical-code-editor.ts");
+    rmSync(path);
+    assert.equal(
+      checkRendererCluster({ root }).failures.some((failure) =>
+        failure.includes("graphical-code-editor.ts: 已登记但文件缺失"),
+      ),
+      true,
+    );
+    writeFileSync(path, "export {};\n");
+    writeFileSync(join(dirname(path), "graphical-code-editor-copy.ts"), "export {};\n");
+    assert.equal(
+      checkRendererCluster({ root }).failures.some((failure) =>
+        failure.includes("graphical-code-editor-copy.ts: 多出未登记的簇成员"),
+      ),
+      true,
+    );
+  });
 });
 
 /**
