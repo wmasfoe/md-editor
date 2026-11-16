@@ -13,8 +13,8 @@ import { MOD_KEY, loadDoc, openFullApp, readDoc, setCaret } from "./editor-e2e-h
  * 类名契约（实现必须匹配，G003）：
  * - `.cm-md-mermaid-block`：外层包装（承载工具栏，避免被 `overflow-x:auto` 裁剪）
  * - `.cm-md-mermaid-container`：SVG 滚动层（既有类名保持不变，既有 spec 依赖它）
- * - `.cm-md-mermaid-toolbar` + `__viewer` / `__edit`
- * - 共享浮层：`.cm-md-media-viewer`（根）+ `__stage` / `__media` / `__close` / `__edit`
+ * - `.cm-md-mermaid-toolbar` + `__viewer` / `__graphical-edit`
+ * - 共享浮层：`.cm-md-media-viewer`（根）+ `__stage` / `__media` / `__close`
  */
 
 const MERMAID_DOC = [
@@ -146,45 +146,44 @@ test.describe("Mermaid 图表查看与编辑解耦", () => {
     await expect(page.locator(".cm-md-media-viewer")).toHaveCount(0);
   });
 
-  test("AC3: 悬浮工具栏——放大查看只开浮层，编辑源码只进编辑", async ({ page }) => {
+  test("查看只开阅读浮层，编辑打开图形编辑器", async ({ page }) => {
     test.setTimeout(90_000);
     await openMermaidDoc(page, MERMAID_DOC);
     await waitForSvg(page);
-
     const block = page.locator(".cm-md-mermaid-block").first();
     await block.hover();
     const toolbar = page.locator(".cm-md-mermaid-toolbar").first();
-    await expect(toolbar).toBeVisible();
-    const viewerButton = toolbar.locator(".cm-md-mermaid-toolbar__viewer");
-    const editButton = toolbar.locator(".cm-md-mermaid-toolbar__edit");
-    await expect(viewerButton).toBeVisible();
-    await expect(editButton).toBeVisible();
-
-    await viewerButton.click({ force: true });
+    await expect(toolbar.locator("button")).toHaveText(["查看", "编辑"]);
+    await toolbar.locator(".cm-md-mermaid-toolbar__viewer").click();
     await expect(page.locator(".cm-md-media-viewer")).toBeVisible();
     await expect(page.locator(".cm-md-marker--mermaid")).toHaveCount(0);
-
+    await expect(page.locator(".cm-md-media-viewer__edit")).toHaveCount(0);
     await page.keyboard.press("Escape");
     await expect(page.locator(".cm-md-media-viewer")).toHaveCount(0);
-
     await block.hover();
-    await editButton.click({ force: true });
-    await expect(page.locator(".cm-md-marker--mermaid").first()).toBeVisible();
+    await toolbar.locator(".cm-md-mermaid-toolbar__graphical-edit").click();
+    const dialog = page.locator(".md-editor-graphical-code-editor");
+    await expect(dialog).toBeVisible();
+    await expect(page.locator(".cm-md-marker--mermaid")).toHaveCount(0);
     await expect(page.locator(".cm-md-media-viewer")).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
   });
 
-  test("AC4: 浮层内「编辑源码」→ 关浮层并进入源码态", async ({ page }) => {
+  test("图表源码通过源码模式编辑", async ({ page }) => {
     test.setTimeout(90_000);
     await openMermaidDoc(page, MERMAID_DOC);
     await waitForSvg(page);
-
-    await page.locator(".cm-md-mermaid-container").first().click();
-    const overlay = page.locator(".cm-md-media-viewer");
-    await expect(overlay).toBeVisible();
-    await overlay.locator(".cm-md-media-viewer__edit").click();
-
-    await expect(overlay).toHaveCount(0);
-    await expect(page.locator(".cm-md-marker--mermaid").first()).toBeVisible();
+    await page.keyboard.press(`${MOD_KEY}+/`);
+    await expect(page.locator(".cm-md-mermaid-container")).toHaveCount(0);
+    await expect(page.locator(".cm-content")).toContainText("A[开始] --> B[结束]");
+    await setCaret(page, (await readDoc(page)).indexOf("结束"));
+    await page.keyboard.type("新的");
+    await expect(page.locator(".cm-content")).toContainText("B[新的结束]");
+    await setCaret(page, 0);
+    await page.keyboard.press(`${MOD_KEY}+/`);
+    await waitForSvg(page);
+    await expect(page.locator(".cm-md-mermaid-container svg")).toContainText("新的结束");
   });
 
   test("AC17/AC18: 浮层计算样式生效、dialog 语义、焦点接管（键入不改文档）", async ({ page }) => {

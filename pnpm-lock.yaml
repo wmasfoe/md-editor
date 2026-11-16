@@ -131,7 +131,8 @@ overrides:
   mermaid>katex: 0.18.6
 
 patchedDependencies:
-  '@visimer/dom@1.1.3': 0ea646775fa8132d9e0a7ddda78281b92fb7efb2a48bce94f2307a955c996418
+  '@visimer/core@1.1.3': 8c79b300e9d2397b25f115c9f1a345736f8fd14f68d74c7bb2b1dd053766ea7a
+  '@visimer/dom@1.1.3': 04465fdbcace548cbc350240cf323f1a062c3d62ea1097d95aa3f37a2c97c460
 
 importers:
 
@@ -1006,10 +1007,10 @@ importers:
         version: link:../plugin-sdk
       '@visimer/core':
         specifier: 1.1.3
-        version: 1.1.3
+        version: 1.1.3(patch_hash=8c79b300e9d2397b25f115c9f1a345736f8fd14f68d74c7bb2b1dd053766ea7a)
       '@visimer/dom':
         specifier: 1.1.3
-        version: 1.1.3(patch_hash=0ea646775fa8132d9e0a7ddda78281b92fb7efb2a48bce94f2307a955c996418)
+        version: 1.1.3(patch_hash=04465fdbcace548cbc350240cf323f1a062c3d62ea1097d95aa3f37a2c97c460)
       katex:
         specifier: 'catalog:'
         version: 0.18.6
@@ -8052,11 +8053,11 @@ snapshots:
       json-schema-to-ts: 1.6.4
       ts-morph: 12.0.0
 
-  '@visimer/core@1.1.3': {}
+  '@visimer/core@1.1.3(patch_hash=8c79b300e9d2397b25f115c9f1a345736f8fd14f68d74c7bb2b1dd053766ea7a)': {}
 
-  '@visimer/dom@1.1.3(patch_hash=0ea646775fa8132d9e0a7ddda78281b92fb7efb2a48bce94f2307a955c996418)':
+  '@visimer/dom@1.1.3(patch_hash=04465fdbcace548cbc350240cf323f1a062c3d62ea1097d95aa3f37a2c97c460)':
     dependencies:
-      '@visimer/core': 1.1.3
+      '@visimer/core': 1.1.3(patch_hash=8c79b300e9d2397b25f115c9f1a345736f8fd14f68d74c7bb2b1dd053766ea7a)
 
   '@vitejs/plugin-react@4.7.0(vite@6.4.3(@types/node@22.19.21)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.19.2)(yaml@2.9.1))':
     dependencies:

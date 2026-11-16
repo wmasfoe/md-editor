@@ -1,9 +1,7 @@
 import {
   MermaidWysiwygEditor,
   parse as parseVisimer,
-  type EditorOp,
   type FlowGraph,
-  type Origin,
   type SequenceGraph,
 } from "@visimer/core";
 import { MermaidCanvasView } from "@visimer/dom";
@@ -91,77 +89,6 @@ function safeIdentifier(value: string): boolean {
   return /^[\p{L}\p{N}_.-]+$/u.test(value);
 }
 
-function flowNodeIsReferenced(graph: FlowGraph, id: string): boolean {
-  return (
-    graph.edges.some((edge) => edge.source === id || edge.target === id) ||
-    [...graph.statements.values()].some(
-      (statement) => statement.kind !== "chain" && "ids" in statement && statement.ids.includes(id),
-    )
-  );
-}
-
-function sequenceParticipantIsReferenced(graph: SequenceGraph, id: string): boolean {
-  return graph.events.some((event) =>
-    event.kind === "message"
-      ? event.stmt.source === id || event.stmt.target === id
-      : event.stmt.targets.includes(id),
-  );
-}
-
-/** Guard every Visimer deletion path, including its built-in popover and multi-selection delete. */
-class ProtectedMermaidEditor extends MermaidWysiwygEditor {
-  constructor(
-    private readonly onDeleteBlocked: (message: string) => void,
-    code: string,
-  ) {
-    super({ code });
-  }
-
-  override dispatch(op: EditorOp, origin?: Origin) {
-    const reason = this.deletionBlockReason(op);
-    if (reason) {
-      this.onDeleteBlocked(reason);
-      return null;
-    }
-    return super.dispatch(op, origin);
-  }
-
-  override deleteEntities(entityIds: string[], origin?: Origin): void {
-    for (const entityId of entityIds) {
-      const reason = this.entityDeletionBlockReason(entityId);
-      if (reason) {
-        this.onDeleteBlocked(reason);
-        return;
-      }
-    }
-    super.deleteEntities(entityIds, origin);
-  }
-
-  private deletionBlockReason(op: EditorOp): string | null {
-    if (op.type === "deleteNode") return this.entityDeletionBlockReason(`node:${op.id}`);
-    if (op.type === "seq.deleteParticipant") {
-      return this.entityDeletionBlockReason(`participant:${op.id}`);
-    }
-    return null;
-  }
-
-  private entityDeletionBlockReason(entityId: string): string | null {
-    if (entityId.startsWith("node:")) {
-      const id = entityId.slice(5);
-      const graph = this.result.flowchart;
-      return graph && flowNodeIsReferenced(graph, id) ? "请先删除引用此节点的关系或样式。" : null;
-    }
-    if (entityId.startsWith("participant:")) {
-      const id = entityId.slice(12);
-      const graph = this.result.sequence;
-      return graph && sequenceParticipantIsReferenced(graph, id)
-        ? "请先删除引用此参与者的消息或注释。"
-        : null;
-    }
-    return null;
-  }
-}
-
 function labelsAreSafe(
   before: ReturnType<typeof parseVisimer>,
   after: ReturnType<typeof parseVisimer>,
@@ -219,12 +146,15 @@ function appendToolbar(
   const controls = new Map<HTMLButtonElement, () => string | null>();
   let cancelPendingInput: (() => void) | undefined;
   let pendingInputCount = 0;
+  let connecting = false;
+  let connectButton: HTMLButtonElement | undefined;
+  let connectByName: HTMLButtonElement | undefined;
   const add = (
     label: string,
     action: () => void | Promise<void>,
     disabledReason?: () => string | null,
     context?: string,
-  ): void => {
+  ): HTMLButtonElement => {
     const button = doc.createElement("button");
     button.type = "button";
     button.textContent = label;
@@ -232,6 +162,7 @@ function appendToolbar(
     if (context) button.dataset.context = context;
     if (disabledReason) controls.set(button, disabledReason);
     actions.append(button);
+    return button;
   };
   const askFields = (
     specs: readonly {
@@ -339,8 +270,14 @@ function appendToolbar(
       const label = (await askFields([{ label: "节点文字" }]))?.[0] ?? null;
       if (label !== null) editor.dispatch({ type: "addNode", label });
     });
-    add(
+    connectButton = add(
       "连接节点",
+      () => view.setTool(connecting ? "select" : "connect"),
+      () => ((editor.result.flowchart?.nodes.length ?? 0) < 2 ? "请先添加两个节点" : null),
+    );
+    connectButton.setAttribute("aria-pressed", "false");
+    connectByName = add(
+      "选择起终点",
       async () => {
         const choices = (editor.result.flowchart?.nodes ?? []).map((node) => ({
           value: node.id,
@@ -396,7 +333,7 @@ function appendToolbar(
         const id = selected(editor, "node");
         const nodeId = id?.slice(5);
         const graph = editor.result.flowchart;
-        if (nodeId && graph && !flowNodeIsReferenced(graph, nodeId)) {
+        if (nodeId && graph) {
           editor.dispatch({ type: "deleteNode", id: nodeId });
         }
       },
@@ -404,7 +341,7 @@ function appendToolbar(
         const id = selected(editor, "node")?.slice(5);
         const graph = editor.result.flowchart;
         if (!id || !graph) return "先选择一个节点";
-        return flowNodeIsReferenced(graph, id) ? "请先删除引用此节点的关系或样式" : null;
+        return null;
       },
       "node",
     );
@@ -502,7 +439,7 @@ function appendToolbar(
         const id = selected(editor, "participant");
         const person = id && editor.result.sequence?.participantById.get(id.slice(12));
         const graph = editor.result.sequence;
-        if (person && graph && !sequenceParticipantIsReferenced(graph, person.id)) {
+        if (person && graph) {
           editor.dispatch({ type: "seq.deleteParticipant", id: person.id });
         }
       },
@@ -510,9 +447,7 @@ function appendToolbar(
         const id = selected(editor, "participant")?.slice(12);
         const person = id && editor.result.sequence?.participantById.get(id);
         if (!person) return "先选择一个参与者";
-        return sequenceParticipantIsReferenced(editor.result.sequence!, person.id)
-          ? "请先删除引用此参与者的消息或注释"
-          : null;
+        return null;
       },
       "participant",
     );
@@ -524,7 +459,10 @@ function appendToolbar(
     for (const button of actions.querySelectorAll<HTMLButtonElement>("button[data-context]")) {
       button.hidden = !selected(editor, button.dataset.context!);
     }
-    hint.hidden = editor.selection.length > 0;
+    hint.textContent = connecting ? "从起点拖向终点 · Esc 退出" : "选择图中元素以编辑";
+    hint.hidden = !connecting && editor.selection.length > 0;
+    connectButton?.setAttribute("aria-pressed", String(connecting));
+    if (connectByName) connectByName.hidden = !connecting;
     for (const [button, reasonFor] of controls) {
       const reason = reasonFor();
       button.disabled = pendingInputCount > 0 || Boolean(reason);
@@ -532,10 +470,23 @@ function appendToolbar(
     }
   };
   const offSelection = editor.on("selectionChange", refresh);
-  const offChange = editor.on("change", refresh);
-  toolbar.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") view.setTool("select");
+  // A completed connection returns to selection, so later drags never create accidental edges.
+  const offChange = editor.on("change", () => {
+    if (connecting) view.setTool("select");
+    refresh();
   });
+  const offTool = view.on("toolChange", (tool) => {
+    connecting = tool === "connect";
+    refresh();
+  });
+  const exitConnect = (event: KeyboardEvent): void => {
+    if (event.key !== "Escape" || !connecting || pendingInputCount > 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    view.setTool("select");
+    connectButton?.focus();
+  };
+  parent.addEventListener("keydown", exitConnect, true);
   refresh();
   actions.append(hint);
   toolbar.prepend(actions, status);
@@ -544,6 +495,8 @@ function appendToolbar(
     cancelPendingInput?.();
     offSelection();
     offChange();
+    offTool();
+    parent.removeEventListener("keydown", exitConnect, true);
     toolbar.remove();
   };
   return destroyToolbar;
@@ -566,10 +519,8 @@ export const mermaidGraphicalEditor: GraphicalCodeBlockEditorProvider = Object.f
     if (!inspection.supported) throw new Error(inspection.reason ?? "此图表不支持图形编辑");
     const initial = parseVisimer(input.source);
     const sourceKind = initial.flowchart ? "flowchart" : "sequence";
-    const editor = new ProtectedMermaidEditor(
-      (message) => input.onError?.(new Error(message)),
-      input.source,
-    );
+    // Visimer removes incident edges/messages and their style references in one semantic edit.
+    const editor = new MermaidWysiwygEditor({ code: input.source });
     const ownerDocument = input.container.ownerDocument;
     if (!styledDocuments.has(ownerDocument)) {
       const style = ownerDocument.createElement("style");
@@ -620,42 +571,12 @@ export const mermaidGraphicalEditor: GraphicalCodeBlockEditorProvider = Object.f
       sourceKind,
       (message) => input.onError?.(new Error(message)),
       (busy) => {
+        // Pending forms keep selection available but suspend competing canvas mutations.
+        view.setReadOnly(busy);
         inputBusy = busy;
         notifyBusy();
       },
     );
-    const guardNativeDelete = (event: KeyboardEvent): void => {
-      if (event.key !== "Delete" && event.key !== "Backspace") return;
-      const target = event.target;
-      if (
-        target instanceof HTMLElement &&
-        (target.isContentEditable ||
-          target instanceof HTMLInputElement ||
-          target instanceof HTMLSelectElement ||
-          target instanceof HTMLTextAreaElement)
-      )
-        return;
-      const selection = editor.selection;
-      const flow = editor.result.flowchart;
-      const sequence = editor.result.sequence;
-      const referencesUnsafeDelete = selection.some((entityId) => {
-        if (entityId.startsWith("node:")) {
-          const id = entityId.slice(5);
-          return Boolean(flow && flowNodeIsReferenced(flow, id));
-        }
-        if (entityId.startsWith("participant:")) {
-          const id = entityId.slice(12);
-          return Boolean(sequence && sequenceParticipantIsReferenced(sequence, id));
-        }
-        return false;
-      });
-      if (referencesUnsafeDelete) {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        input.onError?.(new Error("请先删除引用所选实体的关系或消息。"));
-      }
-    };
-    input.container.addEventListener("keydown", guardNativeDelete, true);
     const onEditorChange = editor.on("change", ({ code }) => {
       const sequence = ++changeSequence;
       validationBusy = true;
@@ -709,13 +630,13 @@ export const mermaidGraphicalEditor: GraphicalCodeBlockEditorProvider = Object.f
         inputBusy = false;
         notifyBusy();
         onEditorChange();
-        input.container.removeEventListener("keydown", guardNativeDelete, true);
         view.destroy();
         canvas.remove();
         input.container.classList.remove("cm-md-mermaid-graphical-editor");
       },
       setTheme(isDark: boolean) {
-        if (destroyed) return;
+        // Hosts repeat the initial theme after mount; replacing the SVG would interrupt a drag.
+        if (destroyed || currentTheme === isDark) return;
         currentTheme = isDark;
         view.setMermaidConfig({
           securityLevel: "strict",

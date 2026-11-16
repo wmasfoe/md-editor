@@ -20,6 +20,10 @@ export const mermaidGraphicalEditorCss = `
   background: transparent; color: inherit; cursor: pointer; font: inherit; font-size: 13px;
 }
 .cm-md-mermaid-graphical-toolbar button:hover:not(:disabled) { background: var(--theme-primary-soft, #f0f3f6); }
+.cm-md-mermaid-graphical-toolbar button[aria-pressed="true"] {
+  background: var(--theme-primary-soft, #ddf4ff); color: var(--theme-primary, #0969da);
+  border-color: currentColor;
+}
 .cm-md-mermaid-graphical-toolbar button:focus-visible {
   outline: 2px solid var(--theme-primary, #0969da); outline-offset: 2px;
 }
@@ -46,9 +50,20 @@ export const mermaidGraphicalEditorCss = `
 /* The provider exposes one context toolbar; upstream popovers duplicate its actions. */
 .cm-md-mermaid-graphical-editor .mw-popover { display: none !important; }
 .cm-md-mermaid-graphical-editor .mw-canvas [data-mw-entity]:hover { filter: none; }
-.cm-md-mermaid-graphical-editor .mw-canvas .mw-selected {
-  filter: none !important; outline: 2px solid var(--theme-primary, #0969da); outline-offset: 3px;
+/* Style the actual SVG geometry: an outline around an edge's bounds obscures nearby nodes. */
+.cm-md-mermaid-graphical-editor .mw-canvas :is(.mw-selected, .mw-connect-source) { filter: none !important; }
+.cm-md-mermaid-graphical-editor .mw-canvas :is(.mw-selected, .mw-connect-source):is([data-mw-entity^="node:"], [data-mw-entity^="participant:"]) :is(rect, circle, ellipse, polygon, path),
+.cm-md-mermaid-graphical-editor .mw-canvas .mw-selected[data-mw-entity^="participant:"]:is(rect, circle, ellipse, polygon, path, line) {
+  stroke: var(--mw-accent) !important; stroke-width: 3px !important;
+  vector-effect: non-scaling-stroke;
 }
+.cm-md-mermaid-graphical-editor .mw-canvas .mw-selected:is(path, line, polyline):not([data-mw-hit-overlay]),
+.cm-md-mermaid-graphical-editor .mw-canvas .mw-selected[data-mw-entity^="edge:"] path:not([data-mw-hit-overlay]) {
+  stroke: var(--mw-accent) !important; stroke-width: 3px !important;
+  vector-effect: non-scaling-stroke;
+}
+.cm-md-mermaid-graphical-editor .mw-canvas .mw-connect-source :is(rect, circle, ellipse, polygon, path) { stroke-dasharray: 4 3; }
+.cm-md-mermaid-graphical-editor .mw-canvas .mw-ghost-edge { stroke: var(--mw-accent); stroke-width: 2px; filter: none; }
 @media (max-width: 600px) {
   .cm-md-mermaid-graphical-toolbar { padding: 8px; }
   .cm-md-mermaid-graphical-toolbar__actions { gap: 4px; }

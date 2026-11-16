@@ -170,6 +170,10 @@ describe("Mermaid graphical editor capability", () => {
     );
     expect(connectButton).toBeDefined();
     connectButton?.click();
+    expect(connectButton).toHaveProperty("ariaPressed", "true");
+    [...container.querySelectorAll("button")]
+      .find((button) => button.textContent === "选择起终点")!
+      .click();
     const firstSelect = container.querySelector<HTMLSelectElement>(
       ".cm-md-mermaid-graphical-input select",
     );
@@ -199,8 +203,8 @@ describe("Mermaid graphical editor capability", () => {
     );
     expect(nativeDelete).not.toBeNull();
     nativeDelete!.click();
-    expect(reportedError).toContain("请先删除引用此节点的关系");
-    expect(changeCount).toBe(1);
+    await vi.waitFor(() => expect(changeCount).toBe(2));
+    expect(reportedError).toBe("");
     container.querySelector<HTMLButtonElement>("button")!.click();
     const inputPanel = container.querySelector<HTMLElement>(".cm-md-mermaid-graphical-input");
     const escape = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
@@ -212,7 +216,7 @@ describe("Mermaid graphical editor capability", () => {
     handle.destroy();
     await Promise.resolve();
     expect(container.querySelector(".cm-md-mermaid-graphical-input")).toBeNull();
-    expect(changeCount).toBe(1);
+    expect(changeCount).toBe(2);
     dialog.remove();
     vi.restoreAllMocks();
   });

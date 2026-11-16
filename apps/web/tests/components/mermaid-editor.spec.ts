@@ -53,6 +53,8 @@ async function submitToolInput(
 ): Promise<void> {
   const toolbar = page.getByRole("navigation", { name: /编辑工具$/ });
   await toolbar.getByRole("button", { name: buttonName, exact: true }).click();
+  if (buttonName === "连接节点")
+    await toolbar.getByRole("button", { name: "选择起终点", exact: true }).click();
   for (const { label, value } of fields) {
     const input = page.getByLabel(label, { exact: true });
     await expect(input).toBeVisible();
@@ -305,6 +307,7 @@ for (const viewport of [
     await node.click();
     await expect(visibleActions).toHaveText(["添加节点", "连接节点", "修改节点文字", "删除节点"]);
     await toolbar.getByRole("button", { name: "连接节点", exact: true }).click();
+    await toolbar.getByRole("button", { name: "选择起终点", exact: true }).click();
     await expect(page.getByLabel("起点节点", { exact: true })).toHaveValue("A");
     await expect(page.getByLabel("终点节点", { exact: true })).toBeVisible();
     await assertClearCanvas();
@@ -314,7 +317,9 @@ for (const viewport of [
     // Escape dismisses the pending form first and returns to the same selected entity.
     await page.keyboard.press("Escape");
     await expect(dialog.locator(".cm-md-mermaid-graphical-input")).toHaveCount(0);
-    await expect(toolbar.getByRole("button", { name: "连接节点", exact: true })).toBeFocused();
+    await expect(toolbar.getByRole("button", { name: "选择起终点", exact: true })).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeVisible();
     await expect(toolbar.getByRole("button", { name: "修改节点文字", exact: true })).toBeVisible();
     await toolbar.getByRole("button", { name: "修改节点文字", exact: true }).click();
     await expect(page.getByLabel("节点文字", { exact: true })).toHaveValue("Alpha");
@@ -324,77 +329,136 @@ for (const viewport of [
   });
 }
 
-test("a flow node cannot be deleted by toolbar or keyboard while an edge references it", async ({
+test("drag connections preview, select, cancel and keep the default layout", async ({
   page,
-}) => {
-  await openApp(page, "Before\n\n```mermaid\nflowchart TD\n  A[Alpha] --> B[Beta]\n```\n\nAfter");
+}, testInfo) => {
+  const original =
+    "Before\n\n```mermaid\nflowchart LR\n A[Alpha]\n B[Beta]\n C[Gamma]\n```\n\nAfter";
+  await openApp(page, original);
+  const originalMarkdown = await readMarkdown(page);
   await enterWysiwyg(page);
   await openGraphicalEditor(page);
   const dialog = page.getByRole("dialog", { name: "编辑图表" });
-  const node = dialog.locator('[data-mw-entity="node:A"]').first();
-  await expect(node).toBeVisible({ timeout: 20_000 });
-  await node.click();
-  const draftBeforeBlockedDelete = await page.evaluate(() =>
-    localStorage.getItem("md-editor:web:draft"),
+  const connect = dialog.getByRole("button", { name: "连接节点", exact: true });
+  const node = (id: string) => dialog.locator(`[data-mw-entity="node:${id}"]`).first();
+  const edges = dialog.locator(
+    '.edgePaths path[data-mw-entity^="edge:"]:not([data-mw-hit-overlay])',
   );
-  const nativeDelete = dialog.locator('.mw-popover button[title="Delete"]');
-  await expect(nativeDelete).toBeHidden();
-  await expect(dialog.locator('[data-mw-entity="node:A"]').first()).toBeVisible();
-  await expect
-    .poll(() => page.evaluate(() => localStorage.getItem("md-editor:web:draft")))
-    .toBe(draftBeforeBlockedDelete);
-  const deleteNode = dialog.getByRole("button", { name: "删除节点", exact: true });
-  await expect(deleteNode).toBeDisabled();
-  await expect(deleteNode).toHaveAttribute("title", "请先删除引用此节点的关系或样式");
-  await page.keyboard.press("Delete");
-  await expect(dialog.locator('[data-mw-entity="node:A"]').first()).toBeVisible();
-
-  await dialog.locator('[data-mw-entity^="edge:"]').first().click({ force: true });
-  const deleteEdge = dialog.getByRole("button", { name: "删除关系", exact: true });
-  await expect(deleteEdge).toBeEnabled();
-  await deleteEdge.click();
-  await expect(dialog.locator('[data-mw-entity^="edge:"]')).toHaveCount(0);
-  await dialog.locator('[data-mw-entity="node:A"]').first().click();
-  await expect(deleteNode).toBeEnabled();
-  await deleteNode.click();
-  await expect(dialog.locator('[data-mw-entity="node:A"]')).toHaveCount(0);
+  await expect(node("A")).toBeVisible();
+  await node("A").click();
+  await expect(node("A")).toHaveClass(/mw-selected/);
+  await expect(node("A").locator("rect").first()).toHaveCSS("stroke-width", "3px");
+  await node("B").click();
+  await expect(node("A")).not.toHaveClass(/mw-selected/);
+  const dragStart = async (id: string) => {
+    const box = (await node(id).boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 + 12, box.y + box.height / 2 + 12, { steps: 8 });
+    await expect(dialog.locator(".mw-ghost-edge")).toBeVisible();
+  };
+  await connect.click();
+  await expect(connect).toHaveAttribute("aria-pressed", "true");
+  await dragStart("A");
+  await page.keyboard.press("Escape");
+  await expect(dialog.locator(".mw-ghost-edge")).toHaveCount(0);
+  await page.mouse.up();
+  await expect(connect).toHaveAttribute("aria-pressed", "false");
+  await expect(dialog).toBeVisible();
+  await expect(edges).toHaveCount(0);
+  // Releasing on empty canvas cancels only that gesture and leaves the tool available.
+  await connect.click();
+  await dragStart("A");
+  const canvas = (await dialog.locator(".mw-canvas").boundingBox())!;
+  await page.mouse.move(canvas.x + canvas.width - 80, canvas.y + canvas.height - 80, { steps: 8 });
+  await page.mouse.up();
+  await expect(dialog.locator(".mw-ghost-edge")).toHaveCount(0);
+  await expect(edges).toHaveCount(0);
+  await expect(connect).toHaveAttribute("aria-pressed", "true");
+  await dragStart("A");
+  const target = (await node("B").boundingBox())!;
+  await page.mouse.move(target.x + target.width / 2, target.y + target.height / 2, { steps: 12 });
+  await page.mouse.up();
+  await expect(edges).toHaveCount(1);
+  await expect(connect).toHaveAttribute("aria-pressed", "false");
+  const edge = edges.first();
+  const point = await edge.evaluate((element) => {
+    const path = element as SVGPathElement;
+    const middle = path.getPointAtLength(path.getTotalLength() / 2);
+    const screen = new DOMPoint(middle.x, middle.y).matrixTransform(path.getScreenCTM()!);
+    return { x: screen.x, y: screen.y };
+  });
+  await page.mouse.click(point.x, point.y);
+  await expect(edge).toHaveClass(/mw-selected/);
+  await expect(edge).toHaveCSS("stroke-width", "3px");
+  await expect(edge).toHaveCSS("outline-style", "none");
+  await page.screenshot({ path: testInfo.outputPath("diagram-selected-connection.png") });
+  // Cancel discards the connection; no positions or layout metadata enter the Markdown.
+  await dialog.getByRole("button", { name: "取消", exact: true }).click();
+  expect(await readMarkdown(page)).toBe(originalMarkdown);
 });
 
-test("a sequence participant cannot be deleted while a message references it", async ({ page }) => {
+for (const deletion of ["toolbar", "keyboard"] as const) {
+  test(`deleting a connected flow node through ${deletion} removes its edges and preserves neighbors`, async ({
+    page,
+  }) => {
+    const code =
+      "flowchart TD\n  A[Alpha] --> B[Beta] --> C[Gamma]\n  A --> C\n  classDef hot fill:red\n  class A,B hot\n  style B fill:blue\n  linkStyle 0,1,2 stroke:red";
+    await openApp(page, `Before\n\n\`\`\`mermaid\n${code}\n\`\`\`\n\nAfter`);
+    await enterWysiwyg(page);
+    await openGraphicalEditor(page);
+    const dialog = page.getByRole("dialog", { name: "编辑图表" });
+    const node = dialog.locator('[data-mw-entity="node:B"]').first();
+    await node.click();
+    await expect(node).toHaveClass(/mw-selected/);
+    if (deletion === "toolbar")
+      await dialog.getByRole("button", { name: "删除节点", exact: true }).click();
+    else await page.keyboard.press("Delete");
+    await expect(dialog.locator('[data-mw-entity="node:B"]')).toHaveCount(0);
+    await expect(dialog.locator('[data-mw-entity="node:A"]').first()).toBeVisible();
+    await expect(dialog.locator('[data-mw-entity="node:C"]').first()).toBeVisible();
+    await dialog.getByRole("button", { name: "应用", exact: true }).click();
+    const markdown = await readMarkdown(page);
+    expect(markdown).toContain("A[Alpha]");
+    expect(markdown).toContain("C[Gamma]");
+    expect(markdown).not.toContain("Beta");
+    expect(markdown).not.toContain("style B");
+    expect(markdown).toContain("class A hot");
+    expect(markdown).toContain("linkStyle 0 stroke:red");
+    const source = page.locator(".cm-content").first();
+    await source.focus();
+    const modifier = await page.evaluate(() =>
+      /Mac|iPhone|iPad/.test(navigator.platform) ? "Meta" : "Control",
+    );
+    await page.keyboard.press(`${modifier}+z`);
+    await expect(source).toContainText("B[Beta]");
+    await expect(source).toContainText("linkStyle 0,1,2 stroke:red");
+    await page.keyboard.press(modifier === "Meta" ? "Meta+Shift+z" : "Control+y");
+    await expect(source).not.toContainText("B[Beta]");
+  });
+}
+
+test("deleting a sequence participant also removes incident messages", async ({ page }) => {
   await openApp(
     page,
-    "Before\n\n```mermaid\nsequenceDiagram\n  participant A\n  participant B\n  A->>B: Request\n```\n\nAfter",
+    "Before\n\n```mermaid\nsequenceDiagram\n  participant A as Alpha\n  participant B as Beta\n  participant C as Gamma\n  A->>B: remove first\n  B->>C: remove second\n  A->>C: keep\n```\n\nAfter",
   );
   await enterWysiwyg(page);
   await openGraphicalEditor(page);
   const dialog = page.getByRole("dialog", { name: "编辑图表" });
-  const participant = dialog.locator('[data-mw-entity="participant:A"]').first();
-  await expect(participant).toBeVisible({ timeout: 20_000 });
-  await participant.click();
-  const draftBeforeBlockedDelete = await page.evaluate(() =>
-    localStorage.getItem("md-editor:web:draft"),
+  await dialog.locator('[data-mw-entity="participant:B"]').first().click();
+  await expect(dialog.locator('rect[data-mw-entity="participant:B"]').first()).toHaveCSS(
+    "stroke-width",
+    "3px",
   );
-  const nativeDelete = dialog.locator('.mw-popover button[title="Delete"]');
-  await expect(nativeDelete).toBeHidden();
-  await expect(dialog.locator('[data-mw-entity="participant:A"]').first()).toBeVisible();
-  await expect
-    .poll(() => page.evaluate(() => localStorage.getItem("md-editor:web:draft")))
-    .toBe(draftBeforeBlockedDelete);
-  const deleteParticipant = dialog.getByRole("button", { name: "删除参与者", exact: true });
-  await expect(deleteParticipant).toBeDisabled();
-  await expect(deleteParticipant).toHaveAttribute("title", "请先删除引用此参与者的消息或注释");
-  await page.keyboard.press("Backspace");
-  await expect(dialog.locator('[data-mw-entity="participant:A"]').first()).toBeVisible();
-
-  await dialog.locator('[data-mw-entity^="event:"]').first().click({ force: true });
-  const deleteMessage = dialog.getByRole("button", { name: "删除消息", exact: true });
-  await expect(deleteMessage).toBeEnabled();
-  await deleteMessage.click();
-  await expect(dialog.locator('[data-mw-entity^="event:"]')).toHaveCount(0);
-  await dialog.locator('[data-mw-entity="participant:A"]').first().click();
-  await expect(deleteParticipant).toBeEnabled();
-  await deleteParticipant.click();
-  await expect(dialog.locator('[data-mw-entity="participant:A"]')).toHaveCount(0);
+  await dialog.getByRole("button", { name: "删除参与者", exact: true }).click();
+  await expect(dialog.locator('[data-mw-entity="participant:B"]')).toHaveCount(0);
+  await dialog.getByRole("button", { name: "应用", exact: true }).click();
+  const markdown = await readMarkdown(page);
+  expect(markdown).toContain("A->>C: keep");
+  expect(markdown).not.toContain("Beta");
+  expect(markdown).not.toContain("remove first");
+  expect(markdown).not.toContain("remove second");
 });
 
 test("editing a supported existing diagram preserves surrounding Markdown bytes", async ({
