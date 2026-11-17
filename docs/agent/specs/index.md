@@ -19,7 +19,7 @@
 - 编辑器模式切换视口滚动与光标几何定位规范： [editor_mode_switch_viewport_and_cursor_spec.md](./editor_mode_switch_viewport_and_cursor_spec.md)
 - 编辑器交互契约规范（Tab 归属 / 链接类文本与打开通路 / 图片视频口径，含踩坑与用例缺口）： [editor_interaction_tab_and_links_spec.md](./editor_interaction_tab_and_links_spec.md)
 - CJK 友好强调契约规范（`**加粗**` / `~~删除~~` / `==高亮==` 的中文标点邻接、两引擎映射与已知边界）： [cjk_friendly_emphasis_spec.md](./cjk_friendly_emphasis_spec.md)
-- 桌面端系统文件打开契约（文件关联、冷/热启动队列、未保存保护与安装包验收）： [desktop_system_file_open_spec.md](./desktop_system_file_open_spec.md)
+- 桌面端系统文件打开契约（文件关联与对话框扩展名、macOS 冷/热启动队列、Windows/Linux 新进程限制、未保存保护与安装包验收）： [desktop_system_file_open_spec.md](./desktop_system_file_open_spec.md)
 
 ## 历史归档 (Archive)
 

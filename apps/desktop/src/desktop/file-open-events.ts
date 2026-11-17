@@ -27,8 +27,10 @@ export function listenToDesktopFileOpens(
         while (true) {
           if (disposed) return;
           const path = await invoke<string | null>("take_pending_file_open");
-          if (path === null || disposed) break;
+          if (path === null) break;
           try {
+            // The native pop transfers ownership of this request to this listener.
+            // Finish an in-flight pop after cleanup, then stop before taking another.
             // Await the normal open action, including any unsaved-document dialog.
             // Multiple double clicks must not race to replace the active document.
             await openFile(path);

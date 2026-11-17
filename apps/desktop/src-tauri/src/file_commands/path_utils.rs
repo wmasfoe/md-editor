@@ -7,15 +7,18 @@ use std::{
     path::{Path, PathBuf},
 };
 
+/// 文件识别与原生打开/保存对话框共用，避免文件关联支持的格式在对话框中被隐藏。
+pub(crate) const MARKDOWN_EXTENSIONS: &[&str] = &["md", "mdx", "markdown", "mdown", "mkd"];
+
 /// 检查路径是否为 Markdown 文件格式，包含安装包声明的所有 Markdown 扩展名。
 pub(crate) fn is_markdown_path(path: &Path) -> bool {
-    matches!(
-        path.extension()
-            .and_then(|extension| extension.to_str())
-            .map(|extension| extension.to_ascii_lowercase())
-            .as_deref(),
-        Some("md" | "mdx" | "markdown" | "mdown" | "mkd")
-    )
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| {
+            MARKDOWN_EXTENSIONS
+                .iter()
+                .any(|supported| extension.eq_ignore_ascii_case(supported))
+        })
 }
 
 /// 检查路径是否为 CSS 文件格式（.css）。

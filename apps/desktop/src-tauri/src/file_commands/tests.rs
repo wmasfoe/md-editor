@@ -36,6 +36,28 @@ fn folder_tree_keeps_empty_directories_visible() {
 }
 
 #[test]
+fn folder_tree_recognizes_supported_markdown_extensions() {
+    let root = unique_test_directory("markdown-extensions");
+    fs::create_dir_all(&root).unwrap();
+    let names = ["a.md", "b.MDX", "c.markdown", "d.mdown", "e.MKD"];
+    for name in names {
+        fs::write(root.join(name), "# Markdown").unwrap();
+    }
+    fs::write(root.join("notes.txt"), "not markdown").unwrap();
+
+    let folder = build_markdown_folder(&root).unwrap();
+    let children = folder.tree.children.as_deref().unwrap();
+    assert_eq!(children.len(), names.len());
+    for name in names {
+        assert!(children.iter().any(|child| {
+            child.name == name && matches!(child.kind, MarkdownFileTreeNodeKind::Markdown)
+        }));
+    }
+
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
 fn creating_directory_returns_refreshed_tree_with_new_empty_directory() {
     let root = unique_test_directory("create-directory-tree-refresh");
     fs::create_dir_all(&root).unwrap();

@@ -169,6 +169,25 @@ describe("desktop OS file open requests", () => {
     expect(unlisten).toHaveBeenCalledOnce();
   });
 
+  it("finishes an in-flight queue pop after disposal without taking another request", async () => {
+    const pendingRead = deferred<string | null>();
+    tauri.invoke.mockImplementationOnce(() => pendingRead.promise);
+    queue.push("/still-queued.md");
+    const open = vi.fn(async () => undefined);
+    const dispose = listenToDesktopFileOpens(open, vi.fn());
+    await settle();
+    expect(tauri.invoke).toHaveBeenCalledOnce();
+
+    dispose?.();
+    pendingRead.resolve("/already-popped.md");
+    notify();
+    await settle();
+    expect(open.mock.calls).toEqual([["/already-popped.md"]]);
+    expect(tauri.invoke).toHaveBeenCalledOnce();
+    expect(queue).toEqual(["/still-queued.md"]);
+    expect(unlisten).toHaveBeenCalledOnce();
+  });
+
   it("does not register native listeners in a browser preview", () => {
     tauri.isTauri.mockReturnValue(false);
     expect(listenToDesktopFileOpens(vi.fn(), vi.fn())).toBeUndefined();

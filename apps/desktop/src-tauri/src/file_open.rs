@@ -107,6 +107,7 @@ fn opened_url_paths(urls: impl IntoIterator<Item = tauri::Url>) -> Vec<PathBuf> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::file_commands::path_utils::MARKDOWN_EXTENSIONS;
     #[test]
     fn queue_preserves_cold_and_warm_opens_in_order() {
         let queue = PendingFileOpens::default();
@@ -180,12 +181,17 @@ mod tests {
     }
 
     #[test]
-    fn every_bundled_file_association_is_accepted_by_the_document_loader() {
+    fn every_bundled_file_association_is_accepted_by_the_document_loader_and_dialogs() {
         let config: serde_json::Value =
             serde_json::from_str(include_str!("../tauri.conf.json")).expect("valid Tauri config");
         for association in config["bundle"]["fileAssociations"].as_array().unwrap() {
             for extension in association["ext"].as_array().unwrap() {
-                let path = PathBuf::from(format!("document.{}", extension.as_str().unwrap()));
+                let extension = extension.as_str().unwrap();
+                assert!(
+                    MARKDOWN_EXTENSIONS.contains(&extension),
+                    "association missing from dialog filters: {extension}"
+                );
+                let path = PathBuf::from(format!("document.{extension}"));
                 assert!(is_markdown_path(&path), "unsupported association: {path:?}");
             }
         }
