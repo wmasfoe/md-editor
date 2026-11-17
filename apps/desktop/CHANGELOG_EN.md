@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.23.1 - 2026-11-17 (#264)
+
+- Fix Markdown files launching Inkpoint without opening the document on macOS, including cold starts, running apps and special-character paths, while preserving unsaved changes confirmation. Align supported Markdown extensions across the file tree and open and save dialogs.
+
 ## 0.23.0 - 2026-11-17 (#261)
 
 - Add graphical editing for Mermaid flowcharts and sequence diagrams: drag to connect, double-click to rename, double-click empty canvas to add nodes, applied as one undoable edit
