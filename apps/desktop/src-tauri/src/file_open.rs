@@ -119,18 +119,26 @@ mod tests {
     #[test]
     fn cli_arguments_filter_flags_and_resolve_relative_markdown_paths() {
         let queue = PendingFileOpens::default();
+        let cwd = std::env::temp_dir().join("inkpoint-open-test");
+        let absolute_path = cwd.join("b.MDX");
         enqueue_cli_arguments(
             &queue,
             [
                 "--flag".into(),
                 "notes/a.md".into(),
                 "image.png".into(),
-                "/tmp/b.MDX".into(),
+                absolute_path.clone().into_os_string(),
             ],
-            Path::new("/work"),
+            &cwd,
         );
-        assert_eq!(queue.take().as_deref(), Some("/work/notes/a.md"));
-        assert_eq!(queue.take().as_deref(), Some("/tmp/b.MDX"));
+        assert_eq!(
+            queue.take(),
+            Some(cwd.join("notes/a.md").to_string_lossy().into_owned())
+        );
+        assert_eq!(
+            queue.take(),
+            Some(absolute_path.to_string_lossy().into_owned())
+        );
         assert_eq!(queue.take(), None);
     }
 
@@ -147,7 +155,7 @@ mod tests {
                     .into(),
                 "https://example.com/notes.md".into(),
             ],
-            Path::new("/work"),
+            &std::env::temp_dir(),
         );
         assert_eq!(queue.take(), Some(path.to_string_lossy().into_owned()));
         assert_eq!(queue.take(), None);
@@ -155,18 +163,20 @@ mod tests {
 
     #[test]
     fn opened_urls_decode_file_paths_and_ignore_non_files_and_unsupported_types() {
+        // Use native absolute paths so this fixture also exercises Windows drives.
+        let directory = std::env::temp_dir();
+        let path = directory.join("space and ä#中.md");
+        let file_url = tauri::Url::from_file_path(&path).unwrap();
+        for escaped in ["%20", "%23", "%E4%B8%AD"] {
+            assert!(file_url.as_str().contains(escaped));
+        }
         let urls = [
-            "file:///Users/ik/notes/space%20and%20%C3%A4%23%E4%B8%AD.md",
-            "https://example.com/notes.md",
-            "file:///Users/ik/notes/image.png",
-        ]
-        .into_iter()
-        .map(|url| tauri::Url::parse(url).expect("valid URL"));
+            file_url,
+            tauri::Url::parse("https://example.com/notes.md").unwrap(),
+            tauri::Url::from_file_path(directory.join("image.png")).unwrap(),
+        ];
 
-        assert_eq!(
-            opened_url_paths(urls),
-            vec![PathBuf::from("/Users/ik/notes/space and ä#中.md")]
-        );
+        assert_eq!(opened_url_paths(urls), vec![path]);
     }
 
     #[test]
