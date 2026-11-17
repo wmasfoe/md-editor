@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.23.0 - 2026-11-17
+## 0.23.0 - 2026-11-17 (#261)
 
 - Add graphical editing for Mermaid flowcharts and sequence diagrams: drag to connect, double-click to rename, double-click empty canvas to add nodes, applied as one undoable edit
 

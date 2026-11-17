@@ -138,3 +138,25 @@ After the release workflow runs, verify each checkpoint:
   ```
 - **Never delete or rewrite published tags on remote**:
   Always increment with a new patch release (e.g. `0.12.2` or `0.2.1`) to preserve immutable download history.
+
+---
+
+## 6. Pitfalls
+
+- **`--yes` silently drops the PR link**: `publish-desktop.mjs` prompts for the associated PR
+  only when stdin is a TTY. Running non-interactively with `--yes` skips that prompt, so
+  `plan.pr` becomes `undefined` and the changelog heading is written as
+  `## 0.23.0 - 2026-11-17` instead of `## 0.23.0 - 2026-11-17 (#261)`.
+  Always pass `--pr <number>` together with `--yes`:
+  ```bash
+  pnpm release:desktop minor --pr 261 --notes "..." --notes-en "..." --yes
+  ```
+  Instance: `v0.23.0` shipped without `(#261)` and the site `/changelog` page renders
+  straight from `apps/desktop/CHANGELOG.md`, so the gap is user-visible. Because published
+  tags must not be rewritten, the only in-band fix is a new patch release; correcting the
+  markdown on `main` fixes the site without shipping a redundant build, but leaves already
+  installed clients showing the old heading.
+- **Verify against the registry, not just the CI status**: a green `Release NPM Packages`
+  run reports `Successfully published`, yet `npm view <pkg>@<version>` can still 404 for
+  a minute or two while the registry propagates. Query `https://registry.npmjs.org/<pkg>`
+  directly and re-check before declaring a package missing (or published).
