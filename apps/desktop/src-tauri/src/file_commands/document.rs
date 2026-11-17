@@ -20,7 +20,7 @@ use crate::save_runtime::{
 use super::{
     path_utils::{
         canonicalize_existing_path, ensure_markdown_extension, path_to_string,
-        strip_verbatim_prefix,
+        strip_verbatim_prefix, MARKDOWN_EXTENSIONS,
     },
     tree::allow_asset_directory,
     types::MarkdownDocumentFile,
@@ -35,7 +35,7 @@ pub(crate) async fn open_markdown_document(
         .dialog()
         .file()
         .set_title("Open Markdown")
-        .add_filter("Markdown", &["md", "mdx", "markdown"])
+        .add_filter("Markdown", MARKDOWN_EXTENSIONS)
         .blocking_pick_file();
 
     let Some(file_path) = selected else {
@@ -253,7 +253,7 @@ pub(crate) fn choose_save_path(
         .dialog()
         .file()
         .set_title("Save Markdown")
-        .add_filter("Markdown", &["md", "mdx", "markdown"])
+        .add_filter("Markdown", MARKDOWN_EXTENSIONS)
         .set_can_create_directories(true);
 
     if let Some(path) = current_path.map(Path::new) {

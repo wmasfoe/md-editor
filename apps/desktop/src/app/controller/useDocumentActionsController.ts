@@ -310,6 +310,12 @@ export function useDocumentActionsController({
    */
   const ensureDiscardAllowed = useCallback(
     async (description?: string) => {
+      // OS file opens bypass command dispatch. Commit buffered editor input
+      // before checking dirty state so switching files cannot discard it silently.
+      const access = getRendererPorts();
+      if (access.status === "available") {
+        access.ports.flushPendingEdits?.();
+      }
       const current = runtime.document.getSnapshot();
       const requiresProtection = isDiscardProtectionRequired(current);
       if (!requiresProtection) {
@@ -341,7 +347,7 @@ export function useDocumentActionsController({
       const latest = runtime.document.getSnapshot();
       return !latest.isDirty && latest.persistenceStatus.kind === "verified";
     },
-    [requestConfirmation, saveDocument],
+    [getRendererPorts, requestConfirmation, saveDocument],
   );
 
   /**

@@ -3,6 +3,7 @@ use tauri::{Emitter, Manager};
 mod about_window;
 mod app_menu;
 mod file_commands;
+mod file_open;
 mod folder_watcher;
 mod local_ai_completion;
 mod local_ai_model;
@@ -103,12 +104,25 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(SaveCommitGate::default())
+        .manage(file_open::PendingFileOpens::default())
         .manage(FolderWatcherState::default())
         .manage(StyleLearningScope::default())
         .manage(local_ai_runtime::LocalAiRuntimeState::default())
         // D-2：View 菜单勾选态镜像状态（app_menu::set_mode_menu_checked 写入，build_app_menu 读取）
         .manage(ModeMenuState::default())
         .setup(|_app| {
+            #[cfg(not(target_os = "macos"))]
+            {
+                if let Ok(cwd) = std::env::current_dir() {
+                    if let Some(pending) = _app.try_state::<file_open::PendingFileOpens>() {
+                        file_open::enqueue_cli_arguments(
+                            &pending,
+                            std::env::args_os().skip(1),
+                            &cwd,
+                        );
+                    }
+                }
+            }
             #[cfg(target_os = "macos")]
             window_chrome::install_initial_main_window_traffic_light_refresh(_app.handle());
 
@@ -124,6 +138,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             open_markdown_document,
             open_markdown_document_at_path,
+            file_open::take_pending_file_open,
             open_markdown_folder,
             refresh_markdown_folder,
             allow_asset_path,
@@ -193,6 +208,12 @@ pub fn run() {
         .expect("error while building Inkpoint");
 
     app.run(|app_handle, event| match event {
+        #[cfg(target_os = "macos")]
+        tauri::RunEvent::Opened { urls } => {
+            if let Some(pending) = app_handle.try_state::<file_open::PendingFileOpens>() {
+                file_open::enqueue_opened_urls(app_handle, urls, &pending);
+            }
+        }
         tauri::RunEvent::Exit | tauri::RunEvent::ExitRequested { .. } => {
             if let Some(runtime_state) =
                 app_handle.try_state::<local_ai_runtime::LocalAiRuntimeState>()
