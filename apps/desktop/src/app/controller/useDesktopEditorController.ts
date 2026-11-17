@@ -17,6 +17,7 @@ import { bindBrowserDirtyDocumentGuard, bindTauriCloseGuard } from "../events/wi
 import { inspectLinkedFileTarget, openExternalTarget } from "../../desktop/link-service";
 import { openAboutWindowWithToast } from "../../desktop/about-window";
 import { listenToFolderChanged } from "../../desktop/folder-watcher-events";
+import { listenToDesktopFileOpens } from "../../desktop/file-open-events";
 import { APP_DISPLAY_NAME } from "../../lib/app-name";
 import {
   isExternalSchemeLink,
@@ -764,6 +765,21 @@ export function useDesktopEditorController({
   );
 
   // --- lifecycle bindings ---
+  // Keep the OS listener stable across renders, including while an unsaved-file
+  // confirmation is pending. Opening uses the existing protected document action.
+  const systemFileOpenRef = useRef({ openRecentFile, showToast });
+  systemFileOpenRef.current = { openRecentFile, showToast };
+  useEffect(
+    () =>
+      listenToDesktopFileOpens(
+        (path) => systemFileOpenRef.current.openRecentFile(path),
+        (error) =>
+          systemFileOpenRef.current.showToast(
+            error instanceof Error ? error.message : String(error),
+          ),
+      ),
+    [],
+  );
   useEffect(
     () => bindRuntimeKeyboardShortcuts(dispatchCommand, settings),
     [dispatchCommand, settings],

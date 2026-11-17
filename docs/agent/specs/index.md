@@ -19,6 +19,7 @@
 - 编辑器模式切换视口滚动与光标几何定位规范： [editor_mode_switch_viewport_and_cursor_spec.md](./editor_mode_switch_viewport_and_cursor_spec.md)
 - 编辑器交互契约规范（Tab 归属 / 链接类文本与打开通路 / 图片视频口径，含踩坑与用例缺口）： [editor_interaction_tab_and_links_spec.md](./editor_interaction_tab_and_links_spec.md)
 - CJK 友好强调契约规范（`**加粗**` / `~~删除~~` / `==高亮==` 的中文标点邻接、两引擎映射与已知边界）： [cjk_friendly_emphasis_spec.md](./cjk_friendly_emphasis_spec.md)
+- 桌面端系统文件打开契约（文件关联、冷/热启动队列、未保存保护与安装包验收）： [desktop_system_file_open_spec.md](./desktop_system_file_open_spec.md)
 
 ## 历史归档 (Archive)
 
@@ -44,6 +45,7 @@
   "Cmd/Ctrl+点击用系统浏览器打开"链路、或图片视频的本地 vs 云端口径时，先读编辑器交互契约规范。
 - 涉及强调/斜体/删除线/高亮的定界符解析（`**` / `*` / `~~` / `==`）、中文标点邻接不生效、lezer Markdown 扩展链或
   `@md-editor/compiler` 的 marked 配置时，先读 CJK 友好强调契约规范。
+- 涉及桌面文件关联、Tauri `RunEvent::Opened`、启动参数、原生待打开队列或系统打开文件的未保存保护时，先读桌面端系统文件打开契约。
 - 涉及早期 Milkdown / ProseMirror 历史问题排查时，可按需进入 [archive/index.md](./archive/index.md) 查阅归档规范。
 - 新增棘手问题时，优先放在本目录，并在本文件写清楚触发阅读的改动范围。
 

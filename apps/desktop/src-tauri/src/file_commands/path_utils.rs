@@ -7,14 +7,14 @@ use std::{
     path::{Path, PathBuf},
 };
 
-/// 检查路径是否为 Markdown 文件格式（.md / .mdx / .markdown）。
+/// 检查路径是否为 Markdown 文件格式，包含安装包声明的所有 Markdown 扩展名。
 pub(crate) fn is_markdown_path(path: &Path) -> bool {
     matches!(
         path.extension()
             .and_then(|extension| extension.to_str())
             .map(|extension| extension.to_ascii_lowercase())
             .as_deref(),
-        Some("md" | "mdx" | "markdown")
+        Some("md" | "mdx" | "markdown" | "mdown" | "mkd")
     )
 }
 
