@@ -1,5 +1,8 @@
 import { isolateHistory } from "@codemirror/commands";
+import { ensureSyntaxTree } from "@codemirror/language";
+import type { EditorState } from "@codemirror/state";
 import type {
+  EditorMessageTranslator,
   GraphicalCodeBlockEditorProvider,
   MarkdownGraphicalCodeBlockMetadata,
   MarkdownRangeRecord,
@@ -33,6 +36,7 @@ export interface GraphicalCodeEditorContext {
   readonly view: RendererViewAdapter;
   readonly parent: HTMLElement;
   readonly provider: GraphicalCodeBlockEditorProvider;
+  readonly translateEditorMessage?: EditorMessageTranslator | undefined;
   readonly recordId?: string;
   readonly creation?: { readonly anchor: number; readonly initialSource: string };
   readonly getDocumentState: () => {
@@ -50,6 +54,7 @@ export interface GraphicalCodeEditorContext {
 export interface GraphicalCodeEditorCoordinatorContext {
   readonly view: () => RendererViewAdapter;
   readonly parent: HTMLElement;
+  readonly translateEditorMessage?: EditorMessageTranslator | undefined;
   readonly getDocumentState: GraphicalCodeEditorContext["getDocumentState"];
   readonly isBusy: () => boolean;
   readonly isComposing: () => boolean;
@@ -69,10 +74,35 @@ export class GraphicalCodeEditorCoordinator {
   }
 
   hostPorts(override?: SyntaxPluginHostPorts): SyntaxPluginHostPorts {
-    if (override) return override;
+    if (override) {
+      return { translateEditorMessage: this.#context.translateEditorMessage, ...override };
+    }
     return {
       ...createDefaultSyntaxPluginHostPorts(),
+      translateEditorMessage: this.#context.translateEditorMessage,
       openGraphicalCodeBlockEditor: ({ recordId, provider }) => this.openRecord(recordId, provider),
+      canOpenGraphicalCodeBlockEditor: (state, recordId) => {
+        const record = findTarget(state, recordId);
+        return !state.readOnly && record !== null && isSupportedFence(record, state);
+      },
+      revealCodeBlockSource: ({ recordId }) => {
+        const view = this.#context.view();
+        if (!this.#available()) return;
+        const record = view.state.field(markdownRangeIndexField).get(recordId);
+        if (!record) return;
+        const anchor = Math.min(
+          record.graphicalCodeBlock?.bodyRange.from ??
+            record.codeBlock?.bodyEnvelopeRange?.from ??
+            record.contentRange?.from ??
+            record.fullRange.from,
+          record.fullRange.to,
+        );
+        view.dispatch({
+          selection: { anchor },
+          scrollIntoView: true,
+        });
+        view.focus();
+      },
     };
   }
 
@@ -80,6 +110,21 @@ export class GraphicalCodeEditorCoordinator {
     commandId: string,
     providers: readonly GraphicalCodeBlockEditorProvider[],
   ): boolean | null {
+    if (commandId === "edit.mermaid") {
+      if (!this.#available()) return false;
+      const view = this.#context.view();
+      const head = view.state.selection.main.head;
+      const record = view.state
+        .field(markdownRangeIndexField)
+        .records.find(
+          ({ nodeName, fullRange }) =>
+            nodeName === "MermaidBlock" && fullRange.from <= head && head <= fullRange.to,
+        );
+      const provider = providers.find(({ id }) => id === "mermaid.graphical.default-layout");
+      if (!record || !provider || !isSupportedFence(record, view.state)) return false;
+      this.openRecord(record.id, provider);
+      return true;
+    }
     const match = /^insert\.mermaid\.(flowchart|sequence)$/.exec(commandId);
     if (!match) return null;
     const provider = providers.find((candidate) =>
@@ -87,7 +132,9 @@ export class GraphicalCodeEditorCoordinator {
     );
     const diagram = provider?.diagramTypes.find(({ id }) => id === match[1]);
     if (!provider || !diagram || !this.#available()) return false;
-    const anchor = this.#context.view().state.selection.main.head;
+    const view = this.#context.view();
+    const anchor = diagramInsertionPoint(view, view.state.selection.main.head);
+    if (anchor === null) return false;
     void this.#launch(provider, { anchor, initialSource: diagram.initialSource });
     return true;
   }
@@ -121,6 +168,7 @@ export class GraphicalCodeEditorCoordinator {
       view: this.#context.view(),
       parent: this.#context.parent,
       provider,
+      translateEditorMessage: this.#context.translateEditorMessage,
       ...targetContext,
       getDocumentState: this.#context.getDocumentState,
       isBusy: this.#context.isBusy,
@@ -135,21 +183,23 @@ export class GraphicalCodeEditorCoordinator {
 /** Open a renderer-owned, identity-bound editing session for one fenced code block or new diagram. */
 export async function openGraphicalCodeEditor(context: GraphicalCodeEditorContext): Promise<void> {
   const { view, provider } = context;
+  const text = (key: string, fallback: string): string =>
+    context.translateEditorMessage?.(`editor.diagram.${key}`, fallback) ?? fallback;
   if (activeDialogs.has(context.parent)) return;
   activeDialogs.add(context.parent);
   const start = context.getDocumentState();
   const isCreate = context.creation !== undefined;
-  const initial = isCreate ? null : findTarget(view, context.recordId!);
+  const initial = isCreate ? null : findTarget(view.state, context.recordId!);
   if (isCreate) {
     if (context.creation!.anchor < 0 || context.creation!.anchor > view.state.doc.length) {
       activeDialogs.delete(context.parent);
       return;
     }
-  } else if (!initial || !isSupportedFence(initial, view)) {
+  } else if (!initial || !isSupportedFence(initial, view.state)) {
     activeDialogs.delete(context.parent);
     return;
   }
-  const initialFence = isCreate ? null : graphicalFence(initial!, view);
+  const initialFence = isCreate ? null : graphicalFence(initial!, view.state);
   if (!isCreate && !initialFence) {
     activeDialogs.delete(context.parent);
     return;
@@ -160,20 +210,23 @@ export async function openGraphicalCodeEditor(context: GraphicalCodeEditorContex
   let inspectionFailure: string | null = null;
   if (!isCreate) {
     try {
-      const inspected = await provider.inspect(source);
+      const inspected = await provider.inspect(source, context.translateEditorMessage);
       if (!isCurrent(context, start, initial!)) {
         activeDialogs.delete(context.parent);
         return;
       }
       if (!inspected.supported)
-        inspectionFailure = inspected.reason ?? "This diagram source is not supported.";
+        inspectionFailure =
+          inspected.reason ?? text("unsupported", "This diagram source is not supported.");
     } catch (error) {
       if (!isCurrent(context, start, initial!)) {
         activeDialogs.delete(context.parent);
         return;
       }
       inspectionFailure =
-        error instanceof Error ? error.message : "The diagram source could not be checked.";
+        error instanceof Error
+          ? error.message
+          : text("inspectFailed", "The diagram source could not be checked.");
     }
   } else if (!isAvailable(context)) {
     activeDialogs.delete(context.parent);
@@ -185,13 +238,9 @@ export async function openGraphicalCodeEditor(context: GraphicalCodeEditorContex
   const dialog = document.createElement("dialog");
   dialog.className = "md-editor-graphical-code-editor";
   const chinese = document.documentElement.lang.toLowerCase().startsWith("zh");
-  const title = chinese
-    ? isCreate
-      ? "新建图表"
-      : "编辑图表"
-    : isCreate
-      ? "Create diagram"
-      : "Edit diagram";
+  const title = isCreate
+    ? text("create", chinese ? "新建图表" : "Create diagram")
+    : text("edit", chinese ? "编辑图表" : "Edit diagram");
   dialog.setAttribute("aria-label", title);
   const heading = document.createElement("h2");
   heading.textContent = title;
@@ -199,11 +248,11 @@ export async function openGraphicalCodeEditor(context: GraphicalCodeEditorContex
   editor.className = "md-editor-graphical-code-editor__surface";
   const status = document.createElement("p");
   status.setAttribute("role", "status");
-  const apply = button(document, chinese ? "应用" : "Apply");
+  const apply = button(document, text("apply", chinese ? "应用" : "Apply"));
   apply.className = "md-editor-graphical-code-editor__apply";
   apply.disabled = true;
-  const cancel = button(document, chinese ? "取消" : "Cancel");
-  const copy = button(document, chinese ? "复制草稿" : "Copy draft");
+  const cancel = button(document, text("cancel", chinese ? "取消" : "Cancel"));
+  const copy = button(document, text("copy", chinese ? "复制草稿" : "Copy draft"));
   copy.className = "md-editor-graphical-code-editor__copy";
   copy.hidden = true;
   const footer = document.createElement("footer");
@@ -249,30 +298,31 @@ export async function openGraphicalCodeEditor(context: GraphicalCodeEditorContex
     copy.hidden = false;
   };
   const guard = (): string | null => {
-    if (!providerReady || providerBusy) return "The diagram source is still being checked.";
+    if (!providerReady || providerBusy)
+      return text("checking", "The diagram source is still being checked.");
     if (!isAvailable(context))
       return context.isDestroyed()
-        ? "The editor is no longer available."
-        : "The document is busy or read-only.";
+        ? text("unavailable", "The editor is no longer available.")
+        : text("readOnly", "The document is busy or read-only.");
     const currentState = context.getDocumentState();
     if (
       currentState.documentGeneration !== start.documentGeneration ||
       currentState.contentRevision !== start.contentRevision ||
       (isCreate && currentState.stateRevision !== start.stateRevision)
     )
-      return "The document changed while this dialog was open.";
+      return text("staleDocument", "The document changed while this dialog was open.");
     if (isCreate) {
       return context.creation!.anchor <= view.state.doc.length
         ? null
-        : "The insertion point is no longer valid.";
+        : text("invalidAnchor", "The insertion point is no longer valid.");
     }
-    const current = findTarget(view, context.recordId!);
+    const current = findTarget(view.state, context.recordId!);
     return current &&
       current.id === initial!.id &&
       current.sourceFingerprint === initial!.sourceFingerprint &&
-      isSupportedFence(current, view)
+      isSupportedFence(current, view.state)
       ? null
-      : "This diagram changed while the editor was open.";
+      : text("staleDiagram", "This diagram changed while the editor was open.");
   };
 
   apply.addEventListener("click", () => {
@@ -287,12 +337,15 @@ export async function openGraphicalCodeEditor(context: GraphicalCodeEditorContex
       from = to = context.creation!.anchor;
       insert = fitBlockAtAnchor(view, from, makeFencedBlock(draft));
     } else {
-      const current = findTarget(view, context.recordId!)!;
+      const current = findTarget(view.state, context.recordId!)!;
       if (closesFence(initial!, view, draft)) {
-        status.textContent = "The draft contains a closing fence that would end this code block.";
+        status.textContent = text(
+          "closingFence",
+          "The draft contains a closing fence that would end this code block.",
+        );
         return;
       }
-      ({ from, to } = graphicalFence(current, view)!.bodyRange);
+      ({ from, to } = graphicalFence(current, view.state)!.bodyRange);
     }
     const before = view.state.doc.toString();
     view.dispatch({
@@ -301,7 +354,12 @@ export async function openGraphicalCodeEditor(context: GraphicalCodeEditorContex
       userEvent: isCreate ? "input.graphical-code-create" : "input.graphical-code-editor",
     });
     if (view.state.doc.toString() === before) {
-      return failClosed("The editor could not apply this change. Copy the draft before closing.");
+      return failClosed(
+        text(
+          "applyFailed",
+          "The editor could not apply this change. Copy the draft before closing.",
+        ),
+      );
     }
     close();
   });
@@ -338,14 +396,14 @@ export async function openGraphicalCodeEditor(context: GraphicalCodeEditorContex
       const clipboard = document.defaultView?.navigator.clipboard;
       if (!clipboard?.writeText) throw new Error("Clipboard API unavailable");
       await clipboard.writeText(draft);
-      status.textContent = "Draft copied.";
+      status.textContent = text("copied", "Draft copied.");
     } catch {
       const fallback = document.createElement("textarea");
       fallback.value = draft;
-      fallback.setAttribute("aria-label", "Draft to copy");
+      fallback.setAttribute("aria-label", text("draftToCopy", "Draft to copy"));
       dialog.append(fallback);
       fallback.select();
-      status.textContent = "Select and copy the draft below.";
+      status.textContent = text("copyManually", "Select and copy the draft below.");
     }
   });
   dialog.addEventListener("keydown", (event) => {
@@ -386,9 +444,13 @@ export async function openGraphicalCodeEditor(context: GraphicalCodeEditorContex
       container: editor,
       source,
       isDark: context.isDark(),
+      translateEditorMessage: context.translateEditorMessage,
       signal: sessionAbortController.signal,
       onChange: (next) => {
-        if (!closed) draft = next;
+        if (!closed) {
+          draft = next;
+          status.textContent = "";
+        }
       },
       onBusyChange: (busy) => {
         providerBusy = busy;
@@ -413,7 +475,10 @@ export async function openGraphicalCodeEditor(context: GraphicalCodeEditorContex
   } catch (error) {
     status.textContent = error instanceof Error ? error.message : String(error);
     failClosed(
-      "The diagram editor failed to start. Close this dialog and keep your document unchanged.",
+      text(
+        "mountFailed",
+        "The diagram editor failed to start. Close this dialog and keep your document unchanged.",
+      ),
     );
   }
 }
@@ -434,18 +499,18 @@ function button(document: Document, label: string): HTMLButtonElement {
   return result;
 }
 
-function findTarget(view: RendererViewAdapter, recordId: string): MarkdownRangeRecord | null {
-  const record = view.state.field(markdownRangeIndexField).get(recordId);
+function findTarget(state: EditorState, recordId: string): MarkdownRangeRecord | null {
+  const record = state.field(markdownRangeIndexField).get(recordId);
   return record && (record.codeBlock || record.graphicalCodeBlock) ? record : null;
 }
 
-function isSupportedFence(record: MarkdownRangeRecord, view: RendererViewAdapter): boolean {
-  return graphicalFence(record, view) !== null;
+function isSupportedFence(record: MarkdownRangeRecord, state: EditorState): boolean {
+  return graphicalFence(record, state) !== null;
 }
 
 function graphicalFence(
   record: MarkdownRangeRecord,
-  view: RendererViewAdapter,
+  state: EditorState,
 ): MarkdownGraphicalCodeBlockMetadata | null {
   const code = record.codeBlock;
   const metadata = record.graphicalCodeBlock;
@@ -458,7 +523,7 @@ function graphicalFence(
     (metadata && !metadata.isClosed)
   )
     return null;
-  const document = view.state.doc;
+  const document = state.doc;
   const openingMarker = metadata?.openingFenceRange ?? code?.openingFenceRange;
   const closingMarker = metadata?.closingFenceRange ?? code?.closingFenceRange;
   const bodyRange = metadata?.bodyRange ?? code?.bodyEnvelopeRange;
@@ -528,13 +593,13 @@ function isCurrent(
 ): boolean {
   if (!isAvailable(context)) return false;
   const current = context.getDocumentState();
-  const target = findTarget(context.view, context.recordId!);
+  const target = findTarget(context.view.state, context.recordId!);
   return (
     current.documentGeneration === start.documentGeneration &&
     current.contentRevision === start.contentRevision &&
     target?.id === initial.id &&
     target?.sourceFingerprint === initial.sourceFingerprint &&
-    Boolean(target && isSupportedFence(target, context.view))
+    Boolean(target && isSupportedFence(target, context.view.state))
   );
 }
 
@@ -543,7 +608,7 @@ function closesFence(
   view: RendererViewAdapter,
   draft: string,
 ): boolean {
-  const fence = graphicalFence(record, view)!;
+  const fence = graphicalFence(record, view.state)!;
   return new RegExp(`^ {0,3}${fence.fenceCharacter}{${fence.fenceLength},}[ \\t]*$`, "m").test(
     draft,
   );
@@ -556,8 +621,30 @@ function makeFencedBlock(source: string): string {
   return `${fence}mermaid\n${body}\n${fence}`;
 }
 
+function diagramInsertionPoint(view: RendererViewAdapter, head: number): number | null {
+  const { state } = view;
+  const tree = ensureSyntaxTree(state, state.doc.length);
+  if (!tree) return null;
+  const block = tree.topNode.childAfter(head) ?? tree.topNode.lastChild;
+  const line = state.doc.lineAt(head);
+  if (!block || block.from > line.to || head > block.to) return line.to;
+  // At EOF an unclosed fence still owns any appended lines. Insert before it.
+  if (
+    (block.name === "FencedCode" && block.getChildren("CodeMark").length < 2) ||
+    (block.name === "MermaidBlock" && block.getChildren("MermaidMarker").length < 2)
+  ) {
+    return state.doc.lineAt(block.from).from;
+  }
+  return state.doc.lineAt(Math.max(block.from, block.to - 1)).to;
+}
+
 function fitBlockAtAnchor(view: RendererViewAdapter, anchor: number, block: string): string {
-  const before = view.state.doc.sliceString(Math.max(0, anchor - 1), anchor);
-  const after = view.state.doc.sliceString(anchor, Math.min(view.state.doc.length, anchor + 1));
-  return `${anchor === 0 || before === "\n" ? "" : "\n"}${block}${anchor === view.state.doc.length || after === "\n" ? "" : "\n"}`;
+  const { doc } = view.state;
+  const before = doc.sliceString(Math.max(0, anchor - 2), anchor);
+  const after = doc.sliceString(anchor, Math.min(doc.length, anchor + 2));
+  const prefix =
+    anchor === 0 || before.endsWith("\n\n") ? "" : before.endsWith("\n") ? "\n" : "\n\n";
+  const suffix =
+    anchor === doc.length || after.startsWith("\n\n") ? "" : after.startsWith("\n") ? "\n" : "\n\n";
+  return prefix + block + suffix;
 }

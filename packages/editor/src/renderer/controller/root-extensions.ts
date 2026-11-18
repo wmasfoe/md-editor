@@ -61,6 +61,7 @@ export interface RootExtensionContext {
   readonly aiSuggestionLabels: AiSuggestionLabels | undefined;
   readonly aiSuggestionLabelsCompartment: Compartment;
   readonly finishComposition: () => void;
+  readonly editMermaid: () => boolean;
   readonly formattingKeymapCompartment: Compartment;
   readonly handleViewUpdate: (update: ViewUpdate) => void;
   readonly markdownLanguageCompartment: Compartment;
@@ -83,7 +84,12 @@ export function createRootExtensions(context: RootExtensionContext): readonly Ex
     EditorView.lineWrapping,
     codeFolding(),
     search({ top: true, createPanel: createLiquidSearchPanel }),
-    keymap.of([...searchKeymap, ...defaultKeymap, ...historyKeymap]),
+    keymap.of([
+      { key: "Mod-Shift-Enter", run: context.editMermaid },
+      ...searchKeymap,
+      ...defaultKeymap,
+      ...historyKeymap,
+    ]),
     context.markdownLanguageCompartment.of(
       context.useNativeCodeLanguages
         ? createMarkdownLanguageSupport(

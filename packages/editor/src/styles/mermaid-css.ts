@@ -53,7 +53,7 @@ Mermaid Diagram Widgets & Error Cards
   opacity: 1;
   pointer-events: auto;
 }
-.cm-md-editor.cm-editor.cm-md-editor--wysiwyg .cm-md-mermaid-toolbar__viewer, .cm-md-editor.cm-editor.cm-md-editor--wysiwyg .cm-md-mermaid-toolbar__graphical-edit {
+.cm-md-editor.cm-editor.cm-md-editor--wysiwyg .cm-md-mermaid-toolbar__viewer, .cm-md-editor.cm-editor.cm-md-editor--wysiwyg .cm-md-mermaid-toolbar__graphical-edit, .cm-md-editor.cm-editor.cm-md-editor--wysiwyg .cm-md-mermaid-toolbar__source-edit {
   border: 1px solid var(--theme-border, #d8dee4);
   border-radius: 4px;
   background: var(--theme-surface, #fff);
@@ -68,7 +68,7 @@ Mermaid Diagram Widgets & Error Cards
     color var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1)),
     border-color var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1));
 }
-.cm-md-editor.cm-editor.cm-md-editor--wysiwyg .cm-md-mermaid-toolbar__viewer:hover, .cm-md-editor.cm-editor.cm-md-editor--wysiwyg .cm-md-mermaid-toolbar__graphical-edit:hover {
+.cm-md-editor.cm-editor.cm-md-editor--wysiwyg .cm-md-mermaid-toolbar__viewer:hover, .cm-md-editor.cm-editor.cm-md-editor--wysiwyg .cm-md-mermaid-toolbar__graphical-edit:hover, .cm-md-editor.cm-editor.cm-md-editor--wysiwyg .cm-md-mermaid-toolbar__source-edit:hover {
   background: var(--theme-primary-soft, rgba(0, 0, 0, 0.06));
   color: var(--theme-primary, var(--theme-text, currentColor));
   border-color: var(--theme-border-strong, var(--theme-border, #afb8c1));

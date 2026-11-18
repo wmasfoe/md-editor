@@ -80,15 +80,22 @@ export interface MarkdownSyntaxPlugin {
   };
 }
 
+/** Translate editor messages with the host's locale and a standalone fallback. */
+export type EditorMessageTranslator = (key: string, fallback: string) => string;
+
 /** A syntax plugin's optional source editor, owned and hosted by the editor renderer. */
 export interface GraphicalCodeBlockEditorProvider {
   readonly id: string;
   readonly diagramTypes: readonly GraphicalCodeBlockDiagramType[];
-  inspect(source: string): Promise<{ readonly supported: boolean; readonly reason?: string }>;
+  inspect(
+    source: string,
+    translate?: EditorMessageTranslator,
+  ): Promise<{ readonly supported: boolean; readonly reason?: string }>;
   mount(input: {
     readonly container: HTMLElement;
     readonly source: string;
     readonly isDark: boolean;
+    readonly translateEditorMessage?: EditorMessageTranslator | undefined;
     readonly onChange: (source: string) => void;
     /** Aborted when the editor dialog closes or its renderer is destroyed. */
     readonly signal?: AbortSignal;
@@ -439,6 +446,7 @@ export interface MediaViewerHandle {
  * 提供实现。所有成员均为可选：未提供时插件必须优雅降级（例如不显示放大按钮）。
  */
 export interface SyntaxPluginHostPorts {
+  readonly translateEditorMessage?: EditorMessageTranslator | undefined;
   /** 打开媒体查看器浮层；未提供时插件不应渲染"放大"入口。 */
   readonly openMediaViewer?: (options: MediaViewerOpenOptions) => MediaViewerHandle;
   /** 按宿主元素关闭媒体查看器；未提供时由宿主自行在 destroy 时清理。 */
@@ -448,6 +456,10 @@ export interface SyntaxPluginHostPorts {
     readonly recordId: string;
     readonly provider: GraphicalCodeBlockEditorProvider;
   }) => void;
+  /** Check the record against the state being rendered, including during view construction. */
+  readonly canOpenGraphicalCodeBlockEditor?: (state: EditorState, recordId: string) => boolean;
+  /** Focus and reveal a code block in the host's source editor. */
+  readonly revealCodeBlockSource?: (input: { readonly recordId: string }) => void;
   /**
    * 创建 Callout 头部 widget。
    *

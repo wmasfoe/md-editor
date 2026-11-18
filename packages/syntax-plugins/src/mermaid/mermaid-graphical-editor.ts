@@ -3,12 +3,14 @@ import type { FlowGraph, MermaidWysiwygEditor, SequenceGraph } from "@visimer/co
 import type * as VisimerCore from "@visimer/core";
 import type { MermaidCanvasView } from "@visimer/dom";
 import type {
+  EditorMessageTranslator,
   GraphicalCodeBlockEditorProvider,
   GraphicalCodeBlockEditorHandle,
 } from "@md-editor/plugin-sdk/syntax";
 import { parseMermaid, runMermaidOperation } from "./mermaid-loader.ts";
 import { installConnectHandles } from "./mermaid-connect-handles.ts";
 import { installInlineNodeCreation } from "./mermaid-inline-node-creation.ts";
+import { createMermaidDraftEditor, isMermaidLabel } from "./mermaid-draft-editor.ts";
 import { mermaidGraphicalEditorCss } from "./mermaid-graphical-editor-css.ts";
 
 /**
@@ -75,10 +77,11 @@ function unsupported(reason: string): Inspection {
   return Object.freeze({ supported: false, reason });
 }
 
-function isSimpleFlowchart(graph: FlowGraph): string | null {
-  if (graph.subgraphs.length > 0) return "子图尚不支持图形编辑";
+function isSimpleFlowchart(graph: FlowGraph, text: EditorMessageTranslator): string | null {
+  if (graph.subgraphs.length > 0)
+    return text("editor.mermaid.subgraphUnsupported", "子图尚不支持图形编辑");
   if (graph.nodes.some((node) => node.refs.filter((ref) => ref.ref.labelSpan).length > 1)) {
-    return "节点存在重复主声明，请使用源码编辑";
+    return text("editor.mermaid.duplicateNode", "节点存在重复主声明，请使用源码编辑");
   }
   for (const statement of graph.statements.values()) {
     if (
@@ -86,86 +89,68 @@ function isSimpleFlowchart(graph: FlowGraph): string | null {
         statement.kind,
       )
     ) {
-      return "包含无法安全编辑的流程图语法";
+      return text("editor.mermaid.unsupportedFlowchart", "包含无法安全编辑的流程图语法");
     }
   }
   return null;
 }
 
-function isSimpleSequence(graph: SequenceGraph): string | null {
+function isSimpleSequence(graph: SequenceGraph, text: EditorMessageTranslator): string | null {
   const supportedKinds = new Set(["participant", "message", "end"]);
   for (const statement of graph.statements.values()) {
     if (!supportedKinds.has(statement.kind))
-      return "循环、注释块或其他复杂时序语法尚不支持图形编辑";
+      return text(
+        "editor.mermaid.unsupportedSequence",
+        "循环、注释块或其他复杂时序语法尚不支持图形编辑",
+      );
   }
   const aliases = graph.participants.flatMap((participant) =>
     participant.decl?.alias ? [participant.decl.alias.toLocaleLowerCase()] : [],
   );
-  if (new Set(aliases).size !== aliases.length) return "参与者别名重复，无法安全映射身份";
+  if (new Set(aliases).size !== aliases.length)
+    return text("editor.mermaid.duplicateAlias", "参与者别名重复，无法安全映射身份");
   return null;
 }
 
-async function inspectSource(source: string): Promise<Inspection> {
+const fallbackText: EditorMessageTranslator = (_key, fallback) => fallback;
+
+async function inspectSource(
+  source: string,
+  translate?: EditorMessageTranslator,
+): Promise<Inspection> {
+  const text = typeof translate === "function" ? translate : fallbackText;
   const { parse: parseVisimer } = await loadVisimerCore();
   let parsed: ParsedMermaid;
   try {
     parsed = parseVisimer(source);
   } catch {
-    return unsupported("无法安全识别此 Mermaid 源码");
+    return unsupported(text("editor.mermaid.unrecognizedSource", "无法安全识别此 Mermaid 源码"));
   }
   if (parsed.typeInfo?.id !== "flowchart" && parsed.typeInfo?.id !== "sequence") {
-    return unsupported("仅支持 Mermaid 流程图和时序图");
+    return unsupported(text("editor.mermaid.unsupportedType", "仅支持 Mermaid 流程图和时序图"));
   }
   try {
     await parseMermaid(source);
-  } catch (error) {
-    return unsupported(error instanceof Error ? error.message : "Mermaid 源码无效");
+  } catch {
+    return unsupported(text("editor.mermaid.invalidSource", "Mermaid 源码无效"));
   }
   if (parsed.flowchart) {
-    const reason = isSimpleFlowchart(parsed.flowchart);
+    const reason = isSimpleFlowchart(parsed.flowchart, text);
     if (reason) return unsupported(reason);
     warmEditorModules();
     return Object.freeze({ supported: true });
   }
   if (parsed.sequence) {
-    const reason = isSimpleSequence(parsed.sequence);
+    const reason = isSimpleSequence(parsed.sequence, text);
     if (reason) return unsupported(reason);
     warmEditorModules();
     return Object.freeze({ supported: true });
   }
-  return unsupported("无法识别此 Mermaid 图表结构");
-}
-
-function safeLabel(value: string): boolean {
-  // Restrict labels to a predictable single-line alphabet before semantic patching.
-  return /^[-\p{L}\p{N}\p{M} _.,!?;:()/+]*$/u.test(value);
+  return unsupported(text("editor.mermaid.unknownStructure", "无法识别此 Mermaid 图表结构"));
 }
 
 function safeIdentifier(value: string): boolean {
   return /^[\p{L}\p{N}_.-]+$/u.test(value);
-}
-
-function labelsAreSafe(before: ParsedMermaid, after: ParsedMermaid): boolean {
-  const prior = new Map<string, string>();
-  const next = new Map<string, string>();
-  for (const node of before.flowchart?.nodes ?? []) prior.set(node.entityId, node.label);
-  for (const edge of before.flowchart?.edges ?? []) prior.set(edge.entityId, edge.label ?? "");
-  for (const participant of before.sequence?.participants ?? [])
-    prior.set(participant.entityId, participant.label);
-  for (const event of before.sequence?.events ?? []) {
-    if (event.kind === "message") prior.set(event.entityId, event.stmt.text);
-  }
-  for (const node of after.flowchart?.nodes ?? []) next.set(node.entityId, node.label);
-  for (const edge of after.flowchart?.edges ?? []) next.set(edge.entityId, edge.label ?? "");
-  for (const participant of after.sequence?.participants ?? [])
-    next.set(participant.entityId, participant.label);
-  for (const event of after.sequence?.events ?? []) {
-    if (event.kind === "message") next.set(event.entityId, event.stmt.text);
-  }
-  for (const [entity, label] of next) {
-    if (prior.get(entity) !== label && !safeLabel(label)) return false;
-  }
-  return true;
 }
 
 function selected(editor: MermaidWysiwygEditor, kind: string): string | null {
@@ -175,15 +160,14 @@ function selected(editor: MermaidWysiwygEditor, kind: string): string | null {
 /** Toolbar surface handed back to the mount layer so canvas gestures can reuse it. */
 interface ToolbarHandle {
   destroy(): void;
-  /** Open the validated "node label" form and append the node. */
-  requestAddNode(): Promise<void>;
+  setMutationBusy(busy: boolean): void;
 }
 
 function appendToolbar(
   parent: HTMLElement,
   editor: MermaidWysiwygEditor,
-  view: MermaidCanvasView,
   sourceKind: "flowchart" | "sequence",
+  text: EditorMessageTranslator,
   reportError: (message: string) => void,
   onInputBusyChange: (busy: boolean) => void,
 ): ToolbarHandle {
@@ -192,20 +176,24 @@ function appendToolbar(
   toolbar.className = "cm-md-mermaid-graphical-toolbar";
   toolbar.setAttribute(
     "aria-label",
-    sourceKind === "flowchart" ? "流程图编辑工具" : "时序图编辑工具",
+    sourceKind === "flowchart"
+      ? text("editor.mermaid.flowchartTools", "流程图编辑工具")
+      : text("editor.mermaid.sequenceTools", "时序图编辑工具"),
   );
   const status = doc.createElement("output");
   const actions = doc.createElement("div");
   actions.className = "cm-md-mermaid-graphical-toolbar__actions";
   const hint = doc.createElement("span");
   hint.className = "cm-md-mermaid-graphical-toolbar__hint";
-  hint.textContent = "选择图中元素以编辑";
+  hint.textContent = text("editor.mermaid.selectElement", "选择图中元素以编辑");
   status.setAttribute("role", "status");
   status.setAttribute("aria-live", "polite");
   toolbar.append(status);
   const controls = new Map<HTMLButtonElement, () => string | null>();
   let cancelPendingInput: (() => void) | undefined;
   let pendingInputCount = 0;
+  let mutationBusy = false;
+  let mutationFocus: HTMLButtonElement | null = null;
   const add = (
     label: string,
     action: () => void | Promise<void>,
@@ -227,6 +215,7 @@ function appendToolbar(
       readonly initial?: string;
       readonly choices?: readonly { readonly value: string; readonly label: string }[];
     }[],
+    validate?: (values: readonly string[]) => string | null,
   ): Promise<string[] | null> =>
     new Promise((resolve) => {
       pendingInputCount++;
@@ -261,10 +250,10 @@ function appendToolbar(
       });
       const confirm = doc.createElement("button");
       confirm.type = "button";
-      confirm.textContent = "确定";
+      confirm.textContent = text("editor.mermaid.confirm", "确定");
       const cancel = doc.createElement("button");
       cancel.type = "button";
-      cancel.textContent = "取消";
+      cancel.textContent = text("editor.mermaid.cancel", "取消");
       const returnFocus = doc.activeElement instanceof HTMLElement ? doc.activeElement : null;
       for (const button of toolbar.querySelectorAll("button")) button.disabled = true;
       let settled = false;
@@ -284,21 +273,29 @@ function appendToolbar(
       cancelPendingInput = () => finish(null);
       const submit = (): void => {
         if (specs.some((spec) => spec.choices?.length === 0)) {
-          status.textContent = "请先添加可选择的图表元素。";
+          status.textContent = text(
+            "editor.mermaid.addElementsFirst",
+            "请先添加可选择的图表元素。",
+          );
           reportError(status.textContent);
           return;
         }
         const invalidField = fields.find(
-          (field, index) => !specs[index]?.choices && !safeLabel(field.value),
+          (field, index) => !specs[index]?.choices && !isMermaidLabel(field.value),
         );
         if (invalidField) {
-          status.textContent = "文字包含不支持的符号或换行，请使用单行文字和常规标点。";
+          status.textContent = text(
+            "editor.mermaid.invalidLabel",
+            "文字包含不支持的符号或换行，请使用单行文字和常规标点。",
+          );
           reportError(status.textContent);
           invalidField.focus();
           return;
         }
-        status.textContent = "";
-        finish(fields.map((field) => field.value));
+        const values = fields.map((field) => field.value);
+        const error = validate?.(values);
+        status.textContent = error ?? "";
+        if (!error) finish(values);
       };
       confirm.addEventListener("click", submit);
       cancel.addEventListener("click", () => finish(null));
@@ -309,6 +306,8 @@ function appendToolbar(
             keyEvent.stopPropagation();
             return;
           }
+          if (!(keyEvent.target instanceof HTMLElement) || keyEvent.target.tagName !== "INPUT")
+            return;
           keyEvent.preventDefault();
           keyEvent.stopPropagation();
           submit();
@@ -331,20 +330,52 @@ function appendToolbar(
    */
   const requestAddNode = async (): Promise<void> => {
     if (sourceKind !== "flowchart" || pendingInputCount > 0) return;
-    const label = (await askFields([{ label: "节点文字" }]))?.[0] ?? null;
+    const label =
+      (await askFields([{ label: text("editor.mermaid.nodeText", "节点文字") }]))?.[0] ?? null;
     if (label !== null) editor.dispatch({ type: "addNode", label });
   };
   if (sourceKind === "flowchart") {
-    // Connecting no longer needs a toolbar mode: selecting a node reveals drag
-    // handles on its edges (see mermaid-connect-handles.ts).
-    add("添加节点", () => requestAddNode());
+    add(text("editor.mermaid.addNode", "添加节点"), () => requestAddNode());
     add(
-      "修改节点文字",
+      text("editor.mermaid.connectNodes", "连接节点"),
+      async () => {
+        const choices = (editor.result.flowchart?.nodes ?? []).map(({ id, label }) => ({
+          value: id,
+          label: label || id,
+        }));
+        const source = selected(editor, "node")?.slice(5) ?? choices[0]?.value;
+        const values = await askFields(
+          [
+            { label: text("editor.mermaid.edgeSource", "起点"), initial: source, choices },
+            {
+              label: text("editor.mermaid.edgeTarget", "终点"),
+              initial: choices.find(({ value }) => value !== source)?.value,
+              choices,
+            },
+          ],
+          ([from, to]) =>
+            from === to
+              ? text("editor.mermaid.distinctEndpoints", "请选择不同的起点和终点。")
+              : null,
+        );
+        if (values) editor.dispatch({ type: "connect", source: values[0]!, target: values[1]! });
+      },
+      () =>
+        (editor.result.flowchart?.nodes.length ?? 0) < 2
+          ? text("editor.mermaid.addTwoNodes", "请先添加两个节点")
+          : null,
+    );
+    add(
+      text("editor.mermaid.editNode", "修改节点文字"),
       async () => {
         const id = selected(editor, "node");
         const node = id && editor.result.flowchart?.nodeById.get(id.slice(5));
         const label = node
-          ? ((await askFields([{ label: "节点文字", initial: node.label }]))?.[0] ?? null)
+          ? ((
+              await askFields([
+                { label: text("editor.mermaid.nodeText", "节点文字"), initial: node.label },
+              ])
+            )?.[0] ?? null)
           : null;
         if (id && label !== null) editor.dispatch({ type: "renameNode", id: id.slice(5), label });
       },
@@ -352,12 +383,16 @@ function appendToolbar(
       "node",
     );
     add(
-      "修改关系文字",
+      text("editor.mermaid.editEdge", "修改关系文字"),
       async () => {
         const id = selected(editor, "edge");
         const edge = id && editor.result.flowchart?.edges.find((item) => item.entityId === id);
         const label = edge
-          ? ((await askFields([{ label: "关系文字", initial: edge.label ?? "" }]))?.[0] ?? null)
+          ? ((
+              await askFields([
+                { label: text("editor.mermaid.edgeText", "关系文字"), initial: edge.label ?? "" },
+              ])
+            )?.[0] ?? null)
           : null;
         if (id && label !== null) editor.dispatch({ type: "setEdgeLabel", edgeId: id, label });
       },
@@ -365,16 +400,16 @@ function appendToolbar(
       "edge",
     );
     add(
-      "删除关系",
+      text("editor.mermaid.deleteEdge", "删除关系"),
       () => {
         const id = selected(editor, "edge");
         if (id) editor.dispatch({ type: "deleteEdge", edgeId: id });
       },
-      () => (selected(editor, "edge") ? null : "先选择一条关系"),
+      () => (selected(editor, "edge") ? null : text("editor.mermaid.selectEdge", "先选择一条关系")),
       "edge",
     );
     add(
-      "删除节点",
+      text("editor.mermaid.deleteNode", "删除节点"),
       () => {
         const id = selected(editor, "node");
         const nodeId = id?.slice(5);
@@ -386,58 +421,60 @@ function appendToolbar(
       () => {
         const id = selected(editor, "node")?.slice(5);
         const graph = editor.result.flowchart;
-        if (!id || !graph) return "先选择一个节点";
+        if (!id || !graph) return text("editor.mermaid.selectNode", "先选择一个节点");
         return null;
       },
       "node",
     );
   } else {
-    add("添加参与者", async () => {
-      const name = (await askFields([{ label: "参与者名称" }]))?.[0] ?? null;
+    add(text("editor.mermaid.addParticipant", "添加参与者"), async () => {
+      const name =
+        (await askFields([{ label: text("editor.mermaid.participantName", "参与者名称") }]))?.[0] ??
+        null;
       if (name !== null) editor.dispatch({ type: "seq.addParticipant", name });
     });
     add(
-      "添加消息",
+      text("editor.mermaid.addMessage", "添加消息"),
       async () => {
         const choices = (editor.result.sequence?.participants ?? []).map((participant) => ({
           value: participant.id,
           label: participant.label,
         }));
         const values = await askFields([
-          { label: "发送方", initial: selected(editor, "participant")?.slice(12), choices },
-          { label: "接收方", initial: choices[1]?.value, choices },
-          { label: "消息文字" },
+          {
+            label: text("editor.mermaid.sender", "发送方"),
+            initial: selected(editor, "participant")?.slice(12),
+            choices,
+          },
+          { label: text("editor.mermaid.receiver", "接收方"), initial: choices[1]?.value, choices },
+          { label: text("editor.mermaid.messageText", "消息文字") },
         ]);
         if (values) {
-          const [source, target, text] = values as [string, string, string];
-          editor.dispatch({ type: "seq.addMessage", source, target, text });
+          const [source, target, message] = values as [string, string, string];
+          editor.dispatch({ type: "seq.addMessage", source, target, text: message });
         }
       },
-      () => ((editor.result.sequence?.participants.length ?? 0) < 2 ? "请先添加两个参与者" : null),
+      () =>
+        (editor.result.sequence?.participants.length ?? 0) < 2
+          ? text("editor.mermaid.addTwoParticipants", "请先添加两个参与者")
+          : null,
     );
     add(
-      "修改参与者名称",
+      text("editor.mermaid.editParticipant", "修改参与者名称"),
       async () => {
         const id = selected(editor, "participant");
         const person = id ? editor.result.sequence?.participantById.get(id.slice(12)) : undefined;
         const name = person
-          ? ((await askFields([{ label: "参与者名称", initial: person.label }]))?.[0] ?? null)
+          ? ((
+              await askFields([
+                {
+                  label: text("editor.mermaid.participantName", "参与者名称"),
+                  initial: person.label,
+                },
+              ])
+            )?.[0] ?? null)
           : null;
         if (id && person && name !== null) {
-          if (!person?.decl?.alias && !safeIdentifier(name)) {
-            status.textContent = "无别名参与者的 ID 只能使用字母、数字、点、下划线或短横线。";
-            reportError(status.textContent);
-            return;
-          }
-          if (
-            !person?.decl?.alias &&
-            editor.result.sequence?.participantById.has(name) &&
-            name !== person.id
-          ) {
-            status.textContent = "该参与者 ID 已被使用。";
-            reportError(status.textContent);
-            return;
-          }
           editor.dispatch({ type: "seq.renameParticipant", id: id.slice(12), name });
         }
       },
@@ -445,23 +482,28 @@ function appendToolbar(
       "participant",
     );
     add(
-      "修改消息文字",
+      text("editor.mermaid.editMessage", "修改消息文字"),
       async () => {
         const id = selected(editor, "event");
         const event = id
           ? editor.result.sequence?.events.find((item) => item.entityId === id)
           : undefined;
         if (id && event?.kind === "message") {
-          const text =
-            (await askFields([{ label: "消息文字", initial: event.stmt.text }]))?.[0] ?? null;
-          if (text !== null) editor.dispatch({ type: "seq.setEventText", eventId: id, text });
+          const message =
+            (
+              await askFields([
+                { label: text("editor.mermaid.messageText", "消息文字"), initial: event.stmt.text },
+              ])
+            )?.[0] ?? null;
+          if (message !== null)
+            editor.dispatch({ type: "seq.setEventText", eventId: id, text: message });
         }
       },
       undefined,
       "event",
     );
     add(
-      "删除消息",
+      text("editor.mermaid.deleteMessage", "删除消息"),
       () => {
         const id = selected(editor, "event");
         const event = id
@@ -475,12 +517,14 @@ function appendToolbar(
         const event = id
           ? editor.result.sequence?.events.find((item) => item.entityId === id)
           : undefined;
-        return event?.kind === "message" ? null : "先选择一条消息";
+        return event?.kind === "message"
+          ? null
+          : text("editor.mermaid.selectMessage", "先选择一条消息");
       },
       "event",
     );
     add(
-      "删除参与者",
+      text("editor.mermaid.deleteParticipant", "删除参与者"),
       () => {
         const id = selected(editor, "participant");
         const person = id && editor.result.sequence?.participantById.get(id.slice(12));
@@ -492,7 +536,7 @@ function appendToolbar(
       () => {
         const id = selected(editor, "participant")?.slice(12);
         const person = id && editor.result.sequence?.participantById.get(id);
-        if (!person) return "先选择一个参与者";
+        if (!person) return text("editor.mermaid.selectParticipant", "先选择一个参与者");
         return null;
       },
       "participant",
@@ -501,14 +545,14 @@ function appendToolbar(
   const refresh = (): void => {
     // Selection can change while a form is open; it must not unlock a second operation.
     for (const button of actions.querySelectorAll("button"))
-      button.disabled = pendingInputCount > 0;
+      button.disabled = pendingInputCount > 0 || mutationBusy;
     for (const button of actions.querySelectorAll<HTMLButtonElement>("button[data-context]")) {
       button.hidden = !selected(editor, button.dataset.context!);
     }
     hint.hidden = editor.selection.length > 0;
     for (const [button, reasonFor] of controls) {
       const reason = reasonFor();
-      button.disabled = pendingInputCount > 0 || Boolean(reason);
+      button.disabled = pendingInputCount > 0 || mutationBusy || Boolean(reason);
       button.title = reason ?? "";
     }
   };
@@ -525,7 +569,29 @@ function appendToolbar(
     offChange();
     toolbar.remove();
   };
-  return { destroy: destroyToolbar, requestAddNode };
+  return {
+    destroy: destroyToolbar,
+    setMutationBusy(busy) {
+      const focused = doc.activeElement;
+      if (busy) {
+        mutationFocus =
+          focused instanceof HTMLButtonElement && actions.contains(focused) ? focused : null;
+      }
+      mutationBusy = busy;
+      refresh();
+      // Disabling the action during validation can temporarily move browser focus to the body.
+      if (!busy && mutationFocus) {
+        if (focused === doc.body || focused === mutationFocus) {
+          const next =
+            mutationFocus.hidden || mutationFocus.disabled
+              ? actions.querySelector<HTMLButtonElement>("button:not([hidden]):not([disabled])")
+              : mutationFocus;
+          next?.focus();
+        }
+        mutationFocus = null;
+      }
+    },
+  };
 }
 
 /** Mermaid SVG loading and graphical edits share a serialized strict runtime. */
@@ -540,16 +606,18 @@ export const mermaidGraphicalEditor: GraphicalCodeBlockEditorProvider = Object.f
       destroy: () => undefined,
     };
     if (input.signal?.aborted) return inertHandle;
-    const inspection = await inspectSource(input.source);
+    const text = input.translateEditorMessage ?? fallbackText;
+    const inspection = await inspectSource(input.source, text);
     if (input.signal?.aborted) return inertHandle;
-    if (!inspection.supported) throw new Error(inspection.reason ?? "此图表不支持图形编辑");
-    const [{ MermaidWysiwygEditor, parse: parseVisimer }, { MermaidCanvasView }] =
-      await Promise.all([loadVisimerCore(), loadVisimerDom()]);
+    if (!inspection.supported)
+      throw new Error(
+        inspection.reason ?? text("editor.mermaid.unsupported", "此图表不支持图形编辑"),
+      );
+    const [{ MermaidWysiwygEditor }, { MermaidCanvasView }] = await Promise.all([
+      loadVisimerCore(),
+      loadVisimerDom(),
+    ]);
     if (input.signal?.aborted) return inertHandle;
-    const initial = parseVisimer(input.source);
-    const sourceKind = initial.flowchart ? "flowchart" : "sequence";
-    // Visimer removes incident edges/messages and their style references in one semantic edit.
-    const editor = new MermaidWysiwygEditor({ code: input.source });
     const ownerDocument = input.container.ownerDocument;
     if (!styledDocuments.has(ownerDocument)) {
       const style = ownerDocument.createElement("style");
@@ -558,12 +626,8 @@ export const mermaidGraphicalEditor: GraphicalCodeBlockEditorProvider = Object.f
       ownerDocument.head.append(style);
       styledDocuments.add(ownerDocument);
     }
-    let acceptedSource = input.source;
     let currentTheme = input.isDark;
-    let changeSequence = 0;
     let destroyed = false;
-    let inputBusy = false;
-    let validationBusy = false;
     // `setReadOnly` is a single boolean shared by several owners (toolbar forms and
     // the inline placeholder). Tracking the lock sources instead of overwriting a
     // flag keeps one owner's release from unlocking another owner's lock.
@@ -573,7 +637,60 @@ export const mermaidGraphicalEditor: GraphicalCodeBlockEditorProvider = Object.f
       else readOnlyLocks.delete(owner);
       view.setReadOnly(readOnlyLocks.size > 0);
     };
-    const notifyBusy = (): void => input.onBusyChange?.(inputBusy || validationBusy);
+    const notifyBusy = (): void => input.onBusyChange?.(readOnlyLocks.size > 0);
+    const reportError = (message: string): void => input.onError?.(new Error(message));
+    const editor = createMermaidDraftEditor(MermaidWysiwygEditor, {
+      source: input.source,
+      isClosed: () => destroyed || input.signal?.aborted === true,
+      onError: reportError,
+      onBusy: (busy) => {
+        setReadOnlyLock("validation", busy);
+        toolbar.setMutationBusy(busy);
+        notifyBusy();
+      },
+      validate: async (code) => {
+        if (code.includes(String.fromCharCode(0)) || /^\s*(?:%%\{|click\b)/imu.test(code)) {
+          return text("editor.mermaid.unsafeSource", "此更改包含无法安全编辑的 Mermaid 语法");
+        }
+        const result = await inspectSource(code, text);
+        return result.supported
+          ? null
+          : (result.reason ?? text("editor.mermaid.unsupportedChange", "此更改不支持图形编辑"));
+      },
+      validateOperation: (draft, operation) => {
+        const label =
+          "label" in operation
+            ? operation.label
+            : "name" in operation
+              ? operation.name
+              : "text" in operation
+                ? operation.text
+                : undefined;
+        if (label !== undefined && !isMermaidLabel(label)) {
+          return text(
+            "editor.mermaid.invalidLabel",
+            "文字包含不支持的符号或换行，请使用单行文字和常规标点。",
+          );
+        }
+        if (operation.type === "seq.renameParticipant") {
+          const participants = draft.result.sequence?.participantById;
+          const person = participants?.get(operation.id);
+          if (person && !person.decl?.alias) {
+            if (!safeIdentifier(operation.name)) {
+              return text(
+                "editor.mermaid.invalidParticipantId",
+                "无别名参与者的 ID 只能使用字母、数字、点、下划线或短横线。",
+              );
+            }
+            if (operation.name !== operation.id && participants?.has(operation.name)) {
+              return text("editor.mermaid.duplicateParticipantId", "该参与者 ID 已被使用。");
+            }
+          }
+        }
+        return null;
+      },
+    });
+    const sourceKind = editor.result.flowchart ? "flowchart" : "sequence";
     const mermaidFacade = {
       initialize: (_config: Record<string, unknown>) => undefined,
       render: (id: string, code: string) =>
@@ -605,21 +722,19 @@ export const mermaidGraphicalEditor: GraphicalCodeBlockEditorProvider = Object.f
     const toolbar = appendToolbar(
       input.container,
       editor,
-      view,
       sourceKind,
-      (message) => input.onError?.(new Error(message)),
+      text,
+      reportError,
       (busy) => {
         // Pending forms keep selection available but suspend competing canvas mutations.
         setReadOnlyLock("toolbar-form", busy);
-        inputBusy = busy;
         notifyBusy();
       },
     );
-    // Selecting a node reveals drag handles on its four edges; dragging one onto
-    // another node connects them without a toolbar mode or a pick-two form.
+    // Drag handles give pointer users a direct way to connect nodes on the canvas.
     const connectHandles =
       sourceKind === "flowchart"
-        ? installConnectHandles({ view, editor, container: canvas })
+        ? installConnectHandles({ view, editor, container: canvas, text })
         : null;
     // Double-clicking empty canvas drops a dashed placeholder that takes a label
     // in place; committing appends the node (its position comes from the layout).
@@ -629,11 +744,9 @@ export const mermaidGraphicalEditor: GraphicalCodeBlockEditorProvider = Object.f
         ? installInlineNodeCreation({
             editor,
             container: canvas,
-            onError: (message) => input.onError?.(new Error(message)),
-            // The placeholder owns its own lock. Sharing the mount-level
-            // `inputBusy` flag let an async validation callback clear it while
-            // the canvas was still meant to be read-only, which left the view
-            // permanently non-editable after committing a node.
+            text,
+            onError: reportError,
+            // Keep a pending placeholder independent of form and validation locks.
             onBusyChange: (busy) => {
               setReadOnlyLock("inline-node", busy);
               notifyBusy();
@@ -648,62 +761,17 @@ export const mermaidGraphicalEditor: GraphicalCodeBlockEditorProvider = Object.f
       inlineNode.open(event.clientX, event.clientY);
     };
     canvas.addEventListener("dblclick", onCanvasDoubleClick);
-    const onEditorChange = editor.on("change", ({ code }) => {
-      const sequence = ++changeSequence;
-      validationBusy = true;
-      notifyBusy();
-      void (async () => {
-        // Reuse the module the session already loaded instead of re-resolving it per edit.
-        const { parse: parseForValidation } = await loadVisimerCore();
-        const changedLines = code.split("\n");
-        if (
-          changedLines.some(
-            (line) => line.includes(String.fromCharCode(0)) || /^\s*(?:%%\{|click\b)/iu.test(line),
-          )
-        ) {
-          editor.setCode(acceptedSource, "external");
-          return;
-        }
-        const nextParsed = parseForValidation(code);
-        if (!labelsAreSafe(parseForValidation(acceptedSource), nextParsed)) {
-          editor.setCode(acceptedSource, "external");
-          input.onError?.(new Error("文字包含 Mermaid 特殊语法，无法安全地作为单个标签写入。"));
-          return;
-        }
-        const result = await inspectSource(code);
-        if (destroyed || sequence !== changeSequence) return;
-        if (!result.supported) {
-          editor.setCode(acceptedSource, "external");
-          input.onError?.(new Error(result.reason ?? "此更改不支持图形编辑"));
-          return;
-        }
-        acceptedSource = code;
-        input.onChange(code);
-      })()
-        .catch((error: unknown) => {
-          if (destroyed || sequence !== changeSequence) return;
-          editor.setCode(acceptedSource, "external");
-          input.onError?.(error instanceof Error ? error : new Error(String(error)));
-        })
-        .finally(() => {
-          if (sequence === changeSequence) {
-            validationBusy = false;
-            notifyBusy();
-          }
-        });
-    });
+    const onEditorChange = editor.on("change", ({ code }) => input.onChange(code));
     const handle: GraphicalCodeBlockEditorHandle = {
       destroy() {
         if (destroyed) return;
         destroyed = true;
-        changeSequence++;
-        validationBusy = false;
         input.signal?.removeEventListener("abort", abortHandle);
         canvas.removeEventListener("dblclick", onCanvasDoubleClick);
         inlineNode?.destroy();
         connectHandles?.destroy();
         toolbar.destroy();
-        inputBusy = false;
+        readOnlyLocks.clear();
         notifyBusy();
         onEditorChange();
         view.destroy();

@@ -36,12 +36,14 @@ const renderedSvgByDom = new WeakMap<HTMLElement, string>();
 interface MermaidDomRenderState {
   generation: number;
   readonly render: (isDark: boolean) => void;
+  readonly updateLabels: () => void;
 }
 
 interface MermaidThemeObserverState {
   readonly observer: MutationObserver;
   readonly widgets: Set<HTMLElement>;
   isDark: boolean;
+  language: string;
 }
 
 const renderStateByWrapper = new WeakMap<HTMLElement, MermaidDomRenderState>();
@@ -64,20 +66,26 @@ function observeDocumentTheme(doc: Document, wrapper: HTMLElement): void {
     const state: MermaidThemeObserverState = {
       observer: new MutationObserverConstructor(() => {
         const isDark = documentIsDark(doc);
-        if (isDark === state.isDark) return;
+        const language = doc.documentElement.lang;
+        const themeChanged = isDark !== state.isDark;
+        const languageChanged = language !== state.language;
         state.isDark = isDark;
+        state.language = language;
         for (const widget of state.widgets) {
-          renderStateByWrapper.get(widget)?.render(isDark);
+          const widgetState = renderStateByWrapper.get(widget);
+          if (themeChanged) widgetState?.render(isDark);
+          if (languageChanged) widgetState?.updateLabels();
         }
       }),
       widgets: new Set(),
       isDark: documentIsDark(doc),
+      language: doc.documentElement.lang,
     };
     observerState = state;
     themeObserverByDocument.set(doc, state);
     state.observer.observe(doc.documentElement, {
       attributes: true,
-      attributeFilter: ["class", "data-theme", "data-theme-scheme"],
+      attributeFilter: ["class", "data-theme", "data-theme-scheme", "lang"],
     });
   }
   observerState.widgets.add(wrapper);
@@ -147,6 +155,8 @@ export class MermaidBlockWidget extends WidgetType {
     // 宿主端口：由渲染器经 facet 注入（见 @md-editor/plugin-sdk/syntax 的 SyntaxPluginHostPorts）。
     // 插件不 import 任何宿主实现；宿主未提供时优雅降级（不显示「放大」入口）。
     const hostPorts: SyntaxPluginHostPorts = view.state.facet(syntaxPluginHostPortsFacet);
+    const text = (key: string, fallback: string): string =>
+      hostPorts.translateEditorMessage?.(`editor.mermaid.${key}`, fallback) ?? fallback;
     const openMediaViewer = hostPorts.openMediaViewer;
     // 外层包装承载悬浮工具栏：滚动层有 overflow-x:auto，绝对定位的工具栏若放在层内会被裁剪
     const wrapper = doc.createElement("div");
@@ -156,7 +166,6 @@ export class MermaidBlockWidget extends WidgetType {
     const container = doc.createElement("div");
     container.className = "cm-md-mermaid-container";
     container.setAttribute("role", "graphics-document");
-    container.setAttribute("aria-label", "Mermaid Diagram");
     container.setAttribute("data-record-id", this.recordId);
 
     const toolbar = doc.createElement("div");
@@ -165,9 +174,6 @@ export class MermaidBlockWidget extends WidgetType {
     const viewerButton = doc.createElement("button");
     viewerButton.type = "button";
     viewerButton.className = "cm-md-mermaid-toolbar__viewer";
-    viewerButton.setAttribute("aria-label", "放大查看图表");
-    viewerButton.title = "查看";
-    viewerButton.textContent = "查看";
     // 文档内可聚焦控件一律 tabIndex=-1（结构护栏 focusable-controls-convention 会逐文件校验字面量）
     viewerButton.tabIndex = -1;
     viewerButton.disabled = true;
@@ -175,20 +181,45 @@ export class MermaidBlockWidget extends WidgetType {
     const graphicalEditButton = doc.createElement("button");
     graphicalEditButton.type = "button";
     graphicalEditButton.className = "cm-md-mermaid-toolbar__graphical-edit";
-    graphicalEditButton.setAttribute("aria-label", "图形编辑图表");
-    graphicalEditButton.title = "编辑";
-    graphicalEditButton.textContent = "编辑";
+    graphicalEditButton.setAttribute("aria-keyshortcuts", "Control+Shift+Enter Meta+Shift+Enter");
     graphicalEditButton.tabIndex = -1;
     graphicalEditButton.disabled = true;
-    graphicalEditButton.hidden = !hostPorts.openGraphicalCodeBlockEditor;
+    const canEditFence =
+      !view.state.readOnly &&
+      Boolean(hostPorts.openGraphicalCodeBlockEditor) &&
+      (hostPorts.canOpenGraphicalCodeBlockEditor?.(view.state, this.recordId) ?? true);
+    graphicalEditButton.hidden = !canEditFence;
 
-    toolbar.append(viewerButton, graphicalEditButton);
+    const sourceEditButton = doc.createElement("button");
+    sourceEditButton.type = "button";
+    sourceEditButton.className = "cm-md-mermaid-toolbar__source-edit";
+    const canRevealSource = !view.state.readOnly && Boolean(hostPorts.revealCodeBlockSource);
+    sourceEditButton.hidden = !canRevealSource || canEditFence;
+    sourceEditButton.tabIndex = -1;
+
+    toolbar.append(viewerButton, graphicalEditButton, sourceEditButton);
     wrapper.append(container, toolbar);
 
     const isDark = documentIsDark(doc);
 
     // 渲染加载中骨架屏占位
-    container.innerHTML = `<div class="cm-md-mermaid-loading"><div class="cm-md-mermaid-loading__spinner"></div><span>正在渲染图表...</span></div>`;
+    container.innerHTML =
+      '<div class="cm-md-mermaid-loading"><div class="cm-md-mermaid-loading__spinner"></div><span></span></div>';
+    const updateLabels = (): void => {
+      container.setAttribute("aria-label", text("diagramLabel", "Mermaid 图表"));
+      viewerButton.setAttribute("aria-label", text("viewAria", "放大查看图表"));
+      viewerButton.title = viewerButton.textContent = text("view", "查看");
+      graphicalEditButton.setAttribute("aria-label", text("editAria", "图形编辑图表"));
+      graphicalEditButton.title = graphicalEditButton.textContent = text("edit", "编辑");
+      sourceEditButton.textContent = text("editSource", "编辑源码");
+      const loading = container.querySelector(".cm-md-mermaid-loading span");
+      if (loading) loading.textContent = text("loading", "正在渲染图表...");
+      const errorTitle = container.querySelector(".cm-md-mermaid-error__title");
+      if (errorTitle) errorTitle.textContent = text("parseError", "Mermaid 图表解析错误");
+      const errorHint = container.querySelector(".cm-md-mermaid-error__hint");
+      if (errorHint) errorHint.textContent = text("editErrorSource", "点击卡片进入源码编辑");
+    };
+    updateLabels();
 
     const renderError = (errorMsg: string): void => {
       container.innerHTML = "";
@@ -201,7 +232,6 @@ export class MermaidBlockWidget extends WidgetType {
 
       const title = doc.createElement("div");
       title.className = "cm-md-mermaid-error__title";
-      title.textContent = "Mermaid 图表解析错误";
 
       const msg = doc.createElement("pre");
       msg.className = "cm-md-mermaid-error__message";
@@ -209,16 +239,17 @@ export class MermaidBlockWidget extends WidgetType {
 
       const hint = doc.createElement("div");
       hint.className = "cm-md-mermaid-error__hint";
-      hint.textContent = "点击卡片进入源码编辑";
 
       errorCard.append(title, msg, hint);
       container.append(errorCard);
+      updateLabels();
     };
 
     // Each theme render gets a generation token so an older queued light render
     // cannot overwrite the latest dark SVG (or vice versa).
     const renderState: MermaidDomRenderState = {
       generation: 0,
+      updateLabels,
       render: (nextIsDark) => {
         const generation = ++renderState.generation;
         void renderMermaidSvg(this.code, nextIsDark)
@@ -239,7 +270,7 @@ export class MermaidBlockWidget extends WidgetType {
           .catch((err: unknown) => {
             if (generation !== renderState.generation) return;
             const errorMsg = err instanceof Error ? err.message : String(err);
-            renderError(`模块加载失败: ${errorMsg}`);
+            renderError(`${text("loadFailed", "模块加载失败")} ${errorMsg}`);
             scheduleHeightMeasure(view, `mermaid-${this.recordId}`);
           });
       },
@@ -285,7 +316,7 @@ export class MermaidBlockWidget extends WidgetType {
       openMediaViewer({
         document: doc,
         host: wrapper,
-        content: { kind: "svg", svg, label: "Mermaid 图表" },
+        content: { kind: "svg", svg, label: text("diagramLabel", "Mermaid 图表") },
         // Fit the whole diagram, not just its width. A tall flowchart or a wide
         // sequence diagram is taller/wider than the viewport, and width-fitting
         // scaled it to ~4x and pushed most nodes off-screen. Users can still
@@ -308,8 +339,10 @@ export class MermaidBlockWidget extends WidgetType {
         // 仅**渲染失败**才是“无意可看 ⇒ 单击进入编辑”的有意例外；
         // 加载中（骨架屏）必须不产生任何副作用——否则在 mermaid 动态 import 窗口里
         // 单击会把用户推进源码态，正是本特性要消除的“点击即掉进源码”。
-        if (container.classList.contains("cm-md-mermaid--has-error")) {
-          enterSourceEdit(view, this.anchorPos);
+        if (!view.state.readOnly && container.classList.contains("cm-md-mermaid--has-error")) {
+          if (hostPorts.revealCodeBlockSource)
+            hostPorts.revealCodeBlockSource({ recordId: this.recordId });
+          else enterSourceEdit(view, this.anchorPos);
         }
         return;
       }
@@ -323,21 +356,24 @@ export class MermaidBlockWidget extends WidgetType {
       openViewer();
     });
 
-    if (hostPorts.openGraphicalCodeBlockEditor) {
+    if (canEditFence) {
       void mermaidGraphicalEditor
-        .inspect(this.code)
+        .inspect(this.code, hostPorts.translateEditorMessage)
         .then((result) => {
           // CodeMirror may create widget DOM before inserting it into the live view.
           // The detached button still belongs to this widget; updating it here avoids
           // losing the one-shot capability result during that mount window.
           graphicalEditButton.disabled = !result.supported;
-          graphicalEditButton.title = result.supported
-            ? "编辑"
-            : (result.reason ?? "此图表不支持图形编辑");
+          graphicalEditButton.hidden = !result.supported && canRevealSource;
+          sourceEditButton.hidden = result.supported || !canRevealSource;
+          if (result.reason) sourceEditButton.title = result.reason;
         })
         .catch((error: unknown) => {
           graphicalEditButton.disabled = true;
-          graphicalEditButton.title = error instanceof Error ? error.message : "无法安全检查图表";
+          graphicalEditButton.hidden = canRevealSource;
+          sourceEditButton.hidden = !canRevealSource;
+          sourceEditButton.title =
+            error instanceof Error ? error.message : text("unsupported", "此图表不支持图形编辑");
         });
       graphicalEditButton.addEventListener("mousedown", (event) => event.stopPropagation());
       graphicalEditButton.addEventListener("click", (event) => {
@@ -350,6 +386,12 @@ export class MermaidBlockWidget extends WidgetType {
         });
       });
     }
+    sourceEditButton.addEventListener("mousedown", (event) => event.stopPropagation());
+    sourceEditButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      hostPorts.revealCodeBlockSource?.({ recordId: this.recordId });
+    });
 
     return wrapper;
   }

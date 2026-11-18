@@ -204,6 +204,8 @@ export class CodeMirrorRendererController {
     this.#graphicalCodeEditors = new GraphicalCodeEditorCoordinator({
       view: () => this.#view,
       parent: options.parent,
+      translateEditorMessage:
+        options.syntaxPluginHostPorts?.translateEditorMessage ?? options.translateEditorMessage,
       getDocumentState: () => ({
         documentGeneration: this.#documentGeneration,
         contentRevision: this.#contentRevision,
@@ -226,6 +228,7 @@ export class CodeMirrorRendererController {
       aiSuggestionLabels: this.#aiSuggestionLabels,
       aiSuggestionLabelsCompartment: this.#aiSuggestionLabelsCompartment,
       finishComposition: () => this.#finishComposition(),
+      editMermaid: () => this.executeFormatting("edit.mermaid"),
       formattingKeymapCompartment: this.#formattingKeymapCompartment,
       handleViewUpdate: (update) => this.#handleViewUpdate(update),
       markdownLanguageCompartment: this.#markdownLanguageCompartment,
