@@ -6,6 +6,21 @@ import type { DocumentMutationResult, DocumentState } from "../document-state.ts
 
 export interface RestoreDraftOptions {
   readonly mode?: "wysiwyg" | "source";
+  /**
+   * 草稿中记录的光标偏移。超出草稿长度时由本函数夹取到文档末尾（不抛错）。
+   *
+   * 光标语义属于文档模型：调用方只负责把持久化值原样传入，
+   * 不得在适配层自行 clamp，否则两条恢复路径会产生不一致的边界行为。
+   */
+  readonly cursorOffset?: number;
+}
+
+/** 将持久化的光标偏移夹取到合法区间；非法输入（负数/NaN/Infinity）回退到文档末尾 */
+export function clampCursorOffset(cursorOffset: number | undefined, markdown: string): number {
+  if (cursorOffset === undefined || !Number.isFinite(cursorOffset)) {
+    return markdown.length;
+  }
+  return Math.min(Math.max(Math.trunc(cursorOffset), 0), markdown.length);
 }
 
 /**
@@ -16,9 +31,9 @@ export function restoreDraftToDocument(
   documentState: DocumentState,
   draftMarkdown: string,
   options: RestoreDraftOptions = {},
-): DocumentMutationResult {
+): DocumentMutationResult & { readonly cursorOffset: number } {
   const current = documentState.getSnapshot();
-  return documentState.replaceDocument(
+  const result = documentState.replaceDocument(
     {
       markdown: draftMarkdown,
       savedMarkdown: current.savedMarkdown,
@@ -28,6 +43,9 @@ export function restoreDraftToDocument(
     },
     { kind: "command", commandId: "session.restoreDraft" },
   );
+  // 光标偏移随恢复结果一并返回：调用方（编辑器宿主）负责把选区设到这个位置，
+  // 文档模型只提供夹取后的权威值，不直接操纵视图。
+  return { ...result, cursorOffset: clampCursorOffset(options.cursorOffset, draftMarkdown) };
 }
 
 /**

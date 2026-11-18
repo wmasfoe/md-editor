@@ -92,21 +92,27 @@ MDX 注入链路同步收口：renderer 定义最小查找接口 `MdxComponentLo
 
 ## S1 基线与能力处置清单
 
-`apps/desktop/src/app/s1-capability-inventory.ts` 是 G001 的可执行清单。测试直接读取当前 `runtime.commands.list()`，要求所有注册命令都被覆盖，新增命令若未登记会失败。`baseline` 记录当前事实，`s1Disposition` 只允许 `retained`、`removed-disabled` 或 `typed-unsupported`。
+`apps/desktop/src/app/s1-capability-inventory.ts` 是 G001 的可执行清单。测试直接读取当前 `runtime.commands.list()`，要求所有注册命令都被覆盖，新增命令若未登记会失败。`baseline` 记录当前事实，`s1Disposition` 只允许 `retained`、`removed-disabled`、`typed-unsupported` 或 `new-capability`。
+
+> **2026-11-18 修正**：下表曾把三个已完整接线的命令与四个已迁移的 surface 登记为 `typed-unsupported` / `removed-disabled`，与实际行为相反（属主复核后修正）。现已改为 `retained`，并新增两条语义断言防止复发：登记为 `typed-unsupported` 的命令不得出现在 `runtime.commands.list()` 中，登记为 `removed-disabled` 的命令不得仍可派发。
 
 | 当前能力 / 命令 | 当前事实 | S1 处置 |
 | --- | --- | --- |
 | `file.new/open/openRecent/openFolder/save/saveAs` | desktop shell 已实现 | retained |
 | `settings.open`、`view.toggleSidebarPrimary` | desktop shell 已实现 | retained |
 | `view.toggleSource`、`view.showWysiwyg` | 当前 reconfigure 同一 CM6 view | retained；history/selection/scroll 自动化已通过 |
-| `mdx.openComponentMenu` | 当前显式 immutable unsupported slot 返回 typed unsupported 并显示 toast | typed-unsupported；E11 已验证可见反馈 |
-| `ai.continueWriting` | 当前显式 immutable unsupported slot 返回 typed unsupported 并显示 toast | typed-unsupported；E11 已验证可见反馈 |
+| `mdx.openComponentMenu` | 已完整接线：`useDesktopEditorController` 的 `openMdxComponentMenu` → 插入菜单；`Mod-Shift-M` 键位 | retained（2026-11-18 修正，原误标 typed-unsupported） |
+| `ai.continueWriting` | 已完整接线：`aiScheduler.schedule` + `showSuggestion`；`Mod-Shift-A` 键位；标题栏按钮 | retained（2026-11-18 修正，原误标 typed-unsupported） |
+| `ai.fixGrammar` | 已完整接线：`desktopAiService.fixGrammar`；`Mod-Shift-G` 键位；标题栏按钮 | retained（2026-11-18 修正，原误标 typed-unsupported） |
 | `format.bold/italic/code/strikethrough/link` | 基线只打印日志；当前已从 runtime registry 移除 | removed-disabled；保留历史 audit entry |
 | `format.codeBlock/blockquote/bulletList/orderedList/heading1/heading2/heading3` | 基线只打印日志；当前已从 runtime registry 移除 | removed-disabled；保留历史 audit entry |
 | Markdown input、undo/redo、模式状态保持 | 当前由单一 raw CM6 产品表面承担 | retained；history/selection/focus/scroll 自动化已通过 |
 | line number、font size | 当前走 CM6 compartment 与 host style | retained；不替换 view/state epoch |
 | asset preview | 当前为 sibling overlay，editor hidden/inert | retained；产品 E9 已验证不卸载 renderer |
-| image/paste/drop、link open、search/outline、full editor theme parity | 当前未达到 CM6 parity；旧 editor 已删除 | removed-disabled 或 retained API typed unsupported，并作为 beta gap 记录 |
+| image/paste/drop | `lib/paste-image.ts` + `app/events/drop-image-listener.ts` 经本地 `ImageStorageProvider` | retained（2026-11-18 修正） |
+| link open | 分派统一收敛到 `openWysiwygLink`（外链 + 文档内锚点） | retained（2026-11-18 修正） |
+| search/outline | `@codemirror/search` + `searchKeymap`；`OutlinePanel` + `useOutlineController` | retained（2026-11-18 修正） |
+| full editor theme parity | system/light/dark + 每档自定义 CSS + 内置主题选项 | retained（2026-11-18 修正） |
 
 这张表的 retained 主链路、格式化 no-op 移除和 paste/drop 停用已由 G006 实施；G007 又完成旧 engine/module/dependency、legacy save API 和测试 setter 的物理删除。E11/E12、G008 全仓自动化、移除扫描、独立复核和 2026-07-18 原生人工验收均已通过，因此 S1/M0 标记为 beta 可用。
 
@@ -120,9 +126,9 @@ MDX 注入链路同步收口：renderer 定义最小查找接口 `MdxComponentLo
 ## 当前 Beta 已知缺口
 
 - M3 / S4：表格恒显示为可编辑网格并支持单元格左键就地编辑、Notion 式行/列块手柄与操作菜单增删行列及列对齐切换、末尾 Enter 退出表格续写段落、整表原子选中/删除与选中态等价替换及操作提示、Arrow 对称整表选中；多单元格拖选、列宽调整、tab 跳格仍留待后续（S4 评估无成熟引擎，按 No-Go 裁剪为自研 contenteditable 单元格 + 源码回写，不引入嵌套编辑器）。
-- M4 / S5：基础 HTML 白名单渲染、原子选择、整块删除、undo 与错误占位已实现；官方 MDX 全链路（`mdx-parse` 无 acorn 解析 → registry 白名单 → `MdxComponentWidget`）已于 2026-08-04 验证（G005）。入口层：`mdx.openComponentMenu` 已接线，仅能力清单仍标 typed-unsupported（见下方「能力清单与实现漂移」）。
+- M4 / S5：基础 HTML 白名单渲染、原子选择、整块删除、undo 与错误占位已实现；官方 MDX 全链路（`mdx-parse` 无 acorn 解析 → registry 白名单 → `MdxComponentWidget`）已于 2026-08-04 验证（G005）。入口层：`mdx.openComponentMenu` 已接线且能力清单已修正为 `retained`。
 - M5：链接打开、块拖拽、折叠、标题 H 控件、图片闭环（粘贴/拖放 + 本地 `ImageStorageProvider` + 自定义命名 + 重名 `-N` 去重）、搜索（`@codemirror/search` + `searchKeymap`）、大纲（`OutlinePanel` + `useOutlineController`）、主题（system/light/dark + 每档自定义 CSS + 内置主题选项）与内联 AI 建议（`aiScheduler` + `showSuggestion` + Tab arbiter `accept-suggestion`）均已迁移。能力清单中仍标 typed-unsupported 的 `mdx.openComponentMenu`、`ai.continueWriting`、`ai.fixGrammar` 实际均已接线，属清单漂移，见下条。
-- 能力清单与实现漂移（待对齐，暂不改动已验证的 S1 契约；2026-11-07 重新核实）：`apps/desktop/src/app/s1-capability-inventory.ts` 的 `deferredLegacyCommands` 把 `mdx.openComponentMenu`、`ai.continueWriting`、`ai.fixGrammar` **三个**命令都标为 `typed-unsupported`，但三者在 `apps/desktop/src/app/controller/useDesktopEditorController.ts` 中均已完整接线（`openMdxComponentMenu` 打开插入菜单、`continueAiWriting` 走 `aiScheduler.schedule` + `showSuggestion`、`fixGrammar` 走 `desktopAiService.fixGrammar`），`EditorTitleBarControls.tsx` 也已 `dispatchCommand`。此前文档只记录了 `ai.continueWriting` 一个。需要一次专项变更同时修正清单、快捷键默认项与 `apps/desktop/tests/s1-capability-inventory.test.ts` 断言。
+- ~~能力清单与实现漂移~~（**已修复，2026-11-18**）：`s1-capability-inventory.ts` 的延迟分组（已重命名为 `previouslyDeferredCommands`）曾把 `mdx.openComponentMenu`、`ai.continueWriting`、`ai.fixGrammar` 三个已完整接线的命令标为 `typed-unsupported`；同时 `editor.image-paste-drop`、`editor.link-open`、`editor.search-outline`、`editor.full-theme-parity` 四个已迁移 surface 仍标 `removed-disabled`。两者均已改为 `retained`，并新增两条语义断言锁定：`typed-unsupported` 的命令不得在 `runtime.commands.list()` 中，`removed-disabled` 的命令不得仍可派发。快捷键默认项（`Mod-Shift-M` / `Mod-Shift-A` / `Mod-Shift-G`）经核对与 `core` 的 keymap 注册一致，无需变更。
 - S6：没有删除前的同环境量化基线；CM6 大文件、输入延迟、滚动、内存和 Widget 生命周期数据仍待建立。
 - S1/M0 原生人工门禁已通过；环境、覆盖范围和结论见文末“原生人工验收通过记录”。后续里程碑引入 decoration、Widget、表格或 MDX 后，仍须针对新增交互重新执行对应原生验收。
 - G008：全仓 typecheck/test/lint/build/Rust/browser/Tauri 启动冒烟、post-cleaner 重验和初轮复核修复后的全量重验已通过；独立复跑结果为 code-reviewer `APPROVE`、architect `CLEAR`。

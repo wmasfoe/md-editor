@@ -1,6 +1,11 @@
 import { useLayoutEffect, useState, type ReactNode } from "react";
 import type { RuntimeFileService } from "@md-editor/file-system";
-import { AssetPreview, EditorUiProvider, WelcomeState } from "@md-editor/app-ui";
+import {
+  AssetPreview,
+  EditorUiProvider,
+  useEditorUiActions,
+  WelcomeState,
+} from "@md-editor/app-ui";
 import { type CodeMirrorEditorPorts } from "@md-editor/editor";
 import { useTranslation } from "@md-editor/i18n";
 import { useExternalPlugins } from "./plugins/use-external-plugins";
@@ -159,6 +164,8 @@ function MainApp({
     setPendingDraft,
   } = useDocumentUiStore();
   const { dispatchCommand, openRecentFile, runEditorUpdateAction } = useDesktopEditorActions();
+  // 草稿恢复后需要把光标放回原位；端口只在编辑器挂载后可用，未挂载时保持默认。
+  const { getRendererPorts } = useEditorUiActions();
 
   const [pluginPorts, setPluginPorts] = useState<CodeMirrorEditorPorts | null>(null);
   const externalPlugins = useExternalPlugins(pluginPorts);
@@ -232,7 +239,13 @@ function MainApp({
               draftInfo={pendingDraft}
               onRestore={() => {
                 if (pendingDraft) {
-                  restorePendingDraft(pendingDraft);
+                  const { cursorOffset } = restorePendingDraft(pendingDraft);
+                  // 文档模型已把偏移夹取到合法区间；这里只负责写入选区，
+                  // 不自行判断边界（光标语义归文档模型所有）。
+                  const access = getRendererPorts();
+                  if (access.status === "available") {
+                    access.ports.setSelection(cursorOffset, cursorOffset);
+                  }
                   setPendingDraft(null);
                 }
               }}

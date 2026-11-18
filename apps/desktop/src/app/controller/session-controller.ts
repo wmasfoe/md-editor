@@ -28,6 +28,7 @@ export interface PendingDraftInfo {
   readonly draftId: string;
   readonly filePath: string | null;
   readonly draftContent: string;
+  readonly cursorOffset: number;
   readonly lastModifiedAt: number;
 }
 
@@ -40,7 +41,11 @@ export const historyStore: HistoryStore = createHistoryStore(createDesktopHistor
  */
 export async function saveHotExitSession(
   snapshot: DocumentSnapshot,
-  cursorOffset = 0,
+  /**
+   * 用户离开时的光标偏移。`null` / 缺省表示“宿主未能提供”（例如编辑器未挂载），
+   * 此时回退为 `0` 保持旧行为，而不是伪造成一个看似真实的位置。
+   */
+  cursorOffset: number | null = null,
 ): Promise<void> {
   // 只有 dirty 文档或有内容的未命名文档才需要暂存草稿
   if (!snapshot.isDirty && snapshot.filePath !== null) {
@@ -59,7 +64,7 @@ export async function saveHotExitSession(
       filePath: snapshot.filePath,
       isUntitled: snapshot.filePath === null,
       draftId,
-      cursorOffset,
+      cursorOffset: cursorOffset ?? 0,
       mode: snapshot.mode,
       lastModifiedAt: Date.now(),
     },
@@ -90,15 +95,19 @@ export async function checkPendingDraft(filePath: string | null): Promise<Pendin
     draftId: activeDoc.draftId,
     filePath: activeDoc.filePath,
     draftContent: sessionData.draftMarkdown,
+    cursorOffset: activeDoc.cursorOffset,
     lastModifiedAt: activeDoc.lastModifiedAt,
   };
 }
 
 /**
- * 恢复未保存草稿至当前活动文档模型
+ * 恢复未保存草稿至当前活动文档模型，返回夹取后的光标偏移（由宿主写入选区）。
  */
-export function restorePendingDraft(info: PendingDraftInfo): void {
-  restoreDraftToDocument(runtime.document, info.draftContent);
+export function restorePendingDraft(info: PendingDraftInfo): { readonly cursorOffset: number } {
+  const result = restoreDraftToDocument(runtime.document, info.draftContent, {
+    cursorOffset: info.cursorOffset,
+  });
+  return { cursorOffset: result.cursorOffset };
 }
 
 /**

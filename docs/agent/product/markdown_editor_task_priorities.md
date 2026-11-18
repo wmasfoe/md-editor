@@ -90,7 +90,7 @@ CM6 迁移顺序和实时进度分别以 [`custom_markdown_renderer_architecture
 | MDX 最小切片 | `packages/mdx-plugins/src/callout/`；验证记录见迁移状态文档 M4/G005 |
 | 基础主题 | `AppearanceSettingsPanel.tsx` 模式选项 + `theme-css.ts` 分档 CSS |
 
-同时确认一条仍存在的**代码与能力清单漂移**（不在本次修复范围）：`ai.continueWriting` 在能力清单中仍标 `typed-unsupported`，但控制器已完整接线。详情与待办见 [`codemirror_renderer_migration_status.md`](../status/codemirror_renderer_migration_status.md) 的「当前 Beta 已知缺口」——需一次专项变更同时改清单、快捷键默认项与测试断言。
+同一条**代码与能力清单漂移**已于 2026-11-18 修复：`ai.continueWriting`（连同 `mdx.openComponentMenu`、`ai.fixGrammar`）在能力清单中已改为 `retained`，并新增语义断言防复发。详情见 [`codemirror_renderer_migration_status.md`](../status/codemirror_renderer_migration_status.md) 的「当前 Beta 已知缺口」。
 
 ## 5. P2：v0.3+
 
