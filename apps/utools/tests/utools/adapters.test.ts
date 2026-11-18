@@ -8,14 +8,6 @@ import {
   createUtoolsNativeSaveAdapter,
 } from "../../src/utools/file-adapter";
 import {
-  saveLastOpenedFile,
-  loadLastOpenedFile,
-  clearLastOpenedFile,
-  LAST_OPENED_FILE_KEY,
-  saveLastOpenedFolder,
-  loadLastOpenedFolder,
-  clearLastOpenedFolder,
-  LAST_WORKSPACE_KEY,
   loadUtoolsSettings,
   saveUtoolsSettings,
   DEFAULT_UTOOLS_SETTINGS,
@@ -41,31 +33,46 @@ describe("uTools Platform Adapters", () => {
     // Ensure window exists in node test environment
     (globalThis as unknown as { window: unknown }).window = globalThis;
 
-    // Mock window.inkpointNodeBridge
+    // Mock scoped grants from the preload bridge
     const mockFolder = {
       rootPath: "/mock/workspace",
       rootName: "workspace",
       tree: {
         name: "workspace",
+        id: "workspace-id",
         path: "/mock/workspace",
         kind: "directory" as const,
         children: [
-          { name: "README.md", path: "/mock/workspace/README.md", kind: "markdown" as const },
+          {
+            name: "README.md",
+            path: "/mock/workspace/README.md",
+            kind: "markdown" as const,
+            id: "readme-id",
+          },
         ],
       },
     };
 
+    const testFile = { filePath: "/mock/test.md", markdown: "# Test", id: "doc-id" };
     window.inkpointNodeBridge = {
-      readFile: vi.fn((path: string) => `# Mock content of ${path}`),
-      writeFile: vi.fn(),
-      exists: vi.fn(() => true),
-      getDirname: vi.fn((_path: string) => "/mock/dir"),
-      getBasename: vi.fn((_path: string) => "file.md"),
-      isDirectory: vi.fn((path: string) => path === "/mock/workspace"),
-      scanFolder: vi.fn(() => mockFolder),
-      createTreeItem: vi.fn((parent: string, name: string) => `${parent}/${name}`),
-      renameTreeItem: vi.fn((oldPath: string, name: string) => `/mock/${name}`),
-      deleteTreeItem: vi.fn(),
+      subscribeLifecycle: vi.fn(() => () => {}),
+      pickDocument: vi.fn(() => testFile),
+      pickWorkspace: vi.fn(() => mockFolder),
+      refreshWorkspace: vi.fn(() => mockFolder),
+      openWorkspaceDocument: vi.fn(() => ({
+        filePath: "/mock/workspace/README.md",
+        markdown: "# Readme",
+        id: "doc-id",
+      })),
+      writeCurrentDocument: vi.fn(() => testFile.filePath),
+      saveNewDocument: vi.fn(() => null),
+      closeDocument: vi.fn(),
+      closeWorkspace: vi.fn(),
+      saveDocumentImage: vi.fn(),
+      resolveDocumentImage: vi.fn(),
+      createWorkspaceItem: vi.fn(() => "/mock/workspace/test.md"),
+      renameWorkspaceItem: vi.fn(() => "/mock/workspace/renamed.md"),
+      deleteWorkspaceItem: vi.fn(),
     };
 
     // Mock window.utools
@@ -99,11 +106,12 @@ describe("uTools Platform Adapters", () => {
   describe("File Adapter", () => {
     it("reads markdown file through node bridge", async () => {
       const adapter = createUtoolsFileAdapter();
-      const file = await adapter.readMarkdownFile("/mock/note.md");
+      await adapter.openMarkdownFolder();
+      const file = await adapter.readMarkdownFile("/mock/workspace/README.md");
 
-      expect(file.filePath).toBe("/mock/note.md");
-      expect(file.markdown).toBe("# Mock content of /mock/note.md");
-      expect(window.inkpointNodeBridge?.readFile).toHaveBeenCalledWith("/mock/note.md");
+      expect(file.filePath).toBe("/mock/workspace/README.md");
+      expect(file.markdown).toBe("# Readme");
+      expect(window.inkpointNodeBridge?.openWorkspaceDocument).toHaveBeenCalledWith("readme-id");
     });
 
     it("opens markdown file via utools dialog", async () => {
@@ -112,21 +120,21 @@ describe("uTools Platform Adapters", () => {
 
       expect(file).not.toBeNull();
       expect(file?.filePath).toBe("/mock/test.md");
-      expect(window.utools.showOpenDialog).toHaveBeenCalled();
+      expect(window.inkpointNodeBridge?.pickDocument).toHaveBeenCalled();
     });
 
     it("opens markdown folder via utools dialog and scans folder tree", async () => {
-      vi.mocked(window.utools.showOpenDialog).mockReturnValueOnce(["/mock/workspace"]);
       const adapter = createUtoolsFileAdapter();
       const folder = await adapter.openMarkdownFolder();
 
       expect(folder).not.toBeNull();
       expect(folder?.rootPath).toBe("/mock/workspace");
-      expect(window.inkpointNodeBridge?.scanFolder).toHaveBeenCalledWith("/mock/workspace");
+      expect(window.inkpointNodeBridge?.pickWorkspace).toHaveBeenCalled();
     });
 
     it("creates, renames and deletes tree items", async () => {
       const adapter = createUtoolsFileAdapter();
+      await adapter.openMarkdownFolder();
       const createRes = await adapter.createMarkdownTreeItem({
         rootPath: "/mock/workspace",
         parentPath: "/mock/workspace",
@@ -134,32 +142,40 @@ describe("uTools Platform Adapters", () => {
         kind: "markdown",
       });
       expect(createRes.affectedPath).toBe("/mock/workspace/test.md");
-      expect(window.inkpointNodeBridge?.createTreeItem).toHaveBeenCalled();
+      expect(window.inkpointNodeBridge?.createWorkspaceItem).toHaveBeenCalledWith(
+        "workspace-id",
+        "test.md",
+        "markdown",
+      );
 
       const renameRes = await adapter.renameMarkdownTreeItem({
         rootPath: "/mock/workspace",
-        path: "/mock/workspace/test.md",
+        path: "/mock/workspace/README.md",
         name: "renamed.md",
       });
-      expect(renameRes.affectedPath).toBe("/mock/renamed.md");
-      expect(window.inkpointNodeBridge?.renameTreeItem).toHaveBeenCalled();
+      expect(renameRes.affectedPath).toBe("/mock/workspace/renamed.md");
+      expect(window.inkpointNodeBridge?.renameWorkspaceItem).toHaveBeenCalledWith(
+        "readme-id",
+        "renamed.md",
+      );
 
       const deleteRes = await adapter.deleteMarkdownTreeItem({
         rootPath: "/mock/workspace",
-        path: "/mock/workspace/test.md",
+        path: "/mock/workspace/README.md",
       });
       expect(deleteRes.affectedPath).toBeNull();
-      expect(window.inkpointNodeBridge?.deleteTreeItem).toHaveBeenCalled();
+      expect(window.inkpointNodeBridge?.deleteWorkspaceItem).toHaveBeenCalledWith("readme-id");
     });
 
     it("handles save job to existing path", async () => {
+      await createUtoolsFileAdapter().openMarkdownFile();
       const saveAdapter = createUtoolsNativeSaveAdapter();
       const job: NativeFileSaveJob = {
         jobId: "job-1",
         checkpointSequence: 1,
         documentGeneration: 1,
         markdownLf: "# Hello Save",
-        destination: { kind: "current-path", path: "/mock/save.md" },
+        destination: { kind: "current-path", path: "/mock/test.md" },
         orderingToken: { epoch: 1, id: 1, runtimeSequence: 1 },
       };
 
@@ -167,17 +183,16 @@ describe("uTools Platform Adapters", () => {
       expect(outcome).toEqual({
         status: "committed",
         runtimeSequence: 1,
-        filePath: "/mock/save.md",
+        filePath: "/mock/test.md",
         warnings: [],
       });
-      expect(window.inkpointNodeBridge?.writeFile).toHaveBeenCalledWith(
-        "/mock/save.md",
+      expect(window.inkpointNodeBridge?.writeCurrentDocument).toHaveBeenCalledWith(
+        "doc-id",
         "# Hello Save",
       );
     });
 
     it("handles user cancelling save dialog", async () => {
-      vi.mocked(window.utools.showSaveDialog).mockReturnValueOnce(undefined as unknown as string);
       const saveAdapter = createUtoolsNativeSaveAdapter();
       const job: NativeFileSaveJob = {
         jobId: "job-2",
@@ -195,36 +210,6 @@ describe("uTools Platform Adapters", () => {
         runtimeSequence: 2,
         phase: "dialog",
       });
-    });
-  });
-
-  describe("Local File & Workspace Persistence", () => {
-    it("saves, loads and clears last opened file", () => {
-      saveLastOpenedFile("/mock/documents/my-note.md");
-      expect(window.utools.dbStorage.setItem).toHaveBeenCalledWith(
-        LAST_OPENED_FILE_KEY,
-        "/mock/documents/my-note.md",
-      );
-
-      const loaded = loadLastOpenedFile();
-      expect(loaded).toBe("/mock/documents/my-note.md");
-
-      clearLastOpenedFile();
-      expect(window.utools.dbStorage.removeItem).toHaveBeenCalledWith(LAST_OPENED_FILE_KEY);
-    });
-
-    it("saves, loads and clears last opened workspace folder", () => {
-      saveLastOpenedFolder("/mock/my-project");
-      expect(window.utools.dbStorage.setItem).toHaveBeenCalledWith(
-        LAST_WORKSPACE_KEY,
-        "/mock/my-project",
-      );
-
-      const loaded = loadLastOpenedFolder();
-      expect(loaded).toBe("/mock/my-project");
-
-      clearLastOpenedFolder();
-      expect(window.utools.dbStorage.removeItem).toHaveBeenCalledWith(LAST_WORKSPACE_KEY);
     });
   });
 
@@ -296,103 +281,72 @@ describe("uTools Platform Adapters", () => {
     });
   });
 
-  describe("Image Path Resolution (Preload Bridge)", () => {
-    it("handles remote URLs, data URLs and resolves local image files to base64 Data URLs", () => {
-      // Load real preload implementation into window
+  describe("Scoped Preload Bridge", () => {
+    it("resolves only supported images within the authorized directories", () => {
       const fs = require("node:fs");
       const path = require("node:path");
       const os = require("node:os");
-
-      // Save previous bridge
-      const prevBridge = window.inkpointNodeBridge;
-      require("../../preload/index.js");
-
-      const bridge = window.inkpointNodeBridge!;
-      expect(bridge.resolveImageSrc).toBeDefined();
-
-      // Remote & data URLs untouched
-      expect(bridge.resolveImageSrc!("/doc/path.md", "https://example.com/pic.png")).toBe(
-        "https://example.com/pic.png",
-      );
-      expect(
-        bridge.resolveImageSrc!("/doc/path.md", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg=="),
-      ).toBe("data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==");
-
-      // Create a temporary directory structure
-      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "inkpoint-img-test-"));
-      const docPath = path.join(tmpDir, "docs", "note.md");
-      const assetsDir = path.join(tmpDir, "docs", "assets");
-      fs.mkdirSync(assetsDir, { recursive: true });
-
-      const testImgPath = path.join(assetsDir, "test image.png");
-      fs.writeFileSync(testImgPath, Buffer.from([0x89, 0x50, 0x4e, 0x47])); // PNG header
-
-      // Relative path with encoding, angle brackets and query
-      const resolved = bridge.resolveImageSrc!(
-        docPath,
-        "<assets/test%20image.png?v=123#center>",
-        tmpDir,
-      );
-      expect(resolved.startsWith("data:image/png;base64,")).toBe(true);
-
-      // Non-existent image returns original src
-      expect(bridge.resolveImageSrc!(docPath, "assets/non-existent.png", tmpDir)).toBe(
-        "assets/non-existent.png",
-      );
-
-      // Clean up
-      fs.rmSync(tmpDir, { recursive: true, force: true });
-      window.inkpointNodeBridge = prevBridge;
+      const tmp = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), "inkpoint-img-")));
+      const docs = path.join(tmp, "docs");
+      const note = path.join(docs, "note.md");
+      const image = path.join(tmp, "outside.png");
+      try {
+        fs.mkdirSync(path.join(docs, "assets"), { recursive: true });
+        fs.writeFileSync(note, "# Note");
+        fs.writeFileSync(image, "outside");
+        fs.writeFileSync(path.join(docs, "assets", "test image.png"), "inside");
+        fs.writeFileSync(path.join(docs, "local.txt"), "not an image");
+        vi.mocked(window.utools.showOpenDialog).mockReturnValue([note]);
+        delete require.cache[require.resolve("../../preload/index.js")];
+        require("../../preload/index.js");
+        const bridge = window.inkpointNodeBridge!;
+        const { id } = bridge.pickDocument()!;
+        expect(bridge.resolveDocumentImage(id, "https://example.com/pic.png")).toBe(
+          "https://example.com/pic.png",
+        );
+        expect(bridge.resolveDocumentImage(id, "<assets/test%20image.png?v=123#center>")).toBe(
+          "data:image/png;base64," + Buffer.from("inside").toString("base64"),
+        );
+        for (const blocked of [image, "../outside.png", "local.txt", "assets/missing.png"]) {
+          expect(bridge.resolveDocumentImage(id, blocked)).toMatch(/^data:image\/gif;/);
+        }
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
     });
-  });
 
-  describe("File Tree Item Operations (Preload Bridge)", () => {
-    it("creates files and directories, renames, scans and deletes items", () => {
+    it("uses workspace node IDs for tree operations and protects the workspace root", () => {
       const fs = require("node:fs");
       const path = require("node:path");
       const os = require("node:os");
-
-      const prevBridge = window.inkpointNodeBridge;
-      delete require.cache[require.resolve("../../preload/index.js")];
-      require("../../preload/index.js");
-      const bridge = window.inkpointNodeBridge!;
-
-      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "inkpoint-tree-test-"));
-
-      // 1. Create a markdown file
-      const createdFile = bridge.createTreeItem(tmpDir, "my-doc", "markdown");
-      expect(createdFile).toBe(path.join(tmpDir, "my-doc.md"));
-      expect(fs.existsSync(createdFile)).toBe(true);
-
-      // 2. Create a subfolder
-      const createdSubdir = bridge.createTreeItem(tmpDir, "notes", "directory");
-      expect(createdSubdir).toBe(path.join(tmpDir, "notes"));
-      expect(fs.statSync(createdSubdir).isDirectory()).toBe(true);
-
-      // 3. Create nested file inside subfolder
-      const nestedFile = bridge.createTreeItem(createdSubdir, "sub-note.md", "markdown");
-      expect(fs.existsSync(nestedFile)).toBe(true);
-
-      // 4. Scan folder
-      const scanned = bridge.scanFolder(tmpDir);
-      expect(scanned.rootPath).toBe(tmpDir);
-      expect(scanned.tree.children?.length).toBe(2);
-
-      // 5. Rename file
-      const renamedFile = bridge.renameTreeItem(createdFile, "renamed-doc.md");
-      expect(fs.existsSync(renamedFile)).toBe(true);
-      expect(fs.existsSync(createdFile)).toBe(false);
-
-      // 6. Delete file and folder
-      bridge.deleteTreeItem(renamedFile);
-      expect(fs.existsSync(renamedFile)).toBe(false);
-
-      bridge.deleteTreeItem(createdSubdir);
-      expect(fs.existsSync(createdSubdir)).toBe(false);
-
-      // Clean up
-      fs.rmSync(tmpDir, { recursive: true, force: true });
-      window.inkpointNodeBridge = prevBridge;
+      const tmp = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), "inkpoint-tree-")));
+      try {
+        vi.mocked(window.utools.showOpenDialog).mockReturnValue([tmp]);
+        delete require.cache[require.resolve("../../preload/index.js")];
+        require("../../preload/index.js");
+        const bridge = window.inkpointNodeBridge!;
+        const workspace = bridge.pickWorkspace()!;
+        expect(() => bridge.deleteWorkspaceItem(workspace.tree.id)).toThrow(
+          "请选择已授权工作区内的项目",
+        );
+        const file = bridge.createWorkspaceItem(workspace.tree.id, "my-doc", "markdown");
+        const dir = bridge.createWorkspaceItem(workspace.tree.id, "notes", "directory");
+        const node = (target: string) =>
+          bridge.refreshWorkspace().tree.children!.find((n) => n.path === target)!;
+        const nested = bridge.createWorkspaceItem(node(dir).id, "sub-note.md", "markdown");
+        expect(fs.existsSync(nested)).toBe(true);
+        const fileNode = node(file);
+        expect(() => bridge.renameWorkspaceItem(fileNode.id, "../outside.md")).toThrow(
+          "无效的文件或文件夹名称",
+        );
+        const renamed = bridge.renameWorkspaceItem(fileNode.id, "renamed.md");
+        expect(fs.existsSync(file)).toBe(false);
+        bridge.deleteWorkspaceItem(node(renamed).id);
+        bridge.deleteWorkspaceItem(node(dir).id);
+        expect(fs.readdirSync(tmp)).toEqual([]);
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
     });
   });
 

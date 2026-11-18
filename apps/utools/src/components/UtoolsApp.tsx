@@ -6,7 +6,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import {
   createDocumentState,
   OPEN_FOLDER_SHORTCUT,
-  resolveReplaceIntent,
   switchEditorModeSafely,
   type DocumentState,
 } from "@md-editor/core";
@@ -18,14 +17,7 @@ import {
   resolveProseFontStack,
 } from "@md-editor/app-ui";
 import { type CodeMirrorEditorPorts } from "@md-editor/editor";
-import {
-  clearLastOpenedFolder,
-  loadLastOpenedFile,
-  loadLastOpenedFolder,
-  saveLastOpenedFile,
-  saveLastOpenedFolder,
-} from "../utools/db-storage";
-import { registerUtoolsLifecycle, type PluginEnterDetail } from "../utools/lifecycle";
+import { fileAccess } from "../utools/file-access";
 import type { EditorMode } from "../utools/types";
 import { ReferralBanner } from "./ReferralBanner";
 import { DisclaimerModal } from "./DisclaimerModal";
@@ -34,7 +26,7 @@ import { useUtoolsAi } from "../utools/use-utools-ai";
 import { UtoolsFileTree } from "./UtoolsFileTree";
 import { UtoolsStatusBar } from "./UtoolsStatusBar";
 import { useUtoolsThemeSettings } from "../utools/use-utools-theme-settings";
-import { findFirstMarkdown, useUtoolsFileTree } from "../utools/use-utools-file-tree";
+import { useUtoolsFileTree } from "../utools/use-utools-file-tree";
 import { useUtoolsDocumentController } from "../utools/use-utools-document-controller";
 import {
   containerDirectivePlugin,
@@ -78,36 +70,16 @@ export function UtoolsApp() {
     }
   }, []);
 
-  // 初始化持久化文档模型：优先读取上次打开的本地文件，若无则初始化空白文档
-  const initialDocument = useMemo(() => {
-    const lastFile = loadLastOpenedFile();
-    if (lastFile && window.inkpointNodeBridge?.exists(lastFile)) {
-      try {
-        const content = window.inkpointNodeBridge.readFile(lastFile);
-        return {
-          markdown: content,
-          savedMarkdown: content,
-          filePath: lastFile,
-        };
-      } catch {
-        // 忽略读取异常
-      }
-    }
-    return {
-      markdown: "",
-      savedMarkdown: "",
-      filePath: null,
-    };
-  }, []);
-
-  const docState: DocumentState = useMemo(() => {
-    return createDocumentState({
-      markdown: initialDocument.markdown,
-      savedMarkdown: initialDocument.savedMarkdown,
-      filePath: initialDocument.filePath,
-      mode: "wysiwyg",
-    });
-  }, [initialDocument]);
+  const docState: DocumentState = useMemo(
+    () =>
+      createDocumentState({
+        markdown: "",
+        savedMarkdown: "",
+        filePath: null,
+        mode: "wysiwyg",
+      }),
+    [],
+  );
 
   const subscribeSnapshot = useCallback(
     (onStoreChange: () => void) => docState.subscribeSnapshot(onStoreChange),
@@ -141,7 +113,6 @@ export function UtoolsApp() {
     setMode,
     setIsSidebarOpen,
     showToast,
-    onNewFile: handleNewFile,
   });
 
   const ai = useUtoolsAi({
@@ -170,170 +141,51 @@ export function UtoolsApp() {
     }
   }, [docState, rendererPorts, showToast, snapshot.mode]);
 
-  // 注册 uTools 生命周期监听
-  useEffect(() => {
-    const handleEnter = (detail: PluginEnterDetail) => {
-      applyTheme(settingsRef.current.theme);
-
-      // 场景 A: 完整工作区模式
-      if (detail.code === "workspace") {
-        setIsSidebarOpen(true);
-        const lastFolder = loadLastOpenedFolder();
-        if (
-          lastFolder &&
-          window.inkpointNodeBridge &&
-          window.inkpointNodeBridge.isDirectory(lastFolder)
-        ) {
+  const { showDocument, showWorkspace } = fileTree;
+  useEffect(
+    () =>
+      fileAccess.subscribeLifecycle(
+        (entry) => {
+          applyTheme(settingsRef.current.theme);
           try {
-            const scanned = window.inkpointNodeBridge.scanFolder(lastFolder);
-            fileTree.setFolder(scanned);
-
-            const lastFile = loadLastOpenedFile();
-            const targetFile =
-              lastFile &&
-              lastFile.startsWith(lastFolder) &&
-              window.inkpointNodeBridge.exists(lastFile)
-                ? lastFile
-                : findFirstMarkdown(scanned.tree)?.path;
-
-            if (targetFile) {
-              const content = window.inkpointNodeBridge.readFile(targetFile);
-              docState.replaceDocument(
-                {
-                  markdown: content,
-                  savedMarkdown: content,
-                  filePath: targetFile,
-                  mode: snapshotRef.current.mode,
-                  replaceIntent: resolveReplaceIntent(snapshotRef.current.filePath, targetFile),
-                },
-                { kind: "command", commandId: "utools.openWorkspace" },
-              );
-              saveLastOpenedFile(targetFile);
-            }
-            return;
-          } catch (err) {
-            console.error("恢复工作区异常:", err);
-          }
-        }
-        return;
-      }
-
-      // 场景 B: 匹配文件夹
-      if (detail.code === "open-folder") {
-        const fileList = detail.payload;
-        if (Array.isArray(fileList) && fileList.length > 0) {
-          const target = fileList[0];
-          const dirPath = typeof target === "string" ? target : target.path;
-          if (dirPath && window.inkpointNodeBridge) {
-            try {
-              const scanned = window.inkpointNodeBridge.scanFolder(dirPath);
-              fileTree.setFolder(scanned);
+            if (entry.error) throw new Error(entry.error);
+            if (entry.document) {
+              showDocument(entry.document);
+            } else if (entry.folder) {
+              showWorkspace(entry.folder);
+            } else if (entry.code === "workspace") {
               setIsSidebarOpen(true);
-              saveLastOpenedFolder(dirPath);
-
-              const firstMd = findFirstMarkdown(scanned.tree);
-              if (firstMd) {
-                const content = window.inkpointNodeBridge.readFile(firstMd.path);
-                docState.replaceDocument(
-                  {
-                    markdown: content,
-                    savedMarkdown: content,
-                    filePath: firstMd.path,
-                    mode: snapshotRef.current.mode,
-                    replaceIntent: resolveReplaceIntent(snapshotRef.current.filePath, firstMd.path),
-                  },
-                  { kind: "command", commandId: "utools.openFolderFile" },
-                );
-                saveLastOpenedFile(firstMd.path);
-              }
-              return;
-            } catch (err) {
-              console.error("加载文件夹异常:", err);
-            }
-          }
-        }
-      }
-
-      // 场景 C: 匹配文件
-      if (detail.code === "open-file" || detail.type === "file") {
-        const fileList = detail.payload;
-        if (Array.isArray(fileList) && fileList.length > 0) {
-          const targetFile = fileList[0];
-          const targetPath = typeof targetFile === "string" ? targetFile : targetFile.path;
-          if (targetPath && window.inkpointNodeBridge) {
-            try {
-              const content = window.inkpointNodeBridge.readFile(targetPath);
+            } else if (entry.text) {
+              fileAccess.closeDocument();
               docState.replaceDocument(
                 {
-                  markdown: content,
-                  savedMarkdown: content,
-                  filePath: targetPath,
+                  markdown: entry.text,
+                  savedMarkdown: "",
+                  filePath: null,
                   mode: snapshotRef.current.mode,
-                  replaceIntent: resolveReplaceIntent(snapshotRef.current.filePath, targetPath),
                 },
-                { kind: "command", commandId: "utools.openFile" },
+                { kind: "command", commandId: "utools.selectionEdit" },
               );
-              setMode("file");
-              saveLastOpenedFile(targetPath);
-
-              const parentDir = window.inkpointNodeBridge.getDirname(targetPath);
-              if (parentDir && window.inkpointNodeBridge.isDirectory(parentDir)) {
-                try {
-                  const scanned = window.inkpointNodeBridge.scanFolder(parentDir);
-                  fileTree.setFolder(scanned);
-                  setIsSidebarOpen(true);
-                  saveLastOpenedFolder(parentDir);
-                } catch {
-                  // 忽略扫描失败
-                }
-              }
-
-              return;
-            } catch (err) {
-              console.error("打开本地文件异常:", err);
+              setMode("selection");
+              setIsSidebarOpen(false);
+            }
+          } catch (error) {
+            showToast(`打开失败: ${error instanceof Error ? error.message : String(error)}`);
+          }
+        },
+        () => {
+          const current = docState.getSnapshot();
+          if (current.filePath && current.isDirty) {
+            try {
+              fileAccess.saveMarkdown(current.filePath, current.markdown);
+            } catch (error) {
+              console.warn("退出时保存失败", error);
             }
           }
-        }
-      }
-
-      // 场景 D: 划词进入
-      if (detail.code === "selection-edit" || detail.type === "over") {
-        const text = typeof detail.payload === "string" ? detail.payload : "";
-        if (text) {
-          docState.replaceDocument(
-            {
-              markdown: text,
-              savedMarkdown: "",
-              filePath: null,
-              mode: snapshotRef.current.mode,
-            },
-            { kind: "command", commandId: "utools.selectionEdit" },
-          );
-          setMode("selection");
-          setIsSidebarOpen(false);
-          return;
-        }
-      }
-    };
-
-    const handleOut = () => {
-      const current = docState.getSnapshot();
-      if (current.filePath && current.isDirty && window.inkpointNodeBridge) {
-        try {
-          window.inkpointNodeBridge.writeFile(current.filePath, current.markdown);
-        } catch {
-          // 忽略
-        }
-      }
-    };
-
-    const cleanup = registerUtoolsLifecycle({
-      onEnter: handleEnter,
-      onOut: handleOut,
-    });
-
-    return cleanup;
-  }, [applyTheme, docState, fileTree, settingsRef]);
+        },
+      ),
+    [applyTheme, docState, settingsRef, showDocument, showWorkspace, showToast],
+  );
 
   // 贴回原应用
   const handlePasteBackToApp = useCallback(() => {
@@ -390,49 +242,9 @@ export function UtoolsApp() {
     };
   }, [handleInsertImageFile]);
 
-  // 图片预览路径解析
   const resolveImage = useCallback(
-    (src: string) => {
-      if (!src) return src;
-      if (
-        src.startsWith("data:") ||
-        src.startsWith("http://") ||
-        src.startsWith("https://") ||
-        src.startsWith("file://") ||
-        src.startsWith("#")
-      ) {
-        return src;
-      }
-
-      const currentPath = docState.getSnapshot().filePath;
-      const workspaceRoot = fileTree.folder?.rootPath;
-
-      if (window.inkpointNodeBridge?.resolveImageSrc) {
-        const resolved = window.inkpointNodeBridge.resolveImageSrc(
-          currentPath ?? "",
-          src,
-          workspaceRoot,
-        );
-        if (resolved && resolved !== src) {
-          return resolved;
-        }
-      }
-
-      if (currentPath) {
-        try {
-          const docDir = currentPath.substring(0, currentPath.lastIndexOf("/") + 1);
-          if (docDir) {
-            const cleanSrc = src.startsWith("./") ? src.slice(2) : src;
-            return `file://${docDir}${cleanSrc}`;
-          }
-        } catch {
-          // 忽略
-        }
-      }
-
-      return src;
-    },
-    [docState, fileTree.folder?.rootPath],
+    (src: string) => fileAccess.resolveImage(docState.getSnapshot().filePath, src),
+    [docState],
   );
 
   // 全局快捷键监听
@@ -580,7 +392,7 @@ export function UtoolsApp() {
             onCloseFolder={() => {
               fileTree.setFolder(null);
               setIsSidebarOpen(false);
-              clearLastOpenedFolder();
+              fileAccess.closeWorkspace();
             }}
             onOpenFolder={fileTree.handleOpenFolder}
           />

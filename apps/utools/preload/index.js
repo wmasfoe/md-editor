@@ -1,345 +1,330 @@
-// apps/utools/preload/index.js
-// uTools 预加载脚本：运行在 Node.js + Electron 渲染进程中
-// 遵循 uTools 审核规范：采用 CommonJS 规范，源码清晰可读，不进行任何混淆或压缩
-
+// uTools preload: only host dialogs and file-entry events can grant filesystem access.
 const fs = require("node:fs");
 const path = require("node:path");
+const { randomUUID } = require("node:crypto");
 
-const IGNORED_NAMES = new Set([
-  ".git",
-  "node_modules",
-  ".DS_Store",
-  "dist",
-  "build",
-  ".vscode",
-  ".idea",
-  ".next",
-  "target",
-  ".cache",
+const host = window.utools;
+const showOpenDialog = host?.showOpenDialog?.bind(host);
+const showSaveDialog = host?.showSaveDialog?.bind(host);
+const IMAGE_TYPES = new Map([
+  [".png", "image/png"],
+  [".jpg", "image/jpeg"],
+  [".gif", "image/gif"],
+  [".webp", "image/webp"],
+  [".svg", "image/svg+xml"],
+  [".bmp", "image/bmp"],
 ]);
+const MARKDOWN_EXTS = ["md", "markdown", "mdx", "txt"];
+const MARKDOWN_FILTER = [{ name: "Markdown", extensions: MARKDOWN_EXTS }];
+const IGNORED_NAMES = new Set(["node_modules", "dist", "build", "target"]);
+const BLOCKED_IMAGE =
+  "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
 
-const MD_EXTS = new Set([".md", ".markdown", ".mdx", ".txt"]);
-const ASSET_EXTS = new Set([".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".bmp", ".ico"]);
+let currentDocument = null;
+let workspaceRoot = null;
+let workspaceNodes = new Map();
 
-function scanNode(nodePath, depth = 0) {
-  const name = path.basename(nodePath);
-  if (depth > 0 && (name.startsWith(".") || IGNORED_NAMES.has(name))) {
-    return null;
+function isMarkdown(file) {
+  return MARKDOWN_EXTS.includes(path.extname(file).slice(1).toLowerCase());
+}
+
+function isWithin(root, target) {
+  const relative = path.relative(root, target);
+  return relative !== ".." && !relative.startsWith(".." + path.sep) && !path.isAbsolute(relative);
+}
+
+// Recheck canonical paths on use so replaced symlinks and junctions don't inherit a grant.
+function checkExisting(target, kind) {
+  const stat = fs.lstatSync(target);
+  if (
+    fs.realpathSync.native(target) !== target ||
+    (kind === "directory" ? !stat.isDirectory() : !stat.isFile() || stat.nlink !== 1)
+  ) {
+    throw new Error("文件或目录不在授权范围内");
   }
-  let stat;
+  return stat;
+}
+
+function selectedPath(input, kind) {
+  if (typeof input !== "string" || !path.isAbsolute(input)) {
+    throw new Error("无效的本地路径");
+  }
+  const parent = fs.realpathSync.native(path.dirname(input));
+  const target = path.join(parent, path.basename(input));
+  if (kind === "markdown" && !isMarkdown(target)) {
+    throw new Error("请选择 Markdown 或纯文本文档");
+  }
+  return target;
+}
+
+function openDocument(target) {
+  checkExisting(target, "file");
+  const markdown = fs.readFileSync(target, "utf8");
+  currentDocument = { path: target, id: randomUUID() };
+  return { filePath: target, markdown, id: currentDocument.id };
+}
+
+function documentPath(id) {
+  if (!currentDocument || id !== currentDocument.id) {
+    throw new Error("文档已切换，请重新打开或重试");
+  }
+  checkExisting(currentDocument.path, "file");
+  return currentDocument.path;
+}
+
+function scanNode(target, depth, nodes) {
+  const name = path.basename(target) || target;
+  if (depth > 0 && (name.startsWith(".") || IGNORED_NAMES.has(name))) return null;
   try {
-    stat = fs.statSync(nodePath);
+    const stat = fs.lstatSync(target);
+    const kind = stat.isDirectory() ? "directory" : isMarkdown(target) ? "markdown" : "asset";
+    if (kind === "asset" && !IMAGE_TYPES.has(path.extname(target).toLowerCase())) return null;
+    checkExisting(target, kind);
+    const id = randomUUID();
+    const node = { name, path: target, kind, id };
+    if (kind === "directory") {
+      node.children =
+        depth >= 8
+          ? []
+          : fs
+              .readdirSync(target)
+              .map((entry) => scanNode(path.join(target, entry), depth + 1, nodes))
+              .filter(Boolean)
+              .toSorted(
+                (a, b) =>
+                  Number(b.kind === "directory") - Number(a.kind === "directory") ||
+                  a.name.localeCompare(b.name, "zh-CN", { sensitivity: "base" }),
+              );
+    }
+    nodes.set(id, { path: target, kind });
+    return node;
   } catch {
     return null;
   }
-
-  if (stat.isDirectory()) {
-    if (depth > 8) return null;
-    let entries = [];
-    try {
-      entries = fs.readdirSync(nodePath);
-    } catch {
-      return null;
-    }
-    const children = [];
-    for (const entry of entries) {
-      const child = scanNode(path.join(nodePath, entry), depth + 1);
-      if (child) children.push(child);
-    }
-    children.sort((a, b) => {
-      if (a.kind === "directory" && b.kind !== "directory") return -1;
-      if (a.kind !== "directory" && b.kind === "directory") return 1;
-      return a.name.localeCompare(b.name, "zh-CN", { sensitivity: "base" });
-    });
-    return {
-      name,
-      path: nodePath,
-      kind: "directory",
-      children,
-    };
-  }
-
-  if (stat.isFile()) {
-    const ext = path.extname(name).toLowerCase();
-    if (MD_EXTS.has(ext)) {
-      return {
-        name,
-        path: nodePath,
-        kind: "markdown",
-      };
-    }
-    if (ASSET_EXTS.has(ext)) {
-      return {
-        name,
-        path: nodePath,
-        kind: "asset",
-      };
-    }
-  }
-
-  return null;
 }
 
-/**
- * 为渲染进程暴露的原生文件系统与路径桥接
- * 所有敏感或系统调用统一在此收敛，避免前端页面直接依赖复杂 Node 模块
- */
-window.inkpointNodeBridge = {
-  /**
-   * 同步读取本地文件文本内容（UTF-8 编码）
-   */
-  readFile(filePath) {
-    if (!fs.existsSync(filePath)) {
-      throw new Error(`文件不存在: ${filePath}`);
-    }
-    return fs.readFileSync(filePath, "utf-8");
-  },
+function scanWorkspace(root) {
+  checkExisting(root, "directory");
+  const nodes = new Map();
+  const tree = scanNode(root, 0, nodes);
+  if (!tree) throw new Error("无法读取工作区");
+  workspaceRoot = root;
+  workspaceNodes = nodes;
+  return { rootPath: root, rootName: tree.name, tree };
+}
 
-  /**
-   * 同步写盘本地文件（UTF-8 编码）
-   */
-  writeFile(filePath, content) {
-    const dir = path.dirname(filePath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(filePath, content, "utf-8");
-  },
+function workspaceNode(id, kind, allowRoot = false) {
+  const node = workspaceNodes.get(id);
+  if (
+    !node ||
+    (kind && node.kind !== kind) ||
+    (!allowRoot && node.path === workspaceRoot) ||
+    !isWithin(workspaceRoot, node.path)
+  ) {
+    throw new Error("请选择已授权工作区内的项目");
+  }
+  checkExisting(workspaceRoot, "directory");
+  checkExisting(node.path, node.kind);
+  return node.path;
+}
 
-  /**
-   * 同步写入本地二进制文件（如图片字节）
-   */
-  writeBinaryFile(filePath, buffer) {
-    const dir = path.dirname(filePath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    const buf = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
-    fs.writeFileSync(filePath, buf);
-  },
+function safeName(name) {
+  if (
+    typeof name !== "string" ||
+    !name ||
+    name.startsWith(".") ||
+    /[<>:"/\\|?*]/u.test(name) ||
+    Array.from(name).some((character) => character.charCodeAt(0) < 32) ||
+    /[. ]$/u.test(name) ||
+    /^(?:con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(?:\.|$)/iu.test(name)
+  ) {
+    throw new Error("无效的文件或文件夹名称");
+  }
+  return name;
+}
 
-  /**
-   * 保存粘贴图片到文档旁边的 assets 资产目录，并返回相对路径（与桌面端规范一致）
-   */
-  savePastedImage(documentPath, mimeType, buffer, preferredName) {
-    const extMap = {
-      "image/png": "png",
-      "image/jpeg": "jpg",
-      "image/webp": "webp",
-      "image/gif": "gif",
-      "image/svg+xml": "svg",
-      "image/bmp": "bmp",
-    };
-    const ext = extMap[mimeType] || "png";
-    const docDir = path.dirname(documentPath);
-    const assetsDir = path.join(docDir, "assets");
-    if (!fs.existsSync(assetsDir)) {
-      fs.mkdirSync(assetsDir, { recursive: true });
-    }
-    const timestamp = Date.now();
-    const baseName = preferredName
-      ? preferredName.replace(/\.[^/.]+$/, "").replace(/[^a-zA-Z0-9_\-\u4e00-\u9fa5]/g, "_")
-      : `image-${timestamp}`;
-    let fileName = `${baseName}.${ext}`;
-    let counter = 1;
-    while (fs.existsSync(path.join(assetsDir, fileName))) {
-      fileName = `${baseName}-${counter}.${ext}`;
-      counter++;
-    }
-    const targetPath = path.join(assetsDir, fileName);
-    const buf = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
-    fs.writeFileSync(targetPath, buf);
-    return {
-      absolutePath: targetPath,
-      markdownPath: `assets/${fileName}`,
-    };
-  },
-
-  /**
-   * 将本地文档引用的图片路径解析为可渲染的 Data URL
-   */
-  resolveImageSrc(documentPath, src, workspaceRoot) {
-    if (!src) return src;
+function resolveDocumentImage(id, src) {
+  if (typeof src !== "string") return BLOCKED_IMAGE;
+  const reference = src.trim().replace(/^<(.+)>$/u, "$1");
+  if (/^(https?:\/\/|data:image\/)/iu.test(reference)) return reference;
+  try {
+    const relative = decodeURIComponent(reference.split(/[?#]/u)[0]).replaceAll("\\", "/");
     if (
-      src.startsWith("data:") ||
-      src.startsWith("http://") ||
-      src.startsWith("https://") ||
-      src.startsWith("#")
+      !relative ||
+      relative.startsWith("/") ||
+      relative.includes(":") ||
+      relative.includes("\0")
     ) {
-      return src;
+      return BLOCKED_IMAGE;
     }
-    try {
-      let cleanSrc = src.trim();
-      if (cleanSrc.startsWith("<") && cleanSrc.endsWith(">")) {
-        cleanSrc = cleanSrc.slice(1, -1);
-      }
-      // 去除 query 参数与 hash 锚点，并执行 URI 解码
-      const noQuery = cleanSrc.split(/[?#]/u)[0] ?? cleanSrc;
+    const mime = IMAGE_TYPES.get(path.extname(relative).toLowerCase());
+    if (!mime) return BLOCKED_IMAGE;
+    const docDir = path.dirname(documentPath(id));
+    const roots =
+      workspaceRoot && isWithin(workspaceRoot, docDir) ? [docDir, workspaceRoot] : [docDir];
+    for (const root of roots) {
+      const candidate = path.resolve(root, relative);
+      if (!roots.some((allowed) => isWithin(allowed, candidate))) continue;
       try {
-        cleanSrc = decodeURIComponent(noQuery);
+        checkExisting(candidate, "file");
+        return `data:${mime};base64,${fs.readFileSync(candidate).toString("base64")}`;
       } catch {
-        cleanSrc = noQuery;
+        // A relative reference may be relative to the workspace rather than the document.
       }
+    }
+  } catch {
+    // Invalid URI encoding or a stale document grant.
+  }
+  return BLOCKED_IMAGE;
+}
 
-      // 处理 file:// 协议路径
-      if (cleanSrc.startsWith("file://")) {
-        cleanSrc = cleanSrc.replace(/^file:\/\//, "");
-        if (process.platform === "win32" && cleanSrc.startsWith("/")) {
-          cleanSrc = cleanSrc.slice(1);
-        }
+let enterListener;
+let pendingEnter;
+let outListener;
+host?.onPluginEnter?.((action) => {
+  let entry = { code: action.code };
+  try {
+    if (action.type === "files" && (action.code === "open-file" || action.code === "open-folder")) {
+      // API redirects can supply their own payload; only direct host entry can grant access.
+      if (!["main", "panel", "hotkey"].includes(action.from)) {
+        throw new Error("请从 uTools 或文件选择器打开本地文件");
       }
-
-      let targetPath = null;
-
-      if (path.isAbsolute(cleanSrc)) {
-        if (fs.existsSync(cleanSrc)) {
-          targetPath = cleanSrc;
-        } else if (workspaceRoot) {
-          const relativeToRoot = cleanSrc.replace(/^[/\\]+/, "");
-          const fromWorkspace = path.join(workspaceRoot, relativeToRoot);
-          if (fs.existsSync(fromWorkspace)) {
-            targetPath = fromWorkspace;
-          }
-        }
+      const first = Array.isArray(action.payload) ? action.payload[0] : null;
+      const selected = first?.path;
+      if (action.code === "open-file") {
+        entry.document = openDocument(selectedPath(selected, "markdown"));
       } else {
-        if (documentPath) {
-          const fromDoc = path.resolve(path.dirname(documentPath), cleanSrc);
-          if (fs.existsSync(fromDoc)) {
-            targetPath = fromDoc;
-          }
-        }
-        if (!targetPath && workspaceRoot) {
-          const fromWorkspace = path.resolve(workspaceRoot, cleanSrc);
-          if (fs.existsSync(fromWorkspace)) {
-            targetPath = fromWorkspace;
-          }
-        }
+        entry.folder = scanWorkspace(selectedPath(selected, "directory"));
       }
-
-      if (!targetPath || !fs.existsSync(targetPath)) {
-        return src;
-      }
-
-      const ext = path.extname(targetPath).toLowerCase();
-      const mimeMap = {
-        ".png": "image/png",
-        ".jpg": "image/jpeg",
-        ".jpeg": "image/jpeg",
-        ".webp": "image/webp",
-        ".gif": "image/gif",
-        ".svg": "image/svg+xml",
-        ".bmp": "image/bmp",
-        ".ico": "image/x-icon",
-        ".avif": "image/avif",
-        ".apng": "image/apng",
-        ".tiff": "image/tiff",
-        ".tif": "image/tiff",
-      };
-      const mime = mimeMap[ext] || "image/png";
-      const b64 = fs.readFileSync(targetPath).toString("base64");
-      return `data:${mime};base64,${b64}`;
-    } catch {
-      return src;
+    } else if (action.type === "over" && typeof action.payload === "string") {
+      entry.text = action.payload;
     }
-  },
+  } catch (error) {
+    entry = { code: action.code, error: error.message };
+  }
+  if (enterListener) enterListener(entry);
+  else pendingEnter = entry;
+});
+host?.onPluginOut?.(() => outListener?.());
 
-  /**
-   * 检查本地文件或目录是否存在
-   */
-  exists(filePath) {
-    return fs.existsSync(filePath);
+window.inkpointNodeBridge = Object.freeze({
+  subscribeLifecycle(onEnter, onOut) {
+    enterListener = onEnter;
+    outListener = onOut;
+    const pending = pendingEnter;
+    pendingEnter = null;
+    if (pending) onEnter(pending);
+    return () => {
+      if (enterListener !== onEnter) return;
+      enterListener = null;
+      outListener = null;
+    };
   },
-
-  /**
-   * 判断指定路径是否为目录
-   */
-  isDirectory(filePath) {
+  pickDocument() {
+    const selected = showOpenDialog?.({ filters: MARKDOWN_FILTER, properties: ["openFile"] })?.[0];
+    return selected ? openDocument(selectedPath(selected, "markdown")) : null;
+  },
+  pickWorkspace() {
+    const selected = showOpenDialog?.({ properties: ["openDirectory"] })?.[0];
+    return selected ? scanWorkspace(selectedPath(selected, "directory")) : null;
+  },
+  openWorkspaceDocument(id) {
+    return openDocument(workspaceNode(id, "markdown"));
+  },
+  writeCurrentDocument(id, markdown) {
+    if (typeof markdown !== "string") throw new Error("无效的文档内容");
+    const target = documentPath(id);
+    fs.writeFileSync(target, markdown, "utf8");
+    return target;
+  },
+  saveNewDocument(markdown) {
+    if (typeof markdown !== "string") throw new Error("无效的文档内容");
+    const selected = showSaveDialog?.({
+      title: "保存 Markdown 文档",
+      defaultPath: "未命名.md",
+      filters: MARKDOWN_FILTER,
+      buttonLabel: "保存",
+    });
+    if (!selected) return null;
+    const target = selectedPath(selected, "markdown");
     try {
-      return fs.existsSync(filePath) && fs.statSync(filePath).isDirectory();
-    } catch {
-      return false;
+      fs.lstatSync(target);
+      checkExisting(target, "file");
+      fs.writeFileSync(target, markdown, "utf8");
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+      fs.writeFileSync(target, markdown, { encoding: "utf8", flag: "wx" });
     }
+    currentDocument = { path: target, id: randomUUID() };
+    return { filePath: target, id: currentDocument.id };
   },
-
-  /**
-   * 获取路径所属目录
-   */
-  getDirname(filePath) {
-    return path.dirname(filePath);
+  closeDocument() {
+    currentDocument = null;
   },
-
-  /**
-   * 获取文件基准名称
-   */
-  getBasename(filePath) {
-    return path.basename(filePath);
-  },
-
-  /**
-   * 扫描目录构建 MarkdownFolder 结构树
-   */
-  scanFolder(dirPath) {
-    if (!fs.existsSync(dirPath)) {
-      throw new Error(`目录不存在: ${dirPath}`);
+  saveDocumentImage(id, mime, buffer) {
+    const extension = [...IMAGE_TYPES].find(([, type]) => type === mime)?.[0];
+    if (!extension) throw new Error("不支持的图片格式");
+    const assets = path.join(path.dirname(documentPath(id)), "assets");
+    try {
+      fs.mkdirSync(assets);
+    } catch (error) {
+      if (error.code !== "EEXIST") throw error;
     }
-    const rootStat = fs.statSync(dirPath);
-    if (!rootStat.isDirectory()) {
-      throw new Error(`路径不是目录: ${dirPath}`);
-    }
-    const rootName = path.basename(dirPath) || dirPath;
-    const tree = scanNode(dirPath, 0) || {
-      name: rootName,
-      path: dirPath,
-      kind: "directory",
-      children: [],
-    };
-    return {
-      rootPath: dirPath,
-      rootName,
-      tree,
-    };
+    checkExisting(assets, "directory");
+    if (!(buffer instanceof ArrayBuffer)) throw new Error("无效的图片内容");
+    const bytes = new Uint8Array(buffer);
+    const fileName = `image-${randomUUID()}${extension}`;
+    fs.writeFileSync(path.join(assets, fileName), bytes, { flag: "wx" });
+    return { markdownPath: `assets/${fileName}` };
   },
-
-  /**
-   * 在指定父目录下创建文件或文件夹
-   */
-  createTreeItem(parentPath, name, kind) {
-    const extension = kind === "markdown" && !/\.mdx?$/i.test(name) ? ".md" : "";
-    const targetPath = path.join(parentPath, `${name}${extension}`);
-    if (fs.existsSync(targetPath)) {
-      throw new Error(`已存在同名${kind === "directory" ? "文件夹" : "文件"}: ${name}`);
-    }
-    if (kind === "directory") {
-      fs.mkdirSync(targetPath, { recursive: true });
-    } else {
-      fs.writeFileSync(targetPath, "", "utf-8");
-    }
-    return targetPath;
+  resolveDocumentImage,
+  refreshWorkspace() {
+    if (!workspaceRoot) throw new Error("请先选择工作区");
+    return scanWorkspace(workspaceRoot);
   },
-
-  /**
-   * 重命名文件或目录
-   */
-  renameTreeItem(oldPath, newName) {
-    const dir = path.dirname(oldPath);
-    const targetPath = path.join(dir, newName);
-    if (fs.existsSync(targetPath)) {
-      throw new Error(`目标已存在同名文件或文件夹: ${newName}`);
-    }
-    fs.renameSync(oldPath, targetPath);
-    return targetPath;
+  closeWorkspace() {
+    workspaceRoot = null;
+    workspaceNodes.clear();
   },
-
-  /**
-   * 删除文件或目录
-   */
-  deleteTreeItem(targetPath) {
-    if (!fs.existsSync(targetPath)) return;
-    const stat = fs.statSync(targetPath);
-    if (stat.isDirectory()) {
-      fs.rmSync(targetPath, { recursive: true, force: true });
-    } else {
-      fs.unlinkSync(targetPath);
-    }
+  createWorkspaceItem(parentId, name, kind) {
+    const parent = workspaceNode(parentId, "directory", true);
+    const base = safeName(name);
+    if (kind !== "directory" && kind !== "markdown") throw new Error("无效的项目类型");
+    const target = path.join(
+      parent,
+      kind === "markdown" && !isMarkdown(base) ? base + ".md" : base,
+    );
+    if (kind === "directory") fs.mkdirSync(target);
+    else fs.writeFileSync(target, "", { flag: "wx" });
+    return target;
   },
-};
+  renameWorkspaceItem(id, newName) {
+    const source = workspaceNode(id);
+    const target = path.join(path.dirname(source), safeName(newName));
+    const kind = workspaceNodes.get(id).kind;
+    if (
+      (kind === "markdown" && !isMarkdown(target)) ||
+      (kind === "asset" && !IMAGE_TYPES.has(path.extname(target).toLowerCase()))
+    ) {
+      throw new Error("请保留受支持的文件扩展名");
+    }
+    try {
+      fs.lstatSync(target);
+      throw new Error("目标已存在同名文件或文件夹");
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+    fs.renameSync(source, target);
+    workspaceNodes.clear();
+    if (currentDocument && isWithin(source, currentDocument.path)) {
+      currentDocument.path = path.join(target, path.relative(source, currentDocument.path));
+    }
+    return target;
+  },
+  deleteWorkspaceItem(id) {
+    const source = workspaceNode(id);
+    fs.rmSync(source, { recursive: workspaceNodes.get(id).kind === "directory" });
+    workspaceNodes.clear();
+    if (currentDocument && isWithin(source, currentDocument.path)) currentDocument = null;
+  },
+});

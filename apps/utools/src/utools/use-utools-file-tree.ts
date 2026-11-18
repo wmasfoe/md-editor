@@ -2,8 +2,8 @@ import { useCallback, useRef, useState, type Dispatch, type SetStateAction } fro
 import type { DocumentState } from "@md-editor/core";
 import { resolveReplaceIntent } from "@md-editor/core";
 import type { MarkdownFileTreeNode, MarkdownFolder } from "@md-editor/file-system";
-import { saveLastOpenedFile, saveLastOpenedFolder } from "./db-storage";
-import type { EditorMode } from "./types";
+import { fileAccess, movedPath } from "./file-access";
+import type { EditorMode, GrantedDocument } from "./types";
 
 export function findFirstMarkdown(node: MarkdownFileTreeNode): MarkdownFileTreeNode | null {
   if (node.kind === "markdown") return node;
@@ -23,7 +23,6 @@ export interface UseUtoolsFileTreeOptions {
   readonly setMode: Dispatch<SetStateAction<EditorMode>>;
   readonly setIsSidebarOpen: Dispatch<SetStateAction<boolean>>;
   readonly showToast: (msg: string | null) => void;
-  readonly onNewFile: () => void;
 }
 
 export function useUtoolsFileTree({
@@ -31,7 +30,6 @@ export function useUtoolsFileTree({
   setMode,
   setIsSidebarOpen,
   showToast,
-  onNewFile,
 }: UseUtoolsFileTreeOptions) {
   const [folder, setFolder] = useState<MarkdownFolder | null>(null);
   const folderRef = useRef(folder);
@@ -43,14 +41,15 @@ export function useUtoolsFileTree({
       const current = docState.getSnapshot();
       if (current.filePath && current.isDirty && window.inkpointNodeBridge) {
         try {
-          window.inkpointNodeBridge.writeFile(current.filePath, current.markdown);
+          fileAccess.saveMarkdown(current.filePath, current.markdown);
         } catch (err) {
-          console.error("保存旧文件失败:", err);
+          showToast(`保存失败: ${err instanceof Error ? err.message : String(err)}`);
+          return;
         }
       }
       if (window.inkpointNodeBridge) {
         try {
-          const content = window.inkpointNodeBridge.readFile(path);
+          const content = fileAccess.openWorkspaceDocument(path).markdown;
           docState.replaceDocument(
             {
               markdown: content,
@@ -61,7 +60,6 @@ export function useUtoolsFileTree({
             { kind: "command", commandId: "utools.selectTreeFile" },
           );
           setMode("file");
-          saveLastOpenedFile(path);
         } catch (err) {
           showToast(`读取失败: ${err instanceof Error ? err.message : String(err)}`);
         }
@@ -74,8 +72,8 @@ export function useUtoolsFileTree({
     async (parentPath: string, name: string, kind: "markdown" | "directory") => {
       if (!folder || !window.inkpointNodeBridge) return;
       try {
-        const createdPath = window.inkpointNodeBridge.createTreeItem(parentPath, name, kind);
-        const updated = window.inkpointNodeBridge.scanFolder(folder.rootPath);
+        const createdPath = fileAccess.createTreeItem(parentPath, name, kind);
+        const updated = fileAccess.refreshWorkspace(folder.rootPath);
         setFolder(updated);
         if (kind === "markdown") {
           handleSelectTreeFile(createdPath);
@@ -91,49 +89,45 @@ export function useUtoolsFileTree({
     async (path: string) => {
       if (!folder || !window.inkpointNodeBridge) return;
       try {
-        window.inkpointNodeBridge.deleteTreeItem(path);
-        const updated = window.inkpointNodeBridge.scanFolder(folder.rootPath);
-        setFolder(updated);
+        fileAccess.deleteTreeItem(path);
         const currentSnap = docState.getSnapshot();
-        if (
-          currentSnap.filePath === path ||
-          (currentSnap.filePath && currentSnap.filePath.startsWith(path + "/"))
-        ) {
-          onNewFile();
+        if (currentSnap.filePath && movedPath(currentSnap.filePath, path, path)) {
+          docState.replaceDocument(
+            {
+              markdown: "",
+              savedMarkdown: "",
+              filePath: null,
+              mode: currentSnap.mode,
+              replaceIntent: resolveReplaceIntent(currentSnap.filePath, null),
+            },
+            { kind: "command", commandId: "utools.deleteTreeItem" },
+          );
         }
+        setFolder(fileAccess.refreshWorkspace(folder.rootPath));
       } catch (err) {
         showToast(`删除失败: ${err instanceof Error ? err.message : String(err)}`);
       }
     },
-    [docState, folder, onNewFile, showToast],
+    [docState, folder, showToast],
   );
 
   const handleRenameTreeItem = useCallback(
     async (oldPath: string, newName: string) => {
       if (!folder || !window.inkpointNodeBridge) return;
       try {
-        const newPath = window.inkpointNodeBridge.renameTreeItem(oldPath, newName);
-        const updated = window.inkpointNodeBridge.scanFolder(folder.rootPath);
-        setFolder(updated);
+        const newPath = fileAccess.renameTreeItem(oldPath, newName);
         const currentSnap = docState.getSnapshot();
-        if (currentSnap.filePath === oldPath) {
-          docState.setDocumentPath({
-            filePath: newPath,
-            expectedGeneration: currentSnap.documentGeneration,
-            expectedStateRevision: currentSnap.stateRevision,
-            origin: { kind: "command", commandId: "file.rename" },
-          });
-          saveLastOpenedFile(newPath);
-        } else if (currentSnap.filePath && currentSnap.filePath.startsWith(oldPath + "/")) {
-          const newDocPath = newPath + currentSnap.filePath.slice(oldPath.length);
+        const newDocPath =
+          currentSnap.filePath && movedPath(currentSnap.filePath, oldPath, newPath);
+        if (newDocPath) {
           docState.setDocumentPath({
             filePath: newDocPath,
             expectedGeneration: currentSnap.documentGeneration,
             expectedStateRevision: currentSnap.stateRevision,
             origin: { kind: "command", commandId: "file.rename" },
           });
-          saveLastOpenedFile(newDocPath);
         }
+        setFolder(fileAccess.refreshWorkspace(folder.rootPath));
       } catch (err) {
         showToast(`重命名失败: ${err instanceof Error ? err.message : String(err)}`);
       }
@@ -144,94 +138,66 @@ export function useUtoolsFileTree({
   const handleRefreshFolder = useCallback(() => {
     if (!folder || !window.inkpointNodeBridge) return;
     try {
-      const updated = window.inkpointNodeBridge.scanFolder(folder.rootPath);
+      const updated = fileAccess.refreshWorkspace(folder.rootPath);
       setFolder(updated);
     } catch (err) {
       showToast(`刷新失败: ${err instanceof Error ? err.message : String(err)}`);
     }
   }, [folder, showToast]);
 
-  const handleOpenFile = useCallback(() => {
-    if (typeof window === "undefined" || typeof window.utools === "undefined") {
-      showToast("当前环境不支持文件选择器");
-      return;
-    }
-    const paths = window.utools.showOpenDialog({
-      filters: [{ name: "Markdown", extensions: ["md", "markdown", "mdx", "txt"] }],
-      properties: ["openFile"],
-    });
-    if (!paths || paths.length === 0) {
-      return;
-    }
-    const targetPath = paths[0];
-    if (window.inkpointNodeBridge) {
-      try {
-        const content = window.inkpointNodeBridge.readFile(targetPath);
-        docState.replaceDocument(
-          {
-            markdown: content,
-            savedMarkdown: content,
-            filePath: targetPath,
-            mode: docState.getSnapshot().mode,
-            replaceIntent: resolveReplaceIntent(docState.getSnapshot().filePath, targetPath),
-          },
-          { kind: "command", commandId: "utools.openFilePicker" },
-        );
-        setMode("file");
+  const showDocument = useCallback(
+    (opened: GrantedDocument) => {
+      const current = docState.getSnapshot();
+      docState.replaceDocument(
+        {
+          markdown: opened.markdown,
+          savedMarkdown: opened.markdown,
+          filePath: opened.filePath,
+          mode: current.mode,
+          replaceIntent: resolveReplaceIntent(current.filePath, opened.filePath),
+        },
+        { kind: "command", commandId: "utools.openDocument" },
+      );
+      setMode("file");
+    },
+    [docState, setMode],
+  );
 
-        const parentDir = window.inkpointNodeBridge.getDirname(targetPath);
-        if (parentDir && window.inkpointNodeBridge.isDirectory(parentDir)) {
-          try {
-            const scanned = window.inkpointNodeBridge.scanFolder(parentDir);
-            setFolder(scanned);
-            setIsSidebarOpen(true);
-          } catch {
-            // 忽略
-          }
-        }
-      } catch (err) {
-        showToast(`读取失败: ${err instanceof Error ? err.message : String(err)}`);
-      }
+  const showWorkspace = useCallback(
+    (opened: MarkdownFolder) => {
+      setFolder(opened);
+      setIsSidebarOpen(true);
+      const first = findFirstMarkdown(opened.tree);
+      if (first) showDocument(fileAccess.openWorkspaceDocument(first.path));
+    },
+    [setIsSidebarOpen, showDocument],
+  );
+
+  const saveBeforeOpen = useCallback(() => {
+    const current = docState.getSnapshot();
+    if (current.filePath && current.isDirty)
+      fileAccess.saveMarkdown(current.filePath, current.markdown);
+  }, [docState]);
+
+  const handleOpenFile = useCallback(() => {
+    try {
+      saveBeforeOpen();
+      const opened = fileAccess.pickDocument();
+      if (opened) showDocument(opened);
+    } catch (err) {
+      showToast(`打开失败: ${err instanceof Error ? err.message : String(err)}`);
     }
-  }, [docState, setIsSidebarOpen, setMode, showToast]);
+  }, [saveBeforeOpen, showDocument, showToast]);
 
   const handleOpenFolder = useCallback(() => {
-    if (typeof window === "undefined" || typeof window.utools === "undefined") {
-      showToast("当前环境不支持选择文件夹");
-      return;
+    try {
+      saveBeforeOpen();
+      const opened = fileAccess.pickWorkspace();
+      if (opened) showWorkspace(opened);
+    } catch (err) {
+      showToast(`打开失败: ${err instanceof Error ? err.message : String(err)}`);
     }
-    const paths = window.utools.showOpenDialog({
-      properties: ["openDirectory"],
-    });
-    if (!paths || paths.length === 0) return;
-    const targetDir = paths[0];
-    if (window.inkpointNodeBridge) {
-      try {
-        const scanned = window.inkpointNodeBridge.scanFolder(targetDir);
-        setFolder(scanned);
-        setIsSidebarOpen(true);
-        setMode("file");
-        saveLastOpenedFolder(targetDir);
-
-        const firstMd = findFirstMarkdown(scanned.tree);
-        if (firstMd) {
-          const content = window.inkpointNodeBridge.readFile(firstMd.path);
-          docState.replaceDocument(
-            {
-              markdown: content,
-              savedMarkdown: content,
-              filePath: firstMd.path,
-              mode: docState.getSnapshot().mode,
-              replaceIntent: resolveReplaceIntent(docState.getSnapshot().filePath, firstMd.path),
-            },
-            { kind: "command", commandId: "utools.openFolderPicker" },
-          );
-        }
-      } catch (err) {
-        showToast(`打开失败: ${err instanceof Error ? err.message : String(err)}`);
-      }
-    }
-  }, [docState, setIsSidebarOpen, setMode, showToast]);
+  }, [saveBeforeOpen, showWorkspace, showToast]);
 
   return {
     folder,
@@ -242,6 +208,8 @@ export function useUtoolsFileTree({
     handleDeleteTreeNode,
     handleRenameTreeItem,
     handleRefreshFolder,
+    showDocument,
+    showWorkspace,
     handleOpenFile,
     handleOpenFolder,
   };
