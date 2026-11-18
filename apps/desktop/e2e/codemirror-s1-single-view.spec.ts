@@ -418,7 +418,7 @@ test.describe("CodeMirror S1 desktop product surface", () => {
     );
   });
 
-  test("E11: deferred controls report visible typed-unsupported behavior", async ({ page }) => {
+  test("E11: previously deferred controls are wired and reachable", async ({ page }) => {
     await openFixture(page, "/fixtures/same-a.md");
     const dispositions = await page.evaluate(() =>
       Object.fromEntries(
@@ -427,10 +427,12 @@ test.describe("CodeMirror S1 desktop product surface", () => {
           .map((entry) => [entry.id, entry.s1Disposition]),
       ),
     );
+    // 这三项在 S1 基线期曾登记为 typed-unsupported，但早已完整接线。
+    // 下面的派发断言才是真正的证据：命令确实产生真实行为，而不是返回"不支持"。
     expect(dispositions).toMatchObject({
-      "mdx.openComponentMenu": "typed-unsupported",
-      "ai.continueWriting": "typed-unsupported",
-      "ai.fixGrammar": "typed-unsupported",
+      "mdx.openComponentMenu": "retained",
+      "ai.continueWriting": "retained",
+      "ai.fixGrammar": "retained",
     });
 
     await page.evaluate(() => window.__MD_EDITOR_E2E__!.dispatchCommand("mdx.openComponentMenu"));
