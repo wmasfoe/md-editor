@@ -7,6 +7,7 @@ import {
   type MainPlatformServices,
 } from "./app/platform-bootstrap";
 import { resolveDesktopWindowSurface } from "./desktop/window-labels";
+import { bindDesktopSelectAllMenuAction } from "./desktop/menu-events";
 import "./styles.css";
 
 async function bootstrap(): Promise<void> {
@@ -32,6 +33,7 @@ async function bootstrap(): Promise<void> {
 
   const surface = resolveDesktopWindowSurface();
   const isE2e = import.meta.env.MODE === "e2e";
+  bindDesktopSelectAllMenuAction();
 
   await bootstrapDesktopPlatform({
     surface,

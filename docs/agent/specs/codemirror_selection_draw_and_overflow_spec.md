@@ -86,6 +86,15 @@ let rightSide = contentRect.right - (lineStyle ? parseInt(lineStyle.paddingRight
 
 ---
 
+## macOS 桌面端全选
+
+macOS 菜单的原生 `selectAll:` responder 会从 WebKit 的可编辑 DOM 建立选区。WYSIWYG 的标题、隐藏标记和块级组件会改变 DOM 边界，长文档还只挂载部分正文。这些边界无法稳定表达完整的 Markdown 选区。原生菜单路径可在带标题和行内标记的文档上复现选区折叠及自绘高亮缺失。
+
+- 「编辑 → 全选」及其 `Cmd+A` 加速键使用同一应用菜单事件。当前窗口的焦点位于编辑器内时，桌面层将事件适配为 `Cmd+A`，由 CodeMirror 和当前组件的键位处理器决定选区。
+- 正文的全文选区覆盖从 `0` 到 `doc.length` 的 Markdown 偏移，并立即绘制可见正文的高亮。首次打开、切换文件后重开以及删除后撤销都遵循同一契约。
+- 代码块内和表格单元格内沿用各自的渐进全选键位。搜索框等编辑器外的输入面继续使用 WebKit 的全选行为。Tauri 只向获得焦点的原生窗口发送全选事件，包括独立设置窗口。
+- `apps/desktop/tests/desktop/menu-select-all.test.ts` 验证菜单事件和焦点路由。`apps/desktop/e2e/codemirror-menu-select-all.spec.ts` 从应用菜单事件验证 Markdown 选区、可见高亮、删除撤销及重开文件。macOS 原生验收应从系统菜单或实际加速键进入。
+
 ## 回归验证清单 (Regression Checklist)
 
 修改编辑器样式或扩展时，必须验证以下场景：

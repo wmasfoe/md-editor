@@ -5,7 +5,7 @@
 ## 生效文档 (Active Specs)
 
 - WYSIWYG 选区完整性回归规范： [wysiwyg_selection_integrity_spec.md](./wysiwyg_selection_integrity_spec.md)
-- CodeMirror 选区自绘渲染与跨行边界规范： [codemirror_selection_draw_and_overflow_spec.md](./codemirror_selection_draw_and_overflow_spec.md)
+- CodeMirror 选区自绘、跨行裁剪及 macOS 桌面全选路由规范： [codemirror_selection_draw_and_overflow_spec.md](./codemirror_selection_draw_and_overflow_spec.md)
 - WYSIWYG 表格编辑与生命周期数据同步规范： [wysiwyg_table_editing_and_lifecycle_spec.md](./wysiwyg_table_editing_and_lifecycle_spec.md)
 - 跨平台快捷键与修饰键对齐规范： [cross_platform_keyboard_shortcut_spec.md](./cross_platform_keyboard_shortcut_spec.md)
 - 编辑器模式切换与 AI 流式生命周期治理规范： [editor_mode_switch_and_ai_lifecycle_spec.md](./editor_mode_switch_and_ai_lifecycle_spec.md)
@@ -28,7 +28,7 @@
 ## 使用规则
 
 - 涉及 CM6 选区、跨块拖选、atomic range、blockquote、列表、图片、分割线或代码块交互时，先读 WYSIWYG 选区完整性规范。
-- 涉及 CodeMirror `drawSelection()` 选区自绘、跨行选区背景左右溢出、`.cm-selectionLayer` 裁剪边界、行高或光标对齐时，先读 CodeMirror 选区自绘渲染与跨行边界规范。
+- 涉及 CodeMirror `drawSelection()` 选区自绘、跨行选区背景左右溢出、`.cm-selectionLayer` 裁剪边界、行高、光标对齐或 macOS 菜单全选时，先读 CodeMirror 选区自绘渲染与跨行边界规范。
 - 涉及富文本表格（GFM Table）DOM 渲染、单元格光标输入、失焦保存或切换模式/保存文档前的数据同步时，先读 WYSIWYG 表格编辑与生命周期数据同步规范。
 - 涉及跨平台修饰键文案（Control/Option/Command vs Ctrl/Win/Alt）、macOS 变体字符物理键位兜底匹配、IME 组字隔离或原生菜单加速器时，先读跨平台快捷键与修饰键对齐规范。
 - 涉及渲染器模式切换（WYSIWYG <-> Source）、`noop` 幂等性、并发防重入锁或 AI 续写流/幽灵建议清理销毁时，先读编辑器模式切换与 AI 流式生命周期治理规范。

@@ -7,6 +7,7 @@ import type { CodeMirrorEditorExternalEditResult, CodeMirrorEditorPorts } from "
 import { inspectCodeMirrorEditorForTesting } from "@md-editor/editor/react/testing";
 import type { RuntimeFileService } from "@md-editor/file-system";
 import type { DesktopEditorActions } from "../app/context/DesktopEditorActionsContext";
+import { selectAllInWebview } from "../desktop/menu-events";
 import { runtime } from "../app/runtime/editor-runtime";
 import { getModeMenuChecks } from "../app/stores/mode-menu-store";
 import { useDocumentUiStore } from "../app/stores/document-ui-store";
@@ -44,6 +45,7 @@ export interface EditorE2eBridge {
   ): void;
   createNewDocument(): Promise<void>;
   dispatchCommand(id: string): Promise<void>;
+  selectAllFromMenu(): void;
   setMode(mode: EditorMode): Promise<void>;
   applyExternalEdit(
     markdown: string,
@@ -154,6 +156,7 @@ export function installEditorE2eBridge(_fileService: RuntimeFileService): Editor
     async dispatchCommand(id: string) {
       await requireActions().dispatchCommand(id);
     },
+    selectAllFromMenu: selectAllInWebview,
     async setMode(mode: EditorMode) {
       if (runtime.document.getSnapshot().mode === mode) {
         return;
