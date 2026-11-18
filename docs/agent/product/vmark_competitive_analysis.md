@@ -3,7 +3,7 @@
 > 用途：记录对竞品 VMark（vmark.app / `xiaolai/vmark`）的功能调研结论、可借鉴项、应拒绝项，以及落地时的架构边界归属，作为需求优先级调整的输入。
 >
 > 调研日期：2026-09-22
-> 本项目实现状态复核：2026-11-08，基于本次工作区代码；§3 和 §7.1 区分已实现能力与剩余缺口。竞品信息仍以原调研日期为准。
+> 本项目实现状态复核：2026-11-18，基于本次工作区代码；§3 和 §7.1 区分已实现能力与剩余缺口。竞品信息仍以原调研日期为准。
 > **决策记录（opt-in 补记）**：本文档属 spec §12 列出的 opt-in 项（当时标注「未自动执行」），后经属主**显式批准执行**并落盘 —— 系主动选择性产出，非流程自动触发。
 > 信息来源：`https://vmark.app/`、`https://github.com/xiaolai/vmark`（ISC License，已 shallow clone 通读 `website/guide/*.md` 全量产品文档 8853 行）与仓库 `src/` 结构
 > 对照基线：[`markdown_editor_requirements.md`](./markdown_editor_requirements.md)、[`markdown_editor_task_priorities.md`](./markdown_editor_task_priorities.md)、[`markdown_editor_ai_feature_requirements.md`](./markdown_editor_ai_feature_requirements.md)、[`codemirror_renderer_migration_status.md`](../status/codemirror_renderer_migration_status.md)
@@ -267,14 +267,14 @@ VMark 的定位已从「Markdown 编辑器」漂移成「通用纯文本工作�
 | 第 1 批（手感） | 4.2 选区包裹/Tab 跳出 + 4.3 基础块操作 + 4.4 专注/打字机模式 | ✅ **首批已完成** | `smart-pairs`、`tab-arbitration`、块移动/复制/删除快捷键、Focus/Typewriter 已落地；空光标自动闭合已明确不做，合并/排序推迟 |
 | 第 2 批（差异化） | 4.1 CJK 排版 + 4.10 块级就地源码编辑 | ⚠️ **部分完成** | CJK 已完成友好强调/删除线定界符解析及括号 Tab 跳出，排版规则引擎未做；HTML 块可原位编辑源码，表格支持可视化单元格编辑，暂无通用 `F5` |
 | 第 3 批（信任） | 4.5 Hot Exit + 4.6 文档历史 | ✅ **已完成 (v0.18.0)** | 实现了异常退出草稿自动暂存、启动恢复提示 Banner，以及应用数据目录中的快照记录与 HistoryDrawer 抽屉对比、回滚 |
-| 第 4 批（AI） | 4.7 AI 交互 / 改写建议系统 | ⚠️ **部分完成** | 已有续写、选区语法纠错和默认关闭的后台建议；通用选区润色/精简/自由提示词改写及 Spotlight 未做。风格学习已列入近期计划，见 §7.1 |
+| 第 4 批（AI） | 4.7 AI 交互 / 改写建议系统 | ⚠️ **部分完成** | 已有续写、选区语法纠错、默认关闭的后台建议，以及**用户风格学习（写作偏好，v0.22.0）**；通用选区润色/精简/自由提示词改写及 Spotlight 未做。见 §7.1 |
 | 第 5 批（专业） | 4.8 Lint/链接检查 + 4.9 导出 HTML/PDF | ✅ **基础能力已完成 (v0.18.0)** | 已有 markdownlint 和本地链接检查、独立 HTML、macOS 原生分页 PDF 及富文本剪贴板复制；编译器另提供外链 HTML 结果，桌面入口未同时导出两个文件 |
 | 第 6 批（战略） | 4.12 MCP 集成 | ⏸ **远期规划** | 战略价值高但存在平台打包与分发风险，等待技术尖刺完成后推进 |
 | 随手 | B 级小项 | 🔄 **持续穿插** | 穿插在各批次迭代中 |
 
 ---
 
-### 7.1 剩余缺口与实现状态（2026-11-08 核对）
+### 7.1 剩余缺口与实现状态（2026-11-18 核对）
 
 本清单只记录**事实与证据**，不排优先级；优先级以 [`markdown_editor_task_priorities.md`](./markdown_editor_task_priorities.md) 为准，由属主决定。每一项的“证据”是核实时在源码中的搜索结果，不是推测。
 
@@ -299,7 +299,7 @@ VMark 的定位已从「Markdown 编辑器」漂移成「通用纯文本工作�
 | 更多官方 MDX 组件（LinkCard / Video / FileTree / Steps） | `packages/mdx-plugins/src/` 只有 `callout/` | 目前仅 `Callout` |
 | MCP 集成 | 未开始 | 文档要求先做 sidecar 跨平台打包尖刺，再决定是否进路线图 |
 | AI 静默检查 | 桌面已有后台建议与文档提炼，独立开关默认关闭；关闭后手动功能仍可用 | 用户主动开启后，远程 provider 可能收到当前文档内容，见 [AI 隐私要求](./markdown_editor_ai_feature_requirements.md) |
-| 用户风格学习 / `.aiignore` / 历史文章索引 | 未实现，已列入近期计划 | 先实现 `.aiignore`；独立开关默认关闭、历史文章只用本地模型处理。当前文档提炼不等同于历史文章风格学习 |
+| 用户风格学习 / 历史文章索引 | ✅ **已实现（v0.22.0）**：`packages/ai/src/style/`（轻量画像领域）+ `@md-editor/ai/style-engine`（学习引擎）+ `apps/desktop/src-tauri/src/style_learning/`（Rust 扫描与存储）+ `apps/desktop/src/app/ai/style-learning/`（桌面协调器）；设置页 `StyleLearningSettings.tsx` + 文件树右键排除 | 仍**未**使用 `.aiignore`（有意为之：排除列表存应用数据目录、不写工作区）；历史文章只做风格样本扫描，不提供通用检索/索引。详见 [AI 需求 §8](./markdown_editor_ai_feature_requirements.md#8-用户风格学习写作偏好) |
 | 云端图片上传 | 只有 `ImageStorageProvider` 扩展点 | 竞品分析建议交给 PicGo 等现成方案，不原生做 |
 | 表格 M3-C：多单元格拖选 / 列宽调整 | `task_priorities` §6 记为“有成熟引擎后恢复” | 评估过无成熟引擎 |
 

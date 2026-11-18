@@ -1030,6 +1030,8 @@ interface PluginContext {
 - 静默检查默认关闭
 - 本地模型、历史文章风格学习、`.aiignore`
 
+> **2026-11-18 状态核对**：本节是历史里程碑草案，不反映当前实现。实际进展：显式续写、静默检查（独立开关默认关闭）、用户自带 API Key、OpenAI-compatible endpoint、本地模型多档位与风格学习均已完成；风格学习最终**没有**采用 `.aiignore`，改用应用内排除列表（存应用数据目录、不写工作区），详见 [AI 需求 §8](../product/markdown_editor_ai_feature_requirements.md#8-用户风格学习写作偏好) 与 [风格学习架构](./style_profile_architecture.md)。
+
 ---
 
 ## 16. 技术风险

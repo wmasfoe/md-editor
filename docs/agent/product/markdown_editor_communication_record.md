@@ -273,6 +273,8 @@ AI 续写需要用户显式调用，避免干扰输入。
 
 ### 9.3 用户风格学习
 
+> **状态（2026-11-18）**：已实现并随 v0.22.0 发布。本节保留当时的需求设想作为历史记录；实现与隐私边界见 [AI 需求 §8](./markdown_editor_ai_feature_requirements.md#8-用户风格学习写作偏好)，架构见 [风格学习架构](../architecture/style_profile_architecture.md)。
+
 后续可以结合用户历史文章，学习用户的：
 
 - 写作习惯
