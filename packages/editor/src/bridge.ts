@@ -27,7 +27,7 @@ import type {
   AiSuggestionValue,
   AiSuggestionAcceptedEvent,
 } from "./wysiwyg/view/suggestion-model.ts";
-import type { MarkdownSyntaxPlugin } from "@md-editor/plugin-sdk/syntax";
+import type { EditorMessageTranslator, MarkdownSyntaxPlugin } from "@md-editor/plugin-sdk/syntax";
 import type { Diagnostic } from "@codemirror/lint";
 import type { DocumentLinterOptions } from "./lint/types.ts";
 import {
@@ -155,6 +155,7 @@ export interface CodeMirrorEditorBridgeOptions {
   readonly parent: HTMLElement;
   /** Per-editor lint language; omitted values follow the host document. */
   readonly language?: string;
+  readonly translateEditorMessage?: EditorMessageTranslator | undefined;
   readonly document: DocumentState;
   readonly resolveImageSrc?: (source: string) => string;
   readonly writeClipboardText?: CodeMirrorEditorClipboardWriter;
@@ -260,6 +261,7 @@ export function createCodeMirrorEditorBridge(
   const rendererOptions: CodeMirrorRendererOptions = {
     parent: options.parent,
     language: options.language,
+    translateEditorMessage: options.translateEditorMessage,
     initialSnapshot: options.document.getSnapshot(),
     // Older custom states remain valid, but cannot authorize guarded graphical edits.
     isDocumentBusy: () => options.document.isMutationBusy?.() ?? true,

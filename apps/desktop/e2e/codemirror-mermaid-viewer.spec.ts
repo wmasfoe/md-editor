@@ -152,7 +152,7 @@ test.describe("Mermaid 图表查看与编辑解耦", () => {
     const block = page.locator(".cm-md-mermaid-block").first();
     await block.hover();
     const toolbar = page.locator(".cm-md-mermaid-toolbar").first();
-    await expect(toolbar.locator("button")).toHaveText(["查看", "编辑"]);
+    await expect(toolbar.locator("button:not([hidden])")).toHaveText(["查看", "编辑"]);
     await toolbar.locator(".cm-md-mermaid-toolbar__viewer").click();
     await expect(page.locator(".cm-md-media-viewer")).toBeVisible();
     await expect(page.locator(".cm-md-marker--mermaid")).toHaveCount(0);

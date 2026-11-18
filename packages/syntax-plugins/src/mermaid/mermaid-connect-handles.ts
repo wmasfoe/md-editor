@@ -1,5 +1,6 @@
 import type { MermaidWysiwygEditor } from "@visimer/core";
 import type { MermaidCanvasView } from "@visimer/dom";
+import type { EditorMessageTranslator } from "@md-editor/plugin-sdk/syntax";
 
 /**
  * Per-node connection handles.
@@ -26,6 +27,7 @@ export interface ConnectHandleOptions {
   /** Canvas view that owns the rendered SVG and its pan/zoom transform. */
   readonly view: MermaidCanvasView;
   readonly editor: MermaidWysiwygEditor;
+  readonly text: EditorMessageTranslator;
   /** The `.mw-canvas` element; handles are positioned against its padding box. */
   readonly container: HTMLElement;
 }
@@ -51,7 +53,7 @@ function selectedNodeId(editor: MermaidWysiwygEditor): string | null {
 }
 
 export function installConnectHandles(options: ConnectHandleOptions): ConnectHandleController {
-  const { view, editor, container } = options;
+  const { view, editor, container, text } = options;
   const doc = container.ownerDocument;
 
   const layer = doc.createElement("div");
@@ -216,8 +218,11 @@ export function installConnectHandles(options: ConnectHandleOptions): ConnectHan
       handle.dataset.side = side;
       handle.dataset.source = nodeId;
       // The canvas is a host-owned dialog surface, so these stay keyboard reachable.
-      handle.setAttribute("aria-label", `从节点 ${nodeId} 拖出连线`);
-      handle.title = "拖到另一个节点以连接";
+      handle.setAttribute(
+        "aria-label",
+        text("editor.mermaid.dragFrom", "从节点 {node} 拖出连线").replace("{node}", nodeId),
+      );
+      handle.title = text("editor.mermaid.dragTo", "拖到另一个节点以连接");
       const { x, y } = anchors[side];
       handle.style.left = `${x}px`;
       handle.style.top = `${y}px`;

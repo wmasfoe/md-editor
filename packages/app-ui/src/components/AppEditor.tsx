@@ -11,6 +11,7 @@ export function AppEditor({
   onCursorLineChange,
   onRendererPortsChange,
   language,
+  translateEditorMessage,
   ...props
 }: AppEditorProps) {
   const actions = useOptionalEditorUiActions();
@@ -33,6 +34,9 @@ export function AppEditor({
     <CodeMirrorEditor
       {...props}
       language={language ?? i18n?.language}
+      translateEditorMessage={
+        translateEditorMessage ?? ((key, fallback) => i18n.t(key, { defaultValue: fallback }))
+      }
       onCursorLineChange={(line) => {
         callbacks.current.onCursorLineChange?.(line);
         actions?.updateActiveOutlineForLine(line);

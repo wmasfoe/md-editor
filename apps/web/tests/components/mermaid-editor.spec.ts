@@ -3,19 +3,19 @@ import { readFile } from "node:fs/promises";
 
 const startingMarkdown = "Before\n\nAfter";
 
-async function openApp(page: Page, markdown = startingMarkdown): Promise<void> {
-  await page.addInitScript((draft) => {
-    if (sessionStorage.getItem("md-editor:e2e-seeded") === "1") return;
-    sessionStorage.setItem("md-editor:e2e-seeded", "1");
-    localStorage.setItem("md-editor:web:draft", draft);
-    localStorage.setItem(
-      "md-editor:web:settings",
-      JSON.stringify({ language: "zh", theme: "light" }),
-    );
-    window.prompt = () => {
-      throw new Error("Graphical diagram editing must not use a native prompt");
-    };
-  }, markdown);
+async function openApp(page: Page, markdown = startingMarkdown, locale = "zh"): Promise<void> {
+  await page.addInitScript(
+    ({ draft, language }) => {
+      if (sessionStorage.getItem("md-editor:e2e-seeded") === "1") return;
+      sessionStorage.setItem("md-editor:e2e-seeded", "1");
+      localStorage.setItem("md-editor:web:draft", draft);
+      localStorage.setItem("md-editor:web:settings", JSON.stringify({ language, theme: "light" }));
+      window.prompt = () => {
+        throw new Error("Graphical diagram editing must not use a native prompt");
+      };
+    },
+    { draft: markdown, language: locale },
+  );
   await page.goto(".");
   await expect(page.locator(".cm-content").first()).toBeVisible({ timeout: 20_000 });
 }
@@ -50,22 +50,19 @@ async function openGraphicalEditor(page: Page, blockIndex = 0): Promise<void> {
  * Connect two flowchart nodes through the per-node drag handles.
  *
  * Selecting a node reveals one dot per edge midpoint; dragging a dot onto the
- * target node creates the edge. This replaced the old toolbar "connect" mode.
+ * target node creates the edge.
  */
 async function dragConnect(page: Page, sourceLabel: string, targetLabel: string): Promise<void> {
   const dialog = page.getByRole("dialog");
   const source = dialog.locator(".node").filter({ hasText: sourceLabel }).first();
+  const target = dialog.locator(".node").filter({ hasText: targetLabel }).first();
+  await expect(target).toBeVisible();
   await source.click();
   const handle = dialog.locator('.mw-connect-handle[data-side="right"]');
-  await expect(handle).toBeVisible();
-  const target = dialog.locator(".node").filter({ hasText: targetLabel }).first();
-  const from = (await handle.boundingBox())!;
-  const to = (await target.boundingBox())!;
-  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 10 });
-  await page.mouse.up();
-  await expect(dialog.locator(".mw-connect-handles--dragging")).toHaveCount(0);
+  // The canvas can replace a handle during layout. Let Playwright resolve the
+  // current handle and wait for stable geometry before starting the drag.
+  await handle.dragTo(target);
+  await expect(dialog.locator(".mw-canvas [data-mw-hit-overlay^='edge:']")).toHaveCount(1);
 }
 
 async function submitToolInput(
@@ -327,13 +324,131 @@ test("an existing Mermaid block offers exactly view and edit while source mode r
   });
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  const actions = page.locator(".cm-md-mermaid-toolbar button");
+  const actions = page.locator(".cm-md-mermaid-toolbar button:not([hidden])");
   await expect(actions).toHaveText(["查看", "编辑"]);
   await page.getByRole("button", { name: "源码", exact: true }).click();
   const source = page.locator(".cm-content").first();
   await expect(source).toContainText("flowchart TD");
   await expect(source).toContainText("Before");
   await expect(source).toContainText("After");
+});
+
+test("inserting a diagram from a fenced code block preserves the original block", async ({
+  page,
+}) => {
+  const original = "```js\nconst total = 1;\n```";
+  await openApp(page, `Before\n\n${original}\n\nAfter`);
+  await page.getByRole("button", { name: "源码", exact: true }).click();
+  await page.locator(".cm-content .cm-line").filter({ hasText: "const total" }).click();
+  await page.keyboard.press("ArrowRight");
+  await openCreation(page, "新建 Mermaid 流程图");
+  await submitToolInput(page, "添加节点", [{ label: "节点文字", value: "订单（待支付）" }]);
+  await page.getByRole("button", { name: "应用", exact: true }).click();
+  await enterWysiwyg(page);
+  await expect(page.locator(".cm-md-mermaid-block svg").getByText("订单（待支付）")).toBeVisible();
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem("md-editor:web:draft")))
+    .toBe(
+      ["Before", original, "```mermaid\nflowchart TD\n  n1[订单（待支付）]\n```", "After"].join(
+        "\n\n",
+      ),
+    );
+});
+
+test("nested Mermaid blocks offer in-context source editing", async ({ page }) => {
+  await openApp(
+    page,
+    "Before\n\n> ```mermaid\n> flowchart TD\n> A[First] --> B[Last]\n> ```\n\nAfter",
+  );
+  await enterWysiwyg(page);
+  const block = page.locator(".cm-md-mermaid-block");
+  await block.hover();
+  await expect(block.getByRole("button", { name: "图形编辑图表" })).toBeHidden();
+  await block.getByRole("button", { name: "编辑源码" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.locator(".cm-content")).toBeFocused();
+  await expect(page.locator(".cm-line").filter({ hasText: "flowchart TD" })).toBeVisible();
+});
+
+test("opens the current diagram and adds a connection using only the keyboard", async ({
+  page,
+}) => {
+  await openApp(page, "Before\n\n```mermaid\nflowchart TD\n  A[First]\n  B[Last]\n```\n\nAfter");
+  await page.getByRole("button", { name: "源码", exact: true }).click();
+  await page.locator(".cm-content .cm-line").filter({ hasText: "flowchart TD" }).click();
+  const modifier = await page.evaluate(() =>
+    /Mac|iPhone|iPad/.test(navigator.platform) ? "Meta" : "Control",
+  );
+  await page.keyboard.press(`${modifier}+Shift+Enter`);
+  const dialog = page.getByRole("dialog", { name: "编辑图表" });
+  await expect(dialog.getByRole("button", { name: "添加节点", exact: true })).toBeFocused();
+  await page.keyboard.press("Tab");
+  const connect = dialog.getByRole("button", { name: "连接节点", exact: true });
+  await expect(connect).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(dialog.getByLabel("起点", { exact: true })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(dialog.getByLabel("终点", { exact: true })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Enter");
+  await expect(dialog.locator(".mw-canvas [data-mw-hit-overlay^='edge:']")).toHaveCount(1);
+  await expect(connect).toBeFocused();
+  const apply = dialog.getByRole("button", { name: "应用", exact: true });
+  await page.keyboard.press("Shift+Tab");
+  await page.keyboard.press("Shift+Tab");
+  await expect(apply).toBeFocused();
+  await page.keyboard.press("Enter");
+  expect(await readMarkdown(page)).toContain("A --> B");
+});
+
+test("deleting a sequence message preserves later messages with literal emoji", async ({
+  page,
+}) => {
+  const remaining = "B->>C: 返回 ✅";
+  await openApp(
+    page,
+    [
+      "Before",
+      "",
+      "```mermaid",
+      "sequenceDiagram",
+      "  A->>B: Remove me",
+      "  " + remaining,
+      "```",
+      "",
+      "After",
+    ].join("\n"),
+  );
+  await enterWysiwyg(page);
+  await openGraphicalEditor(page);
+  const dialog = page.getByRole("dialog");
+  await dialog.getByText("Remove me", { exact: true }).click();
+  await dialog.getByRole("button", { name: "删除消息", exact: true }).click();
+  await expect(dialog.getByText("Remove me", { exact: true })).toBeHidden();
+  await expect(dialog.getByText("返回 ✅", { exact: true })).toBeVisible();
+  await dialog.getByRole("button", { name: "应用", exact: true }).click();
+  const markdown = await readMarkdown(page);
+  expect(markdown).toContain(remaining);
+  expect(markdown).not.toContain("Remove me");
+});
+
+test("localizes the block, canvas and dialog controls for the English UI", async ({ page }) => {
+  await openApp(
+    page,
+    "Before\n\n```mermaid\nflowchart TD\n  A[First] --> B[Last]\n```\n\nAfter",
+    "en",
+  );
+  await page.getByRole("button", { name: "Visual", exact: true }).click();
+  const block = page.locator(".cm-md-mermaid-block");
+  await block.hover();
+  await block.getByRole("button", { name: "Edit diagram graphically" }).click();
+  const dialog = page.getByRole("dialog", { name: "Edit diagram" });
+  const toolbar = dialog.getByRole("navigation", { name: "Flowchart editing tools" });
+  await expect(toolbar.getByRole("button", { name: "Connect nodes" })).toBeEnabled();
+  await toolbar.getByRole("button", { name: "Add node" }).click();
+  await expect(dialog.getByLabel("Node text")).toBeFocused();
+  await expect(dialog.getByRole("button", { name: "OK", exact: true })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Apply", exact: true })).toBeDisabled();
 });
 
 for (const viewport of [
@@ -359,7 +474,7 @@ for (const viewport of [
     const visibleActions = toolbar.locator(
       ".cm-md-mermaid-graphical-toolbar__actions button:visible",
     );
-    await expect(visibleActions).toHaveText(["添加节点"]);
+    await expect(visibleActions).toHaveText(["添加节点", "连接节点"]);
     const canvas = dialog.locator(".mw-canvas");
     const assertClearCanvas = async () => {
       const bar = (await toolbar.boundingBox())!;
@@ -373,8 +488,8 @@ for (const viewport of [
     await assertClearCanvas();
     const node = dialog.locator('[data-mw-entity="node:A"]').first();
     await node.click();
-    await expect(visibleActions).toHaveText(["添加节点", "修改节点文字", "删除节点"]);
-    // Selecting a node reveals four edge handles instead of a toolbar connect mode.
+    await expect(visibleActions).toHaveText(["添加节点", "连接节点", "修改节点文字", "删除节点"]);
+    // Selecting a node also reveals four drag handles.
     await expect(dialog.locator(".mw-connect-handle")).toHaveCount(4);
     await assertClearCanvas();
     const labelBox = (await node.locator(".nodeLabel").boundingBox())!;

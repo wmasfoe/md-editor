@@ -322,6 +322,48 @@ describe("graphical code editor", () => {
     expect(create.view.state.doc.toString()).toBe(create.markdown);
   });
 
+  it("inserts the diagram at a Markdown block boundary", async () => {
+    const nextParagraph = "\n\nAfter";
+    for (const [block, cursorText, insertBefore] of [
+      ["Before paragraph\ncontinues here", "continues", false],
+      ["```js\nconst total = 1;\n```", "const total", false],
+      ["  ```js\nconst total = 1;\n  ```", "  ```js", false],
+      ["> quoted line\n> continues", "continues", false],
+      ["- first item\n- second item", "first item", false],
+      ["| A | B |\n| - | - |\n| 1 | 2 |", "| 1", false],
+      ["```js\nconst total = 1;", "const total", true],
+    ] as const) {
+      const markdown = block + nextParagraph;
+      let onChange!: (source: string) => void;
+      const graphProvider = provider((callback) => {
+        onChange = callback;
+      });
+      const create = setup(
+        [{ id: "mermaid", name: "Mermaid", graphicalEditor: graphProvider }],
+        markdown,
+      );
+      create.view.dispatch({ selection: { anchor: markdown.indexOf(cursorText) } });
+      expect(create.renderer.executeFormatting("insert.mermaid.flowchart")).toBe(true);
+      await vi.waitFor(() => expect(activeDialog()).toBeTruthy());
+      const dialog = activeDialog();
+      onChange("flowchart TD\n  A[created]");
+      await vi.waitFor(() =>
+        expect(
+          dialog.querySelector<HTMLButtonElement>(".md-editor-graphical-code-editor__apply")!
+            .disabled,
+        ).toBe(false),
+      );
+      dialog.querySelector<HTMLButtonElement>(".md-editor-graphical-code-editor__apply")!.click();
+      await vi.waitFor(() => expect(create.view.state.doc.toString()).not.toBe(markdown));
+      const diagram = "```mermaid\nflowchart TD\n  A[created]\n```";
+      expect(create.view.state.doc.toString()).toBe(
+        insertBefore ? diagram + "\n\n" + markdown : block + "\n\n" + diagram + nextParagraph,
+      );
+      expect(create.renderer.undo()).toBe(true);
+      expect(create.view.state.doc.toString()).toBe(markdown);
+    }
+  });
+
   it("keeps create cancellation, read-only, stale, and IME paths write-free", async () => {
     const graphProvider = provider(() => {});
     const create = setup([{ id: "mermaid", name: "Mermaid", graphicalEditor: graphProvider }]);

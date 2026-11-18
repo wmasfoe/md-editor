@@ -7,7 +7,7 @@ import {
   type CSSProperties,
 } from "react";
 import type { DocumentState } from "@md-editor/core";
-import type { MarkdownSyntaxPlugin } from "@md-editor/plugin-sdk/syntax";
+import type { EditorMessageTranslator, MarkdownSyntaxPlugin } from "@md-editor/plugin-sdk/syntax";
 import {
   createCodeMirrorEditorBridge,
   type CodeMirrorEditorBridge,
@@ -27,6 +27,7 @@ export interface CodeMirrorEditorProps {
   readonly document: DocumentState;
   /** Per-editor language for lint diagnostics. */
   readonly language?: string;
+  readonly translateEditorMessage?: EditorMessageTranslator | undefined;
   readonly codeBlockLineNumbers?: boolean;
   /** 是否常显加粗/斜体/删除线/行内代码的 markdown 标记源码（默认 false = 仅触及时临时显形）。 */
   readonly showInlineStyleMarkers?: boolean;
@@ -70,6 +71,7 @@ export interface CodeMirrorEditorProps {
 export function CodeMirrorEditor({
   document,
   language,
+  translateEditorMessage,
   codeBlockLineNumbers = false,
   showInlineStyleMarkers = false,
   enableMarkdownLint = false,
@@ -117,6 +119,7 @@ export function CodeMirrorEditor({
     onAiSuggestionAccepted,
     enableMarkdownLint,
     language,
+    translateEditorMessage,
     onSyncError,
   });
   callbacksRef.current = {
@@ -134,6 +137,7 @@ export function CodeMirrorEditor({
     onAiSuggestionAccepted,
     enableMarkdownLint,
     language,
+    translateEditorMessage,
     onSyncError,
   };
   const hasClipboardWriter = writeClipboardText !== undefined;
@@ -186,6 +190,8 @@ export function CodeMirrorEditor({
       aiSuggestionLabels: callbacksRef.current.aiSuggestionLabels,
       enableMarkdownLint: callbacksRef.current.enableMarkdownLint,
       language: callbacksRef.current.language,
+      translateEditorMessage: (key, fallback) =>
+        callbacksRef.current.translateEditorMessage?.(key, fallback) ?? fallback,
     });
     bridgeRef.current = bridge;
     callbacksRef.current.onRendererPortsChange?.(bridge.ports);

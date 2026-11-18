@@ -1,4 +1,6 @@
 import type { MermaidWysiwygEditor } from "@visimer/core";
+import type { EditorMessageTranslator } from "@md-editor/plugin-sdk/syntax";
+import { isMermaidLabel } from "./mermaid-draft-editor.ts";
 
 /**
  * Inline "new node" placeholder.
@@ -14,13 +16,11 @@ import type { MermaidWysiwygEditor } from "@visimer/core";
  * trade of automatic layout, not an unfinished feature.
  */
 
-/** Matches the label alphabet the toolbar form accepts, so both paths agree. */
-const SAFE_LABEL = /^[-\p{L}\p{N}\p{M} _.,!?;:()/+]*$/u;
-
 export interface InlineNodeCreationOptions {
   readonly editor: MermaidWysiwygEditor;
   /** The `.mw-canvas` element; the placeholder is positioned against it. */
   readonly container: HTMLElement;
+  readonly text: EditorMessageTranslator;
   /** Report a rejected label to the host status line. */
   readonly onError: (message: string) => void;
   /** Suspends competing canvas mutations while the placeholder is open. */
@@ -38,7 +38,7 @@ export interface InlineNodeCreationController {
 export function installInlineNodeCreation(
   options: InlineNodeCreationOptions,
 ): InlineNodeCreationController {
-  const { editor, container, onError, onBusyChange } = options;
+  const { editor, container, text, onError, onBusyChange } = options;
   const doc = container.ownerDocument;
 
   let placeholder: HTMLElement | null = null;
@@ -62,8 +62,13 @@ export function installInlineNodeCreation(
       close();
       return;
     }
-    if (!SAFE_LABEL.test(label)) {
-      onError("文字包含不支持的符号或换行，请使用单行文字和常规标点。");
+    if (!isMermaidLabel(label)) {
+      onError(
+        text(
+          "editor.mermaid.invalidLabel",
+          "文字包含不支持的符号或换行，请使用单行文字和常规标点。",
+        ),
+      );
       input.focus();
       return;
     }
@@ -84,8 +89,8 @@ export function installInlineNodeCreation(
     field.contentEditable = "true";
     field.spellcheck = false;
     field.setAttribute("role", "textbox");
-    field.setAttribute("aria-label", "新节点文字");
-    field.dataset.placeholder = "节点文字";
+    field.setAttribute("aria-label", text("editor.mermaid.newNodeText", "新节点文字"));
+    field.dataset.placeholder = text("editor.mermaid.nodeText", "节点文字");
 
     element.append(field);
     container.append(element);

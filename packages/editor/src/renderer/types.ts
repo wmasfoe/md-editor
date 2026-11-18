@@ -21,7 +21,11 @@ import type {
 } from "@md-editor/core";
 import type { Markdown } from "@md-editor/shared";
 import type { WysiwygDiagnosticsSnapshot } from "../diagnostics.ts";
-import type { MarkdownSyntaxPlugin, SyntaxPluginHostPorts } from "@md-editor/plugin-sdk/syntax";
+import type {
+  EditorMessageTranslator,
+  MarkdownSyntaxPlugin,
+  SyntaxPluginHostPorts,
+} from "@md-editor/plugin-sdk/syntax";
 import type { MdxComponentLookup } from "../wysiwyg/projections/mdx-projection.ts";
 import type { WysiwygProjectionSnapshot } from "../wysiwyg/state/types.ts";
 import type { ImagePreviewResolver } from "../wysiwyg/view/image-resolver.ts";
@@ -66,6 +70,7 @@ export interface CodeMirrorRendererOptions {
    * 传 `{}` 可让插件降级（例如不渲染“放大”入口）。
    */
   readonly syntaxPluginHostPorts?: SyntaxPluginHostPorts;
+  readonly translateEditorMessage?: EditorMessageTranslator | undefined;
   readonly onEditorChange: (change: {
     readonly markdown: Markdown;
     readonly origin: {

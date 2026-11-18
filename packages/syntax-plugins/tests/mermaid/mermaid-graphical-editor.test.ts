@@ -195,8 +195,8 @@ describe("Mermaid graphical editor capability", () => {
     const connectButton = [...container.querySelectorAll("button")].find(
       (button) => button.textContent === "连接节点",
     );
-    // Connecting moved from a toolbar mode to per-node drag handles.
-    expect(connectButton).toBeUndefined();
+    // The button offers an alternative to dragging a connection handle.
+    expect(connectButton?.disabled).toBe(false);
     expect(
       [...container.querySelectorAll("button")].some(
         (button) => button.textContent === "选择起终点",
