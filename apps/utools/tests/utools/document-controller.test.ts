@@ -6,10 +6,10 @@ import { useUtoolsDocumentController } from "../../src/utools/use-utools-documen
 
 // Exercise the action use cases without mounting platform UI or scheduling autosave timers.
 vi.mock("react", () => ({ useCallback: (callback: unknown) => callback, useEffect: vi.fn() }));
-vi.mock("../../src/utools/db-storage", () => ({
-  clearLastOpenedFile: vi.fn(),
-  saveLastOpenedFile: vi.fn(),
+vi.mock("../../src/utools/file-access", () => ({
+  fileAccess: { saveMarkdown: vi.fn(), closeDocument: vi.fn() },
 }));
+import { fileAccess } from "../../src/utools/file-access";
 beforeEach(() => vi.mocked(useEffect).mockClear());
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -21,6 +21,11 @@ function UseTestController(
   rendererPorts: CodeMirrorEditorPorts | null = null,
 ) {
   const writeFile = vi.fn();
+  vi.mocked(fileAccess.saveMarkdown).mockImplementation((path, markdown) => {
+    if (path === null) return showSaveDialog();
+    writeFile(path, markdown);
+    return path;
+  });
   const showSaveDialog = vi.fn(() => null);
   vi.stubGlobal("window", { inkpointNodeBridge: { writeFile }, utools: { showSaveDialog } });
   const document = createDocumentState({ markdown: "unsaved", savedMarkdown: "", filePath });

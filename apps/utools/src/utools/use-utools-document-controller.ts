@@ -12,7 +12,7 @@ import {
 } from "@md-editor/core";
 import type { CodeMirrorEditorPorts } from "@md-editor/editor";
 import { imageAltTextFromFileName, type MarkdownFolder } from "@md-editor/file-system";
-import { clearLastOpenedFile, saveLastOpenedFile } from "./db-storage";
+import { fileAccess } from "./file-access";
 import type { EditorMode } from "./types";
 
 export interface UseUtoolsDocumentControllerOptions {
@@ -44,16 +44,10 @@ export function useUtoolsDocumentController({
       // Autosave persists the published snapshot without committing an active table/IME edit.
       if (intent === "manual") rendererPorts?.flushPendingEdits();
       const execution = await executeDocumentSave(docState, (checkpoint) => {
-        const destination = checkpoint.destination;
-        const targetPath =
-          destination.kind === "current-path"
-            ? destination.path
-            : window.utools?.showSaveDialog({
-                title: "保存 Markdown 文档",
-                defaultPath: destination.suggestedPath ?? "未命名.md",
-                filters: [{ name: "Markdown", extensions: ["md", "markdown", "mdx"] }],
-                buttonLabel: "保存",
-              });
+        const targetPath = fileAccess.saveMarkdown(
+          checkpoint.destination.kind === "current-path" ? checkpoint.destination.path : null,
+          checkpoint.markdownLf,
+        );
         if (!targetPath)
           return {
             status: "cancelled",
@@ -61,7 +55,6 @@ export function useUtoolsDocumentController({
             phase: "dialog",
             reason: "dialog-cancelled",
           };
-        bridge.writeFile(targetPath, checkpoint.markdownLf);
         return { status: "succeeded", commit: "committed", filePath: targetPath, warnings: [] };
       });
       const { outcome, checkpoint } = execution;
@@ -76,11 +69,10 @@ export function useUtoolsDocumentController({
       )
         return false;
       if (outcome.status !== "succeeded") return false;
-      saveLastOpenedFile(outcome.filePath);
       const activeFolder = folderRef.current;
       if (activeFolder && outcome.filePath.startsWith(activeFolder.rootPath)) {
         try {
-          setFolder(bridge.scanFolder(activeFolder.rootPath));
+          setFolder(fileAccess.refreshWorkspace(activeFolder.rootPath));
         } catch (error) {
           // A tree refresh failure must not turn an already committed save into a failed write.
           console.warn("保存后刷新目录失败", error);
@@ -111,7 +103,7 @@ export function useUtoolsDocumentController({
       { markdown: "", savedMarkdown: "", filePath: null, mode: docState.getSnapshot().mode },
       { kind: "command", commandId: "file.new" },
     );
-    clearLastOpenedFile();
+    fileAccess.closeDocument();
     setMode("file");
   }, [docState, handleSaveDocument, rendererPorts, setMode]);
 
@@ -135,7 +127,7 @@ export function useUtoolsDocumentController({
         if (current.documentGeneration !== generation) return;
       }
 
-      if (!current.filePath || !window.inkpointNodeBridge?.savePastedImage) {
+      if (!current.filePath || !window.inkpointNodeBridge) {
         showToast("当前环境不支持保存本地图片");
         return;
       }
@@ -143,12 +135,12 @@ export function useUtoolsDocumentController({
       const insertImage = rendererPorts.prepareImageInsertion({ layout: "block" });
       try {
         const buffer = await file.arrayBuffer();
-        const res = window.inkpointNodeBridge.savePastedImage(
-          current.filePath,
-          file.type || "image/png",
-          buffer,
-          file.name,
-        );
+        const latest = docState.getSnapshot();
+        if (latest.documentGeneration !== generation || latest.filePath !== current.filePath) {
+          showToast("文档已变化，请重新插入图片。");
+          return;
+        }
+        const res = fileAccess.insertImage(current.filePath, file.type || "image/png", buffer);
 
         const result = insertImage({ src: res.markdownPath, alt: altText });
         if (

@@ -18,14 +18,7 @@ import {
   type RenameTreeItemInput,
   type RuntimeFileService,
 } from "@md-editor/file-system";
-import type { InkpointNodeBridge } from "./types";
-
-function getNodeBridge(): InkpointNodeBridge {
-  if (typeof window !== "undefined" && window.inkpointNodeBridge) {
-    return window.inkpointNodeBridge;
-  }
-  throw new Error("uTools 原生桥接环境未就绪（inkpointNodeBridge 不存在）");
-}
+import { fileAccess } from "./file-access";
 
 /**
  * 创建针对 uTools 环境的文件服务适配器
@@ -33,65 +26,36 @@ function getNodeBridge(): InkpointNodeBridge {
 export function createUtoolsFileAdapter(): FileServiceAdapter {
   return {
     async openMarkdownFile(): Promise<MarkdownDocumentFile | null> {
-      if (typeof window === "undefined" || typeof window.utools === "undefined") {
-        return null;
-      }
-      const paths = window.utools.showOpenDialog({
-        filters: [{ name: "Markdown", extensions: ["md", "markdown", "mdx", "txt"] }],
-        properties: ["openFile"],
-      });
-      if (!paths || paths.length === 0) {
-        return null;
-      }
-      const bridge = getNodeBridge();
-      const filePath = paths[0];
-      const markdown = bridge.readFile(filePath);
-      return { filePath, markdown };
+      return fileAccess.pickDocument();
     },
 
     async readMarkdownFile(filePath: string): Promise<MarkdownDocumentFile> {
-      const bridge = getNodeBridge();
-      const markdown = bridge.readFile(filePath);
-      return { filePath, markdown };
+      return fileAccess.openWorkspaceDocument(filePath);
     },
 
     async openMarkdownFolder(): Promise<MarkdownFolder | null> {
-      if (typeof window === "undefined" || typeof window.utools === "undefined") {
-        return null;
-      }
-      const paths = window.utools.showOpenDialog({
-        properties: ["openDirectory"],
-      });
-      if (!paths || paths.length === 0) {
-        return null;
-      }
-      const bridge = getNodeBridge();
-      return bridge.scanFolder(paths[0]);
+      return fileAccess.pickWorkspace();
     },
 
     async refreshMarkdownFolder(rootPath: string): Promise<MarkdownFolder> {
-      const bridge = getNodeBridge();
-      return bridge.scanFolder(rootPath);
+      return fileAccess.refreshWorkspace(rootPath);
     },
 
     async createMarkdownTreeItem(input: CreateTreeItemInput): Promise<FileTreeMutationResult> {
-      const bridge = getNodeBridge();
-      const affectedPath = bridge.createTreeItem(input.parentPath, input.name, input.kind);
-      const folder = bridge.scanFolder(input.rootPath);
+      const affectedPath = fileAccess.createTreeItem(input.parentPath, input.name, input.kind);
+      const folder = fileAccess.refreshWorkspace(input.rootPath);
       return { folder, affectedPath };
     },
 
     async renameMarkdownTreeItem(input: RenameTreeItemInput): Promise<FileTreeMutationResult> {
-      const bridge = getNodeBridge();
-      const affectedPath = bridge.renameTreeItem(input.path, input.name);
-      const folder = bridge.scanFolder(input.rootPath);
+      const affectedPath = fileAccess.renameTreeItem(input.path, input.name);
+      const folder = fileAccess.refreshWorkspace(input.rootPath);
       return { folder, affectedPath };
     },
 
     async deleteMarkdownTreeItem(input: DeleteTreeItemInput): Promise<FileTreeMutationResult> {
-      const bridge = getNodeBridge();
-      bridge.deleteTreeItem(input.path);
-      const folder = bridge.scanFolder(input.rootPath);
+      fileAccess.deleteTreeItem(input.path);
+      const folder = fileAccess.refreshWorkspace(input.rootPath);
       return { folder, affectedPath: null };
     },
   };
@@ -103,36 +67,19 @@ export function createUtoolsFileAdapter(): FileServiceAdapter {
 export function createUtoolsNativeSaveAdapter(): NativeSaveAdapter {
   return {
     async saveMarkdownJob(job: NativeFileSaveJob): Promise<unknown> {
-      const bridge = getNodeBridge();
-      let targetPath: string | null = null;
-
-      if (job.destination.kind === "current-path") {
-        targetPath = job.destination.path;
-      } else if (job.destination.kind === "prompt") {
-        if (typeof window !== "undefined" && typeof window.utools !== "undefined") {
-          const defaultPath = job.destination.suggestedPath ?? "untitled.md";
-          const chosen = window.utools.showSaveDialog({
-            title: "保存 Markdown 文档",
-            defaultPath,
-            filters: [{ name: "Markdown", extensions: ["md", "markdown"] }],
-            buttonLabel: "保存",
-          });
-          targetPath = chosen ?? null;
-        }
-      }
-
-      // 用户取消了保存对话框
-      if (!targetPath) {
-        return {
-          status: "not-committed",
-          disposition: "cancelled",
-          runtimeSequence: job.orderingToken.runtimeSequence,
-          phase: "dialog",
-        };
-      }
-
       try {
-        bridge.writeFile(targetPath, job.markdownLf);
+        const targetPath = fileAccess.saveMarkdown(
+          job.destination.kind === "current-path" ? job.destination.path : null,
+          job.markdownLf,
+        );
+        if (!targetPath) {
+          return {
+            status: "not-committed",
+            disposition: "cancelled",
+            runtimeSequence: job.orderingToken.runtimeSequence,
+            phase: "dialog",
+          };
+        }
         return {
           status: "committed",
           runtimeSequence: job.orderingToken.runtimeSequence,

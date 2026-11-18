@@ -2,6 +2,17 @@
 
 All notable changes to the Inkpoint uTools plugin will be documented in this file.
 
+## 0.2.0 - 2026-11-18
+
+- Enable live Markdown linting in editor settings. Issues are underlined, with explanations and quick fixes for supported rules available on hover.
+- Smart paste converts rich text copied from web pages into Markdown while preserving headings, lists, tables, and code blocks. Hold Shift to paste plain text. Paste a URL over selected text to turn it into a Markdown link.
+- Edit HTML block source in place and continue writing below a table, HTML block, or horizontal rule at the end of a document.
+- Configure an AI provider to trigger inline writing suggestions and grammar checks with keyboard shortcuts.
+- Settings are grouped by editor, appearance, AI assistance, and shortcut reference. Appearance can follow the system or use light or dark mode.
+- Improved local image insertion and save error messages. Image insertion can replace the selection and be undone, with a retry prompt if the document changes during processing.
+- Improved callout and GFM Alert rendering and fixed the invisible editing caret in table cells.
+- Local file access is limited to documents and workspaces selected through uTools or a system dialog. Pasted images are saved in the document's neighboring `assets` folder. Reopen a file or workspace after restarting the plugin.
+
 ## 0.1.1 - 2026-09-18
 
 - Fix critical issue where saving documents or pasting/dropping local images caused unexpected viewport jumps to top, selection loss, and undo history disruption (#90)
