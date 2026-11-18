@@ -1,5 +1,15 @@
 # @md-editor/editor
 
+## 0.3.1
+
+### Patch Changes
+
+- 27a6557: Keep Mermaid insertion within Markdown block boundaries, preserve diagram undo history, and improve source fallback, keyboard access, and localization.
+- Updated dependencies [27a6557]
+  - @md-editor/plugin-sdk@0.6.0
+  - @md-editor/core@0.3.1
+  - @md-editor/plugin-host@0.2.2
+
 ## 0.3.0
 
 ### Minor Changes

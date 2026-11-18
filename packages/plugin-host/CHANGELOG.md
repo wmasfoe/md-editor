@@ -1,5 +1,12 @@
 # @md-editor/plugin-host
 
+## 0.2.2
+
+### Patch Changes
+
+- Updated dependencies [27a6557]
+  - @md-editor/plugin-sdk@0.6.0
+
 ## 0.2.1
 
 ### Patch Changes
