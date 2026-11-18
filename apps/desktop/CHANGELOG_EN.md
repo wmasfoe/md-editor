@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.23.3 - 2026-11-18 (#274)
+
+- Fix missing selection highlighting when selecting all in a newly opened WYSIWYG document on macOS.
+
 ## 0.23.2 - 2026-11-18 (#265)
 
 - Keep Mermaid insertion at Markdown block boundaries and preserve sequence messages and undo history. Edit nested diagrams in source, connect nodes with the keyboard, and use full-width punctuation in labels.
