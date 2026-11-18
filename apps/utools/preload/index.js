@@ -9,6 +9,7 @@ const showSaveDialog = host?.showSaveDialog?.bind(host);
 const IMAGE_TYPES = new Map([
   [".png", "image/png"],
   [".jpg", "image/jpeg"],
+  [".jpeg", "image/jpeg"],
   [".gif", "image/gif"],
   [".webp", "image/webp"],
   [".svg", "image/svg+xml"],

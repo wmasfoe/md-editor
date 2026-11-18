@@ -295,6 +295,7 @@ describe("uTools Platform Adapters", () => {
         fs.writeFileSync(note, "# Note");
         fs.writeFileSync(image, "outside");
         fs.writeFileSync(path.join(docs, "assets", "test image.png"), "inside");
+        fs.writeFileSync(path.join(docs, "assets", "photo.jpeg"), "jpeg");
         fs.writeFileSync(path.join(docs, "local.txt"), "not an image");
         vi.mocked(window.utools.showOpenDialog).mockReturnValue([note]);
         delete require.cache[require.resolve("../../preload/index.js")];
@@ -307,6 +308,11 @@ describe("uTools Platform Adapters", () => {
         expect(bridge.resolveDocumentImage(id, "<assets/test%20image.png?v=123#center>")).toBe(
           "data:image/png;base64," + Buffer.from("inside").toString("base64"),
         );
+        expect(bridge.resolveDocumentImage(id, "assets/photo.jpeg")).toBe(
+          "data:image/jpeg;base64," + Buffer.from("jpeg").toString("base64"),
+        );
+        const saved = bridge.saveDocumentImage(id, "image/jpeg", new ArrayBuffer(1));
+        expect(saved.markdownPath).toMatch(/\.jpg$/u);
         for (const blocked of [image, "../outside.png", "local.txt", "assets/missing.png"]) {
           expect(bridge.resolveDocumentImage(id, blocked)).toMatch(/^data:image\/gif;/);
         }
