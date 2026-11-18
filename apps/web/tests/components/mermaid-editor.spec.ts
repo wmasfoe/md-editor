@@ -50,22 +50,19 @@ async function openGraphicalEditor(page: Page, blockIndex = 0): Promise<void> {
  * Connect two flowchart nodes through the per-node drag handles.
  *
  * Selecting a node reveals one dot per edge midpoint; dragging a dot onto the
- * target node creates the edge. This replaced the old toolbar "connect" mode.
+ * target node creates the edge.
  */
 async function dragConnect(page: Page, sourceLabel: string, targetLabel: string): Promise<void> {
   const dialog = page.getByRole("dialog");
   const source = dialog.locator(".node").filter({ hasText: sourceLabel }).first();
+  const target = dialog.locator(".node").filter({ hasText: targetLabel }).first();
+  await expect(target).toBeVisible();
   await source.click();
   const handle = dialog.locator('.mw-connect-handle[data-side="right"]');
-  await expect(handle).toBeVisible();
-  const target = dialog.locator(".node").filter({ hasText: targetLabel }).first();
-  const from = (await handle.boundingBox())!;
-  const to = (await target.boundingBox())!;
-  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 10 });
-  await page.mouse.up();
-  await expect(dialog.locator(".mw-connect-handles--dragging")).toHaveCount(0);
+  // The canvas can replace a handle during layout. Let Playwright resolve the
+  // current handle and wait for stable geometry before starting the drag.
+  await handle.dragTo(target);
+  await expect(dialog.locator(".mw-canvas [data-mw-hit-overlay^='edge:']")).toHaveCount(1);
 }
 
 async function submitToolInput(
