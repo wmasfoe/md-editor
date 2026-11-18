@@ -50,6 +50,10 @@ jobs:
       - name: Lint (Structure)
         run: pnpm lint:structure
 
+      # Changeset 校验：既检查“改了已发布包却没有 changeset”，
+      # 也检查 changeset 本身格式合法（例如混入 ignored 包）。
+      # 后者曾导致 PR #270 合并后 main 的 release-npm-packages workflow 失败，
+      # 因为 `changeset version` 只在发版时才解析 changeset。
       - name: Check Changeset
         if: github.event_name == 'pull_request' && github.head_ref != 'changeset-release/main'
         run: node scripts/packages/check-changeset.mjs --strict
