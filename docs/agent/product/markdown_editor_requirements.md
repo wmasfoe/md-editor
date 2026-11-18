@@ -284,7 +284,7 @@ AI 功能作为后续增强能力，不阻塞基础编辑功能。
 
 ### 6.3 用户风格学习
 
-已实现（v0.22.0）：基于用户当前工作区的历史文章建立写作风格画像，并用于纠错、润色和续写。开关默认关闭，只用本地 Standard 模型，画像与排除列表只存应用数据目录。详见 [AI 需求 §8](./markdown_editor_ai_feature_requirements.md#8-用户风格学习写作偏好) 与 [风格学习架构](../architecture/style_profile_architecture.md)。
+已实现（v0.22.0）：基于用户当前工作区的历史文章建立写作风格画像，并用于**纠错与续写**。开关默认关闭，只用本地 Standard 模型，画像与排除列表只存应用数据目录。通用选区“润色”尚未接入，见 [竞品分析 §7 第 4 批](./vmark_competitive_analysis.md)。详见 [AI 需求 §8](./markdown_editor_ai_feature_requirements.md#8-用户风格学习写作偏好) 与 [风格学习架构](../architecture/style_profile_architecture.md)。
 
 ---
 

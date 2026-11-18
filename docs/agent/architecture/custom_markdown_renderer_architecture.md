@@ -625,7 +625,7 @@ S3 实现和验证已在同一 CM6 文档和同一 `.cm-content` 内完成，不
 - 未注册、语法错误、不支持 expression 和渲染异常进入占位块。
 - React root 滚动进出视口无泄漏和明显闪烁。
 
-S5 必须分开记账：`S5-FM` 是只验证 Frontmatter 的独立子 spike，并同时作为 M1-FM 的实现证据；它不得携带 HTML/MDX 工作，也不得把通过写成整个 S5 完成。当前 S5-FM 的单元、完整 Chromium 与 macOS Tauri/WebKit N08 已通过；S5 HTML/MDX 仍未开始。
+S5 必须分开记账：`S5-FM` 是只验证 Frontmatter 的独立子 spike，并同时作为 M1-FM 的实现证据；它不得携带 HTML/MDX 工作，也不得把通过写成整个 S5 完成。当前 S5-FM 的单元、完整 Chromium 与 macOS Tauri/WebKit N08 已通过；S5 HTML/MDX 已于 2026-08-04（G005）验证，具体证据见 [迁移状态文档](../status/codemirror_renderer_migration_status.md)。
 
 ### S6：性能基线
 
