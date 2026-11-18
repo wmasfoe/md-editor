@@ -787,12 +787,15 @@ export function useDesktopEditorController({
   useEffect(() => bindDesktopMenuCommands(dispatchCommand), [dispatchCommand]);
   // Hot Exit 写入侧：退出前读一次光标，让草稿恢复能回到原位置。
   // 端口未挂载时返回 null，会话层据此回退默认值而不是伪造位置。
+  //
+  // 用 `head` 而不是 `from`：反向选中一段文字时（anchor 在后、head 在前），
+  // `from` 是选区起点而非用户实际的光标落点，恢复后会跳到选区开头。
   const readCursorOffset = useCallback((): number | null => {
     const access = getRendererPorts();
     if (access.status !== "available") {
       return null;
     }
-    return access.ports.getSelectionSnapshot().from;
+    return access.ports.getSelectionSnapshot().head;
   }, [getRendererPorts]);
 
   useEffect(() => bindBrowserDirtyDocumentGuard(readCursorOffset), [readCursorOffset]);

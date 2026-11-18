@@ -9,8 +9,14 @@ export interface SessionDocumentEntry {
   readonly isUntitled: boolean;
   /** 草稿唯一标识符 */
   readonly draftId: string;
-  /** 光标偏移量 */
-  readonly cursorOffset: number;
+  /**
+   * 光标偏移量。
+   *
+   * 缺省表示“宿主未能提供”（例如退出时编辑器未挂载），与真实的 `0`（光标确实在文档开头）
+   * 语义不同：前者恢复时回退到文档末尾，后者精确回到开头。
+   * 旧版本会话总是写入数字，因此升级不会遇到缺省分支。
+   */
+  readonly cursorOffset?: number;
   /** 滚动位置（垂直像素或行号） */
   readonly scrollOffset?: number;
   /** 编辑器视图模式 */

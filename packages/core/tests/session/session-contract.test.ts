@@ -78,6 +78,15 @@ describe("restoreDraftToDocument cursor offset contract", () => {
     expect(res.cursorOffset).toBe(cursorDraft.length);
   });
 
+  it("clamps against the LF-normalized length so CRLF drafts cannot exceed the real document", () => {
+    // replaceDocument 内部会做 LF 归一化；上界若用原始 CRLF 长度，
+    // 就会留下一个文档模型里够不到的位置。
+    const crlfDraft = "line one\r\nline two\r\nline three";
+    const res = restoreDraftToDocument(createCursorDoc(), crlfDraft, { cursorOffset: 9999 });
+    expect(res.cursorOffset).toBe(crlfDraft.replace(/\r\n/gu, "\n").length);
+    expect(res.cursorOffset).toBeLessThan(crlfDraft.length);
+  });
+
   it("treats non-finite offsets as absent instead of producing NaN", () => {
     const res = restoreDraftToDocument(createCursorDoc(), cursorDraft, {
       cursorOffset: Number.NaN,

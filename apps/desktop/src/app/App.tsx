@@ -242,8 +242,10 @@ function MainApp({
                   const { cursorOffset } = restorePendingDraft(pendingDraft);
                   // 文档模型已把偏移夹取到合法区间；这里只负责写入选区，
                   // 不自行判断边界（光标语义归文档模型所有）。
+                  // `undefined` 表示草稿没记录光标（旧会话 / 退出时编辑器未挂载），
+                  // 此时保留文档模型默认光标，不伪造一个位置。
                   const access = getRendererPorts();
-                  if (access.status === "available") {
+                  if (cursorOffset !== undefined && access.status === "available") {
                     access.ports.setSelection(cursorOffset, cursorOffset);
                   }
                   setPendingDraft(null);
