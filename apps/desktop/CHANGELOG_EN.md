@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.23.2 - 2026-11-18 (#265)
+
+- Keep Mermaid insertion at Markdown block boundaries and preserve sequence messages and undo history. Edit nested diagrams in source, connect nodes with the keyboard, and use full-width punctuation in labels.
+
 ## 0.23.1 - 2026-11-17 (#264)
 
 - Fix Markdown files launching Inkpoint without opening the document on macOS, including cold starts, running apps and special-character paths, while preserving unsaved changes confirmation. Align supported Markdown extensions across the file tree and open and save dialogs.
