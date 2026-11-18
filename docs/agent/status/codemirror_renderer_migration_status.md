@@ -38,11 +38,11 @@ MDX 注入链路同步收口：renderer 定义最小查找接口 `MdxComponentLo
 - [`document-save.ts`](../../../apps/desktop/src/app/controller/document-save.ts) 实现 checkpoint 同步入队、单次 settlement、certainty feedback 与 discard protection。
 - [`app-ui/package.json`](../../../packages/app-ui/package.json)、desktop/root manifests、workspace catalog 与 lockfile 已移除 Milkdown、ProseMirror 和 `@uiw/react-codemirror` 依赖。
 - [`app-ui/src/index.ts`](../../../packages/app-ui/src/index.ts) 导出 `AppEditor` 应用表面，独立 `CodeMirrorEditor` 从 `editor/react` 导出；旧 Milkdown/SourceEditor 目录、desktop wrappers 和专用工具均已删除。
-- [`renderer.ts`](../../../packages/editor/src/renderer.ts) 是 G004 的原生 CM6 lifecycle/sync 实现；只有 generation boundary 调用 `setState`。
+- [`renderer/controller.ts`](../../../packages/editor/src/renderer/controller.ts) 是 G004 的原生 CM6 lifecycle/sync 实现（已从单文件 `renderer.ts` 拆为 `renderer/` 目录）；只有 generation boundary 经 `controller/document-protocol.ts` 的 `installDocumentBoundary` 调用 `setState`。
 - [`range-index.ts`](../../../packages/editor/src/markdown/range-index.ts) 与 [`range-types.ts`](../../../packages/editor/src/markdown/range-types.ts) 持有 fenced/indented 精确 ranges、block status、source fingerprint 与增量 mapping。
 - [`code-languages.ts`](../../../packages/editor/src/markdown/code-languages.ts) 持有 20 个 direct `LanguageDescription` loader、exact alias resolver、native `codeLanguages` 接入和 theme-backed token highlighting。
 - [`code-block-projection.ts`](../../../packages/editor/src/wysiwyg/projections/code-block-projection.ts)、[`code-block-line-numbers.ts`](../../../packages/editor/src/wysiwyg/editing/code-block-line-numbers.ts) 与 [`code-block-commands.ts`](../../../packages/editor/src/wysiwyg/editing/code-block-commands.ts) 分别拥有 projection/ranges、logical line geometry 和编辑语义。
-- [`renderer.test.ts`](../../../packages/editor/src/renderer.test.ts) 以 state-backed CM6 view 覆盖 R1-R18，不依赖 React、desktop 或 DOM 模拟库。
+- [`renderer.test.ts`](../../../packages/editor/tests/renderer.test.ts) 以 state-backed CM6 view 覆盖 R1-R18，不依赖 React、desktop 或 DOM 模拟库。
 - [`testing.ts`](../../../packages/editor/src/testing.ts) 提供只读 probe 和用户 transaction 模拟，不把可变 `EditorView` / `EditorState` 暴露给消费方。
 - [`CodeMirrorEditor`](../../../packages/editor/src/react/) 是 G005 的 stable React/renderer bridge；transition 与 snapshot 订阅分离，外部编辑和模式切换只通过 typed ports。
 - [`codemirror-editor-bridge.spec.ts`](../../../apps/desktop/e2e/codemirror-editor-bridge.spec.ts) 在专用 E2E surface 上验证真实 DOM `EditorView` 身份、StrictMode、preview、外部编辑和文档边界。
@@ -52,7 +52,7 @@ MDX 注入链路同步收口：renderer 定义最小查找接口 `MdxComponentLo
 - [`document-protocol.test.ts`](../../../packages/core/tests/document-protocol.test.ts) 覆盖 C1-C19，包括 notification 顺序、reservation 单次 token、mode rollback、save promotion 和 verification barrier。
 - [`save-scheduler.ts`](../../../packages/file-system/src/save-scheduler.ts) 实现 runtime FIFO、双序列边界和 native outcome classification。
 - [`save_runtime.rs`](../../../apps/desktop/src-tauri/src/save_runtime.rs) 实现进程级 epoch gate、poison recovery、reattach 和 typed native result。
-- [`file_commands.rs`](../../../apps/desktop/src-tauri/src/file_commands.rs) 把 caller authorization、`spawn_blocking`、dialog、sync/rename 和 post-commit warning 接到 Tauri command。
+- [`file_commands/`](../../../apps/desktop/src-tauri/src/file_commands/)（已从单文件 `file_commands.rs` 拆为目录）把 caller authorization（`document.rs` 的 `reject_non_main_attach` / `reject_non_main_save`）、`spawn_blocking`、dialog、sync/rename（`mutations.rs`）和 post-commit warning（`document.rs`）接到 Tauri command；模块职责见 `mod.rs`。
 
 ## Spike 状态
 
