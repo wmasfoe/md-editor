@@ -43,3 +43,55 @@ describe("core session & history revert contracts", () => {
     expect(snapshot.filePath).toBe("/notes/blog.md");
   });
 });
+
+const cursorDraft = "# Draft\n\nparagraph two";
+
+function createCursorDoc() {
+  return createDocumentState({
+    markdown: "# Original",
+    savedMarkdown: "# Original",
+    filePath: "/notes/cursor.md",
+  });
+}
+
+describe("restoreDraftToDocument cursor offset contract", () => {
+  it("returns the persisted cursor offset so the host can restore the caret", () => {
+    const res = restoreDraftToDocument(createCursorDoc(), cursorDraft, { cursorOffset: 5 });
+    expect(res.status).toBe("applied");
+    expect(res.cursorOffset).toBe(5);
+  });
+
+  it("clamps an offset past the draft length to the document end", () => {
+    // 草稿可能在退出后被外部编辑变短；越界必须夹取，不能把光标放到文档外。
+    const res = restoreDraftToDocument(createCursorDoc(), cursorDraft, { cursorOffset: 9999 });
+    expect(res.cursorOffset).toBe(cursorDraft.length);
+  });
+
+  it("clamps a negative offset to zero", () => {
+    const res = restoreDraftToDocument(createCursorDoc(), cursorDraft, { cursorOffset: -12 });
+    expect(res.cursorOffset).toBe(0);
+  });
+
+  it("falls back to the document end when no offset was persisted", () => {
+    // 旧版本草稿没有 cursorOffset 字段：回退到末尾比回到开头更接近用户预期。
+    const res = restoreDraftToDocument(createCursorDoc(), cursorDraft);
+    expect(res.cursorOffset).toBe(cursorDraft.length);
+  });
+
+  it("clamps against the LF-normalized length so CRLF drafts cannot exceed the real document", () => {
+    // replaceDocument 内部会做 LF 归一化；上界若用原始 CRLF 长度，
+    // 就会留下一个文档模型里够不到的位置。
+    const crlfDraft = "line one\r\nline two\r\nline three";
+    const res = restoreDraftToDocument(createCursorDoc(), crlfDraft, { cursorOffset: 9999 });
+    expect(res.cursorOffset).toBe(crlfDraft.replace(/\r\n/gu, "\n").length);
+    expect(res.cursorOffset).toBeLessThan(crlfDraft.length);
+  });
+
+  it("treats non-finite offsets as absent instead of producing NaN", () => {
+    const res = restoreDraftToDocument(createCursorDoc(), cursorDraft, {
+      cursorOffset: Number.NaN,
+    });
+    expect(res.cursorOffset).toBe(cursorDraft.length);
+    expect(Number.isFinite(res.cursorOffset)).toBe(true);
+  });
+});

@@ -308,7 +308,7 @@ VMark 的定位已从「Markdown 编辑器」漂移成「通用纯文本工作�
 | 项 | 证据 | 备注 |
 | --- | --- | --- |
 | S6 性能基线 | 无删除前的同环境量化数据 | M6 因此无法收口 |
-| 能力清单漂移 | `s1-capability-inventory.ts` 把 `mdx.openComponentMenu` / `ai.continueWriting` / `ai.fixGrammar` 标 `typed-unsupported`，三者实际已接线 | 需同时改清单、快捷键默认项与 `s1-capability-inventory.test.ts` |
+| ~~能力清单漂移~~ | **已修复（2026-11-18）**：`s1-capability-inventory.ts` 曾把 `mdx.openComponentMenu` / `ai.continueWriting` / `ai.fixGrammar` 标 `typed-unsupported`，以及 4 个已迁移 surface 标 `removed-disabled`；现均改为 `retained` | 已新增两条语义断言防复发，详见 [迁移状态](../status/codemirror_renderer_migration_status.md) |
 | 段落结尾无换行不渲染虚拟行 | 与“末尾没有空行就渲染”的期望不一致 | 详见状态文档“v0.20.0 交付与遗留” |
 | IME / 原生菜单手测 | Chromium e2e 不能代表 Tauri 窗口 | v0.20.0 的虚拟空行未手测系统输入法 |
 

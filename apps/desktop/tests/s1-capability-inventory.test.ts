@@ -37,6 +37,36 @@ describe("S1 capability inventory", () => {
     ).toBe(true);
   });
 
+  /**
+   * 账本自证不变量：登记为 `typed-unsupported` 的命令，必须真的不在 runtime 里注册。
+   *
+   * 反之，只要命令能在 `runtime.commands.list()` 里查到，就说明宿主提供了 action，
+   * 它不可能“只返回 typed unsupported”。历史漂移正是这个矛盾：三个命令既在 registry 里
+   * 可派发，又被登记为 typed-unsupported，账本因而说谎。
+   */
+  it("never marks a runtime-registered command as typed-unsupported", () => {
+    const runtimeIds = new Set(runtime.commands.list().map((command) => command.id));
+    const lying = S1_CAPABILITY_INVENTORY.filter(
+      (entry) => entry.s1Disposition === "typed-unsupported" && runtimeIds.has(entry.id),
+    ).map((entry) => entry.id);
+    expect(lying).toEqual([]);
+  });
+
+  /**
+   * 反向不变量：登记为 `removed-disabled` 的命令，不得仍然可派发。
+   * 否则“已移除”的审计记录会与真实注册表冲突。
+   */
+  it("never leaves a removed-disabled command registered in the runtime", () => {
+    const runtimeIds = new Set(runtime.commands.list().map((command) => command.id));
+    const stale = S1_CAPABILITY_INVENTORY.filter(
+      (entry) =>
+        entry.kind === "command" &&
+        entry.s1Disposition === "removed-disabled" &&
+        runtimeIds.has(entry.id),
+    ).map((entry) => entry.id);
+    expect(stale).toEqual([]);
+  });
+
   it("removes baseline formatting no-ops without losing their immutable audit record", () => {
     const snapshot = getS1CapabilityInventory();
     const removedEntries = snapshot.filter((entry) => entry.id.startsWith("format."));

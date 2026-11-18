@@ -28,6 +28,8 @@ export interface PendingDraftInfo {
   readonly draftId: string;
   readonly filePath: string | null;
   readonly draftContent: string;
+  /** 缺省表示宿主未能记录光标（旧会话或退出时编辑器未挂载） */
+  readonly cursorOffset?: number;
   readonly lastModifiedAt: number;
 }
 
@@ -40,7 +42,13 @@ export const historyStore: HistoryStore = createHistoryStore(createDesktopHistor
  */
 export async function saveHotExitSession(
   snapshot: DocumentSnapshot,
-  cursorOffset = 0,
+  /**
+   * 用户离开时的光标偏移。`null` 表示“宿主未能提供”（例如编辑器未挂载）。
+   *
+   * 未知时**不写入字段**，而不是伪造成 `0`：`0` 是一个真实位置（光标在文档开头），
+   * 两者恢复语义不同（未知 → 文档末尾，0 → 回到开头）。
+   */
+  cursorOffset: number | null = null,
 ): Promise<void> {
   // 只有 dirty 文档或有内容的未命名文档才需要暂存草稿
   if (!snapshot.isDirty && snapshot.filePath !== null) {
@@ -59,7 +67,8 @@ export async function saveHotExitSession(
       filePath: snapshot.filePath,
       isUntitled: snapshot.filePath === null,
       draftId,
-      cursorOffset,
+      // 未知时不写字段：省略与 `0` 是不同语义，不能被写成同一个值。
+      ...(cursorOffset === null ? {} : { cursorOffset }),
       mode: snapshot.mode,
       lastModifiedAt: Date.now(),
     },
@@ -90,15 +99,26 @@ export async function checkPendingDraft(filePath: string | null): Promise<Pendin
     draftId: activeDoc.draftId,
     filePath: activeDoc.filePath,
     draftContent: sessionData.draftMarkdown,
+    // 旧会话或未知情况没有该字段，保持 undefined 交由文档模型回退。
+    cursorOffset: activeDoc.cursorOffset,
     lastModifiedAt: activeDoc.lastModifiedAt,
   };
 }
 
 /**
- * 恢复未保存草稿至当前活动文档模型
+ * 恢复未保存草稿至当前活动文档模型。
+ *
+ * 返回 `cursorOffset` 表示应该写入的选区位置；`undefined` 表示草稿里没有可靠的光标记录
+ * （旧会话或退出时编辑器未挂载），此时调用方应保留文档模型的默认光标，
+ * 而不是把它强行放到末尾或开头。
  */
-export function restorePendingDraft(info: PendingDraftInfo): void {
-  restoreDraftToDocument(runtime.document, info.draftContent);
+export function restorePendingDraft(info: PendingDraftInfo): {
+  readonly cursorOffset: number | undefined;
+} {
+  const result = restoreDraftToDocument(runtime.document, info.draftContent, {
+    cursorOffset: info.cursorOffset,
+  });
+  return { cursorOffset: info.cursorOffset === undefined ? undefined : result.cursorOffset };
 }
 
 /**

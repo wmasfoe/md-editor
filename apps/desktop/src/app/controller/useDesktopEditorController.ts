@@ -785,7 +785,20 @@ export function useDesktopEditorController({
     [dispatchCommand, settings],
   );
   useEffect(() => bindDesktopMenuCommands(dispatchCommand), [dispatchCommand]);
-  useEffect(() => bindBrowserDirtyDocumentGuard(), []);
+  // Hot Exit 写入侧：退出前读一次光标，让草稿恢复能回到原位置。
+  // 端口未挂载时返回 null，会话层据此回退默认值而不是伪造位置。
+  //
+  // 用 `head` 而不是 `from`：反向选中一段文字时（anchor 在后、head 在前），
+  // `from` 是选区起点而非用户实际的光标落点，恢复后会跳到选区开头。
+  const readCursorOffset = useCallback((): number | null => {
+    const access = getRendererPorts();
+    if (access.status !== "available") {
+      return null;
+    }
+    return access.ports.getSelectionSnapshot().head;
+  }, [getRendererPorts]);
+
+  useEffect(() => bindBrowserDirtyDocumentGuard(readCursorOffset), [readCursorOffset]);
   useEffect(() => {
     // 启动时检查初始文档是否存在未保存草稿（做法 2：提示用户恢复）
     void checkPendingDraft(runtime.document.getSnapshot().filePath).then((draft) => {
@@ -794,10 +807,11 @@ export function useDesktopEditorController({
   }, []);
   useEffect(
     () =>
-      bindTauriCloseGuard(() =>
-        ensureDiscardAllowed("关闭应用前，你可以保存当前文档，或放弃尚未保存的更改。"),
+      bindTauriCloseGuard(
+        () => ensureDiscardAllowed("关闭应用前，你可以保存当前文档，或放弃尚未保存的更改。"),
+        readCursorOffset,
       ),
-    [ensureDiscardAllowed],
+    [ensureDiscardAllowed, readCursorOffset],
   );
 
   useEffect(

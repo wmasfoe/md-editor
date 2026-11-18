@@ -29,7 +29,20 @@ const implementedCommands = [
 ] as const;
 
 const legacyModeCommands = ["view.toggleSource", "view.showWysiwyg"] as const;
-const deferredLegacyCommands = [
+
+/**
+ * 曾在 S1 基线期被登记为 `typed-unsupported` 的延迟命令。
+ *
+ * 这三个命令**已全部完整接线**（命令注册、快捷键、命令面板与标题栏按钮均可用）：
+ * - `mdx.openComponentMenu` → `useDesktopEditorController` 的 `openMdxComponentMenu` → 插入菜单
+ * - `ai.continueWriting` → `aiScheduler.schedule` + `showSuggestion`
+ * - `ai.fixGrammar` → `desktopAiService.fixGrammar`
+ *
+ * 它们仍保留在本数组里是为了让 S1 审计账本可追溯“曾经延迟过什么”；
+ * 但 `s1Disposition` 必须如实反映当前实现，否则账本会误导后续判断。
+ * 该不变量由 `s1-capability-inventory.test.ts` 的语义断言锁定。
+ */
+const previouslyDeferredCommands = [
   "mdx.openComponentMenu",
   "ai.continueWriting",
   "ai.fixGrammar",
@@ -82,7 +95,7 @@ export const S1_REGISTERED_COMMAND_IDS = [
   ...historyCommands,
   ...exportAndQualityCommands,
   ...legacyModeCommands,
-  ...deferredLegacyCommands,
+  ...previouslyDeferredCommands,
   ...d3BlockCommands,
   ...d2ViewModeCommands,
   ...diagramCreationCommands,
@@ -112,12 +125,13 @@ export const S1_CAPABILITY_INVENTORY: readonly S1CapabilityInventoryEntry[] = Ob
     s1Disposition: "retained" as const,
     note: "Replace the current dual-editor switch with one CM6 view reconfiguration.",
   })),
-  ...deferredLegacyCommands.map((id) => ({
+  ...previouslyDeferredCommands.map((id) => ({
     id,
     kind: "command" as const,
+    // 基线期这三项是旧引擎的延迟项；如今已由 CM6 宿主完整接线。
     baseline: "legacy-engine" as const,
-    s1Disposition: "typed-unsupported" as const,
-    note: "The retained shortcut reports a visible typed-unsupported result in the CM6 beta.",
+    s1Disposition: "retained" as const,
+    note: "Previously deferred during the S1 baseline; now fully wired in the CM6 host (command registry, keymap, command palette and title-bar entry).",
   })),
   ...silentNoopCommands.map((id) => ({
     id,
@@ -249,29 +263,29 @@ export const S1_CAPABILITY_INVENTORY: readonly S1CapabilityInventoryEntry[] = Ob
     id: "editor.image-paste-drop",
     kind: "surface",
     baseline: "legacy-engine",
-    s1Disposition: "removed-disabled",
-    note: "Deferred beyond S1; remove/disable entry or expose typed unsupported.",
+    s1Disposition: "retained",
+    note: "Migrated: paste/drop handled by `lib/paste-image.ts` and `app/events/drop-image-listener.ts` through the local ImageStorageProvider.",
   },
   {
     id: "editor.link-open",
     kind: "surface",
     baseline: "legacy-engine",
-    s1Disposition: "removed-disabled",
-    note: "Deferred beyond S1; no retained silent handler.",
+    s1Disposition: "retained",
+    note: "Migrated: link dispatch is unified in `openWysiwygLink` (external URLs plus in-document anchor resolution).",
   },
   {
     id: "editor.search-outline",
     kind: "surface",
     baseline: "legacy-engine",
-    s1Disposition: "removed-disabled",
-    note: "Search/outline parity is deferred and must be listed as a beta gap.",
+    s1Disposition: "retained",
+    note: "Migrated: search via `@codemirror/search` + `searchKeymap`; outline via `OutlinePanel` + `useOutlineController` with scroll sync.",
   },
   {
     id: "editor.full-theme-parity",
     kind: "surface",
     baseline: "legacy-engine",
-    s1Disposition: "removed-disabled",
-    note: "Full editor theme parity is deferred and must not be claimed for S1.",
+    s1Disposition: "retained",
+    note: "Migrated: system/light/dark modes plus per-mode custom CSS and built-in theme options.",
   },
   {
     id: "editor.line-numbers",

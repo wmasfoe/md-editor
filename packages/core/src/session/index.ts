@@ -2,10 +2,32 @@
  * @fileoverview 会话与历史版本文档恢复辅助契约 (Session & History Revert Helpers)
  */
 
+import { normalizeLineEndings } from "@md-editor/shared";
 import type { DocumentMutationResult, DocumentState } from "../document-state.ts";
 
 export interface RestoreDraftOptions {
   readonly mode?: "wysiwyg" | "source";
+  /**
+   * 草稿中记录的光标偏移。
+   *
+   * 光标语义属于文档模型：调用方只负责把持久化值原样传入，
+   * 不得在适配层自行 clamp，否则两条恢复路径会产生不一致的边界行为。
+   *
+   * 缺省 / 非有限值（NaN、Infinity）→ 回退到文档末尾；
+   * 负数 → 夹到 0；超长 → 夹到文档末尾。
+   * 上界使用 **LF 归一化后**的长度，与 `replaceDocument` 写入文档模型的长度一致
+   * （CRLF 草稿归一化后变短，用原长度会留下一个够不到的上界）。
+   */
+  readonly cursorOffset?: number;
+}
+
+/** 将持久化的光标偏移夹取到合法区间（基于 LF 归一化长度，与文档模型一致） */
+export function clampCursorOffset(cursorOffset: number | undefined, markdown: string): number {
+  const length = normalizeLineEndings(markdown).length;
+  if (cursorOffset === undefined || !Number.isFinite(cursorOffset)) {
+    return length;
+  }
+  return Math.min(Math.max(Math.trunc(cursorOffset), 0), length);
 }
 
 /**
@@ -16,9 +38,9 @@ export function restoreDraftToDocument(
   documentState: DocumentState,
   draftMarkdown: string,
   options: RestoreDraftOptions = {},
-): DocumentMutationResult {
+): DocumentMutationResult & { readonly cursorOffset: number } {
   const current = documentState.getSnapshot();
-  return documentState.replaceDocument(
+  const result = documentState.replaceDocument(
     {
       markdown: draftMarkdown,
       savedMarkdown: current.savedMarkdown,
@@ -28,6 +50,9 @@ export function restoreDraftToDocument(
     },
     { kind: "command", commandId: "session.restoreDraft" },
   );
+  // 光标偏移随恢复结果一并返回：调用方（编辑器宿主）负责把选区设到这个位置，
+  // 文档模型只提供夹取后的权威值，不直接操纵视图。
+  return { ...result, cursorOffset: clampCursorOffset(options.cursorOffset, draftMarkdown) };
 }
 
 /**
