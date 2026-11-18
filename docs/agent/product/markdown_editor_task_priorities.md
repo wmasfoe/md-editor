@@ -64,7 +64,7 @@ CM6 迁移顺序和实时进度分别以 [`custom_markdown_renderer_architecture
 | 官方 MDX 组件最小切片 | 已完成 | `Callout` 已过 registry、AST range、真实渲染、原子选择、后代交互拦截与错误占位全链路（M4/G005，2026-08-04 验证）；实现见 `packages/mdx-plugins/src/callout/` |
 | 错误提示体系 | 部分完成 | 文件操作已有顶部错误提示并接入 Sentry（0.11.0，默认开、可关、过滤文档内容）；解析失败、模式切换失败等仍缺更完整的用户提示 |
 | 基础主题 | 已完成 | 主题模式 system/light/dark（`apps/desktop/src/components/settings/AppearanceSettingsPanel.tsx`）+ 每档自定义 CSS 与内置主题选项（`apps/desktop/src/app/settings/theme-css.ts`、`ThemeCssPicker.tsx`） |
-| 用户风格学习 | 近期规划，未实现 | 先支持 `.aiignore` 与限定范围的历史文章扫描，再用本地模型分析并在本地保存画像；提供独立、默认关闭的开关，详见 [AI 需求 §8](./markdown_editor_ai_feature_requirements.md#8-近期计划用户风格学习) |
+| 用户风格学习 | 已完成 | 从当前工作区学习写作习惯，本地 Standard 模型分析、画像只存本机；独立开关默认关闭，排除列表存应用数据目录（不使用 `.aiignore`、不写入工作区）。实现落点 `packages/ai/src/style/` + `apps/desktop/src-tauri/src/style_learning/` + `apps/desktop/src/app/ai/style-learning/`，详见 [AI 需求 §8](./markdown_editor_ai_feature_requirements.md#8-用户风格学习写作偏好) |
 
 ## 4.1 已完成的 v0.1 打磨项
 
