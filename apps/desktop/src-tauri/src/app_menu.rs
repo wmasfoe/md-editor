@@ -7,6 +7,8 @@ use crate::recent_files;
 use crate::settings;
 
 pub(crate) const MENU_ACTION_EVENT: &str = "md-editor-menu-action";
+pub(crate) const SELECT_ALL_MENU_ITEM: &str = "md-editor:select-all";
+pub(crate) const SELECT_ALL_MENU_EVENT: &str = "md-editor-menu-select-all";
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum AppMenuLocale {
@@ -300,6 +302,12 @@ pub(crate) fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri
         AppMenuLocale::Ja => "編集",
         AppMenuLocale::En => "Edit",
     };
+    let select_all_title = match locale {
+        AppMenuLocale::Zh => "全选",
+        AppMenuLocale::ZhHant => "全選",
+        AppMenuLocale::Ja => "すべてを選択",
+        AppMenuLocale::En => "Select All",
+    };
     let insert_table_title = match locale {
         AppMenuLocale::Zh => "插入表格...",
         AppMenuLocale::ZhHant => "插入表格...",
@@ -313,7 +321,14 @@ pub(crate) fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri
         .cut()
         .copy()
         .paste()
-        .select_all()
+        // The native selectAll responder selects projected WebKit DOM.
+        // Route through the app so CodeMirror can select Markdown offsets.
+        .item(&menu_item(
+            app,
+            SELECT_ALL_MENU_ITEM,
+            select_all_title,
+            "CmdOrCtrl+A",
+        )?)
         .separator()
         .item(&menu_item(
             app,

@@ -28,11 +28,11 @@ mod window_chrome;
 use about_window::open_about_window;
 #[cfg(target_os = "macos")]
 use app_menu::build_app_menu;
-use app_menu::MENU_ACTION_EVENT;
 use app_menu::{
     reapply_app_menu, save_app_settings_and_update_menu, set_mode_menu_checked,
     update_recent_files_menu, ModeMenuState,
 };
+use app_menu::{MENU_ACTION_EVENT, SELECT_ALL_MENU_EVENT, SELECT_ALL_MENU_ITEM};
 use file_commands::{
     allow_asset_path, attach_save_runtime, check_path_exists, copy_file_tree_path,
     create_markdown_tree_item, delete_markdown_tree_item, export_html_to_pdf, inspect_linked_file,
@@ -82,6 +82,17 @@ pub fn run() {
 
     let builder = builder.on_menu_event(|app, event| {
         let action = event.id().as_ref();
+        if action == SELECT_ALL_MENU_ITEM {
+            // The active native window owns the text selection, including settings fields.
+            if let Some(window) = app
+                .webview_windows()
+                .into_values()
+                .find(|window| window.is_focused().unwrap_or(false))
+            {
+                let _ = app.emit_to(window.label(), SELECT_ALL_MENU_EVENT, ());
+            }
+            return;
+        }
         // 「关于」由 Rust 直接开窗：它不属于编辑器命令，广播给 webview 只会在主窗口无人处理。
         if action == "md-editor:about" {
             let handle = app.clone();

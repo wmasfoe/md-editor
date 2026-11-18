@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { safeUnlisten } from "./safe-unlisten";
 
 export const MENU_ACTION_EVENT = "md-editor-menu-action";
+const SELECT_ALL_MENU_EVENT = "md-editor-menu-select-all";
 
 function listenToDesktopEvent<T>(
   eventName: string,
@@ -43,4 +44,28 @@ export function listenToDesktopMenuActions(
   handler: (action: string) => void,
 ): (() => void) | undefined {
   return listenToDesktopEvent(MENU_ACTION_EVENT, handler);
+}
+
+export function selectAllInWebview(): void {
+  const target = document.activeElement;
+  if (target?.closest(".cm-content")) {
+    // The application menu is macOS-only. Reuse the editor's staged Cmd+A behavior.
+    target.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "a",
+        code: "KeyA",
+        metaKey: true,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    return;
+  }
+
+  // Keep WebKit's selection behavior for search fields and other non-editor surfaces.
+  document.execCommand("selectAll");
+}
+
+export function bindDesktopSelectAllMenuAction(): (() => void) | undefined {
+  return listenToDesktopEvent(SELECT_ALL_MENU_EVENT, selectAllInWebview);
 }
