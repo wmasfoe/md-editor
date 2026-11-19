@@ -1,10 +1,8 @@
 mod chrome;
 
 use self::chrome::OutlineEntry;
-use std::{collections::HashMap, ops::Range, path::PathBuf, rc::Rc, sync::Arc};
+use std::{collections::HashMap, ops::Range, path::PathBuf, sync::Arc};
 
-#[cfg(target_os = "macos")]
-use crate::web_editor::{HostCommand, HostEvent, WebEditor as DesktopEditor};
 use crate::{
     APP_NAME,
     document::{Document, is_markdown},
@@ -14,9 +12,7 @@ use crate::{
     settings,
 };
 use gpui_kit::{component::tree::TreeState, *};
-#[cfg(not(target_os = "macos"))]
-use inkpoint_editor_gpui::EditorView as DesktopEditor;
-use inkpoint_editor_gpui::PasteContext;
+use inkpoint_editor_gpui::{PasteTarget, TypesetView as DesktopEditor};
 
 actions!(
     inkpoint,
@@ -36,7 +32,7 @@ enum FileAction {
     Open,
     OpenPath(PathBuf),
     Close,
-    PasteImage(Image, PasteContext),
+    PasteImage(Image, PasteTarget),
 }
 
 struct Suggestion {
@@ -69,49 +65,12 @@ pub(crate) struct Workspace {
     suggestion: Option<Suggestion>,
     _editor_observer: Subscription,
     _appearance_observer: Subscription,
-    #[cfg(target_os = "macos")]
-    _preferences_observer: Subscription,
     _ai_shutdown: Subscription,
 }
 
 impl Workspace {
     pub(crate) fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let owner = cx.weak_entity();
-        #[cfg(target_os = "macos")]
-        let editor = cx.new(|cx| {
-            DesktopEditor::new(
-                window,
-                cx,
-                Rc::new(move |event, window, cx| {
-                    if let Some(owner) = owner.upgrade() {
-                        owner.update(cx, |this, cx| this.handle_editor_event(event, window, cx));
-                    }
-                }),
-            )
-        });
-        #[cfg(not(target_os = "macos"))]
-        let editor = cx.new(|cx| {
-            let mut editor = DesktopEditor::new(window, cx, "").without_toolbar();
-            editor.set_paste_handler(
-                Some(Rc::new(move |clipboard, target, window, cx| {
-                    let Some(image) = clipboard.entries.iter().find_map(|entry| match entry {
-                        ClipboardEntry::Image(image) => Some(image),
-                        _ => None,
-                    }) else {
-                        return false;
-                    };
-                    let Some(owner) = owner.upgrade() else {
-                        return false;
-                    };
-                    owner.update(cx, |workspace, cx| {
-                        workspace.paste_image(image.clone(), target, window, cx);
-                    });
-                    true
-                })),
-                cx,
-            );
-            editor
-        });
+        let editor = cx.new(|cx| DesktopEditor::new(window, cx, ""));
         let _editor_observer =
             cx.observe_in(&editor, window, |this, _, window, cx| {
                 this.update_title(window, cx);
@@ -122,15 +81,6 @@ impl Workspace {
                 }
                 cx.notify();
             });
-        #[cfg(target_os = "macos")]
-        let preferences_observer = {
-            let preferences = settings::current(cx).clone();
-            cx.observe_in(&preferences, window, |this, preferences, _, cx| {
-                let preferences = preferences.read(cx).clone();
-                this.editor
-                    .update(cx, |editor, _| editor.apply_preferences(&preferences));
-            })
-        };
         let appearance_observer = window.observe_window_appearance(settings::sync_system_theme);
         let owner = cx.weak_entity();
         window.on_window_should_close(cx, move |window, cx| {
@@ -139,7 +89,7 @@ impl Workspace {
                     if this.file_busy {
                         return false;
                     }
-                    if cfg!(target_os = "macos") || this.dirty(cx) {
+                    if this.dirty(cx) {
                         this.file_action(FileAction::Close, window, cx);
                         return false;
                     }
@@ -178,8 +128,6 @@ impl Workspace {
             suggestion: None,
             _editor_observer,
             _appearance_observer: appearance_observer,
-            #[cfg(target_os = "macos")]
-            _preferences_observer: preferences_observer,
             _ai_shutdown: ai_shutdown,
         };
         view.welcome_focus.focus(window, cx);
@@ -188,12 +136,7 @@ impl Workspace {
     }
 
     fn dirty(&self, cx: &App) -> bool {
-        let editor = self.editor.read(cx);
-        #[cfg(not(target_os = "macos"))]
-        if editor.has_unsaved_rich_changes(cx) {
-            return true;
-        }
-        editor.markdown(cx) != self.document.markdown
+        self.editor.read(cx).markdown() != self.document.markdown
     }
 
     fn document_name(&self) -> std::borrow::Cow<'_, str> {
@@ -230,56 +173,6 @@ impl Workspace {
         cx.notify();
     }
 
-    #[cfg(target_os = "macos")]
-    fn handle_editor_event(
-        &mut self,
-        event: HostEvent,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        match event {
-            HostEvent::Command(command) => match command {
-                HostCommand::New => self.file_action(FileAction::New, window, cx),
-                HostCommand::Open => self.file_action(FileAction::Open, window, cx),
-                HostCommand::OpenFolder => self.open_folder(window, cx),
-                HostCommand::Save => self.save(false, None, window, cx),
-                HostCommand::SaveAs => self.save(true, None, window, cx),
-                HostCommand::Close => self.file_action(FileAction::Close, window, cx),
-                HostCommand::Outline => self.show_outline(cx),
-                HostCommand::LocalAi => self.request_completion(window, cx),
-                HostCommand::Settings => settings::open(cx),
-            },
-            HostEvent::Link(target) => {
-                if let Ok(url) = url::Url::parse(&target)
-                    && matches!(url.scheme(), "https" | "http" | "mailto")
-                {
-                    cx.open_url(url.as_str());
-                }
-            }
-            HostEvent::PasteImage => self.after_editor_flush(window, cx, |this, window, cx| {
-                let image = cx.read_from_clipboard().and_then(|item| {
-                    item.entries.into_iter().find_map(|entry| match entry {
-                        ClipboardEntry::Image(image) => Some(image),
-                        _ => None,
-                    })
-                });
-                if let Some(image) = image {
-                    let editor = this.editor.read(cx);
-                    let target = PasteContext {
-                        revision: editor.revision(),
-                        selection: editor.selected_range(cx),
-                    };
-                    this.paste_image(image, target, window, cx);
-                }
-            }),
-            HostEvent::InsertResult(true) => self.message("Inserted", cx),
-            HostEvent::InsertResult(false) => {
-                self.message("The document or selection changed before insertion.", cx);
-            }
-            HostEvent::Error(error) => self.message(error, cx),
-        }
-    }
-
     fn install_document(
         &mut self,
         document: Document,
@@ -288,10 +181,7 @@ impl Workspace {
     ) {
         self.has_active_document = true;
         self.editor.update(cx, |editor, cx| {
-            #[cfg(target_os = "macos")]
-            editor.replace_markdown(&document.markdown, document.path.as_deref(), window, cx);
-            #[cfg(not(target_os = "macos"))]
-            editor.replace_markdown(&document.markdown, window, cx);
+            editor.replace_markdown(&document.markdown, cx);
             editor.focus(window, cx);
         });
         self.document = Arc::new(document);
@@ -306,40 +196,22 @@ impl Workspace {
         });
     }
 
+    /// Runs `action` now that the editor has no pending edits to flush.
+    ///
+    /// The WebView host had to wait for an IPC round-trip before reading a
+    /// snapshot, so menu actions arriving first could read stale text. This
+    /// editor commits each edit as it happens, so there is nothing to wait for
+    /// and the action runs immediately.
     fn after_editor_flush(
         &mut self,
         window: &mut Window,
         cx: &mut Context<Self>,
-        action: impl FnOnce(&mut Self, &mut Window, &mut Context<Self>) + 'static,
+        action: impl FnOnce(&mut Self, &mut Window, &mut Context<Self>),
     ) {
         if self.file_busy {
             return;
         }
-        #[cfg(not(target_os = "macos"))]
         action(self, window, cx);
-        #[cfg(target_os = "macos")]
-        {
-            // Native menu and window actions can arrive before the latest WebKit IPC message.
-            self.file_busy = true;
-            let owner = cx.weak_entity();
-            self.editor.update(cx, |editor, cx| {
-                editor.flush(
-                    move |result, window, cx| {
-                        if let Some(owner) = owner.upgrade() {
-                            owner.update(cx, |this, cx| {
-                                this.file_busy = false;
-                                match result {
-                                    Ok(()) => action(this, window, cx),
-                                    Err(error) => this.message(error, cx),
-                                }
-                            });
-                        }
-                    },
-                    window,
-                    cx,
-                );
-            });
-        }
     }
 
     fn file_action_from_snapshot(
@@ -574,7 +446,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let markdown = self.editor.read(cx).markdown(cx);
+        let markdown = self.editor.read(cx).markdown().to_string();
         let document = self.document.clone();
         self.file_busy = true;
         self.message("Saving document…", cx);
@@ -587,10 +459,6 @@ impl Workspace {
                 this.file_busy = false;
                 match result {
                     Ok(saved) => {
-                        #[cfg(target_os = "macos")]
-                        this.editor.update(cx, |editor, _| {
-                            editor.set_document_path(saved.path.as_deref())
-                        });
                         this.document = Arc::new(saved);
                         this.update_title(window, cx);
                         if let Some(next) = next {
@@ -624,7 +492,7 @@ impl Workspace {
     fn paste_image(
         &mut self,
         image: Image,
-        target: PasteContext,
+        target: PasteTarget,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
@@ -650,7 +518,7 @@ impl Workspace {
             .spawn(async move { store_image(&path, &image) });
         cx.spawn_in(window, async move |workspace, cx| {
             let result = job.await;
-            let _ = workspace.update_in(cx, |this, window, cx| {
+            let _ = workspace.update_in(cx, |this, _window, cx| {
                 let reference = match result {
                     Ok(reference) => reference,
                     Err(error) => {
@@ -659,13 +527,10 @@ impl Workspace {
                     }
                 };
                 let inserted = this.editor.update(cx, |editor, cx| {
-                    editor.insert_image_if_unchanged(&target, &reference, window, cx)
+                    editor.insert_image_if_unchanged(&target, &reference, cx)
                 });
                 match inserted {
-                    #[cfg(not(target_os = "macos"))]
                     Ok(()) => this.message("Image inserted", cx),
-                    #[cfg(target_os = "macos")]
-                    Ok(()) => {}
                     Err(error) => this.message(format!("Image saved at {reference}. {error}"), cx),
                 }
             });
@@ -694,9 +559,9 @@ impl Workspace {
             );
             return;
         }
-        let markdown = editor.markdown(cx);
+        let markdown = editor.markdown().to_string();
         let revision = editor.revision();
-        let selection = editor.selected_range(cx);
+        let selection = editor.selected_range();
         let Some(prefix) = markdown.get(..selection.start) else {
             return;
         };
@@ -729,13 +594,8 @@ impl Workspace {
             let _ = workspace.update_in(cx, |this, _, cx| {
                 this.ai_busy = false;
                 let editor = this.editor.read(cx);
-                #[cfg(target_os = "macos")]
-                let unstable = editor.composing();
-                #[cfg(not(target_os = "macos"))]
-                let unstable = editor.has_pending_rich_edit();
-                if unstable
-                    || editor.revision() != revision
-                    || editor.selected_range(cx) != selection
+                let unstable = editor.composing() || editor.has_pending_rich_edit();
+                if unstable || editor.revision() != revision || editor.selected_range() != selection
                 {
                     this.message(
                         "Suggestion expired because the document or selection changed.",
@@ -760,7 +620,7 @@ impl Workspace {
         .detach();
     }
 
-    fn accept_completion(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    fn accept_completion(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
         let Some(suggestion) = self.suggestion.take() else {
             return;
         };
@@ -769,16 +629,12 @@ impl Workspace {
                 suggestion.revision,
                 suggestion.selection,
                 &suggestion.text,
-                window,
                 cx,
             )
         });
         match result {
             Err(error) => self.message(error, cx),
-            #[cfg(not(target_os = "macos"))]
-            Ok(()) => self.message("Suggestion inserted", cx),
-            #[cfg(target_os = "macos")]
-            Ok(()) => cx.notify(),
+            Ok(_) => self.message("Suggestion inserted", cx),
         }
     }
 }

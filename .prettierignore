@@ -5,7 +5,6 @@ node_modules/
 .pi/
 .omx/
 dist/
-apps/desktop/editor-dist/
 build/
 .next/
 target/

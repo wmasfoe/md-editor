@@ -546,3 +546,180 @@ mod tests {
         assert_eq!(byte_offset(text, 99), 3);
     }
 }
+
+/// What a paste target remembers, so an async image insert can verify the
+/// document has not moved on before it lands.
+#[derive(Clone, Debug)]
+pub struct PasteTarget {
+    /// The revision the paste was taken against.
+    pub revision: u64,
+    /// The selection at paste time.
+    pub selection: Range<usize>,
+}
+
+impl TypesetView {
+    /// The revision and selection an async insert must still match.
+    pub fn paste_target(&self) -> PasteTarget {
+        PasteTarget {
+            revision: self.editor.revision(),
+            selection: self.editor.selection().range(),
+        }
+    }
+
+    /// Inserts `text` only when the document and selection still match.
+    ///
+    /// An AI reply or an image write takes time; by the time it lands the user
+    /// may have typed. Refusing is the safe answer: the caller reports that the
+    /// insert was dropped rather than pasting into the wrong place.
+    pub fn insert_if_unchanged(
+        &mut self,
+        expected_revision: u64,
+        expected_range: Range<usize>,
+        text: &str,
+        cx: &mut Context<Self>,
+    ) -> Result<u64, &'static str> {
+        if self.editor.is_readonly() {
+            return Err("The editor is read-only.");
+        }
+        if self.editor.revision() != expected_revision
+            || self.editor.selection().range() != expected_range
+        {
+            return Err("The document or selection changed while the insert was pending.");
+        }
+        if self.marked.is_some() {
+            return Err("Finish the current text composition before inserting.");
+        }
+        let result = self.editor.insert(text);
+        self.apply(result, cx);
+        Ok(self.editor.revision())
+    }
+
+    /// Inserts an image reference only if the paste target still matches.
+    ///
+    /// The path check keeps a host bug from writing `](javascript:…)` into the
+    /// document: only relative `./assets/` paths are accepted.
+    pub fn insert_image_if_unchanged(
+        &mut self,
+        target: &PasteTarget,
+        reference: &str,
+        cx: &mut Context<Self>,
+    ) -> Result<(), &'static str> {
+        if !reference.starts_with("./assets/")
+            || !reference.bytes().all(|byte| {
+                byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'/' | b'_' | b'-')
+            })
+        {
+            return Err("The image path is not a safe relative assets path.");
+        }
+        let markdown = format!("![image]({reference})");
+        self.insert_if_unchanged(target.revision, target.selection.clone(), &markdown, cx)?;
+        Ok(())
+    }
+
+    /// Whether the view has an uncommitted edit.
+    ///
+    /// This view commits every edit immediately, so the answer is always
+    /// `false`. It exists so the host's save path does not have to special-case
+    /// the editor implementation.
+    pub fn has_pending_rich_edit(&self) -> bool {
+        false
+    }
+
+    /// Whether the view has rich-text changes that are not in the source.
+    ///
+    /// Always `false` for the same reason: there is no separate rich buffer.
+    pub fn has_unsaved_rich_changes(&self, _cx: &App) -> bool {
+        false
+    }
+}
+
+impl TypesetView {
+    /// The current view mode.
+    pub fn source_mode(&self) -> bool {
+        false
+    }
+
+    /// Moves the caret to the start of `line`, counting from one.
+    pub fn seek_line(&mut self, line: usize, cx: &mut Context<Self>) {
+        let source = self.editor.source();
+        let mut current = 1;
+        let mut offset = 0;
+        if line <= 1 {
+            self.editor.set_caret(0);
+            cx.notify();
+            return;
+        }
+        for (index, character) in source.char_indices() {
+            if current + 1 == line {
+                offset = index;
+                break;
+            }
+            if character == '\n' {
+                current += 1;
+                offset = index + 1;
+            }
+        }
+        self.editor.set_caret(offset);
+        cx.notify();
+    }
+
+    /// Runs a host command.
+    ///
+    /// The commands that only existed because the WebView had a source and a
+    /// split preview collapse into no-ops here: this view always shows the
+    /// rendered document with the source editable in place.
+    pub fn execute_command(
+        &mut self,
+        command: inkpoint_editor_typeset::EditorCommand,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        match command {
+            inkpoint_editor_typeset::EditorCommand::ToggleBold => {
+                let _ = self.editor.wrap_selection("**", "**");
+            }
+            inkpoint_editor_typeset::EditorCommand::ToggleItalic => {
+                let _ = self.editor.wrap_selection("*", "*");
+            }
+            inkpoint_editor_typeset::EditorCommand::ToggleInlineCode => {
+                let _ = self.editor.wrap_selection("`", "`");
+            }
+            inkpoint_editor_typeset::EditorCommand::ToggleStrikethrough => {
+                let _ = self.editor.wrap_selection("~~", "~~");
+            }
+            inkpoint_editor_typeset::EditorCommand::ToggleQuote => {
+                let _ = self.editor.toggle_line_prefix("> ");
+            }
+            inkpoint_editor_typeset::EditorCommand::ToggleBulletList => {
+                let _ = self.editor.toggle_line_prefix("- ");
+            }
+            inkpoint_editor_typeset::EditorCommand::ToggleOrderedList => {
+                let _ = self.editor.toggle_line_prefix("1. ");
+            }
+            inkpoint_editor_typeset::EditorCommand::Heading(level) => {
+                let _ = self.editor.set_heading(level);
+            }
+        }
+        self.reparse();
+        cx.notify();
+    }
+
+    /// Applies host preferences.
+    ///
+    /// Typography currently comes from the theme through `RenderContext`; a
+    /// per-document override would land here.
+    pub fn apply_preferences(&mut self, _preferences: &()) {}
+
+    /// Reports that there is nothing buffered to flush.
+    ///
+    /// Every edit is applied to the source immediately, so a host waiting for a
+    /// flush can proceed at once.
+    pub fn flush(
+        &self,
+        done: impl FnOnce(Result<(), String>, &mut Window, &mut Context<Self>) + 'static,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        done(Ok(()), window, cx);
+    }
+}

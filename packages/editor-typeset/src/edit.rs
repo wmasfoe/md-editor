@@ -99,6 +99,31 @@ impl Selection {
     }
 }
 
+/// A formatting command a host menu or shortcut can invoke.
+///
+/// These are the operations a Markdown editor exposes on its toolbar. Keeping
+/// them here rather than in the view means the menu, the shortcuts and any
+/// future surface all name the same set.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum EditorCommand {
+    /// Wrap the selection in `**`.
+    ToggleBold,
+    /// Wrap the selection in `*`.
+    ToggleItalic,
+    /// Wrap the selection in backticks.
+    ToggleInlineCode,
+    /// Wrap the selection in `~~`.
+    ToggleStrikethrough,
+    /// Toggle a `> ` prefix on every selected line.
+    ToggleQuote,
+    /// Toggle a `- ` prefix on every selected line.
+    ToggleBulletList,
+    /// Toggle a `1. ` prefix on every selected line.
+    ToggleOrderedList,
+    /// Set every selected line to a heading of this level (1-6).
+    Heading(u8),
+}
+
 /// An editable Markdown document with a caret and selection.
 pub struct TypesetEditor {
     document: MarkdownDocument,

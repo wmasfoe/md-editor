@@ -3,5 +3,5 @@
 mod typeset_view;
 mod view;
 
-pub use typeset_view::TypesetView;
+pub use typeset_view::{PasteTarget, TypesetView};
 pub use view::{BlockFormat, EditorCommand, EditorView, InlineFormat, PasteContext, PasteHandler};

@@ -4,8 +4,6 @@ mod folder;
 mod image_assets;
 mod local_ai;
 mod settings;
-#[cfg(target_os = "macos")]
-mod web_editor;
 mod workspace;
 
 use futures::{StreamExt, channel::mpsc};

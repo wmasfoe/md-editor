@@ -22,7 +22,7 @@ mod mermaid;
 mod movement;
 mod svg;
 
-pub use edit::{Selection, TypesetEditor, TypesetError};
+pub use edit::{EditorCommand, Selection, TypesetEditor, TypesetError};
 pub use geometry::{LeafIndex, caret_at, index_at};
 pub use math::{
     Formula, FormulaError, MATH_LANGUAGE, MathRenderer, default_font_size, is_math_fence,
