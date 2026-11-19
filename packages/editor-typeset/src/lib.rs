@@ -17,11 +17,20 @@
 
 mod edit;
 mod geometry;
+mod math;
+mod mermaid;
 mod movement;
 mod svg;
 
 pub use edit::{Selection, TypesetEditor, TypesetError};
 pub use geometry::{LeafIndex, caret_at, index_at};
+pub use math::{
+    Formula, FormulaError, MATH_LANGUAGE, MathRenderer, default_font_size, is_math_fence,
+    try_render_formula,
+};
+pub use mermaid::{
+    Diagram, DiagramError, MERMAID_LANGUAGE, is_mermaid_fence, render_diagram, try_render_diagram,
+};
 pub use movement::{Vertical, move_down, move_left, move_right, move_up, move_vertical};
 pub use svg::{SvgError, SvgImageChannel, image_size, svg_to_image, try_svg_to_image};
 
