@@ -15,8 +15,6 @@ use gpui_kit::base::text::editor_host::Caret;
 use crate::movement::move_left;
 use inkpoint_editor_core::{BlockKind, EditError, MarkdownDocument, SourceBlock, SourceEdit};
 
-use crate::LeafIndex;
-
 /// Why an edit did not apply.
 ///
 /// The source-level failures come from [`inkpoint_editor_core`]; a read-only
@@ -344,22 +342,6 @@ impl TypesetEditor {
         self.selection = Selection::caret(offset);
     }
 
-    /// Places a caret from a click, given the leaf geometry of the last frame.
-    ///
-    /// `key` is the leaf the click landed in, which the host gets from
-    /// [`LeafIndex::caret_for_point`]. Returns `false` when the geometry has no
-    /// leaf for `key`, which means the last frame did not lay that block out.
-    pub fn place_caret(&mut self, index: &LeafIndex, key: u64, caret: Caret) -> bool {
-        let Some(leaf) = index.get(key) else {
-            return false;
-        };
-        // The caret index is a byte offset into the leaf's own text; clamping
-        // keeps a stale caret from pointing past a shortened leaf.
-        let offset = caret.index.min(leaf.len());
-        self.set_caret(offset);
-        true
-    }
-
     /// Sets the selection, clamped to the source length.
     pub fn set_selection(&mut self, anchor: usize, head: usize) {
         let len = self.document.source().len();
@@ -390,6 +372,7 @@ impl TypesetEditor {
         })
     }
 
+    /// Inserts `text` at the caret, replacing the selection.
     pub fn insert(&mut self, text: &str) -> Result<(), TypesetError> {
         if self.readonly {
             return Err(TypesetError::ReadOnly);

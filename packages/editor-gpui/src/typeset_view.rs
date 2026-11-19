@@ -167,8 +167,6 @@ impl TypesetView {
     }
 
     /// Moves the caret one line up, crossing into the previous leaf at the top.
-    /// Moves the caret one visual line up, crossing into the previous leaf at
-    /// the top of this one.
     fn caret_up(&mut self, cx: &mut Context<Self>) {
         self.move_vertical(true, cx);
     }
@@ -242,7 +240,9 @@ impl TypesetView {
         let edge = if up { neighbour.len() } else { 0 };
         let position = neighbour.position_for_index(edge);
         let target = neighbour.caret_for_position(position);
-        self.caret_leaf = Some(neighbour_key);
+        // `render` resolves the caret's leaf from the document after every edit,
+        // so this does not assign `caret_leaf`: doing so would suggest the field
+        // is authoritative when the next frame overwrites it.
         self.editor
             .set_caret(neighbour_span.start + target.index.min(neighbour.len()));
         cx.notify();
@@ -464,7 +464,11 @@ impl EntityInputHandler for TypesetView {
         let offset = byte_offset(source, range.start);
         let key = self.caret_leaf?;
         let leaf = self.geometry.get(key)?;
-        let position = leaf.position_for_index(offset.min(leaf.len()));
+        // The range arrives as a document-wide offset; leaf geometry counts from
+        // the leaf's own start.
+        let span = self.document.span_of(key)?;
+        let local = offset.saturating_sub(span.start);
+        let position = leaf.position_for_index(local.min(leaf.len()));
         let height = leaf.caret_height();
         Some(Bounds {
             origin: position,
@@ -478,9 +482,14 @@ impl EntityInputHandler for TypesetView {
         _window: &mut Window,
         _cx: &mut Context<Self>,
     ) -> Option<usize> {
-        let index = caret_at(&self.geometry, point)?;
+        let caret = caret_at(&self.geometry, point)?;
+        let key = self.caret_leaf?;
+        // `caret.index` counts bytes from the leaf's start; the platform wants a
+        // document-wide UTF-16 offset.
+        let span = self.document.span_of(key)?;
+        let document_offset = span.start + caret.index;
         let source = self.editor.source();
-        Some(utf16_offset(source, index.index))
+        Some(utf16_offset(source, document_offset))
     }
 
     fn set_selected_text_range(
