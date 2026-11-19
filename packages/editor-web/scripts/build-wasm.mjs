@@ -8,7 +8,7 @@ const workspaceDirectory = resolve(packageDirectory, "../..");
 const wasmTarget = "wasm32-unknown-unknown";
 const crate = "inkpoint-editor-web";
 const targetDirectory = process.env.CARGO_TARGET_DIR || resolve(workspaceDirectory, "target");
-const toolchain = process.env.WASM_RUST_TOOLCHAIN || "nightly-2026-11-18";
+const toolchain = process.env.WASM_RUST_TOOLCHAIN || "nightly-2026-11-17";
 const wasmArtifact = resolve(
   targetDirectory,
   wasmTarget,

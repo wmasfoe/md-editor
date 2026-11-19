@@ -35,7 +35,7 @@ jobs:
           components: rustfmt, clippy
 
       - name: Set up WebAssembly toolchain
-        uses: dtolnay/rust-toolchain@nightly-2026-11-18
+        uses: dtolnay/rust-toolchain@nightly-2026-11-17
         with:
           targets: wasm32-unknown-unknown
 
