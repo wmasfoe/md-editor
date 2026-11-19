@@ -405,29 +405,83 @@ impl TypesetDocument {
 /// the outer block would leave the geometry unreported and the caret unable to
 /// land there. `keys` is consumed in order and a block may need several.
 fn with_leaf_keys(block: BlockNode, keys: &mut impl Iterator<Item = u64>) -> BlockNode {
+    // A container passes the iterator down so its inner leaves take keys in
+    // document order. Missing a container here means every leaf inside it reports
+    // no geometry, which silently disables clicking and arrow navigation there.
+    fn next_key(keys: &mut impl Iterator<Item = u64>) -> u64 {
+        keys.next()
+            .expect("leaf_count must match the leaves a block renders")
+    }
     match block {
         BlockNode::Paragraph(paragraph) => {
-            // A missing key would silently duplicate key 1, so the count from
-            // `leaf_count` has to match what the block really renders.
-            let key = keys
-                .next()
-                .expect("leaf_count must match the leaves a block renders");
-            BlockNode::Paragraph(paragraph.with_leaf_key(key))
+            BlockNode::Paragraph(paragraph.with_leaf_key(next_key(keys)))
         }
         BlockNode::Heading {
             level,
             children,
             span,
-        } => {
-            let key = keys
-                .next()
-                .expect("leaf_count must match the leaves a block renders");
-            BlockNode::Heading {
-                level,
-                children: children.with_leaf_key(key),
-                span,
-            }
-        }
+        } => BlockNode::Heading {
+            level,
+            children: children.with_leaf_key(next_key(keys)),
+            span,
+        },
+        BlockNode::CodeBlock(code) => BlockNode::CodeBlock(code.with_leaf_key(next_key(keys))),
+        BlockNode::Root { children, span } => BlockNode::Root {
+            children: children
+                .into_iter()
+                .map(|child| with_leaf_keys(child, keys))
+                .collect(),
+            span,
+        },
+        BlockNode::Blockquote { children, span } => BlockNode::Blockquote {
+            children: children
+                .into_iter()
+                .map(|child| with_leaf_keys(child, keys))
+                .collect(),
+            span,
+        },
+        BlockNode::Surface {
+            name,
+            children,
+            span,
+        } => BlockNode::Surface {
+            name,
+            children: children
+                .into_iter()
+                .map(|child| with_leaf_keys(child, keys))
+                .collect(),
+            span,
+        },
+        BlockNode::List {
+            children,
+            ordered,
+            start,
+            span,
+        } => BlockNode::List {
+            children: children
+                .into_iter()
+                .map(|child| with_leaf_keys(child, keys))
+                .collect(),
+            ordered,
+            start,
+            span,
+        },
+        BlockNode::ListItem {
+            children,
+            spread,
+            checked,
+            task_marker,
+            span,
+        } => BlockNode::ListItem {
+            children: children
+                .into_iter()
+                .map(|child| with_leaf_keys(child, keys))
+                .collect(),
+            spread,
+            checked,
+            task_marker,
+            span,
+        },
         BlockNode::Table(table) => {
             // Rebuild the table with a key on every cell paragraph. `rows()` and
             // `new()` are the public pair that makes this possible without
@@ -436,13 +490,8 @@ fn with_leaf_keys(block: BlockNode, keys: &mut impl Iterator<Item = u64>) -> Blo
             let rows: Vec<Vec<gpui_kit::base::text::editor_host::Paragraph>> = table
                 .rows()
                 .map(|row| {
-                    row.map(|paragraph| {
-                        let key = keys
-                            .next()
-                            .expect("leaf_count must match the leaves a block renders");
-                        paragraph.clone().with_leaf_key(key)
-                    })
-                    .collect()
+                    row.map(|paragraph| paragraph.clone().with_leaf_key(next_key(keys)))
+                        .collect()
                 })
                 .collect();
             BlockNode::Table(gpui_kit::base::text::editor_host::Table::new(rows, aligns))
@@ -457,7 +506,17 @@ fn with_leaf_keys(block: BlockNode, keys: &mut impl Iterator<Item = u64>) -> Blo
 /// index. Everything else renders exactly one.
 fn leaf_count(block: &BlockNode) -> usize {
     match block {
+        // A table renders one leaf per cell.
         BlockNode::Table(table) => table.rows().map(|row| row.count()).sum::<usize>().max(1),
+        // A container renders one leaf per leaf inside it.
+        BlockNode::Root { children, .. }
+        | BlockNode::Blockquote { children, .. }
+        | BlockNode::Surface { children, .. }
+        | BlockNode::List { children, .. }
+        | BlockNode::ListItem { children, .. } => {
+            children.iter().map(leaf_count).sum::<usize>().max(1)
+        }
+        // Everything else renders exactly one.
         _ => 1,
     }
 }

@@ -366,3 +366,16 @@ fn a_click_inside_a_table_cell_maps_to_an_offset(cx: &mut gpui_kit::TestAppConte
         "a click inside a cell must map to an offset within it"
     );
 }
+
+#[gpui_kit::test]
+fn a_list_and_a_code_block_report_geometry(cx: &mut gpui_kit::TestAppContext) {
+    // Lists and code blocks are the most common blocks in real documents. If they
+    // report no geometry, clicking or arrowing into them does nothing.
+    let markdown = "- one\n- two\n\n```rust\nfn main() {}\n```\n\n> quoted\n";
+    let index = draw(cx, markdown);
+    assert!(
+        index.len() >= 3,
+        "a list, a code block and a quote must each lay out: got {}",
+        index.len()
+    );
+}
