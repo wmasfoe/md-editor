@@ -3,6 +3,7 @@ members = [
     "apps/desktop",
     "packages/editor-core",
     "packages/editor-gpui",
+    "packages/editor-typeset",
     "packages/editor-web",
 ]
 exclude = ["apps/desktop/src-tauri"]
@@ -17,3 +18,4 @@ license = "GPL-3.0-or-later"
 gpui-kit = "=0.10.0"
 inkpoint-editor-core = { path = "packages/editor-core" }
 inkpoint-editor-gpui = { path = "packages/editor-gpui" }
+inkpoint-editor-typeset = { path = "packages/editor-typeset" }

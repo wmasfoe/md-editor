@@ -1,0 +1,15 @@
+[package]
+name = "inkpoint-editor-typeset"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+description = "Editable Markdown typesetting surface on top of gpui-kit text rendering"
+
+[dependencies]
+gpui-kit.workspace = true
+inkpoint-editor-core.workspace = true
+
+[dev-dependencies]
+gpui-kit = { workspace = true, features = ["test-support"] }
