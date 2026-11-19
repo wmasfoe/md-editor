@@ -10,13 +10,13 @@ use gpui_kit::component::{
     input::{Editor as NativeEditor, EditorState, InputEvent},
 };
 use gpui_kit::{
-    App, ClipboardItem, Context, Entity, EntityInputHandler, IntoElement, Render, Subscription,
-    Window, div, prelude::*,
+    Action, App, ClipboardItem, Context, Entity, EntityInputHandler, FocusHandle, IntoElement,
+    Render, Subscription, Window, div, prelude::*,
 };
 use inkpoint_editor_core::{BlockKind, MarkdownDocument, SourceBlock};
 
-/// Inline Markdown delimiters supported by the formatting toolbar.
-#[derive(Clone, Copy)]
+/// Inline Markdown formats available in the source editor.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum InlineFormat {
     Bold,
     Italic,
@@ -24,14 +24,27 @@ pub enum InlineFormat {
     Code,
 }
 
-/// Block prefixes supported by the formatting toolbar.
-#[derive(Clone, Copy)]
+/// Block formats available in the source editor.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BlockFormat {
     Heading(u8),
     Quote,
     UnorderedList,
     OrderedList,
     TaskList,
+}
+
+/// Editor commands shared by the desktop menus and the Playground controls.
+#[derive(Action, Clone, Copy, Debug, PartialEq, Eq)]
+#[action(namespace = inkpoint_editor, no_json)]
+pub enum EditorCommand {
+    ShowSource,
+    ShowBlockEditor,
+    ShowSplitPreview,
+    ToggleSourceMode,
+    ToggleOutline,
+    FormatInline(InlineFormat),
+    FormatBlock(BlockFormat),
 }
 
 /// Source snapshot attached to a host-handled clipboard paste.
@@ -49,10 +62,12 @@ pub type PasteHandler =
 /// Owns the native editor state and exposes Markdown-oriented operations.
 pub struct EditorView {
     state: Entity<EditorState>,
+    preview_focus: FocusHandle,
     revision: u64,
     readonly: bool,
     rich_edit: Option<RichBlockEdit>,
     preview_mode: PreviewMode,
+    show_toolbar: bool,
     outline_open: bool,
     source_selection: Range<usize>,
     blocks_cache: Vec<SourceBlock>,
@@ -100,10 +115,12 @@ impl EditorView {
 
         Self {
             state,
+            preview_focus: cx.focus_handle(),
             revision: 0,
             readonly: false,
             rich_edit: None,
             preview_mode: PreviewMode::Source,
+            show_toolbar: true,
             outline_open: false,
             source_selection: 0..0,
             blocks_cache: Vec::new(),
@@ -111,6 +128,12 @@ impl EditorView {
             paste_handler: None,
             _subscription: subscription,
         }
+    }
+
+    /// Let a host that provides its own command surface omit the editor toolbar.
+    pub fn without_toolbar(mut self) -> Self {
+        self.show_toolbar = false;
+        self
     }
 
     fn source(&self) -> impl IntoElement {
@@ -157,15 +180,21 @@ impl EditorView {
     }
 
     pub fn focus(&self, window: &mut Window, cx: &mut Context<Self>) {
-        self.state.update(cx, |state, cx| state.focus(window, cx));
+        if let Some(edit) = &self.rich_edit {
+            edit.state.update(cx, |state, cx| state.focus(window, cx));
+        } else if self.preview_mode == PreviewMode::Preview {
+            self.preview_focus.focus(window, cx);
+        } else {
+            self.state.update(cx, |state, cx| state.focus(window, cx));
+        }
     }
 
     pub fn seek_line(&self, line: usize, window: &mut Window, cx: &mut Context<Self>) {
         self.state.update(cx, |state, cx| {
             let value = state.value();
-            let start = value
-                .match_indices('\n')
-                .nth(line.saturating_sub(1))
+            let start = line
+                .checked_sub(2)
+                .and_then(|index| value.match_indices('\n').nth(index))
                 .map_or(0, |(offset, _)| offset + 1);
             state.set_selected_range(start..start, cx);
         });
@@ -205,7 +234,6 @@ impl EditorView {
                 cx.notify();
             }
         });
-        state.update(cx, |state, cx| state.focus(window, cx));
         if self.readonly {
             state.update(cx, |state, cx| state.set_readonly(true, cx));
         }
@@ -216,6 +244,7 @@ impl EditorView {
         self.blocks_cache.clear();
         self.blocks_revision = None;
         self.revision = self.revision.wrapping_add(1);
+        self.focus(window, cx);
         cx.notify();
     }
 
@@ -258,24 +287,55 @@ impl EditorView {
         self.cancel_rich_block_edit(cx);
     }
 
+    pub fn execute_command(
+        &mut self,
+        command: EditorCommand,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let mode = match command {
+            EditorCommand::ShowSource => PreviewMode::Source,
+            EditorCommand::ShowBlockEditor => PreviewMode::Preview,
+            EditorCommand::ShowSplitPreview => PreviewMode::Split,
+            EditorCommand::ToggleSourceMode if self.preview_mode == PreviewMode::Source => {
+                PreviewMode::Preview
+            }
+            EditorCommand::ToggleSourceMode => PreviewMode::Source,
+            EditorCommand::ToggleOutline => {
+                self.outline_open = !self.outline_open;
+                cx.notify();
+                return;
+            }
+            EditorCommand::FormatInline(format) => return self.format_inline(format, window, cx),
+            EditorCommand::FormatBlock(format) => return self.format_block(format, window, cx),
+        };
+        self.set_preview_mode(mode, window, cx);
+    }
+
     fn set_preview_mode(&mut self, mode: PreviewMode, window: &mut Window, cx: &mut Context<Self>) {
-        if mode == PreviewMode::Preview && self.preview_mode != PreviewMode::Preview {
+        if mode == self.preview_mode {
+            self.focus(window, cx);
+            return;
+        }
+        let leaving_preview = self.preview_mode == PreviewMode::Preview;
+        if mode == PreviewMode::Preview {
+            if self.source_has_marked_text(window, cx) {
+                return;
+            }
             self.source_selection = self.state.read(cx).selected_range();
         }
-        if mode != PreviewMode::Preview
-            && self.rich_edit.is_some()
-            && self.commit_rich_block_edit(window, cx).is_err()
-        {
+        if leaving_preview && self.commit_rich_block_edit(window, cx).is_err() {
             return;
         }
         self.preview_mode = mode;
-        if mode == PreviewMode::Source {
+        if leaving_preview {
             let length = self.state.read(cx).value().len();
             let start = self.source_selection.start.min(length);
             let end = self.source_selection.end.min(length).max(start);
             self.state
                 .update(cx, |state, cx| state.set_selected_range(start..end, cx));
         }
+        self.focus(window, cx);
         cx.notify();
     }
 
@@ -323,6 +383,12 @@ impl EditorView {
         if self.readonly {
             self.rich_edit = Some(edit);
             return Err("The editor is read-only.");
+        }
+        if edit.state.update(cx, |state, cx| {
+            state.marked_text_range(window, cx).is_some()
+        }) {
+            self.rich_edit = Some(edit);
+            return Err("Finish the current text composition before applying the block edit.");
         }
         let replacement = edit.state.read(cx).value().to_string();
         if replacement == edit.original_source {
@@ -443,13 +509,18 @@ impl EditorView {
         Ok(self.revision)
     }
 
-    pub fn format_inline(
-        &mut self,
-        format: InlineFormat,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        if self.readonly {
+    fn source_has_marked_text(&self, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        self.state.update(cx, |state, cx| {
+            state.marked_text_range(window, cx).is_some()
+        })
+    }
+
+    fn can_format(&self) -> bool {
+        !self.readonly && self.preview_mode != PreviewMode::Preview
+    }
+
+    fn format_inline(&mut self, format: InlineFormat, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.can_format() || self.source_has_marked_text(window, cx) {
             return;
         }
         let (prefix, suffix) = match format {
@@ -471,13 +542,8 @@ impl EditorView {
         });
     }
 
-    pub fn format_block(
-        &mut self,
-        format: BlockFormat,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        if self.readonly {
+    fn format_block(&mut self, format: BlockFormat, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.can_format() || self.source_has_marked_text(window, cx) {
             return;
         }
         self.state.update(cx, |state, cx| {
@@ -507,89 +573,6 @@ impl Render for EditorView {
         self.ensure_blocks_cache(&markdown);
         let source = self.source().into_any_element();
         let border = cx.theme().border;
-        let mut toolbar = div()
-            .flex()
-            .items_center()
-            .gap_1()
-            .px_3()
-            .py_1()
-            .border_b_1()
-            .border_color(border)
-            .child(mode_button("source", "Source", PreviewMode::Source, cx))
-            .child(mode_button("rich", "Rich", PreviewMode::Preview, cx))
-            .child(mode_button("split", "Split", PreviewMode::Split, cx))
-            .child(
-                Button::new("outline-toggle")
-                    .small()
-                    .label(if self.outline_open {
-                        "Hide outline"
-                    } else {
-                        "Outline"
-                    })
-                    .on_click(cx.listener(|this, _, _, cx| {
-                        this.outline_open = !this.outline_open;
-                        cx.notify();
-                    })),
-            )
-            .child(div().flex_1());
-
-        if !self.readonly && self.preview_mode != PreviewMode::Preview {
-            toolbar = toolbar.child(format_button(
-                "bold",
-                "Bold",
-                FormatCommand::Inline(InlineFormat::Bold),
-                cx,
-            ));
-            toolbar = toolbar.child(format_button(
-                "italic",
-                "Italic",
-                FormatCommand::Inline(InlineFormat::Italic),
-                cx,
-            ));
-            toolbar = toolbar.child(format_button(
-                "code",
-                "Code",
-                FormatCommand::Inline(InlineFormat::Code),
-                cx,
-            ));
-            toolbar = toolbar.child(format_button(
-                "strike",
-                "Strike",
-                FormatCommand::Inline(InlineFormat::Strikethrough),
-                cx,
-            ));
-            toolbar = toolbar.child(format_button(
-                "heading",
-                "H1",
-                FormatCommand::Block(BlockFormat::Heading(1)),
-                cx,
-            ));
-            toolbar = toolbar.child(format_button(
-                "quote",
-                "Quote",
-                FormatCommand::Block(BlockFormat::Quote),
-                cx,
-            ));
-            toolbar = toolbar.child(format_button(
-                "list",
-                "List",
-                FormatCommand::Block(BlockFormat::UnorderedList),
-                cx,
-            ));
-            toolbar = toolbar.child(format_button(
-                "ordered-list",
-                "1.",
-                FormatCommand::Block(BlockFormat::OrderedList),
-                cx,
-            ));
-            toolbar = toolbar.child(format_button(
-                "task-list",
-                "Task",
-                FormatCommand::Block(BlockFormat::TaskList),
-                cx,
-            ));
-        }
-
         let content = match self.preview_mode {
             PreviewMode::Source => div().flex_1().min_h_0().child(source).into_any_element(),
             PreviewMode::Preview => self.render_rich_document(&markdown, cx),
@@ -657,12 +640,61 @@ impl Render for EditorView {
             .flex()
             .flex_col()
             .size_full()
-            .child(toolbar)
+            .track_focus(&self.preview_focus)
+            .children(self.show_toolbar.then(|| self.render_toolbar(cx)))
             .child(content)
     }
 }
 
 impl EditorView {
+    fn render_toolbar(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        use EditorCommand::*;
+        let outline_label = if self.outline_open {
+            "Hide outline"
+        } else {
+            "Outline"
+        };
+        let views = [
+            ("source", "Source", ShowSource),
+            ("rich", "Block Editor", ShowBlockEditor),
+            ("split", "Split", ShowSplitPreview),
+            ("outline-toggle", outline_label, ToggleOutline),
+        ];
+        let formats = [
+            ("bold", "Bold", FormatInline(InlineFormat::Bold)),
+            ("italic", "Italic", FormatInline(InlineFormat::Italic)),
+            ("code", "Code", FormatInline(InlineFormat::Code)),
+            (
+                "strike",
+                "Strike",
+                FormatInline(InlineFormat::Strikethrough),
+            ),
+            ("heading", "H1", FormatBlock(BlockFormat::Heading(1))),
+            ("quote", "Quote", FormatBlock(BlockFormat::Quote)),
+            ("list", "List", FormatBlock(BlockFormat::UnorderedList)),
+            ("ordered-list", "1.", FormatBlock(BlockFormat::OrderedList)),
+            ("task-list", "Task", FormatBlock(BlockFormat::TaskList)),
+        ];
+        div()
+            .flex()
+            .items_center()
+            .gap_1()
+            .px_3()
+            .py_1()
+            .border_b_1()
+            .border_color(cx.theme().border)
+            .children(views.map(|(id, label, command)| command_button(id, label, command, cx)))
+            .child(div().flex_1())
+            .children(
+                self.can_format()
+                    .then(|| {
+                        formats.map(|(id, label, command)| command_button(id, label, command, cx))
+                    })
+                    .into_iter()
+                    .flatten(),
+            )
+    }
+
     fn ensure_blocks_cache(&mut self, markdown: &str) {
         if self.blocks_revision != Some(self.revision) {
             self.blocks_cache = MarkdownDocument::new(markdown).blocks().unwrap_or_default();
@@ -915,37 +947,16 @@ impl EditorView {
     }
 }
 
-fn mode_button(
+fn command_button(
     id: &'static str,
     label: &'static str,
-    mode: PreviewMode,
+    command: EditorCommand,
     cx: &mut Context<EditorView>,
-) -> impl IntoElement {
+) -> Button {
     Button::new(id)
         .small()
         .label(label)
-        .on_click(cx.listener(move |this, _, window, cx| this.set_preview_mode(mode, window, cx)))
-}
-
-#[derive(Clone, Copy)]
-enum FormatCommand {
-    Inline(InlineFormat),
-    Block(BlockFormat),
-}
-
-fn format_button(
-    id: &'static str,
-    label: &'static str,
-    format: FormatCommand,
-    cx: &mut Context<EditorView>,
-) -> impl IntoElement {
-    Button::new(id)
-        .small()
-        .label(label)
-        .on_click(cx.listener(move |this, _, window, cx| match format {
-            FormatCommand::Inline(format) => this.format_inline(format, window, cx),
-            FormatCommand::Block(format) => this.format_block(format, window, cx),
-        }))
+        .on_click(cx.listener(move |this, _, window, cx| this.execute_command(command, window, cx)))
 }
 
 fn collect_outline_entries(

@@ -1,17 +1,24 @@
+mod appearance;
 mod document;
 mod folder;
 mod image_assets;
 mod local_ai;
+mod settings;
+#[cfg(target_os = "macos")]
+mod web_editor;
 mod workspace;
 
 use futures::{StreamExt, channel::mpsc};
 use gpui_kit::*;
+use inkpoint_editor_gpui::{BlockFormat, EditorCommand::*, InlineFormat};
+use settings::OpenSettings;
 use std::path::PathBuf;
 use workspace::{
-    CloseDocument, NewDocument, OpenDocument, OpenFolder, SaveAs, SaveDocument, Workspace,
+    CloseDocument, ContinueWithLocalAi, NewDocument, OpenDocument, OpenFolder, SaveAs,
+    SaveDocument, Workspace,
 };
 
-const APP_NAME: &str = "Inkpoint GPUI Preview";
+const APP_NAME: &str = "Inkpoint";
 
 fn main() {
     let startup_path = std::env::args_os().nth(1).map(PathBuf::from);
@@ -31,14 +38,32 @@ fn main() {
     });
     app.run(move |cx| {
         init(cx);
+        settings::init(cx);
         cx.bind_keys([
             KeyBinding::new("cmd-n", NewDocument, Some("Inkpoint")),
             KeyBinding::new("cmd-o", OpenDocument, Some("Inkpoint")),
-            KeyBinding::new("cmd-shift-o", OpenFolder, Some("Inkpoint")),
+            KeyBinding::new("cmd-alt-o", OpenFolder, Some("Inkpoint")),
             KeyBinding::new("cmd-s", SaveDocument, Some("Inkpoint")),
             KeyBinding::new("cmd-shift-s", SaveAs, Some("Inkpoint")),
             KeyBinding::new("cmd-w", CloseDocument, Some("Inkpoint")),
             KeyBinding::new("cmd-q", CloseDocument, Some("Inkpoint")),
+            KeyBinding::new("cmd-/", ToggleSourceMode, Some("Inkpoint")),
+            KeyBinding::new("cmd-shift-b", ToggleOutline, Some("Inkpoint")),
+            KeyBinding::new(
+                if cfg!(target_os = "macos") {
+                    "cmd-,"
+                } else {
+                    "ctrl-,"
+                },
+                OpenSettings,
+                None,
+            ),
+            KeyBinding::new("cmd-b", FormatInline(InlineFormat::Bold), Some("Inkpoint")),
+            KeyBinding::new(
+                "cmd-i",
+                FormatInline(InlineFormat::Italic),
+                Some("Inkpoint"),
+            ),
         ]);
         cx.set_menus([
             Menu::new(APP_NAME).items([MenuItem::action("Quit Inkpoint", CloseDocument)]),
@@ -50,6 +75,32 @@ fn main() {
                 MenuItem::action("Save As…", SaveAs),
                 MenuItem::action("Close", CloseDocument),
             ]),
+            Menu::new("View").items([
+                MenuItem::action("Toggle Source Mode", ToggleSourceMode),
+                #[cfg(not(target_os = "macos"))]
+                MenuItem::action("Block Editor", ShowBlockEditor),
+                #[cfg(not(target_os = "macos"))]
+                MenuItem::action("Side-by-Side Preview", ShowSplitPreview),
+                MenuItem::separator(),
+                MenuItem::action("Toggle Outline", ToggleOutline),
+            ]),
+            Menu::new("Format").items([
+                MenuItem::action("Bold", FormatInline(InlineFormat::Bold)),
+                MenuItem::action("Italic", FormatInline(InlineFormat::Italic)),
+                MenuItem::action("Strikethrough", FormatInline(InlineFormat::Strikethrough)),
+                MenuItem::action("Inline Code", FormatInline(InlineFormat::Code)),
+                MenuItem::separator(),
+                MenuItem::action("Heading 1", FormatBlock(BlockFormat::Heading(1))),
+                MenuItem::action("Quote", FormatBlock(BlockFormat::Quote)),
+                MenuItem::action("Bulleted List", FormatBlock(BlockFormat::UnorderedList)),
+                MenuItem::action("Numbered List", FormatBlock(BlockFormat::OrderedList)),
+                MenuItem::action("Task List", FormatBlock(BlockFormat::TaskList)),
+            ]),
+            Menu::new("AI").items([MenuItem::action(
+                "Continue with Local AI",
+                ContinueWithLocalAi,
+            )]),
+            Menu::new("Settings").items([MenuItem::action("Settings…", OpenSettings)]),
         ]);
         let options = WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(Bounds::centered(
@@ -58,15 +109,13 @@ fn main() {
                 cx,
             ))),
             window_min_size: Some(size(px(560.), px(460.))),
-            ..Default::default()
+            ..component::TitleBar::window_options()
         };
         let (window, workspace) = open_window(options, cx, move |window, cx| {
             cx.new(|cx| {
                 let mut workspace = Workspace::new(window, cx);
                 if let Some(path) = startup_path {
                     workspace.load_document(path, window, cx);
-                } else {
-                    workspace.focus(window, cx);
                 }
                 workspace
             })

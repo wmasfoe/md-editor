@@ -1,22 +1,22 @@
+mod chrome;
+
+use self::chrome::OutlineEntry;
 use std::{collections::HashMap, ops::Range, path::PathBuf, rc::Rc, sync::Arc};
 
+#[cfg(target_os = "macos")]
+use crate::web_editor::{HostCommand, HostEvent, WebEditor as DesktopEditor};
 use crate::{
     APP_NAME,
     document::{Document, is_markdown},
     folder::FolderEntry,
     image_assets::store_image,
     local_ai::LocalAiService,
+    settings,
 };
-use gpui_kit::{
-    component::{
-        ActiveTheme, Sizable,
-        button::Button,
-        list::ListItem,
-        tree::{TreeState, tree},
-    },
-    *,
-};
-use inkpoint_editor_gpui::{EditorView, PasteContext};
+use gpui_kit::{component::tree::TreeState, *};
+#[cfg(not(target_os = "macos"))]
+use inkpoint_editor_gpui::EditorView as DesktopEditor;
+use inkpoint_editor_gpui::PasteContext;
 
 actions!(
     inkpoint,
@@ -26,7 +26,8 @@ actions!(
         OpenFolder,
         SaveDocument,
         SaveAs,
-        CloseDocument
+        CloseDocument,
+        ContinueWithLocalAi
     ]
 );
 
@@ -44,26 +45,53 @@ struct Suggestion {
     text: String,
 }
 
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum SidebarTab {
+    Files,
+    Outline,
+}
+
 pub(crate) struct Workspace {
-    editor: Entity<EditorView>,
+    editor: Entity<DesktopEditor>,
     document: Arc<Document>,
+    has_active_document: bool,
+    welcome_focus: FocusHandle,
     folder: Entity<TreeState>,
     folder_files: HashMap<SharedString, PathBuf>,
     folder_loaded: bool,
+    sidebar_visible: bool,
+    sidebar_tab: SidebarTab,
+    outline: Option<(u64, Vec<OutlineEntry>)>,
     file_busy: bool,
     status: SharedString,
     ai: Option<Arc<LocalAiService>>,
     ai_busy: bool,
     suggestion: Option<Suggestion>,
     _editor_observer: Subscription,
+    _appearance_observer: Subscription,
+    #[cfg(target_os = "macos")]
+    _preferences_observer: Subscription,
     _ai_shutdown: Subscription,
 }
 
 impl Workspace {
     pub(crate) fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         let owner = cx.weak_entity();
+        #[cfg(target_os = "macos")]
         let editor = cx.new(|cx| {
-            let mut editor = EditorView::new(window, cx, "");
+            DesktopEditor::new(
+                window,
+                cx,
+                Rc::new(move |event, window, cx| {
+                    if let Some(owner) = owner.upgrade() {
+                        owner.update(cx, |this, cx| this.handle_editor_event(event, window, cx));
+                    }
+                }),
+            )
+        });
+        #[cfg(not(target_os = "macos"))]
+        let editor = cx.new(|cx| {
+            let mut editor = DesktopEditor::new(window, cx, "").without_toolbar();
             editor.set_paste_handler(
                 Some(Rc::new(move |clipboard, target, window, cx| {
                     let Some(image) = clipboard.entries.iter().find_map(|entry| match entry {
@@ -94,6 +122,16 @@ impl Workspace {
                 }
                 cx.notify();
             });
+        #[cfg(target_os = "macos")]
+        let preferences_observer = {
+            let preferences = settings::current(cx).clone();
+            cx.observe_in(&preferences, window, |this, preferences, _, cx| {
+                let preferences = preferences.read(cx).clone();
+                this.editor
+                    .update(cx, |editor, _| editor.apply_preferences(&preferences));
+            })
+        };
+        let appearance_observer = window.observe_window_appearance(settings::sync_system_theme);
         let owner = cx.weak_entity();
         window.on_window_should_close(cx, move |window, cx| {
             if let Some(entity) = owner.upgrade() {
@@ -101,7 +139,7 @@ impl Workspace {
                     if this.file_busy {
                         return false;
                     }
-                    if this.dirty(cx) {
+                    if cfg!(target_os = "macos") || this.dirty(cx) {
                         this.file_action(FileAction::Close, window, cx);
                         return false;
                     }
@@ -122,42 +160,57 @@ impl Workspace {
                 }
             }
         });
-        let mut view = Self {
+        let view = Self {
             editor,
             document: Arc::default(),
+            has_active_document: false,
+            welcome_focus: cx.focus_handle(),
             folder: cx.new(|cx| TreeState::new(cx)),
             folder_files: HashMap::new(),
             folder_loaded: false,
+            sidebar_visible: true,
+            sidebar_tab: SidebarTab::Files,
+            outline: None,
             file_busy: false,
             status: "Ready".into(),
             ai,
             ai_busy: false,
             suggestion: None,
             _editor_observer,
+            _appearance_observer: appearance_observer,
+            #[cfg(target_os = "macos")]
+            _preferences_observer: preferences_observer,
             _ai_shutdown: ai_shutdown,
         };
+        view.welcome_focus.focus(window, cx);
         view.update_title(window, cx);
         view
     }
 
-    pub(crate) fn focus(&self, window: &mut Window, cx: &mut Context<Self>) {
-        self.editor
-            .update(cx, |editor, cx| editor.focus(window, cx));
-    }
-
     fn dirty(&self, cx: &App) -> bool {
         let editor = self.editor.read(cx);
-        editor.has_unsaved_rich_changes(cx) || editor.markdown(cx) != self.document.markdown
+        #[cfg(not(target_os = "macos"))]
+        if editor.has_unsaved_rich_changes(cx) {
+            return true;
+        }
+        editor.markdown(cx) != self.document.markdown
     }
 
-    fn update_title(&mut self, window: &mut Window, cx: &App) {
-        let name = self
-            .document
+    fn document_name(&self) -> std::borrow::Cow<'_, str> {
+        self.document
             .path
             .as_ref()
             .and_then(|path| path.file_name())
             .map(|name| name.to_string_lossy())
-            .unwrap_or_else(|| "Untitled".into());
+            .unwrap_or_else(|| "Untitled".into())
+    }
+
+    fn update_title(&self, window: &mut Window, cx: &App) {
+        if !self.has_active_document {
+            window.set_window_title(APP_NAME);
+            return;
+        }
+        let name = self.document_name();
         let marker = if self.dirty(cx) { " •" } else { "" };
         window.set_window_title(&format!("{name}{marker} — {APP_NAME}"));
     }
@@ -167,13 +220,77 @@ impl Workspace {
         cx.notify();
     }
 
+    fn show_outline(&mut self, cx: &mut Context<Self>) {
+        if self.sidebar_visible && self.sidebar_tab == SidebarTab::Outline {
+            self.sidebar_visible = false;
+        } else {
+            self.sidebar_visible = true;
+            self.sidebar_tab = SidebarTab::Outline;
+        }
+        cx.notify();
+    }
+
+    #[cfg(target_os = "macos")]
+    fn handle_editor_event(
+        &mut self,
+        event: HostEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        match event {
+            HostEvent::Command(command) => match command {
+                HostCommand::New => self.file_action(FileAction::New, window, cx),
+                HostCommand::Open => self.file_action(FileAction::Open, window, cx),
+                HostCommand::OpenFolder => self.open_folder(window, cx),
+                HostCommand::Save => self.save(false, None, window, cx),
+                HostCommand::SaveAs => self.save(true, None, window, cx),
+                HostCommand::Close => self.file_action(FileAction::Close, window, cx),
+                HostCommand::Outline => self.show_outline(cx),
+                HostCommand::LocalAi => self.request_completion(window, cx),
+                HostCommand::Settings => settings::open(cx),
+            },
+            HostEvent::Link(target) => {
+                if let Ok(url) = url::Url::parse(&target)
+                    && matches!(url.scheme(), "https" | "http" | "mailto")
+                {
+                    cx.open_url(url.as_str());
+                }
+            }
+            HostEvent::PasteImage => self.after_editor_flush(window, cx, |this, window, cx| {
+                let image = cx.read_from_clipboard().and_then(|item| {
+                    item.entries.into_iter().find_map(|entry| match entry {
+                        ClipboardEntry::Image(image) => Some(image),
+                        _ => None,
+                    })
+                });
+                if let Some(image) = image {
+                    let editor = this.editor.read(cx);
+                    let target = PasteContext {
+                        revision: editor.revision(),
+                        selection: editor.selected_range(cx),
+                    };
+                    this.paste_image(image, target, window, cx);
+                }
+            }),
+            HostEvent::InsertResult(true) => self.message("Inserted", cx),
+            HostEvent::InsertResult(false) => {
+                self.message("The document or selection changed before insertion.", cx);
+            }
+            HostEvent::Error(error) => self.message(error, cx),
+        }
+    }
+
     fn install_document(
         &mut self,
         document: Document,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.has_active_document = true;
         self.editor.update(cx, |editor, cx| {
+            #[cfg(target_os = "macos")]
+            editor.replace_markdown(&document.markdown, document.path.as_deref(), window, cx);
+            #[cfg(not(target_os = "macos"))]
             editor.replace_markdown(&document.markdown, window, cx);
             editor.focus(window, cx);
         });
@@ -184,9 +301,53 @@ impl Workspace {
     }
 
     fn file_action(&mut self, action: FileAction, window: &mut Window, cx: &mut Context<Self>) {
+        self.after_editor_flush(window, cx, move |this, window, cx| {
+            this.file_action_from_snapshot(action, window, cx);
+        });
+    }
+
+    fn after_editor_flush(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+        action: impl FnOnce(&mut Self, &mut Window, &mut Context<Self>) + 'static,
+    ) {
         if self.file_busy {
             return;
         }
+        #[cfg(not(target_os = "macos"))]
+        action(self, window, cx);
+        #[cfg(target_os = "macos")]
+        {
+            // Native menu and window actions can arrive before the latest WebKit IPC message.
+            self.file_busy = true;
+            let owner = cx.weak_entity();
+            self.editor.update(cx, |editor, cx| {
+                editor.flush(
+                    move |result, window, cx| {
+                        if let Some(owner) = owner.upgrade() {
+                            owner.update(cx, |this, cx| {
+                                this.file_busy = false;
+                                match result {
+                                    Ok(()) => action(this, window, cx),
+                                    Err(error) => this.message(error, cx),
+                                }
+                            });
+                        }
+                    },
+                    window,
+                    cx,
+                );
+            });
+        }
+    }
+
+    fn file_action_from_snapshot(
+        &mut self,
+        action: FileAction,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if !self.dirty(cx) {
             self.run_file_action(action, window, cx);
             return;
@@ -249,6 +410,8 @@ impl Workspace {
                             .update(cx, |tree, cx| tree.set_items(vec![root], cx));
                         this.folder_files = files;
                         this.folder_loaded = true;
+                        this.sidebar_visible = true;
+                        this.sidebar_tab = SidebarTab::Files;
                         this.message("Opened folder", cx);
                     }
                     Some(Err(error)) => this.message(format!("Open folder failed: {error}"), cx),
@@ -277,6 +440,8 @@ impl Workspace {
                     multiple: false,
                     prompt: Some("Open Markdown".into()),
                 });
+                self.editor
+                    .update(cx, |editor, cx| editor.set_readonly(true, cx));
                 self.file_busy = true;
                 cx.spawn_in(window, async move |workspace, cx| {
                     let path = response
@@ -290,6 +455,8 @@ impl Workspace {
                         if let Some(path) = path {
                             this.load_document(path, window, cx);
                         } else {
+                            this.editor
+                                .update(cx, |editor, cx| editor.set_readonly(false, cx));
                             cx.notify();
                         }
                     });
@@ -307,6 +474,8 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         if !is_markdown(&path) {
+            self.editor
+                .update(cx, |editor, cx| editor.set_readonly(false, cx));
             self.message("Choose a Markdown or MDX file.", cx);
             return;
         }
@@ -339,13 +508,26 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.file_busy {
+        if !self.has_active_document {
             return;
         }
-        let committed = self
+        self.after_editor_flush(window, cx, move |this, window, cx| {
+            this.save_snapshot(save_as, next, window, cx);
+        });
+    }
+
+    fn save_snapshot(
+        &mut self,
+        save_as: bool,
+        next: Option<FileAction>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        #[cfg(not(target_os = "macos"))]
+        if let Err(error) = self
             .editor
-            .update(cx, |editor, cx| editor.commit_pending_rich_edit(window, cx));
-        if let Err(error) = committed {
+            .update(cx, |editor, cx| editor.commit_pending_rich_edit(window, cx))
+        {
             self.message(error, cx);
             return;
         }
@@ -371,7 +553,11 @@ impl Workspace {
             let _ = workspace.update_in(cx, |this, window, cx| {
                 this.file_busy = false;
                 match response {
-                    Ok(Ok(Some(path))) => this.write_document(path, next, window, cx),
+                    Ok(Ok(Some(path))) => {
+                        this.after_editor_flush(window, cx, move |this, window, cx| {
+                            this.write_document(path, next, window, cx);
+                        })
+                    }
                     Ok(Err(error)) => this.message(format!("Save failed: {error}"), cx),
                     _ => cx.notify(),
                 }
@@ -401,15 +587,31 @@ impl Workspace {
                 this.file_busy = false;
                 match result {
                     Ok(saved) => {
+                        #[cfg(target_os = "macos")]
+                        this.editor.update(cx, |editor, _| {
+                            editor.set_document_path(saved.path.as_deref())
+                        });
                         this.document = Arc::new(saved);
                         this.update_title(window, cx);
-                        if this.dirty(cx) {
-                            this.message("Saved a snapshot. Newer edits are still unsaved.", cx);
+                        if let Some(next) = next {
+                            this.after_editor_flush(window, cx, move |this, window, cx| {
+                                if this.dirty(cx) {
+                                    this.message(
+                                        "Saved a snapshot. Newer edits are still unsaved.",
+                                        cx,
+                                    );
+                                } else {
+                                    this.message("Saved", cx);
+                                    this.run_file_action(next, window, cx);
+                                }
+                            });
                         } else {
-                            this.message("Saved", cx);
-                            if let Some(next) = next {
-                                this.run_file_action(next, window, cx);
-                            }
+                            let status = if this.dirty(cx) {
+                                "Saved a snapshot. Newer edits are still unsaved."
+                            } else {
+                                "Saved"
+                            };
+                            this.message(status, cx);
                         }
                     }
                     Err(error) => this.message(format!("Save failed: {error}"), cx),
@@ -460,7 +662,10 @@ impl Workspace {
                     editor.insert_image_if_unchanged(&target, &reference, window, cx)
                 });
                 match inserted {
+                    #[cfg(not(target_os = "macos"))]
                     Ok(()) => this.message("Image inserted", cx),
+                    #[cfg(target_os = "macos")]
+                    Ok(()) => {}
                     Err(error) => this.message(format!("Image saved at {reference}. {error}"), cx),
                 }
             });
@@ -470,14 +675,18 @@ impl Workspace {
     }
 
     fn request_completion(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.has_active_document && !self.ai_busy {
+            self.after_editor_flush(window, cx, Self::request_snapshot_completion);
+        }
+    }
+
+    fn request_snapshot_completion(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(ai) = self.ai.clone() else {
             self.message("The local AI runtime is unavailable in this build.", cx);
             return;
         };
-        if self.ai_busy {
-            return;
-        }
         let editor = self.editor.read(cx);
+        #[cfg(not(target_os = "macos"))]
         if editor.has_pending_rich_edit() {
             self.message(
                 "Apply or cancel the current block edit before asking AI.",
@@ -520,7 +729,11 @@ impl Workspace {
             let _ = workspace.update_in(cx, |this, _, cx| {
                 this.ai_busy = false;
                 let editor = this.editor.read(cx);
-                if editor.has_pending_rich_edit()
+                #[cfg(target_os = "macos")]
+                let unstable = editor.composing();
+                #[cfg(not(target_os = "macos"))]
+                let unstable = editor.has_pending_rich_edit();
+                if unstable
                     || editor.revision() != revision
                     || editor.selected_range(cx) != selection
                 {
@@ -560,162 +773,13 @@ impl Workspace {
                 cx,
             )
         });
-        if let Err(error) = result {
-            self.message(error, cx);
-        } else {
-            self.message("Suggestion inserted", cx);
+        match result {
+            Err(error) => self.message(error, cx),
+            #[cfg(not(target_os = "macos"))]
+            Ok(()) => self.message("Suggestion inserted", cx),
+            #[cfg(target_os = "macos")]
+            Ok(()) => cx.notify(),
         }
-    }
-}
-
-impl Render for Workspace {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = cx.theme();
-        let toolbar = div()
-            .flex()
-            .items_center()
-            .gap_2()
-            .px_3()
-            .py_2()
-            .border_b_1()
-            .border_color(theme.border)
-            .child(Button::new("new").small().label("New").on_click(
-                cx.listener(|this, _, window, cx| this.file_action(FileAction::New, window, cx)),
-            ))
-            .child(Button::new("open").small().label("Open…").on_click(
-                cx.listener(|this, _, window, cx| this.file_action(FileAction::Open, window, cx)),
-            ))
-            .child(
-                Button::new("save").small().label("Save").on_click(
-                    cx.listener(|this, _, window, cx| this.save(false, None, window, cx)),
-                ),
-            )
-            .child(
-                Button::new("open-folder")
-                    .small()
-                    .label("Open Folder…")
-                    .on_click(cx.listener(|this, _, window, cx| this.open_folder(window, cx))),
-            )
-            .child(div().flex_1())
-            .child(
-                Button::new("local-ai")
-                    .small()
-                    .label(if self.ai_busy {
-                        "Generating…"
-                    } else {
-                        "Local AI Continue"
-                    })
-                    .on_click(
-                        cx.listener(|this, _, window, cx| this.request_completion(window, cx)),
-                    ),
-            );
-
-        let folder = self.folder_loaded.then(|| {
-            let owner = cx.weak_entity();
-            div()
-                .w(px(240.))
-                .h_full()
-                .flex_shrink_0()
-                .border_r_1()
-                .border_color(theme.border)
-                .child(tree(&self.folder, move |index, entry, _, _, _| {
-                    let item = entry.item();
-                    let row = ListItem::new(index)
-                        .pl(px(8. + entry.depth() as f32 * 13.))
-                        .accessibility_label(item.label.clone())
-                        .child(div().truncate().child(item.label.clone()));
-                    if entry.is_folder() || entry.is_root() {
-                        let arrow = if entry.is_expanded() { "▾" } else { "▸" };
-                        return row.suffix(move |_, _| div().child(arrow).into_any_element());
-                    }
-                    let id = item.id.clone();
-                    let owner = owner.clone();
-                    row.on_click(move |_, window, cx| {
-                        if let Some(workspace) = owner.upgrade() {
-                            workspace.update(cx, |this, cx| {
-                                if let Some(path) = this.folder_files.get(&id).cloned() {
-                                    this.open_path(path, window, cx);
-                                }
-                            });
-                        }
-                    })
-                }))
-        });
-
-        let suggestion = self.suggestion.as_ref().map(|suggestion| {
-            div()
-                .id("suggestion")
-                .flex()
-                .flex_col()
-                .gap_2()
-                .px_4()
-                .py_3()
-                .max_h(px(200.))
-                .overflow_y_scroll()
-                .border_t_1()
-                .border_color(theme.border)
-                .child(suggestion.text.clone())
-                .child(
-                    div()
-                        .flex()
-                        .gap_2()
-                        .child(Button::new("accept").small().label("Insert").on_click(
-                            cx.listener(|this, _, window, cx| this.accept_completion(window, cx)),
-                        ))
-                        .child(Button::new("dismiss").small().label("Dismiss").on_click(
-                            cx.listener(|this, _, _, cx| {
-                                this.suggestion = None;
-                                this.message("Suggestion dismissed", cx);
-                            }),
-                        )),
-                )
-        });
-
-        div()
-            .key_context("Inkpoint")
-            .size_full()
-            .flex()
-            .flex_col()
-            .bg(theme.background)
-            .text_color(theme.foreground)
-            .on_action(cx.listener(|this, _: &NewDocument, window, cx| {
-                this.file_action(FileAction::New, window, cx)
-            }))
-            .on_action(cx.listener(|this, _: &OpenDocument, window, cx| {
-                this.file_action(FileAction::Open, window, cx)
-            }))
-            .on_action(cx.listener(|this, _: &OpenFolder, window, cx| this.open_folder(window, cx)))
-            .on_action(
-                cx.listener(|this, _: &SaveDocument, window, cx| {
-                    this.save(false, None, window, cx)
-                }),
-            )
-            .on_action(
-                cx.listener(|this, _: &SaveAs, window, cx| this.save(true, None, window, cx)),
-            )
-            .on_action(cx.listener(|this, _: &CloseDocument, window, cx| {
-                this.file_action(FileAction::Close, window, cx)
-            }))
-            .child(toolbar)
-            .child(
-                div()
-                    .flex()
-                    .flex_1()
-                    .min_h_0()
-                    .children(folder)
-                    .child(div().flex_1().min_w_0().child(self.editor.clone())),
-            )
-            .children(suggestion)
-            .child(
-                div()
-                    .px_4()
-                    .py_1()
-                    .border_t_1()
-                    .border_color(theme.border)
-                    .text_xs()
-                    .text_color(theme.muted_foreground)
-                    .child(self.status.clone()),
-            )
     }
 }
 

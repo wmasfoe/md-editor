@@ -7,7 +7,7 @@
   "type": "module",
   "packageManager": "pnpm@11.6.0",
   "scripts": {
-    "dev:desktop": "cargo run --locked --package inkpoint-gpui --",
+    "dev:desktop": "pnpm --filter @md-editor/desktop dev",
     "dev:web": "pnpm --filter @md-editor/web dev",
     "dev:utools": "pnpm --filter @md-editor/utools dev",
     "dev:site": "pnpm --filter @md-editor/site dev",
@@ -21,7 +21,7 @@
     "build:mobile": "pnpm --filter @md-editor/mobile-core build && node scripts/mobile/sync-mobile-web.mjs",
     "build:utools": "pnpm --filter @md-editor/utools build",
     "build:site": "pnpm --filter @md-editor/site build",
-    "build:macos": "cargo build --locked --release --package inkpoint-gpui",
+    "build:macos": "pnpm --filter @md-editor/desktop build",
     "build:macos:bundle": "node apps/desktop/scripts/package-macos.mjs",
     "release:web": "node scripts/web/deploy-web.mjs",
     "release:web:publish": "node scripts/release/publish-web.mjs",

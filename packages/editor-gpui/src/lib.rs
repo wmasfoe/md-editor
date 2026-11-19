@@ -2,4 +2,4 @@
 
 mod view;
 
-pub use view::{BlockFormat, EditorView, InlineFormat, PasteContext, PasteHandler};
+pub use view::{BlockFormat, EditorCommand, EditorView, InlineFormat, PasteContext, PasteHandler};
