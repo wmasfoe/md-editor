@@ -1,5 +1,11 @@
 # @md-editor/editor
 
+## 0.3.3
+
+### Patch Changes
+
+- a075129: Fix WYSIWYG selection highlighting when a selection starts or ends on a projected frontmatter fence.
+
 ## 0.3.2
 
 ### Patch Changes
