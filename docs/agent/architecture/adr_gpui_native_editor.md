@@ -79,11 +79,12 @@
 - 桌面端无 TypeScript、无 wry、无 WebKit
 - `workspace.rs` 的 13 处 `#[cfg(target_os)]` 分叉全部消除
 - 单一构建链
-- 桌面与 Playground 共用同一套排版与编辑语义
+- 桌面端排版与编辑语义集中到 `editor-typeset`，为 Playground 后续迁移铺路
 
 **负向 / 已知代价**
 
-- `packages/editor`（CodeMirror）仍服务 Web 应用，两套编辑器并存于仓库（但桌面不再用它）
+- `packages/editor`（CodeMirror）仍服务 Web 应用，桌面不再用它
+- `editor-gpui` 内并存两个视图：桌面用 `TypesetView`，Playground 仍用旧的 `EditorView`（块卡片式）。把 Playground 也迁到 `TypesetView` 是后续工作
 - mermaid 与 math 的渲染覆盖度与 npm 版 mermaid/KaTeX 存在差异，未逐项比对
 - 系统输入法的组合输入仍需 macOS 实机验收
 - 工作区 MSRV 从 1.98 升到 1.99，贡献者需同步工具链
