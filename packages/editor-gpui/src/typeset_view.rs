@@ -366,9 +366,17 @@ impl EntityInputHandler for TypesetView {
         self.editor.set_selection(target.start, target.end);
         let start = target.start;
         let result = self.editor.insert(new_text);
+        let inserted = result.is_ok();
         self.apply(result, cx);
-        // The composing region covers the text just inserted.
-        self.marked = Some(start..start + new_text.len());
+        // The composing region covers the text just inserted. Only mark it when
+        // the insert actually landed: a read-only document would otherwise stay
+        // "composing" forever, blocking every save and AI suggestion that waits
+        // for composition to finish.
+        if inserted {
+            self.marked = Some(start..start + new_text.len());
+        } else {
+            self.marked = None;
+        }
         if let Some(selected) = new_selected_range {
             let base = self.editor.source();
             let from = byte_offset(base, selected.start + utf16_offset(base, start));
