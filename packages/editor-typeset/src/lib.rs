@@ -134,11 +134,6 @@ impl TypesetDocument {
         &self.source
     }
 
-    /// The block count, which is also the number of leaf keys in use.
-    pub fn block_count(&self) -> usize {
-        self.blocks.len()
-    }
-
     /// The leaf key for `index`, or `None` when out of range.
     pub fn leaf_key(&self, index: usize) -> Option<u64> {
         self.keys.get(index).copied()
@@ -443,7 +438,7 @@ mod tests {
     fn a_heading_leaf_key_reaches_its_nested_paragraph() {
         // Without this the heading reports no geometry at all.
         let document = TypesetDocument::parse("# One\n").expect("markdown parses");
-        assert_eq!(document.block_count(), 1);
+        assert_eq!(document.leaf_spans().len(), 1);
         assert_eq!(document.leaf_key(0), Some(FIRST_LEAF_KEY));
     }
 }
