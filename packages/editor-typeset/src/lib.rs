@@ -106,6 +106,19 @@ impl TypesetDocument {
         source: impl Into<String>,
         diagrams: Option<&DiagramRenderer>,
     ) -> Result<Self, SharedString> {
+        Self::parse_at(source, diagrams, gpui_kit::SvgSize::ScaleFactor(1.0))
+    }
+
+    /// Parses `source`, rasterizing diagrams at `scale`.
+    ///
+    /// Scale is a display fact — DPI or zoom — so the caller decides it rather
+    /// than the document. A diagram rasterized at the wrong scale is blurry or
+    /// oversized and cannot be fixed without re-parsing.
+    pub fn parse_at(
+        source: impl Into<String>,
+        diagrams: Option<&DiagramRenderer>,
+        scale: gpui_kit::SvgSize,
+    ) -> Result<Self, SharedString> {
         let source = source.into();
         let parsed = parse_markdown(&source, Default::default())?;
         // Record each block's source range before any rendering replaces it. A
@@ -117,9 +130,7 @@ impl TypesetDocument {
             .map(|block| block.span().map(|span| span.start..span.end))
             .collect();
         let parsed = match diagrams {
-            Some(diagrams) => {
-                diagrams.replace_diagrams(parsed, gpui_kit::SvgSize::ScaleFactor(1.0))
-            }
+            Some(diagrams) => diagrams.replace_diagrams(parsed, scale),
             None => parsed,
         };
         let mut keys = Vec::with_capacity(parsed.len());
