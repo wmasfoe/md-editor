@@ -18,10 +18,12 @@
 mod edit;
 mod geometry;
 mod movement;
+mod svg;
 
 pub use edit::{Selection, TypesetEditor, TypesetError};
 pub use geometry::{LeafIndex, caret_at, index_at};
 pub use movement::{Vertical, move_down, move_left, move_right, move_up, move_vertical};
+pub use svg::{SvgError, SvgImageChannel, image_size, svg_to_image, try_svg_to_image};
 
 use gpui_kit::base::text::editor_host::{BlockNode, FlowPosition, RenderContext, parse_markdown};
 use gpui_kit::{App, Pixels, SharedString, Window, div, prelude::*};
