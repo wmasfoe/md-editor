@@ -8,7 +8,7 @@
 | --- | --- |
 | `packages/editor-core` | Markdown 源文档、UTF-8 字节偏移、语法投影和格式操作原语 |
 | `packages/editor-typeset` | 排版与编辑引擎：文档解析、光标与选区、编辑操作、垂直移动、SVG 通道、mermaid 与数学公式渲染 |
-| `packages/editor-gpui` | GPUI 视图层：`TypesetView`（桌面）与 `EditorView`（Playground） |
+| `packages/editor-gpui` | GPUI 视图层：`TypesetView`，桌面与 Playground 共用 |
 | `packages/editor-web` | 浏览器 WASM 入口 |
 | `apps/desktop` | GPUI 窗口与侧栏、文件与图片读写、本地模型调用 |
 | `apps/web` | Playground 页面、文件导入和下载 |
@@ -24,13 +24,13 @@ editor-typeset   排版 + 编辑引擎
      ↓
 editor-gpui      GPUI 视图
      ↓
-apps/desktop     GPUI 宿主（TypesetView）
-apps/web         Playground（EditorView，尚未迁移）
+apps/desktop     GPUI 宿主
+apps/web         Playground
 ```
 
 排版渲染由上游 `gpui-base` 承担，编辑层由 `editor-typeset` 承担。这条分界的依据见下方 ADR。
 
-**尚未完成：** Playground 仍使用 `packages/editor-gpui/src/view.rs` 的 `EditorView`，那是「块卡片 + 点击弹纯文本编辑框」的旧实现。桌面已切到 `TypesetView`，两个视图并存于 `editor-gpui` 内。把 Playground 也切过去是后续工作，不在本次范围内。
+桌面与 Playground 都通过 `TypesetView` 编辑，旧的块卡片式 `EditorView` 已删除。
 
 ## 本地构建
 
@@ -67,7 +67,9 @@ Beta CI 生成 Apple Silicon DMG 与独立的 Playground ZIP。Playground ZIP �
 
 ## 当前功能差异
 
-桌面端已能编辑 Markdown、渲染标题层级、表格单元格编辑与中文输入。Playground 仍使用旧的 `EditorView`（块卡片式），尚未迁移到 `TypesetView`。
+桌面端与 Playground 都能编辑 Markdown、渲染标题层级、表格单元格编辑与中文输入。
+
+mermaid 与 math 的渲染能力已在 `editor-typeset` 实现并有测试，但尚未接入块流：`editor_host` 的块树没有公开方式注入内存中的渲染图。当前两者按代码块显示源码，编辑不受影响。原因见 ADR。
 
 尚未迁移到桌面端的能力：外部插件运行、会话恢复、文档历史、AI 纠错与风格学习、PDF/HTML 导出、Quick Look、Sentry。
 
