@@ -5,16 +5,13 @@ import { describe, expect, it } from "vitest";
 
 const sourceRoot = new URL("../src", import.meta.url);
 const editorHostPackageRoot = new URL("../../editor-host", import.meta.url);
+const desktopRoot = new URL("../../../apps/desktop", import.meta.url);
 const desktopPackageJson = JSON.parse(
   readFileSync(new URL("../../../apps/desktop/package.json", import.meta.url), "utf8"),
 ) as {
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
 };
-const desktopViteConfigSource = readFileSync(
-  new URL("../../../apps/desktop/vite.config.ts", import.meta.url),
-  "utf8",
-);
 const packageJson = JSON.parse(
   readFileSync(new URL("../package.json", import.meta.url), "utf8"),
 ) as {
@@ -38,7 +35,9 @@ describe("app-ui hooks and package boundary", () => {
     expect(existsSync(editorHostPackageRoot)).toBe(false);
     expect(desktopPackageJson.dependencies?.["@md-editor/editor-host"]).toBeUndefined();
     expect(desktopPackageJson.devDependencies?.["@md-editor/editor-host"]).toBeUndefined();
-    expect(desktopViteConfigSource).not.toContain("@md-editor/editor-host");
+    // 桌面端已换成 Rust GPUI 宿主，不再有 Vite/React 前端配置可接线。
+    expect(existsSync(new URL("vite.config.ts", desktopRoot))).toBe(false);
+    expect(existsSync(new URL("src/main.tsx", desktopRoot))).toBe(false);
   });
 
   it("exports only retained hooks from the app-ui hooks entrypoint", () => {

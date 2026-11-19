@@ -5,7 +5,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "pnpm --filter @md-editor/editor-web build",
     "dev": "vite",
+    "prebuild": "pnpm --filter @md-editor/editor-web build",
     "build": "tsc -p tsconfig.json && vite build && node ../../scripts/release/assert-no-sourcemaps.mjs dist",
     "preview": "vite preview",
     "deploy": "node ../../scripts/web/deploy-web.mjs",
@@ -15,6 +17,7 @@
     "test:browser": "playwright test"
   },
   "dependencies": {
+    "@md-editor/editor-web": "workspace:*",
     "@headlessui/react": "catalog:",
     "@heroicons/react": "catalog:",
     "@md-editor/ai": "workspace:*",
@@ -38,11 +41,8 @@
     "@lezer/markdown": "catalog:"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "@vitejs/plugin-react": "catalog:",
-    "tailwindcss": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:",

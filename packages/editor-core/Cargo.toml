@@ -1,0 +1,11 @@
+[package]
+name = "inkpoint-editor-core"
+version = "0.23.4"
+edition = "2024"
+rust-version = "1.98"
+license = "GPL-3.0-or-later"
+publish = false
+description = "Shared Markdown document and editing contracts for Inkpoint"
+
+[dependencies]
+markdown = "1.0"

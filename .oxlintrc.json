@@ -28,7 +28,7 @@
     "**/build/**",
     "**/.next/**",
     "**/target/**",
-    "**/src-tauri/gen/**",
+    "**/gen/**",
     "**/coverage/**",
     ".vercel/**",
     "**/extensions/quicklook/Resources/**"

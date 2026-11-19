@@ -13,6 +13,7 @@
     "@md-editor/site",
     "@md-editor/utools",
     "@md-editor/web",
+    "@md-editor/editor-web",
     "@md-editor/distribution-worker",
     "@md-editor/ai",
     "@md-editor/app-ui",

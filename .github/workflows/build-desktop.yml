@@ -1,8 +1,14 @@
 name: Build Desktop App
 
+# Tauri 退役后，桌面端由 Rust GPUI workspace 承载（apps/desktop 的 inkpoint-gpui
+# 加 packages/editor-*）。这里只做跨平台 lint / typecheck / 测试与 Rust 验证；
+# 真正的 macOS DMG 与 Playground 产物由 release-beta.yml（beta）和
+# release-desktop.yml（stable tag）构建。
 on:
   workflow_dispatch:
   pull_request:
+    branches-ignore:
+      - beta
     paths-ignore:
       - "docs/**"
       - ".vscode/**"
@@ -22,8 +28,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -45,17 +49,20 @@ jobs:
       - name: Format (Prettier)
         run: pnpm format:prettier:check
 
-      # 仓库结构守卫（目录职责/命名/测试位置/体量阈值与豁免）。
-      # 注意不能直接换成 `pnpm lint`：那会连带执行 cargo fmt/clippy，而本 job 未安装 Rust。
+      # Structure guard 与 Rust fmt/clippy 需要 Rust 工具链。
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@1.98.0
+        with:
+          components: clippy, rustfmt
+
       - name: Lint (Structure)
         run: pnpm lint:structure
 
-      # Changeset 校验：既检查“改了已发布包却没有 changeset”，
-      # 也检查 changeset 本身格式合法（例如混入 ignored 包）。
-      # 后者曾导致 PR #270 合并后 main 的 release-npm-packages workflow 失败，
-      # 因为 `changeset version` 只在发版时才解析 changeset。
+      - name: Lint (Rust)
+        run: pnpm lint:rust
+
       - name: Check Changeset
-        if: github.event_name == 'pull_request' && github.head_ref != 'changeset-release/main'
+        if: github.event_name == 'pull_request'
         run: node scripts/packages/check-changeset.mjs --strict
 
   typecheck:
@@ -114,7 +121,6 @@ jobs:
 
       # 生产构建 smoke：apps/web 的产物此前只在 web-v* tag 发布时才构建，
       # PR 阶段发现不了构建期问题（例如幽灵依赖导致的 CSS 解析失败）。
-      # 桌面端产物已由 `pnpm test` 中的 test:bundle 探针覆盖（它会做一次完整 desktop Vite 构建）。
       - name: Build Web app (production)
         run: pnpm build:web
 
@@ -145,12 +151,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Install Playwright Chromium
-        run: pnpm --filter @md-editor/desktop exec playwright install chromium
-
-      - name: Run E2E tests
-        run: pnpm --filter @md-editor/desktop test:browser
-
       - name: Install Chromium for web diagram tests
         run: pnpm --filter @md-editor/web exec playwright install chromium
 
@@ -175,10 +175,10 @@ jobs:
         platform:
           - name: macOS
             os: macos-latest
+          # GPUI 当前交付矩阵是 Apple Silicon。Linux/Windows 的窗口后端尚未验证，
+          # 在这里跑只会暴露上游 gpui-kit 的平台缺口，不反映本仓库状态。
           - name: Linux
             os: ubuntu-22.04
-          - name: Windows
-            os: windows-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -187,90 +187,26 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev file unzip squashfs-tools desktop-file-utils xvfb icewm x11-utils xdotool libegl1 libgl1 libgles2 libglx-mesa0 libgl1-mesa-dri libosmesa6 mesa-utils gcc appstream zsync
-          sudo apt-get install -y libfuse2t64 || sudo apt-get install -y libfuse2
+          sudo apt-get install -y libssl-dev pkg-config fontconfig libfreetype6-dev libxkbcommon-dev libwayland-dev libx11-dev libxcb1-dev
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.98.0
         with:
           components: clippy, rustfmt
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: apps/desktop/src-tauri
+          workspaces: . -> target
 
       - name: Rust fmt check
-        run: cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check
+        run: cargo fmt --all -- --check
 
       - name: Rust clippy
-        run: cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets -- -D warnings
+        run: cargo clippy --locked --workspace --all-targets -- -D warnings
 
       - name: Test Rust
-        run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
-
-  # The manual matrix below stays workflow_dispatch-only. Pull requests still have
-  # to build the real x86_64 AppImage: validate-appimage.mjs runs inside
-  # `pnpm build:linux`, and unit tests cannot see a missing .upd_info section
-  # or a runtime that ignores --appimage-updateinformation.
-  build-linux-appimage:
-    name: Build Linux AppImage
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11.6.0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: .node-version
-          cache: pnpm
-
-      - name: Install Linux system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev file unzip squashfs-tools desktop-file-utils xvfb icewm x11-utils xdotool libegl1 libgl1 libgles2 libglx-mesa0 libgl1-mesa-dri libosmesa6 mesa-utils gcc appstream zsync
-          sudo apt-get install -y libfuse2t64 || sudo apt-get install -y libfuse2
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: apps/desktop/src-tauri
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Prepare llama runtime sidecar
-        run: node scripts/release/prepare-llama-runtime.mjs
-
-      - name: Build Linux app
-        env:
-          NO_STRIP: "true"
-          APPIMAGE_EXTRACT_AND_RUN: "1"
-          LD_LIBRARY_PATH: "${{ github.workspace }}/apps/desktop/src-tauri/binaries"
-        run: pnpm build:linux
-
-      - name: Assert no shipped sourcemaps
-        run: node scripts/release/assert-no-sourcemaps.mjs apps/desktop/dist apps/desktop/src-tauri/target/release/bundle
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: markdown-editor-linux-pr
-          path: |
-            apps/desktop/src-tauri/target/release/bundle/appimage/*.AppImage
-            apps/desktop/src-tauri/target/release/bundle/appimage/*.AppImage.zsync
-            apps/desktop/src-tauri/target/release/bundle/deb/*.deb
-          if-no-files-found: error
+        run: cargo test --locked --workspace
 
   ci-status:
     name: All Checks Passed
@@ -281,19 +217,12 @@ jobs:
       - test-unit
       - test-e2e
       - test-rust
-      - build-linux-appimage
     runs-on: ubuntu-latest
     steps:
       - name: Evaluate status
         run: |
           results="${{ needs.lint.result }} ${{ needs.typecheck.result }} ${{ needs.test-unit.result }} ${{ needs.test-e2e.result }} ${{ needs.test-rust.result }}"
-          linux="${{ needs.build-linux-appimage.result }}"
           echo "Job results: $results"
-          echo "Linux AppImage: $linux"
-          # Manual dispatch does not run this job. A pull request must.
-          if [[ "${{ github.event_name }}" == "pull_request" || "$linux" != "skipped" ]]; then
-            results="$results $linux"
-          fi
           for res in $results; do
             if [[ "$res" != "success" ]]; then
               echo "❌ One or more CI jobs failed (status: $res)."
@@ -301,84 +230,3 @@ jobs:
             fi
           done
           echo "✅ All CI jobs succeeded!"
-
-  build-desktop:
-    name: Build Desktop (${{ matrix.platform.name }})
-    if: github.event_name == 'workflow_dispatch'
-    needs:
-      - ci-status
-    runs-on: ${{ matrix.platform.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        platform:
-          - name: macOS
-            os: macos-latest
-            build_cmd: pnpm build:macos
-            artifact_name: markdown-editor-macos-dmg
-            artifact_path: apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg
-          - name: Linux
-            os: ubuntu-22.04
-            build_cmd: pnpm build:linux
-            artifact_name: markdown-editor-linux
-            artifact_path: |
-              apps/desktop/src-tauri/target/release/bundle/appimage/*.AppImage
-              apps/desktop/src-tauri/target/release/bundle/appimage/*.AppImage.zsync
-              apps/desktop/src-tauri/target/release/bundle/deb/*.deb
-          - name: Windows
-            os: windows-latest
-            build_cmd: pnpm build:windows
-            artifact_name: markdown-editor-windows
-            artifact_path: apps/desktop/src-tauri/target/release/bundle/nsis/*.exe
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11.6.0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: .node-version
-          cache: pnpm
-
-      - name: Install Linux system dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev file unzip squashfs-tools desktop-file-utils xvfb icewm x11-utils xdotool libegl1 libgl1 libgles2 libglx-mesa0 libgl1-mesa-dri libosmesa6 mesa-utils gcc appstream zsync
-          sudo apt-get install -y libfuse2t64 || sudo apt-get install -y libfuse2
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: apps/desktop/src-tauri
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Prepare llama runtime sidecar
-        run: node scripts/release/prepare-llama-runtime.mjs
-
-      - name: Build app
-        env:
-          NO_STRIP: "true"
-          APPIMAGE_EXTRACT_AND_RUN: "1"
-          LD_LIBRARY_PATH: "${{ github.workspace }}/apps/desktop/src-tauri/binaries"
-        run: ${{ matrix.platform.build_cmd }}
-
-      - name: Assert no shipped sourcemaps
-        run: node scripts/release/assert-no-sourcemaps.mjs apps/desktop/dist apps/desktop/src-tauri/target/release/bundle
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.platform.artifact_name }}
-          path: ${{ matrix.platform.artifact_path }}
-          if-no-files-found: error

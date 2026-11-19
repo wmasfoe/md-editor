@@ -7,7 +7,7 @@
  * `frontendDist`（apps/desktop/dist），Tauri 嵌入的就是这份目录。
  *
  * 用法：
- *   node scripts/release/assert-no-sourcemaps.mjs apps/desktop/dist apps/desktop/src-tauri/target/release/bundle
+ *   node scripts/release/assert-no-sourcemaps.mjs apps/web/dist target/gpui-preview
  */
 
 import path from "node:path";

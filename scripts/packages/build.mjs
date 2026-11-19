@@ -64,6 +64,8 @@ export function buildPackage(directory) {
   const paths = {};
   for (const name of readdirSync(join(workspace, "packages"))) {
     const root = join(workspace, "packages", name);
+    // 跳过纯 Rust crate（editor-core、editor-gpui）：它们没有 npm manifest。
+    if (!existsSync(join(root, "package.json"))) continue;
     const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
     if (resolve(root) === resolve(directory)) continue;
     for (const [entry, target] of Object.entries(manifest.exports)) {

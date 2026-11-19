@@ -3,7 +3,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 
 const DEFAULT_LLAMA_CPP_TAG = process.env.LLAMA_CPP_RELEASE_TAG?.trim() || "b9789";
-const BINARIES_DIR = path.resolve("apps/desktop/src-tauri/binaries");
+const BINARIES_DIR = path.resolve("apps/desktop/runtime/llama");
 
 /**
  * Mapping target triple to llama.cpp release asset configurations
