@@ -36,6 +36,9 @@ actions!(
         DeleteBackward,
         Undo,
         Redo,
+        Copy,
+        Cut,
+        Paste,
     ]
 );
 
@@ -45,28 +48,42 @@ const BODY_FONT_SIZE: f32 = 17.;
 /// The key context the editor's bindings are scoped to.
 const KEY_CONTEXT: &str = "TypesetView";
 
-/// The command modifier on this platform: cmd on macOS, ctrl elsewhere.
+/// The keystrokes for the commands whose modifier differs per platform.
 ///
-/// `KeyBinding::new` parses statically and cannot resolve `secondary-`, so the
-/// spelling is chosen here instead. Getting this wrong is not cosmetic: with
-/// only `cmd-` bindings, Windows and Linux users have no undo and no select-all.
-#[cfg(target_os = "macos")]
-mod keys {
-    pub(super) const SELECT_ALL_KEY: &str = "cmd-a";
-    pub(super) const UNDO_KEY: &str = "cmd-z";
-    pub(super) const REDO_KEY: &str = "cmd-shift-z";
-    pub(super) const REDO_ALT_KEY: &str = "cmd-y";
+/// Resolved at runtime from the platform the app is actually running on, not
+/// from `cfg!(target_os)`: a WebAssembly build is compiled once and then runs in
+/// whatever browser it is served to, so a compile-time choice would bind `cmd-z`
+/// for a Linux user. `KeyBinding::new` parses statically and cannot resolve
+/// `secondary-`, which is why the spelling is assembled here.
+struct CommandKeys {
+    select_all: String,
+    copy: String,
+    cut: String,
+    paste: String,
+    undo: String,
+    redo: String,
+    redo_alt: String,
 }
 
-#[cfg(not(target_os = "macos"))]
-mod keys {
-    pub(super) const SELECT_ALL_KEY: &str = "ctrl-a";
-    pub(super) const UNDO_KEY: &str = "ctrl-z";
-    pub(super) const REDO_KEY: &str = "ctrl-shift-z";
-    pub(super) const REDO_ALT_KEY: &str = "ctrl-y";
+impl CommandKeys {
+    /// The keys for `os`.
+    fn for_os(os: gpui_kit::OperatingSystem) -> Self {
+        let modifier = if os == gpui_kit::OperatingSystem::Mac {
+            "cmd"
+        } else {
+            "ctrl"
+        };
+        Self {
+            select_all: format!("{modifier}-a"),
+            copy: format!("{modifier}-c"),
+            cut: format!("{modifier}-x"),
+            paste: format!("{modifier}-v"),
+            undo: format!("{modifier}-z"),
+            redo: format!("{modifier}-shift-z"),
+            redo_alt: format!("{modifier}-y"),
+        }
+    }
 }
-
-use keys::{REDO_ALT_KEY, REDO_KEY, SELECT_ALL_KEY, UNDO_KEY};
 
 /// A GPUI element that renders and edits Markdown.
 pub struct TypesetView {
@@ -300,6 +317,38 @@ impl TypesetView {
         }
     }
 
+    /// Writes the selection to the clipboard.
+    fn copy(&mut self, cx: &mut Context<Self>) {
+        let text = self.editor.selected_text().to_string();
+        if text.is_empty() {
+            return;
+        }
+        cx.write_to_clipboard(gpui_kit::ClipboardItem::new_string(text));
+        cx.notify();
+    }
+
+    /// Writes the selection to the clipboard and removes it.
+    fn cut(&mut self, cx: &mut Context<Self>) {
+        let text = self.editor.selected_text().to_string();
+        if text.is_empty() {
+            return;
+        }
+        cx.write_to_clipboard(gpui_kit::ClipboardItem::new_string(text));
+        let result = self.editor.cut_selection();
+        self.apply(result.map(|_| ()), cx);
+    }
+
+    /// Inserts the clipboard's text at the caret.
+    fn paste(&mut self, cx: &mut Context<Self>) {
+        let Some(item) = cx.read_from_clipboard() else {
+            return;
+        };
+        let Some(text) = item.text() else {
+            return;
+        };
+        self.insert(&text, cx);
+    }
+
     /// Reverts the last edit.
     fn undo(&mut self, cx: &mut Context<Self>) {
         if self.editor.undo() {
@@ -368,6 +417,7 @@ impl TypesetView {
     /// those keys everywhere, so a focused settings field or a tree rename would
     /// silently lose them.
     pub fn bind_keys(cx: &mut App) {
+        let keys = CommandKeys::for_os(cx.platform_info().os);
         cx.bind_keys([
             KeyBinding::new("left", MoveLeft, Some(KEY_CONTEXT)),
             KeyBinding::new("right", MoveRight, Some(KEY_CONTEXT)),
@@ -375,13 +425,93 @@ impl TypesetView {
             KeyBinding::new("down", MoveDown, Some(KEY_CONTEXT)),
             KeyBinding::new("enter", InsertNewline, Some(KEY_CONTEXT)),
             KeyBinding::new("backspace", DeleteBackward, Some(KEY_CONTEXT)),
-            // `KeyBinding::new` cannot resolve `secondary-`, so the platform
-            // modifier is spelled out. Binding only `cmd-` would leave Windows
-            // and Linux with no undo and no select-all.
-            KeyBinding::new(SELECT_ALL_KEY, SelectAll, Some(KEY_CONTEXT)),
-            KeyBinding::new(UNDO_KEY, Undo, Some(KEY_CONTEXT)),
-            KeyBinding::new(REDO_KEY, Redo, Some(KEY_CONTEXT)),
-            KeyBinding::new(REDO_ALT_KEY, Redo, Some(KEY_CONTEXT)),
+            KeyBinding::load(
+                &keys.copy,
+                Box::new(Copy),
+                Some(std::rc::Rc::new(
+                    gpui_kit::KeyBindingContextPredicate::parse(KEY_CONTEXT)
+                        .expect("the editor key context parses"),
+                )),
+                false,
+                None,
+                cx,
+            )
+            .expect("copy binding"),
+            KeyBinding::load(
+                &keys.cut,
+                Box::new(Cut),
+                Some(std::rc::Rc::new(
+                    gpui_kit::KeyBindingContextPredicate::parse(KEY_CONTEXT)
+                        .expect("the editor key context parses"),
+                )),
+                false,
+                None,
+                cx,
+            )
+            .expect("cut binding"),
+            KeyBinding::load(
+                &keys.paste,
+                Box::new(Paste),
+                Some(std::rc::Rc::new(
+                    gpui_kit::KeyBindingContextPredicate::parse(KEY_CONTEXT)
+                        .expect("the editor key context parses"),
+                )),
+                false,
+                None,
+                cx,
+            )
+            .expect("paste binding"),
+            // Resolved at runtime so the Playground build picks the right
+            // modifier for the browser it lands in, not the machine it was
+            // compiled on.
+            KeyBinding::load(
+                &keys.select_all,
+                Box::new(SelectAll),
+                Some(std::rc::Rc::new(
+                    gpui_kit::KeyBindingContextPredicate::parse(KEY_CONTEXT)
+                        .expect("the editor key context parses"),
+                )),
+                false,
+                None,
+                cx,
+            )
+            .expect("select-all binding"),
+            KeyBinding::load(
+                &keys.undo,
+                Box::new(Undo),
+                Some(std::rc::Rc::new(
+                    gpui_kit::KeyBindingContextPredicate::parse(KEY_CONTEXT)
+                        .expect("the editor key context parses"),
+                )),
+                false,
+                None,
+                cx,
+            )
+            .expect("undo binding"),
+            KeyBinding::load(
+                &keys.redo,
+                Box::new(Redo),
+                Some(std::rc::Rc::new(
+                    gpui_kit::KeyBindingContextPredicate::parse(KEY_CONTEXT)
+                        .expect("the editor key context parses"),
+                )),
+                false,
+                None,
+                cx,
+            )
+            .expect("redo binding"),
+            KeyBinding::load(
+                &keys.redo_alt,
+                Box::new(Redo),
+                Some(std::rc::Rc::new(
+                    gpui_kit::KeyBindingContextPredicate::parse(KEY_CONTEXT)
+                        .expect("the editor key context parses"),
+                )),
+                false,
+                None,
+                cx,
+            )
+            .expect("alternate redo binding"),
         ]);
     }
 }
@@ -577,6 +707,9 @@ impl Render for TypesetView {
         let on_backspace = cx.listener(|this, _: &DeleteBackward, _, cx| this.delete_backward(cx));
         let on_undo = cx.listener(|this, _: &Undo, _, cx| this.undo(cx));
         let on_redo = cx.listener(|this, _: &Redo, _, cx| this.redo(cx));
+        let on_copy = cx.listener(|this, _: &Copy, _, cx| this.copy(cx));
+        let on_cut = cx.listener(|this, _: &Cut, _, cx| this.cut(cx));
+        let on_paste = cx.listener(|this, _: &Paste, _, cx| this.paste(cx));
 
         let context = RenderContext::from_app(cx);
         // Pass the selection through so the selected text is visibly highlighted:
@@ -623,6 +756,9 @@ impl Render for TypesetView {
             .on_action(on_backspace)
             .on_action(on_undo)
             .on_action(on_redo)
+            .on_action(on_copy)
+            .on_action(on_cut)
+            .on_action(on_paste)
             .on_mouse_down(
                 gpui_kit::MouseButton::Left,
                 cx.listener(|this, event: &gpui_kit::MouseDownEvent, window, cx| {
@@ -1130,6 +1266,95 @@ mod input_tests {
             view.read_with(&*vcx, |view, _| view.selected_range().start),
             1,
             "and then before it, never inside it"
+        );
+    }
+}
+
+#[cfg(test)]
+mod key_tests {
+    use super::*;
+
+    /// The modifier is chosen from the running platform, not the build host.
+    ///
+    /// A WebAssembly build is compiled once and served to any browser, so a
+    /// compile-time choice would bind cmd on a Linux user's machine — which is
+    /// exactly the bug the Playground smoke test caught.
+    #[test]
+    fn command_keys_follow_the_running_platform() {
+        let mac = CommandKeys::for_os(gpui_kit::OperatingSystem::Mac);
+        assert_eq!(mac.undo, "cmd-z");
+        assert_eq!(mac.select_all, "cmd-a");
+        assert_eq!(mac.redo, "cmd-shift-z");
+
+        let linux = CommandKeys::for_os(gpui_kit::OperatingSystem::Linux);
+        assert_eq!(linux.undo, "ctrl-z");
+        assert_eq!(linux.select_all, "ctrl-a");
+        assert_eq!(linux.redo, "ctrl-shift-z");
+    }
+
+    /// The bindings actually register, which is what makes undo reachable.
+    #[gpui_kit::test]
+    fn binding_undo_succeeds_on_this_platform(cx: &mut gpui_kit::TestAppContext) {
+        cx.update(gpui_kit::init);
+        cx.update(TypesetView::bind_keys);
+        // Reaching this point without a panic means `KeyBinding::load` resolved
+        // every keystroke for the running platform.
+    }
+}
+
+#[cfg(test)]
+mod clipboard_tests {
+    use super::*;
+    use gpui_kit::TestAppContext;
+
+    fn open<'a>(
+        cx: &'a mut TestAppContext,
+        source: &str,
+    ) -> (Entity<TypesetView>, &'a mut gpui_kit::VisualTestContext) {
+        cx.update(gpui_kit::init);
+        cx.update(TypesetView::bind_keys);
+        let (view, vcx) = cx.add_window_view(|window, cx| TypesetView::new(window, cx, source));
+        for _ in 0..2 {
+            vcx.update(|window, cx| {
+                view.update(cx, |view, cx| view.focus(window, cx));
+                window.draw(cx).clear(cx);
+            });
+            vcx.run_until_parked();
+        }
+        (view, vcx)
+    }
+
+    /// Select all, cut, then paste: the text leaves and comes back.
+    ///
+    /// The spec's acceptance sequence names this round trip, and it goes
+    /// through the platform clipboard rather than an internal buffer.
+    #[gpui_kit::test]
+    fn cut_then_paste_round_trips_through_the_clipboard(cx: &mut TestAppContext) {
+        let (view, vcx) = open(cx, "hello world");
+        vcx.simulate_keystrokes("cmd-a");
+        vcx.simulate_keystrokes("cmd-x");
+        assert_eq!(
+            view.read_with(&*vcx, |view, _| view.markdown().to_string()),
+            "",
+            "cut removes the selection"
+        );
+        vcx.simulate_keystrokes("cmd-v");
+        assert_eq!(
+            view.read_with(&*vcx, |view, _| view.markdown().to_string()),
+            "hello world",
+            "paste puts it back"
+        );
+    }
+
+    /// Copy leaves the document alone.
+    #[gpui_kit::test]
+    fn copy_does_not_change_the_document(cx: &mut TestAppContext) {
+        let (view, vcx) = open(cx, "keep me");
+        vcx.simulate_keystrokes("cmd-a");
+        vcx.simulate_keystrokes("cmd-c");
+        assert_eq!(
+            view.read_with(&*vcx, |view, _| view.markdown().to_string()),
+            "keep me"
         );
     }
 }

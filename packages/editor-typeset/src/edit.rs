@@ -397,6 +397,38 @@ impl TypesetEditor {
         })
     }
 
+    /// The selected text, or an empty string for a bare caret.
+    pub fn selected_text(&self) -> &str {
+        let range = self.selection.range();
+        self.document.source().get(range).unwrap_or_default()
+    }
+
+    /// Removes the selection and returns what was removed.
+    ///
+    /// One operation, like `delete_backward`: cutting must be one undo step and
+    /// must not leave the caret in a state the user never chose.
+    pub fn cut_selection(&mut self) -> Result<String, TypesetError> {
+        if self.readonly {
+            return Err(TypesetError::ReadOnly);
+        }
+        let range = self.selection.range();
+        if range.is_empty() {
+            return Ok(String::new());
+        }
+        let removed = self
+            .document
+            .source()
+            .get(range.clone())
+            .unwrap_or_default()
+            .to_string();
+        self.apply_recording(SourceEdit {
+            range: range.clone(),
+            replacement: String::new(),
+            selection_after: range.start..range.start,
+        })?;
+        Ok(removed)
+    }
+
     /// Inserts `text` at the caret, replacing the selection.
     pub fn insert(&mut self, text: &str) -> Result<(), TypesetError> {
         if self.readonly {
