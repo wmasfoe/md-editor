@@ -8,8 +8,6 @@ dist/
 build/
 .next/
 target/
-**/src-tauri/target/
-**/src-tauri/gen/
 coverage/
 .vercel/
 .pnpm-store/

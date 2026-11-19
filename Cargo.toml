@@ -1,0 +1,19 @@
+[workspace]
+members = [
+    "apps/desktop",
+    "packages/editor-core",
+    "packages/editor-gpui",
+    "packages/editor-web",
+]
+exclude = ["apps/desktop/src-tauri"]
+resolver = "3"
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.98"
+license = "GPL-3.0-or-later"
+
+[workspace.dependencies]
+gpui-kit = "=0.10.0"
+inkpoint-editor-core = { path = "packages/editor-core" }
+inkpoint-editor-gpui = { path = "packages/editor-gpui" }

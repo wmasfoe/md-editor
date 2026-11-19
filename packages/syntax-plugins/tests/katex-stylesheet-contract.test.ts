@@ -15,7 +15,6 @@ const read = (path: string): string => readFileSync(new URL(path, repoRoot), "ut
 
 const APP_STYLESHEET_ENTRIES: ReadonlyArray<readonly [string, string]> = [
   ["apps/web", "apps/web/src/styles.css"],
-  ["apps/desktop", "apps/desktop/src/styles.css"],
   ["apps/utools", "apps/utools/src/styles.css"],
   ["apps/mobile/core", "apps/mobile/core/src/styles.css"],
   ["apps/site", "apps/site/app/globals.css"],

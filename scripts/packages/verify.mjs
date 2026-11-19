@@ -26,9 +26,12 @@ const temporary = mkdtempSync(join(tmpdir(), "inkpoint-npm-consumer-"));
 const entries = [];
 try {
   const packages = selectPublicationPackages(
-    readdirSync(join(root, "packages")).map((name) =>
-      JSON.parse(readFileSync(join(root, "packages", name, "package.json"), "utf8")),
-    ),
+    readdirSync(join(root, "packages"))
+      // 跳过纯 Rust crate（editor-core、editor-gpui）：它们没有 npm manifest。
+      .filter((name) => existsSync(join(root, "packages", name, "package.json")))
+      .map((name) =>
+        JSON.parse(readFileSync(join(root, "packages", name, "package.json"), "utf8")),
+      ),
     values.package,
   );
   const tarballs = join(temporary, "tarballs");

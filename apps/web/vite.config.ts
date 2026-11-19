@@ -1,6 +1,4 @@
 import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-import tailwindcss from "@tailwindcss/vite";
 
 /**
  * 工作区包（`@md-editor/*`）不在此声明 Vite alias：
@@ -11,12 +9,12 @@ import tailwindcss from "@tailwindcss/vite";
 export default defineConfig({
   // Web 应用作为子路由挂载在官网的 /playground 路径下
   base: process.env.VITE_BASE_PATH || "/playground/",
-  plugins: [react(), tailwindcss()],
+  plugins: [],
   server: {
     port: 5174,
     strictPort: true,
   },
-  build: { rollupOptions: { input: { main: "index.html", "plugin-guest": "plugin-guest.html" } } },
+  build: { rollupOptions: { input: { main: "index.html" } } },
   preview: { headers: { "Access-Control-Allow-Origin": "*" } },
   clearScreen: false,
 });

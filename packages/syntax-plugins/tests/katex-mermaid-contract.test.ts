@@ -11,7 +11,7 @@ import { describe, expect, it } from "vitest";
  *
  * 仓库把 mermaid 的 katex 依赖 override 到与其余包一致的版本；本测试锁定该调用形状在新版本下
  * 仍然成立，避免出现「装得上但渲染即抛错」的静默破坏。浏览器侧的真实渲染证据见
- * `apps/desktop/e2e/codemirror-mermaid-math.spec.ts`。
+ * `apps/web/e2e` 下的 Mermaid 图表用例（`playwright.diagram.config.ts`）。
  */
 describe("mermaid → KaTeX 调用契约", () => {
   for (const output of ["mathml", "htmlAndMathml"] as const) {
