@@ -8,7 +8,7 @@ mod workspace;
 
 use futures::{StreamExt, channel::mpsc};
 use gpui_kit::*;
-use inkpoint_editor_gpui::{BlockFormat, HostCommand::*, InlineFormat};
+use inkpoint_editor_gpui::{BlockFormat, HostCommand::*, InlineFormat, TypesetView};
 use settings::OpenSettings;
 use std::path::PathBuf;
 use workspace::{
@@ -37,6 +37,9 @@ fn main() {
     app.run(move |cx| {
         init(cx);
         settings::init(cx);
+        // The editor's own keys: arrows, enter, backspace, undo/redo, select all.
+        // Without this the view never receives them and typing moves nothing.
+        TypesetView::bind_keys(cx);
         cx.bind_keys([
             KeyBinding::new("cmd-n", NewDocument, Some("Inkpoint")),
             KeyBinding::new("cmd-o", OpenDocument, Some("Inkpoint")),

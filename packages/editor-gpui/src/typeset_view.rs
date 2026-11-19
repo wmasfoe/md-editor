@@ -14,8 +14,10 @@ use std::ops::Range;
 
 use gpui_kit::base::text::editor_host::RenderContext;
 use gpui_kit::{
-    App, Bounds, Context, EntityInputHandler, FocusHandle, IntoElement, KeyBinding, Pixels, Point,
-    Render, SharedString, UTF16Selection, Window, actions, div, prelude::*, px,
+    AnyElement, App, Bounds, Context, Element, ElementId, ElementInputHandler, Entity,
+    EntityInputHandler, FocusHandle, GlobalElementId, InspectorElementId, IntoElement, KeyBinding,
+    LayoutId, Pixels, Point, Render, SharedString, UTF16Selection, Window, actions, div,
+    prelude::*, px,
 };
 use inkpoint_editor_typeset::{
     LeafIndex, TypesetDocument, TypesetEditor, TypesetError, byte_offset, caret_at, line_start,
@@ -522,7 +524,16 @@ impl Render for TypesetView {
             .leaf_at(offset)
             .filter(|key| geometry.get(*key).is_some());
         self.geometry = geometry;
-        div()
+        // The document scrolls: without this a document taller than the window
+        // has no way to reach its lower half.
+        let scrollable = div()
+            .id("typeset-scroll")
+            .size_full()
+            .overflow_y_scroll()
+            .child(element);
+        // The action handlers live on this wrapper: `InputSurface` is a plain
+        // element and only registers input, it does not dispatch actions.
+        let surface = div()
             .id("typeset-view")
             .track_focus(&self.focus)
             .key_context("TypesetView")
@@ -536,7 +547,19 @@ impl Render for TypesetView {
             .on_action(on_backspace)
             .on_action(on_undo)
             .on_action(on_redo)
-            .child(element)
+            .on_mouse_down(
+                gpui_kit::MouseButton::Left,
+                cx.listener(|this, event: &gpui_kit::MouseDownEvent, window, cx| {
+                    this.place_caret_from_click(event.position, window, cx);
+                }),
+            )
+            .child(scrollable)
+            .into_any_element();
+        InputSurface {
+            view: cx.entity(),
+            focus: self.focus.clone(),
+            child: surface,
+        }
     }
 }
 
@@ -624,6 +647,54 @@ impl TypesetView {
 }
 
 impl TypesetView {
+    /// Places the caret where the user clicked.
+    ///
+    /// The click lands in window coordinates; geometry is also window
+    /// coordinates for the frame that produced it, so the two agree directly.
+    /// The resolved index is leaf-local and is shifted by the leaf's span before
+    /// it becomes a document offset.
+    fn place_caret_from_click(
+        &mut self,
+        point: Point<Pixels>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.focus.focus(window, cx);
+        let Some(key) = self.caret_leaf_from_point(point) else {
+            return;
+        };
+        let (Some(leaf), Some(span)) = (self.geometry.get(key), self.document.span_of(key)) else {
+            return;
+        };
+        let local = leaf.index_for_position(point).min(leaf.len());
+        self.editor.set_caret(span.start + local);
+        cx.notify();
+    }
+
+    /// The leaf whose bounds contain `point`, else the vertically nearest one.
+    fn caret_leaf_from_point(&self, point: Point<Pixels>) -> Option<u64> {
+        let mut fallback: Option<(u64, Pixels)> = None;
+        for (key, leaf) in self.geometry.entries() {
+            let bounds = leaf.bounds();
+            if bounds.contains(&point) {
+                return Some(key);
+            }
+            // A click in the margin should still place a caret rather than do
+            // nothing, so track the nearest leaf by vertical distance.
+            let vertical = if point.y < bounds.origin.y {
+                bounds.origin.y - point.y
+            } else if point.y > bounds.origin.y + bounds.size.height {
+                point.y - (bounds.origin.y + bounds.size.height)
+            } else {
+                Pixels::ZERO
+            };
+            if fallback.is_none_or(|(_, best)| vertical < best) {
+                fallback = Some((key, vertical));
+            }
+        }
+        fallback.map(|(key, _)| key)
+    }
+
     /// Moves the caret to the start of `line`, counting from one.
     pub fn seek_line(&mut self, line: usize, cx: &mut Context<Self>) {
         self.editor
@@ -673,5 +744,189 @@ impl TypesetView {
         }
         self.reparse();
         cx.notify();
+    }
+}
+
+/// Registers the view as the window's text input target.
+///
+/// GPUI only routes typed text and IME calls to a view that installs an input
+/// handler during paint. Without this the view implements `EntityInputHandler`
+/// but never receives a character: `key_char` events are dropped because the
+/// window has no handler to hand them to.
+struct InputSurface {
+    view: Entity<TypesetView>,
+    focus: FocusHandle,
+    child: AnyElement,
+}
+
+impl IntoElement for InputSurface {
+    type Element = Self;
+
+    fn into_element(self) -> Self::Element {
+        self
+    }
+}
+
+impl Element for InputSurface {
+    type RequestLayoutState = ();
+    type PrepaintState = Bounds<Pixels>;
+
+    fn id(&self) -> Option<ElementId> {
+        None
+    }
+
+    fn source_location(&self) -> Option<&'static core::panic::Location<'static>> {
+        None
+    }
+
+    fn request_layout(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&InspectorElementId>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> (LayoutId, ()) {
+        (self.child.request_layout(window, cx), ())
+    }
+
+    fn prepaint(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&InspectorElementId>,
+        bounds: Bounds<Pixels>,
+        _: &mut Self::RequestLayoutState,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Self::PrepaintState {
+        self.child.prepaint(window, cx);
+        bounds
+    }
+
+    fn paint(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&InspectorElementId>,
+        bounds: Bounds<Pixels>,
+        _: &mut Self::RequestLayoutState,
+        _: &mut Self::PrepaintState,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        self.child.paint(window, cx);
+        // This is the line that makes typing work: it tells the window which
+        // entity answers the platform's text and IME calls.
+        window.handle_input(
+            &self.focus,
+            ElementInputHandler::new(bounds, self.view.clone()),
+            cx,
+        );
+    }
+}
+
+#[cfg(test)]
+mod input_tests {
+    use super::*;
+    use gpui_kit::TestAppContext;
+
+    fn markdown(view: &Entity<TypesetView>, cx: &mut gpui_kit::VisualTestContext) -> String {
+        view.read_with(cx, |view, _| view.markdown().to_string())
+    }
+
+    /// The test the whole wiring exists for: a keystroke reaches the view and
+    /// changes the document.
+    ///
+    /// Before `InputSurface` registered a handler, GPUI had nowhere to deliver
+    /// typed text, so this could not pass however correct the editing engine was.
+    #[gpui_kit::test]
+    fn typing_reaches_the_document(cx: &mut TestAppContext) {
+        cx.update(gpui_kit::init);
+        cx.update(TypesetView::bind_keys);
+        let (view, vcx) = cx.add_window_view(|window, cx| TypesetView::new(window, cx, ""));
+        // Two frames: the input handler is registered during paint, so the first
+        // frame is what makes the view reachable.
+        for _ in 0..2 {
+            vcx.update(|window, cx| {
+                view.update(cx, |view, cx| view.focus(window, cx));
+                window.draw(cx).clear(cx);
+            });
+            vcx.run_until_parked();
+        }
+        vcx.simulate_input("hi");
+        assert_eq!(markdown(&view, vcx), "hi");
+    }
+
+    /// CJK input travels the same path and each character must land whole.
+    #[gpui_kit::test]
+    fn typing_chinese_reaches_the_document(cx: &mut TestAppContext) {
+        cx.update(gpui_kit::init);
+        cx.update(TypesetView::bind_keys);
+        let (view, vcx) = cx.add_window_view(|window, cx| TypesetView::new(window, cx, ""));
+        for _ in 0..2 {
+            vcx.update(|window, cx| {
+                view.update(cx, |view, cx| view.focus(window, cx));
+                window.draw(cx).clear(cx);
+            });
+            vcx.run_until_parked();
+        }
+        vcx.simulate_input("中文");
+        assert_eq!(markdown(&view, vcx), "中文");
+    }
+
+    /// Backspace and undo, driven by real keystrokes rather than by calling the
+    /// editor directly.
+    #[gpui_kit::test]
+    fn backspace_then_undo_round_trips(cx: &mut TestAppContext) {
+        cx.update(gpui_kit::init);
+        cx.update(TypesetView::bind_keys);
+        let (view, vcx) = cx.add_window_view(|window, cx| TypesetView::new(window, cx, "abc"));
+        for _ in 0..2 {
+            vcx.update(|window, cx| {
+                view.update(cx, |view, cx| {
+                    view.focus(window, cx);
+                    view.set_caret(3, cx);
+                });
+                window.draw(cx).clear(cx);
+            });
+            vcx.run_until_parked();
+        }
+        vcx.simulate_keystrokes("backspace");
+        assert_eq!(
+            markdown(&view, vcx),
+            "ab",
+            "backspace deletes one character"
+        );
+        vcx.simulate_keystrokes("cmd-z");
+        assert_eq!(markdown(&view, vcx), "abc", "undo restores it");
+    }
+
+    /// Left and right move the caret by whole characters, including across a
+    /// multi-byte one.
+    #[gpui_kit::test]
+    fn arrows_move_over_whole_characters(cx: &mut TestAppContext) {
+        cx.update(gpui_kit::init);
+        cx.update(TypesetView::bind_keys);
+        let (view, vcx) = cx.add_window_view(|window, cx| TypesetView::new(window, cx, "a中b"));
+        for _ in 0..2 {
+            vcx.update(|window, cx| {
+                view.update(cx, |view, cx| {
+                    view.focus(window, cx);
+                    view.set_caret(5, cx);
+                });
+                window.draw(cx).clear(cx);
+            });
+            vcx.run_until_parked();
+        }
+        vcx.simulate_keystrokes("left");
+        assert_eq!(
+            view.read_with(&*vcx, |view, _| view.selected_range().start),
+            4,
+            "left from the end lands after the CJK character"
+        );
+        vcx.simulate_keystrokes("left");
+        assert_eq!(
+            view.read_with(&*vcx, |view, _| view.selected_range().start),
+            1,
+            "and then before it, never inside it"
+        );
     }
 }
