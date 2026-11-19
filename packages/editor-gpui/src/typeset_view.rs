@@ -841,23 +841,13 @@ impl Render for TypesetView {
         // Pass the selection through so the selected text is visibly highlighted:
         // without it, cmd-a and shift-arrow change state the user cannot see.
         let selection = self.editor.selection().range();
-        let (element, geometry) = self.document.render_with_selection(
+        let (element, decorations) = self.document.render_with_selection(
             px(BODY_FONT_SIZE),
             context,
             window,
             cx,
             Some(selection),
         );
-        // Resolve the caret's leaf from the document's source spans, not from
-        // the leaf lengths: a caret offset is document-wide, while a leaf only
-        // knows its own length, so comparing the two picks the wrong block as
-        // soon as the document has more than one.
-        let offset = self.editor.selection().head();
-        self.caret_leaf = self
-            .document
-            .leaf_at(offset)
-            .filter(|key| geometry.get(*key).is_some());
-        self.geometry = geometry;
         // The document scrolls: without this a document taller than the window
         // has no way to reach its lower half.
         let scrollable = div()
@@ -928,6 +918,7 @@ impl Render for TypesetView {
             child: surface,
             caret,
             caret_color: gpui_kit::component::theme::Theme::global(cx).foreground,
+            decorations,
         }
     }
 }
@@ -1185,6 +1176,8 @@ struct InputSurface {
     caret: Option<Bounds<Pixels>>,
     /// The colour to draw it in.
     caret_color: gpui_kit::Hsla,
+    /// Selection decorations to paint behind the text.
+    decorations: std::collections::HashMap<u64, Vec<(Range<usize>, gpui_kit::Hsla)>>,
 }
 
 impl IntoElement for InputSurface {
@@ -1226,7 +1219,23 @@ impl Element for InputSurface {
         window: &mut Window,
         cx: &mut App,
     ) -> Self::PrepaintState {
-        self.child.prepaint(window, cx);
+        // Geometry is only reported while the tree is prepainted, so the scope
+        // has to wrap this call. Opening it during `render` — where the element is
+        // merely constructed — always yields an empty map, which silently disables
+        // click-to-caret, arrow navigation, the painted caret and IME bounds while
+        // leaving typing intact.
+        let (_, leaves) = gpui_kit::base::text::editor_host::collect_leaf_geometry(
+            std::mem::take(&mut self.decorations),
+            || self.child.prepaint(window, cx),
+        );
+        self.view.update(cx, |view, _| {
+            view.geometry = LeafIndex::new(leaves);
+            let offset = view.editor.selection().head();
+            view.caret_leaf = view
+                .document
+                .leaf_at(offset)
+                .filter(|key| view.geometry.get(*key).is_some());
+        });
         bounds
     }
 
@@ -1623,6 +1632,129 @@ mod ime_tests {
             view.read_with(&*vcx, |view, _| view.markdown().to_string()),
             "aXc",
             "the range was replaced in place"
+        );
+    }
+}
+
+#[cfg(test)]
+mod geometry_tests {
+    use super::*;
+    use gpui_kit::TestAppContext;
+
+    /// The product path must produce geometry.
+    ///
+    /// Every caret-dependent feature — click-to-caret, arrow navigation, the
+    /// painted caret, IME bounds — reads `caret_leaf`, which comes from the
+    /// geometry this view collects. If it is empty, all four are inert while
+    /// typing still works, so the suite can look green and the editor still be
+    /// unusable by pointer.
+    #[gpui_kit::test]
+    fn the_view_collects_geometry_for_its_blocks(cx: &mut TestAppContext) {
+        cx.update(gpui_kit::init);
+        cx.update(TypesetView::bind_keys);
+        let (view, vcx) = cx
+            .add_window_view(|window, cx| TypesetView::new(window, cx, "# Title\n\nBody text.\n"));
+        for _ in 0..3 {
+            vcx.update(|window, cx| {
+                view.update(cx, |view, cx| view.focus(window, cx));
+                window.draw(cx).clear(cx);
+            });
+            vcx.run_until_parked();
+        }
+        let (leaves, caret_leaf) =
+            view.read_with(&*vcx, |view, _| (view.geometry.len(), view.caret_leaf));
+        assert!(
+            leaves > 0,
+            "the view must collect leaf geometry, got {leaves}"
+        );
+        assert!(
+            caret_leaf.is_some(),
+            "and resolve the caret to a leaf, got {caret_leaf:?}"
+        );
+    }
+
+    /// A click must move the caret, which needs geometry from the product path.
+    #[gpui_kit::test]
+    fn a_click_moves_the_caret(cx: &mut TestAppContext) {
+        cx.update(gpui_kit::init);
+        cx.update(TypesetView::bind_keys);
+        let (view, vcx) = cx.add_window_view(|window, cx| {
+            TypesetView::new(
+                window,
+                cx,
+                "first line
+
+second line
+",
+            )
+        });
+        for _ in 0..3 {
+            vcx.update(|window, cx| {
+                view.update(cx, |view, cx| view.focus(window, cx));
+                window.draw(cx).clear(cx);
+            });
+            vcx.run_until_parked();
+        }
+        // Click inside the second block, which only works when its leaf laid out.
+        let target = view.read_with(&*vcx, |view, _| {
+            view.geometry
+                .entries()
+                .map(|(key, leaf)| (key, leaf.bounds()))
+                .find(|(_, bounds)| bounds.origin.y > gpui_kit::px(0.))
+                .map(|(_, bounds)| {
+                    gpui_kit::point(
+                        bounds.origin.x + gpui_kit::px(2.),
+                        bounds.origin.y + bounds.size.height / 2.,
+                    )
+                })
+        });
+        let Some(point) = target else {
+            panic!("the second block must lay out so it can be clicked");
+        };
+        vcx.update(|window, cx| {
+            view.update(cx, |view, cx| {
+                view.place_caret_from_click(point, window, cx)
+            });
+        });
+        let caret = view.read_with(&*vcx, |view, _| view.selected_range().start);
+        assert!(
+            caret > 0,
+            "clicking the second block must move the caret past the first, got {caret}"
+        );
+    }
+
+    /// Down must move the caret between blocks, which needs geometry.
+    #[gpui_kit::test]
+    fn down_moves_the_caret_to_the_next_block(cx: &mut TestAppContext) {
+        cx.update(gpui_kit::init);
+        cx.update(TypesetView::bind_keys);
+        let (view, vcx) = cx.add_window_view(|window, cx| {
+            TypesetView::new(
+                window,
+                cx,
+                "first
+
+second
+
+third
+",
+            )
+        });
+        for _ in 0..3 {
+            vcx.update(|window, cx| {
+                view.update(cx, |view, cx| {
+                    view.focus(window, cx);
+                    view.set_caret(0, cx);
+                });
+                window.draw(cx).clear(cx);
+            });
+            vcx.run_until_parked();
+        }
+        vcx.simulate_keystrokes("down down");
+        let caret = view.read_with(&*vcx, |view, _| view.selected_range().start);
+        assert!(
+            caret > 0,
+            "pressing down must move the caret between blocks, got {caret}"
         );
     }
 }

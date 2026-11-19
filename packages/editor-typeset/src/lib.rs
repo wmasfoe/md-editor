@@ -45,6 +45,9 @@ use gpui_kit::{App, Pixels, SharedString, Window, div, prelude::*};
 /// editor uses them to match geometry back to the block it came from.
 pub const FIRST_LEAF_KEY: u64 = 1;
 
+/// Ranges to paint behind a leaf's text, keyed by leaf key and in leaf-local bytes.
+pub type Decorations = HashMap<u64, Vec<(Range<usize>, gpui_kit::Hsla)>>;
+
 /// One block's place in the source and the leaf key it renders under.
 ///
 /// `span` is the block's byte range in the whole Markdown source, which is what
@@ -169,12 +172,19 @@ impl TypesetDocument {
             let owned_keys: Vec<u64> = (0..needed).map(|step| first + step as u64).collect();
             next_key = first + needed as u64;
             block_keys.push(first);
-            // Every key this block owns carries the block's range, so a caret in
-            // any cell resolves to the table it belongs to.
-            for key in &owned_keys {
+            // Each leaf gets its own range where one is known. A table's cells
+            // must not all carry the table's range: a click's offset is
+            // `span.start + local`, so sharing one range sends every cell's click
+            // to the same offset and the text lands in the first cell.
+            let cell_ranges = cell_source_ranges(&source, &block);
+            for (index, key) in owned_keys.iter().enumerate() {
+                let leaf_span = cell_ranges
+                    .as_ref()
+                    .and_then(|ranges| ranges.get(index).cloned().flatten())
+                    .or_else(|| span.clone());
                 spans.push(LeafSpan {
                     key: *key,
-                    span: span.clone(),
+                    span: leaf_span,
                 });
             }
             let mut iterator = owned_keys.into_iter();
@@ -328,8 +338,8 @@ impl TypesetDocument {
         context: RenderContext,
         window: &mut Window,
         cx: &mut App,
-    ) -> (impl IntoElement, LeafIndex) {
-        self.render_with_selection(body_font_size, context, window, cx, None)
+    ) -> impl IntoElement {
+        self.render_blocks(body_font_size, context, window, cx)
     }
 
     /// Renders the document, painting `selection` behind the selected text.
@@ -337,6 +347,12 @@ impl TypesetDocument {
     /// `selection` is a document-wide byte range. It is split per leaf here
     /// because the decoration API works in leaf-local bytes; a caller that had
     /// to do that itself would need the same span bookkeeping the caret does.
+    /// Builds the element and the decorations, without collecting geometry.
+    ///
+    /// Geometry can only be collected while the element is being **prepainted**;
+    /// a scope opened here, during element construction, always yields an empty
+    /// map. The host therefore opens the scope around its own prepaint and calls
+    /// this to build the tree.
     pub fn render_with_selection(
         &self,
         body_font_size: Pixels,
@@ -344,14 +360,10 @@ impl TypesetDocument {
         window: &mut Window,
         cx: &mut App,
         selection: Option<Range<usize>>,
-    ) -> (impl IntoElement, LeafIndex) {
+    ) -> (impl IntoElement, Decorations) {
         let decorations = self.selection_decorations(selection);
-        let (element, leaves) =
-            gpui_kit::base::text::editor_host::collect_leaf_geometry(decorations, || {
-                self.render_blocks(body_font_size, context, window, cx)
-                    .into_any_element()
-            });
-        (element, LeafIndex::new(leaves))
+        let element = self.render_blocks(body_font_size, context, window, cx);
+        (element, decorations)
     }
 
     /// Splits a document-wide selection into per-leaf decorations.
@@ -359,10 +371,7 @@ impl TypesetDocument {
     /// Each leaf gets the part of the selection that falls inside its span,
     /// rebased to leaf-local bytes. An empty selection paints nothing, which is
     /// why a bare caret needs no decoration of its own.
-    fn selection_decorations(
-        &self,
-        selection: Option<Range<usize>>,
-    ) -> HashMap<u64, Vec<(Range<usize>, gpui_kit::Hsla)>> {
+    fn selection_decorations(&self, selection: Option<Range<usize>>) -> Decorations {
         let Some(selection) = selection else {
             return HashMap::new();
         };
@@ -370,7 +379,7 @@ impl TypesetDocument {
             return HashMap::new();
         }
         let color: gpui_kit::Hsla = gpui_kit::rgba(0x3b82f640).into();
-        let mut decorations: HashMap<u64, Vec<(Range<usize>, gpui_kit::Hsla)>> = HashMap::new();
+        let mut decorations: Decorations = HashMap::new();
         for leaf in &self.spans {
             let Some(span) = leaf.span.as_ref() else {
                 continue;
@@ -635,5 +644,74 @@ mod tests {
         let document = TypesetDocument::parse("# One\n").expect("markdown parses");
         assert_eq!(document.leaf_spans().len(), 1);
         assert_eq!(document.leaf_key(0), Some(FIRST_LEAF_KEY));
+    }
+}
+
+/// The source range of each cell of `block`, in leaf order, when it is a table.
+///
+/// `editor-core` already knows every cell's content range; this maps it into the
+/// row-major order the renderer lays cells out in, so each cell's leaf can carry
+/// its own position instead of the whole table's.
+fn cell_source_ranges(source: &str, block: &BlockNode) -> Option<Vec<Option<Range<usize>>>> {
+    let BlockNode::Table(table) = block else {
+        return None;
+    };
+    let document = inkpoint_editor_core::MarkdownDocument::new(source);
+    let blocks = document.blocks().ok()?;
+    let mut cells = Vec::new();
+    collect_table_cells(&blocks, &mut cells);
+    let expected: usize = table.rows().map(|row| row.count()).sum();
+    if cells.len() != expected {
+        // The two parsers disagree; fall back to the table's own range rather
+        // than pairing cells with the wrong positions.
+        return None;
+    }
+    Some(cells.into_iter().map(Some).collect())
+}
+
+/// Collects table-cell content ranges in document order.
+fn collect_table_cells(blocks: &[inkpoint_editor_core::SourceBlock], out: &mut Vec<Range<usize>>) {
+    for block in blocks {
+        if matches!(block.kind, inkpoint_editor_core::BlockKind::TableCell) {
+            out.push(block.content_range.clone());
+        }
+        collect_table_cells(&block.children, out);
+    }
+}
+
+#[cfg(test)]
+mod table_span_tests {
+    use super::*;
+
+    /// Each cell leaf must carry its own range.
+    ///
+    /// A click's offset is `span.start + leaf-local index`, so if every cell
+    /// shares the table's range a click in any cell lands at the same offset and
+    /// typed text goes into the first cell.
+    #[test]
+    fn each_table_cell_carries_its_own_range() {
+        let source = "| a | b |\n| --- | --- |\n| c | d |\n";
+        let document = TypesetDocument::parse(source).expect("markdown parses");
+        let starts: Vec<usize> = document
+            .leaf_spans()
+            .iter()
+            .filter_map(|leaf| leaf.span().map(|span| span.start))
+            .collect();
+        assert_eq!(starts.len(), 4, "2x2 cells");
+        let unique: std::collections::HashSet<usize> = starts.iter().copied().collect();
+        assert_eq!(
+            unique.len(),
+            4,
+            "each cell must start at its own offset, got {starts:?}"
+        );
+        // And each range must slice to that cell's text.
+        for leaf in document.leaf_spans() {
+            let Some(span) = leaf.span() else { continue };
+            let text = source.get(span).unwrap_or_default();
+            assert!(
+                ["a", "b", "c", "d"].contains(&text.trim()),
+                "a cell range must cover exactly one cell, got {text:?}"
+            );
+        }
     }
 }
