@@ -709,25 +709,6 @@ impl TypesetView {
         self.reparse();
         cx.notify();
     }
-
-    /// Applies host preferences.
-    ///
-    /// Typography currently comes from the theme through `RenderContext`; a
-    /// per-document override would land here.
-    pub fn apply_preferences(&mut self, _preferences: &()) {}
-
-    /// Reports that there is nothing buffered to flush.
-    ///
-    /// Every edit is applied to the source immediately, so a host waiting for a
-    /// flush can proceed at once.
-    pub fn flush(
-        &self,
-        done: impl FnOnce(Result<(), String>, &mut Window, &mut Context<Self>) + 'static,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        done(Ok(()), window, cx);
-    }
 }
 
 /// The byte offset where `line` starts, counting from one.
