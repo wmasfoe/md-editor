@@ -13,7 +13,7 @@ use std::ops::Range;
 use gpui_kit::base::text::editor_host::Caret;
 
 use crate::movement::{move_left, move_right};
-use inkpoint_editor_core::{BlockKind, EditError, MarkdownDocument, SourceBlock, SourceEdit};
+use inkpoint_editor_core::{EditError, MarkdownDocument, SourceEdit};
 
 /// Why an edit did not apply.
 ///
@@ -607,52 +607,6 @@ impl TypesetEditor {
         self.apply_recording(edit)
     }
 
-    /// Replaces the text of the table cell that contains `offset`.
-    ///
-    /// A table cell is its own editable region: its `content_range` excludes the
-    /// surrounding pipes and padding, so writing into it leaves the table's
-    /// shape untouched. Returns `None` when `offset` is not inside a cell.
-    ///
-    /// Typing in a cell goes through plain `insert` with the caret inside it;
-    /// this is the programmatic writer, for a host that knows a cell's offset and
-    /// wants to set its whole content in one step.
-    pub fn set_table_cell(
-        &mut self,
-        offset: usize,
-        text: &str,
-    ) -> Option<Result<(), TypesetError>> {
-        if self.readonly {
-            return Some(Err(TypesetError::ReadOnly));
-        }
-        let cell = self.cell_at(offset)?;
-        let range = cell.content_range.clone();
-        let caret = range.start + text.len();
-        Some(self.apply_recording(SourceEdit {
-            range,
-            replacement: text.to_string(),
-            selection_after: caret..caret,
-        }))
-    }
-
-    /// The table cell whose content contains `offset`, if any.
-    pub fn cell_at(&self, offset: usize) -> Option<SourceBlock> {
-        let blocks = self.document.blocks().ok()?;
-        fn walk(blocks: &[SourceBlock], offset: usize) -> Option<SourceBlock> {
-            for block in blocks {
-                if matches!(block.kind, BlockKind::TableCell)
-                    && block.content_range.contains(&offset)
-                {
-                    return Some(block.clone());
-                }
-                if let Some(found) = walk(&block.children, offset) {
-                    return Some(found);
-                }
-            }
-            None
-        }
-        walk(&blocks, offset)
-    }
-
     /// Applies `edit` and moves the caret to the edit's own selection.
     fn apply(&mut self, edit: SourceEdit) -> Result<(), TypesetError> {
         let selection_after = edit.selection_after.clone();
@@ -730,31 +684,13 @@ mod tests {
     }
 
     #[test]
-    fn a_table_cell_is_edited_without_disturbing_its_pipes() {
-        let mut editor = TypesetEditor::new("| a | b |\n| --- | --- |\n| c | d |\n");
-        // Offset 2 is inside the first header cell's content.
-        editor
-            .set_table_cell(2, "alpha")
-            .expect("the offset is inside a cell")
-            .expect("the edit should apply");
-        assert_eq!(editor.source(), "| alpha | b |\n| --- | --- |\n| c | d |\n");
-    }
-
-    #[test]
-    fn typing_into_a_table_cell_works_without_the_cell_api() {
-        // Users edit a table cell by putting the caret in it and typing. That
-        // path is plain `insert`, so the dedicated cell writer is not needed for
-        // editing to work.
+    fn typing_into_a_table_cell_edits_only_that_cell() {
+        // Editing a cell is plain typing with the caret inside it; the pipes and
+        // the other cells are untouched.
         let mut editor = TypesetEditor::new("| a | b |\n| --- | --- |\n| c | d |\n");
         editor.set_caret(2);
         editor.insert("X").expect("typing applies");
         assert_eq!(editor.source(), "| Xa | b |\n| --- | --- |\n| c | d |\n");
-    }
-
-    #[test]
-    fn an_offset_outside_a_table_reports_no_cell() {
-        let editor = TypesetEditor::new("Just a paragraph.\n");
-        assert!(editor.cell_at(3).is_none());
     }
 
     #[test]
@@ -978,20 +914,12 @@ mod undo_sequence_tests {
 
     /// A table-cell write after typing is its own step.
     #[test]
-    fn a_table_cell_write_after_typing_is_its_own_undo_step() {
+    fn a_table_edit_after_typing_is_its_own_undo_step() {
         let mut editor = TypesetEditor::new("Z\n\n| a | b |\n| --- | --- |\n");
         editor.set_caret(1);
-        // Find a cell offset rather than assuming one: the parser's ranges depend
-        // on how it slices pipes and padding.
-        let offset = (0..editor.source().len())
-            .find(|offset| editor.cell_at(*offset).is_some())
-            .expect("a table cell exists");
-        let cell = editor.cell_at(offset).expect("the first cell");
-        editor
-            .set_table_cell(cell.content_range.start, "cell")
-            .expect("the offset is inside a cell")
-            .expect("the write applies");
-        assert!(editor.undo(), "undo takes back the cell write");
+        // Typing inside a cell is an ordinary edit, so it starts its own step.
+        editor.insert("cell").expect("typing applies");
+        assert!(editor.undo(), "undo takes back the cell typing");
         assert!(
             editor.source().contains("| a | b |"),
             "and leaves the cell as it was: {:?}",
