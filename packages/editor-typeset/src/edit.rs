@@ -348,7 +348,6 @@ impl TypesetEditor {
         self.selection = Selection::new(anchor.min(len), head.min(len));
     }
 
-    /// Inserts `text` at the caret, replacing the selection.
     /// Deletes the selection, or one character before the caret when collapsed.
     ///
     /// This is one operation, not "extend the selection, then insert nothing":
