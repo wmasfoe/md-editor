@@ -42,12 +42,12 @@ async function startPlayground() {
       editor.setMarkdown(await file.text());
       status.value = `Opened ${file.name}`;
     });
-  appRoot
-    .querySelector<HTMLButtonElement>("#copy-markdown")!
-    .addEventListener("click", async () => {
-      await navigator.clipboard.writeText(editor.getMarkdown());
-      status.value = "Copied Markdown";
-    });
+  appRoot.querySelector<HTMLButtonElement>("#copy-markdown")!.addEventListener("click", () => {
+    // 剪贴板写入在 Rust 侧（Platform::write_to_clipboard），与桌面端同一条路径。
+    // 必须在 click 的同步栈内调用，否则浏览器会因缺少用户激活而拒绝写入。
+    editor.copyMarkdown();
+    status.value = "Copied Markdown";
+  });
   appRoot.querySelector<HTMLButtonElement>("#download-markdown")!.addEventListener("click", () => {
     const blob = new Blob([editor.getMarkdown()], { type: "text/markdown;charset=utf-8" });
     const url = URL.createObjectURL(blob);
