@@ -36,6 +36,10 @@ pub fn run(
     APPLICATION.with(|handle| {
         *handle.borrow_mut() = Some(application.run_embedded(move |cx| {
             gpui_kit::init(cx);
+            // The editor's own keys: without this the Playground accepts typing
+            // but arrows, backspace and undo do nothing, because the actions the
+            // view listens for have no keystroke bound to them.
+            TypesetView::bind_keys(cx);
             gpui_kit::component::Theme::update(cx, |theme| {
                 theme.font_family = "Inter".into();
                 theme.mono_font_family = "Fira Mono".into();
