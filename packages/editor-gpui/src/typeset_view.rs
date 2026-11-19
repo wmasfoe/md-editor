@@ -832,6 +832,27 @@ mod input_tests {
         view.read_with(cx, |view, _| view.markdown().to_string())
     }
 
+    /// Opens a view with `source`, focused and drawn twice so its input handler
+    /// is registered, and returns it with its window context.
+    fn open<'a>(
+        cx: &'a mut TestAppContext,
+        source: &str,
+    ) -> (Entity<TypesetView>, &'a mut gpui_kit::VisualTestContext) {
+        cx.update(gpui_kit::init);
+        cx.update(TypesetView::bind_keys);
+        let (view, vcx) = cx.add_window_view(|window, cx| TypesetView::new(window, cx, source));
+        // Two frames: the input handler is registered during paint, so the first
+        // frame is what makes the view reachable at all.
+        for _ in 0..2 {
+            vcx.update(|window, cx| {
+                view.update(cx, |view, cx| view.focus(window, cx));
+                window.draw(cx).clear(cx);
+            });
+            vcx.run_until_parked();
+        }
+        (view, vcx)
+    }
+
     /// The test the whole wiring exists for: a keystroke reaches the view and
     /// changes the document.
     ///
@@ -897,6 +918,69 @@ mod input_tests {
         );
         vcx.simulate_keystrokes("cmd-z");
         assert_eq!(markdown(&view, vcx), "abc", "undo restores it");
+    }
+
+    /// The acceptance sequence from the spec, driven through the real key path:
+    /// select all, replace, type Chinese, change a heading level, and undo.
+    ///
+    /// This is the closest thing to "open a real article and work in it" that a
+    /// headless test can express: every step goes through the window's input
+    /// handler rather than calling the editor.
+    #[gpui_kit::test]
+    fn a_real_article_flow_works_end_to_end(cx: &mut TestAppContext) {
+        let article = "# Title\n\nBody paragraph.\n\n## Section\n\nMore text.\n";
+        let (view, vcx) = open(cx, article);
+
+        // Select all, then replace it by typing: the whole buffer is rewritten.
+        vcx.simulate_keystrokes("cmd-a");
+        vcx.simulate_input("Replaced.");
+        assert_eq!(
+            markdown(&view, vcx),
+            "Replaced.",
+            "select-all then type replaces"
+        );
+
+        // A burst of typing is one undo step, so a single Cmd-Z brings the
+        // whole article back.
+        vcx.simulate_keystrokes("cmd-z");
+        assert_eq!(markdown(&view, vcx), article, "undo restores the article");
+
+        // Insert Chinese in the middle.
+        vcx.update(|window, cx| {
+            view.update(cx, |view, cx| {
+                view.focus(window, cx);
+                view.set_caret(0, cx);
+            });
+            window.draw(cx).clear(cx);
+        });
+        vcx.run_until_parked();
+        vcx.simulate_input("中文");
+        assert!(
+            markdown(&view, vcx).starts_with("中文"),
+            "Chinese input lands at the caret: {:?}",
+            markdown(&view, vcx)
+        );
+
+        // The heading command rewrites the line the caret is on.
+        vcx.update(|window, cx| {
+            view.update(cx, |view, cx| {
+                view.focus(window, cx);
+                view.set_caret(0, cx);
+            });
+            window.draw(cx).clear(cx);
+        });
+        vcx.run_until_parked();
+        vcx.update(|_, cx| {
+            view.update(cx, |view, cx| {
+                let _ = view.editor.set_heading(3);
+                cx.notify();
+            });
+        });
+        assert!(
+            markdown(&view, vcx).starts_with("###"),
+            "setting a heading rewrites the line: {:?}",
+            markdown(&view, vcx)
+        );
     }
 
     /// Left and right move the caret by whole characters, including across a

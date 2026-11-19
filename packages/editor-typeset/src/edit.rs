@@ -148,6 +148,12 @@ struct History {
     undos: Vec<Snapshot>,
     redos: Vec<Snapshot>,
     limit: usize,
+    /// Whether the next push continues the previous undo step.
+    ///
+    /// Typing produces one edit per character. Without coalescing, undo would
+    /// step back a letter at a time, which is not how a text editor behaves: a
+    /// burst of typing is one thing the user did.
+    coalesce: bool,
 }
 
 impl History {
@@ -156,12 +162,29 @@ impl History {
             undos: Vec::new(),
             redos: Vec::new(),
             limit,
+            coalesce: false,
         }
+    }
+
+    /// Starts a step that later pushes may join.
+    fn begin_coalescing(&mut self) {
+        self.coalesce = true;
+    }
+
+    /// Ends the current step, so the next push starts a new one.
+    fn end_coalescing(&mut self) {
+        self.coalesce = false;
     }
 
     /// Records `snapshot` and drops the redo branch, which a new edit invalidates.
     fn push(&mut self, snapshot: Snapshot) {
         if self.limit == 0 {
+            return;
+        }
+        // A coalesced push keeps the earlier snapshot: the step is "the state
+        // before the burst", so only the first push of the burst matters.
+        if self.coalesce && !self.undos.is_empty() {
+            self.redos.clear();
             return;
         }
         if self.undos.len() == self.limit {
@@ -172,6 +195,7 @@ impl History {
     }
 
     fn undo(&mut self, current: Snapshot) -> Option<Snapshot> {
+        self.coalesce = false;
         let previous = self.undos.pop()?;
         if self.redos.len() == self.limit {
             self.redos.remove(0);
@@ -181,6 +205,7 @@ impl History {
     }
 
     fn redo(&mut self, current: Snapshot) -> Option<Snapshot> {
+        self.coalesce = false;
         let next = self.redos.pop()?;
         if self.undos.len() == self.limit {
             self.undos.remove(0);
@@ -193,6 +218,7 @@ impl History {
     fn clear(&mut self) {
         self.undos.clear();
         self.redos.clear();
+        self.coalesce = false;
     }
 
     fn can_undo(&self) -> bool {
@@ -378,15 +404,32 @@ impl TypesetEditor {
         }
         let range = self.selection.range();
         let caret = range.start + text.len();
-        self.apply_recording(SourceEdit {
+        // Typing one character at a caret is a burst: consecutive characters
+        // join one undo step so Cmd-Z steps back a word rather than a letter.
+        // Anything else — a paste, a replacement of a selection, a formatting
+        // command — is its own step.
+        let typing = range.start == range.end && text.chars().count() == 1;
+        let edit = SourceEdit {
             range,
             replacement: text.to_string(),
             selection_after: caret..caret,
-        })
+        };
+        if typing {
+            self.history.begin_coalescing();
+            let result = self.apply_recording(edit);
+            if result.is_err() {
+                self.history.end_coalescing();
+            }
+            result
+        } else {
+            self.history.end_coalescing();
+            self.apply_recording(edit)
+        }
     }
 
     /// Sets the heading level of every line the selection touches.
     pub fn set_heading(&mut self, level: u8) -> Result<(), TypesetError> {
+        self.history.end_coalescing();
         if self.readonly {
             return Err(TypesetError::ReadOnly);
         }
@@ -673,7 +716,9 @@ mod tests {
     }
 
     #[test]
-    fn several_edits_undo_one_at_a_time() {
+    fn a_burst_of_typing_undoes_as_one_step() {
+        // Consecutive single characters are one thing the user did, so one undo
+        // must take back the whole burst rather than one letter of it.
         let mut editor = TypesetEditor::new("");
         editor.set_caret(0);
         editor.insert("a").expect("insert applies");
@@ -681,11 +726,21 @@ mod tests {
         editor.insert("c").expect("insert applies");
         assert_eq!(editor.source(), "abc");
         assert!(editor.undo());
-        assert_eq!(editor.source(), "ab");
-        assert!(editor.undo());
-        assert_eq!(editor.source(), "a");
+        assert_eq!(editor.source(), "", "one undo takes back the whole burst");
         assert!(editor.redo());
-        assert_eq!(editor.source(), "ab");
+        assert_eq!(editor.source(), "abc");
+    }
+
+    #[test]
+    fn a_paste_is_its_own_undo_step() {
+        // Multi-character input is not typing: it must not join the burst.
+        let mut editor = TypesetEditor::new("");
+        editor.set_caret(0);
+        editor.insert("a").expect("insert applies");
+        editor.insert("pasted").expect("insert applies");
+        assert_eq!(editor.source(), "apasted");
+        assert!(editor.undo());
+        assert_eq!(editor.source(), "a", "undo takes back only the paste");
     }
 
     #[test]
