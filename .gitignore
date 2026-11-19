@@ -20,6 +20,10 @@ apps/site/.vercel/
 
 # Rust build output
 target/
+# Tauri 退役后 apps/desktop/src-tauri 只剩构建产物与生成的 schema，
+# 没有源码。它们由旧构建留下，不应进入版本库或格式化检查。
+apps/desktop/src-tauri/gen/
+apps/desktop/src-tauri/binaries/
 
 # Swift / iOS / Android build output
 .build/

@@ -9,6 +9,9 @@ apps/desktop/editor-dist/
 build/
 .next/
 target/
+# Tauri 遗留构建产物（无源码），不参与格式化检查
+apps/desktop/src-tauri/gen/
+apps/desktop/src-tauri/binaries/
 coverage/
 .vercel/
 .pnpm-store/

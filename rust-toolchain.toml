@@ -1,5 +1,6 @@
 [toolchain]
 # gpui-pre-macos 0.3.12 uses Option::map_or_default, stable since 1.98.
-channel = "1.98.0"
+# 1.99 起 latex-rust 可用（MSRV 1.99），用于数学公式 SVG 渲染。
+channel = "1.99.0"
 profile = "minimal"
 components = ["rustfmt", "clippy"]
