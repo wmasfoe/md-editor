@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.23.4 - 2026-11-19 (#275)
+
+- Fix missing selection highlighting on the first Select All after opening a WYSIWYG document with YAML frontmatter.
+
 ## 0.23.3 - 2026-11-18 (#274)
 
 - Fix missing selection highlighting when selecting all in a newly opened WYSIWYG document on macOS.
