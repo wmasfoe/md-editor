@@ -233,14 +233,15 @@ impl TypesetView {
         ) else {
             return;
         };
-        // Enter at the line nearest the edge we came from: the last line going
-        // up, the first going down.
+        // Enter at the edge we came from: the end of the previous leaf when
+        // moving up, the start of the next when moving down. `position_for_index`
+        // already returns the caret's own line, so the offset is used as-is
+        // rather than nudged into the middle of a line — nudging would land on
+        // the line below and be clamped back, which happens to work but says
+        // nothing about intent.
         let edge = if up { neighbour.len() } else { 0 };
         let position = neighbour.position_for_index(edge);
-        let target = neighbour.caret_for_position(Point {
-            x: position.x,
-            y: position.y + neighbour.line_height() / 2.,
-        });
+        let target = neighbour.caret_for_position(position);
         self.caret_leaf = Some(neighbour_key);
         self.editor
             .set_caret(neighbour_span.start + target.index.min(neighbour.len()));
