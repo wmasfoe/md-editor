@@ -788,10 +788,15 @@ impl Render for TypesetView {
             )
             .child(scrollable)
             .into_any_element();
+        // The caret rectangle comes from the same geometry the hit testing uses,
+        // so it sits exactly where a click at that offset would land.
+        let caret = self.caret_bounds();
         InputSurface {
             view: cx.entity(),
             focus: self.focus.clone(),
             child: surface,
+            caret,
+            caret_color: gpui_kit::component::theme::Theme::global(cx).foreground,
         }
     }
 }
@@ -906,6 +911,25 @@ impl TypesetView {
         cx.notify();
     }
 
+    /// The rectangle to draw the insertion caret in, when it can be located.
+    ///
+    /// The caret only shows for a collapsed selection: with text selected the
+    /// highlight is the indicator, and a caret on top of it would be noise.
+    fn caret_bounds(&self) -> Option<Bounds<Pixels>> {
+        if !self.editor.selection().range().is_empty() {
+            return None;
+        }
+        let key = self.caret_leaf?;
+        let leaf = self.geometry.get(key)?;
+        let span = self.document.span_of(key)?;
+        let local = self.editor.selection().head().saturating_sub(span.start);
+        let position = leaf.position_for_index(local.min(leaf.len()));
+        Some(Bounds {
+            origin: position,
+            size: gpui_kit::size(px(2.), leaf.caret_height()),
+        })
+    }
+
     /// Translates a window point into the scrolled document's own space.
     ///
     /// Leaf bounds come from layout, before the container's scroll offset is
@@ -1011,6 +1035,10 @@ struct InputSurface {
     view: Entity<TypesetView>,
     focus: FocusHandle,
     child: AnyElement,
+    /// Where to draw the insertion caret, when the caret's leaf laid out.
+    caret: Option<Bounds<Pixels>>,
+    /// The colour to draw it in.
+    caret_color: gpui_kit::Hsla,
 }
 
 impl IntoElement for InputSurface {
@@ -1067,6 +1095,11 @@ impl Element for InputSurface {
         cx: &mut App,
     ) {
         self.child.paint(window, cx);
+        // A text editor has to show where the next character goes. The leaf
+        // geometry already knows, so the caret is one filled rectangle.
+        if let Some(caret) = self.caret {
+            window.paint_quad(gpui_kit::fill(caret, self.caret_color));
+        }
         // This is the line that makes typing work: it tells the window which
         // entity answers the platform's text and IME calls.
         window.handle_input(
