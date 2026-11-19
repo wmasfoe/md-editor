@@ -162,14 +162,7 @@ impl TypesetView {
 
     /// Deletes the selection, or one character backwards when collapsed.
     fn delete_backward(&mut self, cx: &mut Context<Self>) {
-        let selection = self.editor.selection().range();
-        if selection.is_empty() {
-            let source = self.editor.source().to_string();
-            let caret = gpui_kit::base::text::editor_host::Caret::new(selection.start);
-            let previous = move_left(&source, caret).index;
-            self.editor.set_selection(previous, selection.start);
-        }
-        let result = self.editor.insert("");
+        let result = self.editor.delete_backward();
         self.apply(result, cx);
     }
 

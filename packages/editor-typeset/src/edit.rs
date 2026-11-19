@@ -11,6 +11,8 @@
 use std::ops::Range;
 
 use gpui_kit::base::text::editor_host::Caret;
+
+use crate::movement::move_left;
 use inkpoint_editor_core::{BlockKind, EditError, MarkdownDocument, SourceBlock, SourceEdit};
 
 use crate::LeafIndex;
@@ -351,6 +353,30 @@ impl TypesetEditor {
     }
 
     /// Inserts `text` at the caret, replacing the selection.
+    /// Deletes the selection, or one character before the caret when collapsed.
+    ///
+    /// This is one operation, not "extend the selection, then insert nothing":
+    /// splitting it would record the extended selection as the undo state, so
+    /// undo would restore a selection the user never had.
+    pub fn delete_backward(&mut self) -> Result<(), TypesetError> {
+        if self.readonly {
+            return Err(TypesetError::ReadOnly);
+        }
+        let range = self.selection.range();
+        let target = if range.is_empty() {
+            let previous = move_left(self.document.source(), Caret::new(range.start)).index;
+            previous..range.start
+        } else {
+            range
+        };
+        self.record();
+        self.apply(SourceEdit {
+            range: target.clone(),
+            replacement: String::new(),
+            selection_after: target.start..target.start,
+        })
+    }
+
     pub fn insert(&mut self, text: &str) -> Result<(), TypesetError> {
         if self.readonly {
             return Err(TypesetError::ReadOnly);
@@ -542,6 +568,34 @@ mod tests {
             .toggle_line_prefix("- [ ] ")
             .expect("the prefix should apply");
         assert_eq!(editor.source(), "- [ ] item\n");
+    }
+
+    #[test]
+    fn delete_backward_removes_one_character_and_undoes_as_one_step() {
+        let mut editor = TypesetEditor::new("abc");
+        editor.set_caret(3);
+        editor.delete_backward().expect("delete applies");
+        assert_eq!(editor.source(), "ab");
+        assert_eq!(editor.selection().head(), 2);
+        // One undo restores the character and the caret that preceded it, with
+        // no intermediate "selection extended" state.
+        assert!(editor.undo());
+        assert_eq!(editor.source(), "abc");
+        assert_eq!(
+            editor.selection().range(),
+            3..3,
+            "a collapsed caret, not a selection"
+        );
+    }
+
+    #[test]
+    fn delete_backward_removes_a_selection_in_one_step() {
+        let mut editor = TypesetEditor::new("hello world");
+        editor.set_selection(5, 11);
+        editor.delete_backward().expect("delete applies");
+        assert_eq!(editor.source(), "hello");
+        assert!(editor.undo());
+        assert_eq!(editor.source(), "hello world");
     }
 
     #[test]
