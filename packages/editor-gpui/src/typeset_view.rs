@@ -1754,3 +1754,80 @@ third
         );
     }
 }
+
+#[cfg(test)]
+mod ime_geometry_tests {
+    use super::*;
+    use gpui_kit::TestAppContext;
+
+    /// The IME needs a rectangle to anchor its candidate window.
+    ///
+    /// `bounds_for_range` returns None without geometry, which leaves the
+    /// candidate window unanchored — the visible symptom of the geometry bug that
+    /// made typing work while composition placement did not.
+    #[gpui_kit::test]
+    fn bounds_for_range_returns_a_rectangle(cx: &mut TestAppContext) {
+        cx.update(gpui_kit::init);
+        cx.update(TypesetView::bind_keys);
+        let (view, vcx) =
+            cx.add_window_view(|window, cx| TypesetView::new(window, cx, "first\n\nsecond\n"));
+        for _ in 0..3 {
+            vcx.update(|window, cx| {
+                view.update(cx, |view, cx| view.focus(window, cx));
+                window.draw(cx).clear(cx);
+            });
+            vcx.run_until_parked();
+        }
+        let bounds = vcx.update(|window, cx| {
+            view.update(cx, |view, cx| {
+                view.bounds_for_range(0..1, gpui_kit::Bounds::default(), window, cx)
+            })
+        });
+        assert!(
+            bounds.is_some(),
+            "the IME must get a rectangle for the composing range"
+        );
+    }
+
+    /// Clicking must report a document offset the IME can use.
+    #[gpui_kit::test]
+    fn character_index_for_point_resolves_through_the_clicked_leaf(cx: &mut TestAppContext) {
+        cx.update(gpui_kit::init);
+        cx.update(TypesetView::bind_keys);
+        let (view, vcx) =
+            cx.add_window_view(|window, cx| TypesetView::new(window, cx, "first\n\nsecond\n"));
+        for _ in 0..3 {
+            vcx.update(|window, cx| {
+                view.update(cx, |view, cx| view.focus(window, cx));
+                window.draw(cx).clear(cx);
+            });
+            vcx.run_until_parked();
+        }
+        // A point inside the second block must resolve past the first block's
+        // text, which is only possible with geometry.
+        let point = view.read_with(&*vcx, |view, _| {
+            view.geometry
+                .entries()
+                .map(|(_, leaf)| leaf.bounds())
+                .find(|bounds| bounds.origin.y > gpui_kit::px(0.))
+                .map(|bounds| {
+                    gpui_kit::point(
+                        bounds.origin.x + gpui_kit::px(2.),
+                        bounds.origin.y + bounds.size.height / 2.,
+                    )
+                })
+        });
+        let Some(point) = point else {
+            panic!("the second block must lay out");
+        };
+        let index = vcx.update(|window, cx| {
+            view.update(cx, |view, cx| {
+                view.character_index_for_point(point, window, cx)
+            })
+        });
+        assert!(
+            index.is_some_and(|index| index > 0),
+            "a click in the second block must resolve past the first, got {index:?}"
+        );
+    }
+}
