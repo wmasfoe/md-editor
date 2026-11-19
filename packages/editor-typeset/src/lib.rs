@@ -275,13 +275,41 @@ impl TypesetDocument {
     ) -> Option<(u64, Range<usize>)> {
         let ordered = self.ordered_keys(laid_out);
         let position = ordered.iter().position(|candidate| *candidate == key)?;
-        let neighbour = if up {
-            position.checked_sub(1).and_then(|index| ordered.get(index))
-        } else {
-            ordered.get(position + 1)
-        }?;
-        let span = self.span_of(*neighbour)?;
-        Some((*neighbour, span))
+        // Cells of one table belong to the same block. Stepping to the next key
+        // would move sideways into the neighbouring cell, so the walk skips its
+        // own block and lands beyond it: a table is one stop for vertical
+        // navigation. The block is identified by which entry in `block_keys`
+        // owns the key, since a cell's own span is just its content range.
+        let own_block = self.block_of(key);
+        let mut cursor = position;
+        loop {
+            cursor = if up {
+                cursor.checked_sub(1)?
+            } else {
+                cursor + 1
+            };
+            let candidate = *ordered.get(cursor)?;
+            let candidate_span = self.span_of(candidate)?;
+            if self.block_of(candidate) == own_block {
+                continue;
+            }
+            return Some((candidate, candidate_span));
+        }
+    }
+
+    /// The index of the block that owns `key`.
+    ///
+    /// A block owns the keys from its first one up to the next block's, so a
+    /// table's later cells still resolve to the table.
+    fn block_of(&self, key: u64) -> Option<usize> {
+        // Keys are allocated in document order, so the owner is the last block
+        // whose first key is at or before `key`.
+        self.block_keys
+            .iter()
+            .enumerate()
+            .filter(|(_, first)| first.is_some_and(|first| first <= key))
+            .map(|(index, _)| index)
+            .next_back()
     }
 
     /// The leaf whose source span contains `offset`.
@@ -693,6 +721,27 @@ mod tests {
             .expect("the third block is below");
         assert_eq!(key, third);
         assert!(span.start > 0);
+    }
+
+    /// Up/Down must treat a table as one stop, not one per cell.
+    ///
+    /// Cells share their table's range; stepping to the next key would move
+    /// sideways into the neighbouring cell instead of down past the table.
+    #[test]
+    fn a_vertical_neighbour_skips_the_rest_of_the_table() {
+        let source = "before\n\n| a | b |\n| --- | --- |\n| c | d |\n\nafter\n";
+        let document = TypesetDocument::parse(source).expect("markdown parses");
+        let laid_out: Vec<u64> = document
+            .leaf_spans()
+            .iter()
+            .map(|leaf| leaf.key())
+            .collect();
+        let first_cell = document.leaf_key(1).expect("the table's first cell");
+        let after = document.leaf_key(2).expect("the paragraph after");
+        let (key, _) = document
+            .vertical_neighbour(first_cell, false, &laid_out)
+            .expect("there is a block below");
+        assert_eq!(key, after, "Down from a cell must leave the table entirely");
     }
 
     #[test]
