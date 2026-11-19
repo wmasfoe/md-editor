@@ -7,6 +7,7 @@ import { provideWysiwygDiagnostics, WysiwygDiagnostics } from "../../src/diagnos
 import { M1_MARKDOWN_EXTENSIONS } from "../../src/markdown/extensions.ts";
 import { markdownRangeIndexField } from "../../src/markdown/range-index.ts";
 import { editorModeField, setEditorModeEffect } from "../../src/mode.ts";
+import { frontmatterSelectionDrawingRange } from "../../src/wysiwyg/projections/frontmatter-projection.ts";
 import { wysiwygChangeProtection } from "../../src/wysiwyg/state/change-protection.ts";
 import {
   configureWysiwygProjectionFeatures,
@@ -101,6 +102,40 @@ describe("Frontmatter projection", () => {
     expect(inspectWysiwygProjection(state).protectedRanges).toEqual(
       record.markerRanges.map((range) => ({ ...range, kind: "frontmatter" })),
     );
+  });
+
+  it("draws select all from the visible YAML through the body while keeping the whole source selected", () => {
+    const { state } = createState();
+    const selected = state.update({ selection: EditorSelection.range(DOCUMENT.length, 0) }).state;
+    const range = selected.selection.main;
+    const layout = selected.field(wysiwygProjectionField).layoutDecorations;
+
+    expect(frontmatterSelectionDrawingRange(layout, range)).toMatchObject({
+      from: selected.doc.line(2).from,
+      to: DOCUMENT.length,
+    });
+    expect(selected.sliceDoc(range.from, range.to)).toBe(DOCUMENT);
+  });
+
+  it("draws a range ending on the closing fence only through the last YAML line", () => {
+    const { state } = createState("---\ntitle: Example\n---");
+    const layout = state.field(wysiwygProjectionField).layoutDecorations;
+    const selection = EditorSelection.range(0, state.doc.length);
+
+    expect(frontmatterSelectionDrawingRange(layout, selection)).toMatchObject({
+      from: state.doc.line(2).from,
+      to: state.doc.line(2).to,
+    });
+    expect(frontmatterSelectionDrawingRange(layout, EditorSelection.range(0, 3))).toBeNull();
+  });
+
+  it("measures the complete selection when the fences are visible in source mode", () => {
+    const { state } = createState();
+    const source = state.update({ effects: setEditorModeEffect.of("source") }).state;
+    const layout = source.field(wysiwygProjectionField).layoutDecorations;
+    const selection = EditorSelection.range(0, source.doc.length);
+
+    expect(frontmatterSelectionDrawingRange(layout, selection)).toBe(selection);
   });
 
   it("edits only YAML source ranges through native history and preserves every other byte", () => {

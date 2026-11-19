@@ -92,6 +92,7 @@ macOS 菜单的原生 `selectAll:` responder 会从 WebKit 的可编辑 DOM 建�
 
 - 「编辑 → 全选」及其 `Cmd+A` 加速键使用同一应用菜单事件。当前窗口的焦点位于编辑器内时，桌面层将事件适配为 `Cmd+A`，由 CodeMirror 和当前组件的键位处理器决定选区。
 - 正文的全文选区覆盖从 `0` 到 `doc.length` 的 Markdown 偏移，并立即绘制可见正文的高亮。首次打开、切换文件后重开以及删除后撤销都遵循同一契约。
+- WYSIWYG 的 frontmatter 围栏替换整行，隐藏的围栏没有可用于绘制的文本坐标。当选区端点落在已投影的围栏上，绘制层将测量边界移到相邻文本行，确保 YAML 和正文都能高亮。复制、删除和撤销继续使用包含围栏的完整原始选区。源码模式照常绘制围栏。
 - 代码块内和表格单元格内沿用各自的渐进全选键位。搜索框等编辑器外的输入面继续使用 WebKit 的全选行为。Tauri 只向获得焦点的原生窗口发送全选事件，包括独立设置窗口。
 - `apps/desktop/tests/desktop/menu-select-all.test.ts` 验证菜单事件和焦点路由。`apps/desktop/e2e/codemirror-menu-select-all.spec.ts` 从应用菜单事件验证 Markdown 选区、可见高亮、删除撤销及重开文件。macOS 原生验收应从系统菜单或实际加速键进入。
 
