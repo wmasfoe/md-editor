@@ -107,16 +107,30 @@ impl TypesetDocument {
         diagrams: Option<&DiagramRenderer>,
     ) -> Result<Self, SharedString> {
         let source = source.into();
-        let mut parsed = parse_markdown(&source, Default::default())?;
-        if let Some(diagrams) = diagrams {
-            parsed = diagrams.replace_diagrams(parsed, gpui_kit::SvgSize::ScaleFactor(1.0));
-        }
+        let parsed = parse_markdown(&source, Default::default())?;
+        // Record each block's source range before any rendering replaces it. A
+        // rendered diagram becomes a paragraph built from scratch, which carries
+        // no span; keeping the original range is what lets the caret resolve an
+        // offset inside the fence and lets vertical movement step past it.
+        let spans_before: Vec<Option<Range<usize>>> = parsed
+            .iter()
+            .map(|block| block.span().map(|span| span.start..span.end))
+            .collect();
+        let parsed = match diagrams {
+            Some(diagrams) => {
+                diagrams.replace_diagrams(parsed, gpui_kit::SvgSize::ScaleFactor(1.0))
+            }
+            None => parsed,
+        };
         let mut keys = Vec::with_capacity(parsed.len());
         let mut spans = Vec::with_capacity(parsed.len());
         let mut blocks = Vec::with_capacity(parsed.len());
         for (index, block) in parsed.into_iter().enumerate() {
             let key = FIRST_LEAF_KEY + index as u64;
-            let span = block.span().map(|span| span.start..span.end);
+            let span = block
+                .span()
+                .map(|span| span.start..span.end)
+                .or_else(|| spans_before.get(index).cloned().flatten());
             keys.push(key);
             spans.push(LeafSpan { key, span });
             blocks.push(with_leaf_key(block, key));
@@ -395,6 +409,46 @@ mod tests {
             document.leaf_at(6),
             Some(first),
             "offset 6 is the blank line"
+        );
+    }
+
+    /// A rendered diagram must keep the fence's source range.
+    ///
+    /// Losing it breaks two things the caret depends on: resolving an offset
+    /// inside the fence to its block, and stepping vertically past the diagram
+    /// instead of stopping dead at it.
+    #[test]
+    fn a_rendered_diagram_keeps_its_source_span() {
+        let source = "before\n\n```mermaid\nflowchart LR\nA-->B\n```\n\nafter\n";
+        let plain = TypesetDocument::parse(source).expect("markdown parses");
+        let renderer = DiagramRenderer::new(std::sync::Arc::new(()));
+        let drawn = TypesetDocument::parse_with(source, Some(&renderer)).expect("markdown parses");
+
+        let fence_span = plain
+            .leaf_spans()
+            .get(1)
+            .and_then(|leaf| leaf.span())
+            .expect("the fence has a range");
+        let kept = drawn
+            .leaf_spans()
+            .get(1)
+            .and_then(|leaf| leaf.span())
+            .expect("the rendered block keeps the fence's range");
+        assert_eq!(kept, fence_span, "rendering must not lose the source range");
+    }
+
+    /// An offset inside a diagram resolves to the diagram's block.
+    #[test]
+    fn an_offset_inside_a_diagram_resolves_to_its_block() {
+        let source = "before\n\n```mermaid\nflowchart LR\nA-->B\n```\n\nafter\n";
+        let renderer = DiagramRenderer::new(std::sync::Arc::new(()));
+        let document = TypesetDocument::parse_with(source, Some(&renderer)).expect("parses");
+        let inside = source.find("flowchart").expect("the fence body");
+        let key = document.leaf_at(inside).expect("a leaf");
+        assert_eq!(
+            Some(key),
+            document.leaf_key(1),
+            "the caret inside the fence belongs to the diagram block"
         );
     }
 
