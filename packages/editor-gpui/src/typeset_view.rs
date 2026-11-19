@@ -634,25 +634,8 @@ impl TypesetView {
 
     /// Moves the caret to the start of `line`, counting from one.
     pub fn seek_line(&mut self, line: usize, cx: &mut Context<Self>) {
-        let source = self.editor.source();
-        let mut current = 1;
-        let mut offset = 0;
-        if line <= 1 {
-            self.editor.set_caret(0);
-            cx.notify();
-            return;
-        }
-        for (index, character) in source.char_indices() {
-            if current + 1 == line {
-                offset = index;
-                break;
-            }
-            if character == '\n' {
-                current += 1;
-                offset = index + 1;
-            }
-        }
-        self.editor.set_caret(offset);
+        self.editor
+            .set_caret(line_start(self.editor.source(), line));
         cx.notify();
     }
 
@@ -714,5 +697,50 @@ impl TypesetView {
         cx: &mut Context<Self>,
     ) {
         done(Ok(()), window, cx);
+    }
+}
+
+/// The byte offset where `line` starts, counting from one.
+///
+/// Out-of-range lines clamp: line 0 and line 1 both give the document start,
+/// and a line past the end gives the offset after the last newline.
+fn line_start(source: &str, line: usize) -> usize {
+    if line <= 1 {
+        return 0;
+    }
+    let mut current = 1;
+    for (index, byte) in source.bytes().enumerate() {
+        if byte == b'\n' {
+            current += 1;
+            if current == line {
+                return index + 1;
+            }
+        }
+    }
+    source.len()
+}
+
+#[cfg(test)]
+mod line_tests {
+    use super::line_start;
+
+    #[test]
+    fn the_first_line_starts_at_the_document_start() {
+        let source = "one\ntwo\nthree\n";
+        assert_eq!(line_start(source, 0), 0);
+        assert_eq!(line_start(source, 1), 0);
+    }
+
+    #[test]
+    fn each_line_starts_after_the_previous_newline() {
+        let source = "one\ntwo\nthree\n";
+        assert_eq!(&source[line_start(source, 2)..], "two\nthree\n");
+        assert_eq!(&source[line_start(source, 3)..], "three\n");
+    }
+
+    #[test]
+    fn a_line_past_the_end_clamps_to_the_end() {
+        let source = "one\ntwo\n";
+        assert_eq!(line_start(source, 99), source.len());
     }
 }
