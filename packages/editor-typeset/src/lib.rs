@@ -85,8 +85,9 @@ pub struct TypesetDocument {
     blocks: Vec<BlockNode>,
     /// The first leaf key of each block, in block order.
     ///
-    /// A table owns several keys, so this is not the flat key list.
-    block_keys: Vec<u64>,
+    /// `None` for a block that renders no text (a rule, a definition). A table
+    /// owns several keys, so this is not the flat key list.
+    block_keys: Vec<Option<u64>>,
     spans: Vec<LeafSpan>,
     source: String,
 }
@@ -171,7 +172,14 @@ impl TypesetDocument {
             let first = next_key;
             let owned_keys: Vec<u64> = (0..needed).map(|step| first + step as u64).collect();
             next_key = first + needed as u64;
-            block_keys.push(first);
+            // A block that renders no text takes no key: recording one would give
+            // `leaf_at` a key with no geometry, so the caret would resolve to
+            // nothing while standing on it. `leaf_key` returns None for it.
+            if needed > 0 {
+                block_keys.push(Some(first));
+            } else {
+                block_keys.push(None);
+            }
             // Each leaf gets its own range where one is known. A table's cells
             // must not all carry the table's range: a click's offset is
             // `span.start + local`, so sharing one range sends every cell's click
@@ -210,7 +218,7 @@ impl TypesetDocument {
     /// A table owns one key per cell, so its remaining keys are consecutive from
     /// here.
     pub fn leaf_key(&self, index: usize) -> Option<u64> {
-        self.block_keys.get(index).copied()
+        self.block_keys.get(index).copied().flatten()
     }
 
     /// Every leaf key with its source span, in document order.
@@ -483,6 +491,14 @@ fn with_leaf_keys(block: BlockNode, keys: &mut impl Iterator<Item = u64>) -> Blo
                 .collect();
             BlockNode::Table(gpui_kit::base::text::editor_host::Table::new(rows, aligns))
         }
+        // These carry no text leaf, so there is no key to bind.
+        BlockNode::Custom { .. }
+        | BlockNode::Break { .. }
+        | BlockNode::HorizontalRule { .. }
+        | BlockNode::Definition { .. }
+        | BlockNode::Unknown => block,
+        // See `leaf_count`: `#[non_exhaustive]` means this list is maintained by
+        // hand, and an unlisted container would drop its children's keys.
         other => other,
     }
 }
@@ -492,18 +508,33 @@ fn with_leaf_keys(block: BlockNode, keys: &mut impl Iterator<Item = u64>) -> Blo
 /// A table renders one leaf per cell, which is why a block's key cannot be its
 /// index. Everything else renders exactly one.
 fn leaf_count(block: &BlockNode) -> usize {
+    // Exhaustive on purpose: a new `BlockNode` variant must decide how many
+    // leaves it renders, because guessing silently leaves its text with no
+    // geometry — the defect that made lists and code blocks unclickable.
     match block {
-        // A table renders one leaf per cell.
-        BlockNode::Table(table) => table.rows().map(|row| row.count()).sum::<usize>().max(1),
-        // A container renders one leaf per leaf inside it.
+        // One leaf per cell.
+        BlockNode::Table(table) => table.rows().map(|row| row.count()).sum(),
+        // One leaf per leaf inside.
         BlockNode::Root { children, .. }
         | BlockNode::Blockquote { children, .. }
         | BlockNode::Surface { children, .. }
         | BlockNode::List { children, .. }
-        | BlockNode::ListItem { children, .. } => {
-            children.iter().map(leaf_count).sum::<usize>().max(1)
-        }
-        // Everything else renders exactly one.
+        | BlockNode::ListItem { children, .. } => children.iter().map(leaf_count).sum(),
+        // One leaf of their own.
+        BlockNode::Paragraph(_) | BlockNode::Heading { .. } | BlockNode::CodeBlock(_) => 1,
+        // These render no text, so they take no key: allocating one would give
+        // `leaf_at` a key with no geometry, and the caret would resolve to
+        // nothing while standing on them.
+        BlockNode::Custom { .. }
+        | BlockNode::Break { .. }
+        | BlockNode::HorizontalRule { .. }
+        | BlockNode::Definition { .. }
+        | BlockNode::Unknown => 0,
+        // `BlockNode` is `#[non_exhaustive]`, so the compiler cannot force this
+        // list to stay complete. An unlisted variant is assumed to render one
+        // leaf; if a future variant is a container, its inner text reports no
+        // geometry — the defect that made lists and code blocks unclickable. Add
+        // a variant here when `gpui-base` adds one.
         _ => 1,
     }
 }
