@@ -133,12 +133,14 @@ impl TypesetDocument {
             Some(diagrams) => {
                 let replaced = diagrams.replace_diagrams(parsed, scale);
                 // The span carry-forward below is positional, so it is only sound
-                // while replacement is strictly one block in, one block out.
-                debug_assert_eq!(
-                    replaced.len(),
-                    spans_before.len(),
-                    "replace_diagrams must not change the block count"
-                );
+                // while replacement is strictly one block in, one block out. A
+                // debug assertion would vanish in release and silently attach the
+                // wrong spans, so the mismatch is reported instead.
+                if replaced.len() != spans_before.len() {
+                    return Err(SharedString::from(
+                        "Rendering changed the block count, so source ranges cannot be matched.",
+                    ));
+                }
                 replaced
             }
             None => parsed,

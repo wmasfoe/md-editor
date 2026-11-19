@@ -60,6 +60,8 @@ pub(crate) struct Workspace {
     outline: Option<(u64, Vec<OutlineEntry>)>,
     file_busy: bool,
     status: SharedString,
+    /// Whether the status bar is currently showing an editor rejection.
+    editor_error_shown: bool,
     ai: Option<Arc<LocalAiService>>,
     ai_busy: bool,
     suggestion: Option<Suggestion>,
@@ -83,11 +85,21 @@ impl Workspace {
                 // boundary — used to be silent. Report it once, when it appears,
                 // rather than leaving the user with a key that does nothing.
                 let error = this.editor.read(cx).last_error().map(ToString::to_string);
-                if let Some(error) = error
-                    && this.status.as_ref() != error
-                {
-                    this.message(error, cx);
+                let has_error = error.is_some();
+                match error {
+                    Some(error) => {
+                        if this.status.as_ref() != error {
+                            this.message(error, cx);
+                        }
+                    }
+                    None if this.editor_error_shown => {
+                        // The rejection was resolved by a later successful edit,
+                        // so the stale message goes away instead of sitting there.
+                        this.message("Ready", cx);
+                    }
+                    None => {}
                 }
+                this.editor_error_shown = has_error;
                 cx.notify();
             });
         let appearance_observer = window.observe_window_appearance(settings::sync_system_theme);
@@ -132,6 +144,7 @@ impl Workspace {
             outline: None,
             file_busy: false,
             status: "Ready".into(),
+            editor_error_shown: false,
             ai,
             ai_busy: false,
             suggestion: None,

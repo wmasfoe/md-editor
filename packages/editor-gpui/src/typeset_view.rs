@@ -718,7 +718,10 @@ impl EntityInputHandler for TypesetView {
         } else {
             self.marked = None;
         }
-        if let Some(selected) = new_selected_range {
+        // Only when the insert landed: the offsets were computed for a document
+        // that did not change, so applying them after a rejection would move the
+        // caret to a meaningless place.
+        if let (true, Some(selected)) = (inserted, new_selected_range) {
             let base = self.editor.source();
             let from = byte_offset(base, selected.start + utf16_offset(base, start));
             let to = byte_offset(base, selected.end + utf16_offset(base, start));
