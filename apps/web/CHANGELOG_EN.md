@@ -1,5 +1,10 @@
 # Changelog - Web Playground
 
+## 0.4.0 - 2026-11-19 (#261, #265, #275)
+
+- Add graphical editing for Mermaid flowcharts and sequence diagrams. Drag to connect nodes, double-click to edit text or add nodes, and undo applied changes in one step.
+- Fix missing selection highlighting on the first Select All after opening a WYSIWYG document with YAML frontmatter.
+
 ## 0.3.1 - 2026-11-14 (#226, #250, #254, #259)
 
 - Sync core editor fix: resolve CodeMirror tile tree corruption caused by multiline Setext heading widgets
