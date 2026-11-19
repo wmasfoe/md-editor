@@ -80,7 +80,10 @@ impl LeafSpan {
 /// A parsed document ready to be rendered and edited.
 pub struct TypesetDocument {
     blocks: Vec<BlockNode>,
-    keys: Vec<u64>,
+    /// The first leaf key of each block, in block order.
+    ///
+    /// A table owns several keys, so this is not the flat key list.
+    block_keys: Vec<u64>,
     spans: Vec<LeafSpan>,
     source: String,
 }
@@ -148,22 +151,37 @@ impl TypesetDocument {
             }
             None => parsed,
         };
-        let mut keys = Vec::with_capacity(parsed.len());
+        // Keys are handed out in document order and a table consumes one per
+        // cell, so a block's key is no longer its index.
+        let mut next_key = FIRST_LEAF_KEY;
+        let mut block_keys = Vec::with_capacity(parsed.len());
         let mut spans = Vec::with_capacity(parsed.len());
         let mut blocks = Vec::with_capacity(parsed.len());
         for (index, block) in parsed.into_iter().enumerate() {
-            let key = FIRST_LEAF_KEY + index as u64;
             let span = block
                 .span()
                 .map(|span| span.start..span.end)
                 .or_else(|| spans_before.get(index).cloned().flatten());
-            keys.push(key);
-            spans.push(LeafSpan { key, span });
-            blocks.push(with_leaf_key(block, key));
+            // How many leaves this block needs: a table needs one per cell.
+            let needed = leaf_count(&block);
+            let first = next_key;
+            let owned_keys: Vec<u64> = (0..needed).map(|step| first + step as u64).collect();
+            next_key = first + needed as u64;
+            block_keys.push(first);
+            // Every key this block owns carries the block's range, so a caret in
+            // any cell resolves to the table it belongs to.
+            for key in &owned_keys {
+                spans.push(LeafSpan {
+                    key: *key,
+                    span: span.clone(),
+                });
+            }
+            let mut iterator = owned_keys.into_iter();
+            blocks.push(with_leaf_keys(block, &mut iterator));
         }
         Ok(Self {
             blocks,
-            keys,
+            block_keys,
             spans,
             source,
         })
@@ -174,9 +192,12 @@ impl TypesetDocument {
         &self.source
     }
 
-    /// The leaf key for `index`, or `None` when out of range.
+    /// The first leaf key of block `index`, or `None` when out of range.
+    ///
+    /// A table owns one key per cell, so its remaining keys are consecutive from
+    /// here.
     pub fn leaf_key(&self, index: usize) -> Option<u64> {
-        self.keys.get(index).copied()
+        self.block_keys.get(index).copied()
     }
 
     /// Every block's key and source span, in document order.
@@ -363,32 +384,59 @@ impl TypesetDocument {
     }
 }
 
-/// Binds `key` to the text leaf `block` actually renders.
+/// Binds `keys` to the text leaves `block` actually renders, in document order.
 ///
-/// A heading holds its text in a nested paragraph, so the key has to reach that
-/// inner leaf; attaching it only to the outer block would leave the geometry
-/// unreported.
-///
-/// **Table cells are not handled.** `Table`'s rows and cells are private to
-/// `gpui-base`, so this function cannot recurse into them. A table therefore
-/// reports no leaf geometry, which means clicking inside one cannot place a caret
-/// through hit testing and vertical movement steps over the whole table. Typing
-/// into a cell still works because the caret can be set by offset; the gap is
-/// pointer and arrow navigation, not editing. Closing it needs an upstream hook
-/// that assigns leaf keys to cells.
-fn with_leaf_key(block: BlockNode, key: u64) -> BlockNode {
+/// A heading holds its text in a nested paragraph and a table holds one paragraph
+/// per cell, so the keys have to reach those inner leaves; attaching one only to
+/// the outer block would leave the geometry unreported and the caret unable to
+/// land there. `keys` is consumed in order and a block may need several.
+fn with_leaf_keys(block: BlockNode, keys: &mut impl Iterator<Item = u64>) -> BlockNode {
     match block {
-        BlockNode::Paragraph(paragraph) => BlockNode::Paragraph(paragraph.with_leaf_key(key)),
+        BlockNode::Paragraph(paragraph) => {
+            let key = keys.next().unwrap_or(FIRST_LEAF_KEY);
+            BlockNode::Paragraph(paragraph.with_leaf_key(key))
+        }
         BlockNode::Heading {
             level,
             children,
             span,
-        } => BlockNode::Heading {
-            level,
-            children: children.with_leaf_key(key),
-            span,
-        },
+        } => {
+            let key = keys.next().unwrap_or(FIRST_LEAF_KEY);
+            BlockNode::Heading {
+                level,
+                children: children.with_leaf_key(key),
+                span,
+            }
+        }
+        BlockNode::Table(table) => {
+            // Rebuild the table with a key on every cell paragraph. `rows()` and
+            // `new()` are the public pair that makes this possible without
+            // reaching into the table's private fields.
+            let aligns = table.column_aligns().to_vec();
+            let rows: Vec<Vec<gpui_kit::base::text::editor_host::Paragraph>> = table
+                .rows()
+                .map(|row| {
+                    row.map(|paragraph| {
+                        let key = keys.next().unwrap_or(FIRST_LEAF_KEY);
+                        paragraph.clone().with_leaf_key(key)
+                    })
+                    .collect()
+                })
+                .collect();
+            BlockNode::Table(gpui_kit::base::text::editor_host::Table::new(rows, aligns))
+        }
         other => other,
+    }
+}
+
+/// How many text leaves `block` renders.
+///
+/// A table renders one leaf per cell, which is why a block's key cannot be its
+/// index. Everything else renders exactly one.
+fn leaf_count(block: &BlockNode) -> usize {
+    match block {
+        BlockNode::Table(table) => table.rows().map(|row| row.count()).sum::<usize>().max(1),
+        _ => 1,
     }
 }
 

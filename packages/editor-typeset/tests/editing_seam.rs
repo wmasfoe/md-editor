@@ -333,3 +333,36 @@ fn vertical_movement_reaches_every_line_of_a_wrapped_paragraph(cx: &mut gpui_kit
         "a wrapped paragraph must have at least one line below the first"
     );
 }
+
+#[gpui_kit::test]
+fn a_table_reports_geometry_for_its_cells(cx: &mut gpui_kit::TestAppContext) {
+    // Without leaf keys on the cell paragraphs a table reports nothing, so a
+    // click inside it cannot place a caret and the arrow keys skip the whole
+    // table.
+    let markdown = "before\n\n| a | b |\n| --- | --- |\n| c | d |\n\nafter\n";
+    let index = draw(cx, markdown);
+    let laid_out = index.len();
+    assert!(
+        laid_out >= 5,
+        "a table's cells must report geometry: got {laid_out} leaves for a 2x2 table plus two paragraphs"
+    );
+}
+
+#[gpui_kit::test]
+fn a_click_inside_a_table_cell_maps_to_an_offset(cx: &mut gpui_kit::TestAppContext) {
+    let markdown = "| a | b |\n| --- | --- |\n| c | d |\n";
+    let index = draw(cx, markdown);
+    let leaf = index
+        .leaves()
+        .find(|leaf| !leaf.is_empty())
+        .expect("a table cell leaf");
+    let bounds = leaf.bounds();
+    let inside = gpui_kit::point(
+        bounds.origin.x + px(2.),
+        bounds.origin.y + bounds.size.height / 2.,
+    );
+    assert!(
+        leaf.index_for_position(inside) <= leaf.len(),
+        "a click inside a cell must map to an offset within it"
+    );
+}
