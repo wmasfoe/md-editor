@@ -167,68 +167,84 @@ impl TypesetView {
     }
 
     /// Moves the caret one line up, crossing into the previous leaf at the top.
+    /// Moves the caret one visual line up, crossing into the previous leaf at
+    /// the top of this one.
     fn caret_up(&mut self, cx: &mut Context<Self>) {
-        let caret = self.caret_in_leaf();
-        let Some(key) = self.caret_leaf else {
-            return;
-        };
-        if let Some(moved) = self.geometry.get(key).and_then(|leaf| move_up(leaf, caret)) {
-            self.editor.set_caret(moved.index);
-            cx.notify();
-            return;
-        }
-        // At the top of this leaf: land on the previous one's last line.
-        let previous = key.checked_sub(1).and_then(|key| self.geometry.get(key));
-        if let Some(leaf) = previous {
-            let end = gpui_kit::base::text::editor_host::Caret::new(leaf.len());
-            let position = leaf.position_for_caret(end);
-            let target = leaf.caret_for_position(Point {
-                x: position.x,
-                y: position.y + leaf.line_height() / 2.,
-            });
-            self.caret_leaf = Some(key - 1);
-            self.editor.set_caret(target.index);
-            cx.notify();
-        }
+        self.move_vertical(true, cx);
     }
 
-    /// Moves the caret one line down, crossing into the next leaf at the bottom.
+    /// Moves the caret one visual line down, crossing into the next leaf at the
+    /// bottom of this one.
     fn caret_down(&mut self, cx: &mut Context<Self>) {
-        let caret = self.caret_in_leaf();
+        self.move_vertical(false, cx);
+    }
+
+    /// One vertical step, staying inside the leaf or crossing into a neighbour.
+    ///
+    /// Leaf geometry counts bytes from the leaf's own start; a caret is a
+    /// document-wide offset. Every geometry call therefore works in leaf-local
+    /// space and the result is shifted back by the leaf's span before it reaches
+    /// the editor.
+    fn move_vertical(&mut self, up: bool, cx: &mut Context<Self>) {
         let Some(key) = self.caret_leaf else {
             return;
         };
-        if let Some(moved) = self
-            .geometry
-            .get(key)
-            .and_then(|leaf| move_down(leaf, caret))
-        {
-            self.editor.set_caret(moved.index);
+        let Some(leaf) = self.geometry.get(key) else {
+            return;
+        };
+        let Some(span) = self.document.span_of(key) else {
+            return;
+        };
+        let local = self.editor.selection().head().saturating_sub(span.start);
+        let caret = gpui_kit::base::text::editor_host::Caret::new(local.min(leaf.len()));
+
+        // Stay inside this leaf when it has another visual line.
+        let inside = if up {
+            move_up(leaf, caret)
+        } else {
+            move_down(leaf, caret)
+        };
+        if let Some(moved) = inside {
+            self.editor
+                .set_caret(span.start + moved.index.min(leaf.len()));
             cx.notify();
             return;
         }
-        // At the bottom of this leaf: land on the next one's first line.
-        let next = self.geometry.get(key + 1);
-        if let Some(leaf) = next {
-            let position = leaf.position_for_index(0);
-            let target = leaf.caret_for_position(Point {
-                x: position.x,
-                y: position.y + leaf.line_height() / 2.,
-            });
-            self.caret_leaf = Some(key + 1);
-            self.editor.set_caret(target.index);
-            cx.notify();
-        }
-    }
 
-    /// The caret within its current leaf.
-    fn caret_in_leaf(&self) -> gpui_kit::base::text::editor_host::Caret {
-        let offset = self.editor.selection().head();
-        let key = self.caret_leaf;
-        let limit = key
-            .and_then(|key| self.geometry.get(key))
-            .map_or(offset, |leaf| offset.min(leaf.len()));
-        gpui_kit::base::text::editor_host::Caret::new(limit)
+        // Otherwise cross into the nearest laid-out neighbour. Keys are not
+        // contiguous: a block that reported no geometry leaves a gap, so step
+        // through the ordered list rather than by one.
+        let laid_out: Vec<u64> = self.geometry.entries().map(|(key, _)| key).collect();
+        let ordered = self.document.ordered_keys(&laid_out);
+        let Some(position) = ordered.iter().position(|candidate| *candidate == key) else {
+            return;
+        };
+        let neighbour_key = if up {
+            position.checked_sub(1).and_then(|index| ordered.get(index))
+        } else {
+            ordered.get(position + 1)
+        };
+        let Some(neighbour_key) = neighbour_key.copied() else {
+            return;
+        };
+        let (Some(neighbour), Some(neighbour_span)) = (
+            self.geometry.get(neighbour_key),
+            self.document.span_of(neighbour_key),
+        ) else {
+            return;
+        };
+        // Enter at the line nearest the edge we came from: the last line going
+        // up, the first going down.
+        let edge = if up { neighbour.len() } else { 0 };
+        let position = neighbour.position_for_index(edge);
+        let target = neighbour.caret_for_position(Point {
+            x: position.x,
+            y: position.y + neighbour.line_height() / 2.,
+        });
+        self.caret_leaf = Some(neighbour_key);
+        self.editor
+            .set_caret(neighbour_span.start + target.index.min(neighbour.len()));
+        cx.notify();
     }
 
     /// Reverts the last edit.

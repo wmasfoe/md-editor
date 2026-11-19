@@ -281,3 +281,55 @@ fn vertical_movement_stops_at_the_first_line(cx: &mut gpui_kit::TestAppContext) 
         "moving up from the first line must report that it left the leaf"
     );
 }
+
+#[gpui_kit::test]
+fn vertical_movement_stops_at_the_last_line(cx: &mut gpui_kit::TestAppContext) {
+    // A single-line leaf is the minimal case: stepping down lands exactly on the
+    // leaf's bottom edge, which is inside the box but on no line. Reporting a
+    // move there would make the leaf-crossing branch unreachable.
+    let index = draw(cx, "One short line.\n");
+    let leaf = index
+        .leaves()
+        .find(|leaf| !leaf.is_empty())
+        .expect("a non-empty leaf");
+    let bounds = leaf.bounds();
+    let bottom = leaf.caret_for_position(gpui_kit::point(
+        bounds.origin.x + px(4.),
+        bounds.origin.y + leaf.line_height() / 2.,
+    ));
+    assert!(
+        move_down(leaf, bottom).is_none(),
+        "a single-line leaf has no line below its only one"
+    );
+}
+
+#[gpui_kit::test]
+fn vertical_movement_reaches_every_line_of_a_wrapped_paragraph(cx: &mut gpui_kit::TestAppContext) {
+    let long = "The quick brown fox jumps over the lazy dog while the editor \
+                lays this line out across several visual rows so that moving \
+                down a line has somewhere to go before it runs out of room.";
+    let index = draw(cx, &format!("{long}\n"));
+    let leaf = index
+        .leaves()
+        .find(|leaf| !leaf.is_empty())
+        .expect("a non-empty leaf");
+    let bounds = leaf.bounds();
+    let mut caret = leaf.caret_for_position(gpui_kit::point(
+        bounds.origin.x + px(4.),
+        bounds.origin.y + leaf.line_height() / 2.,
+    ));
+    // Walk down until the leaf reports no further line, and count the steps.
+    let mut steps = 0;
+    while let Some(next) = move_down(leaf, caret) {
+        if next.index == caret.index {
+            panic!("moving down must change the caret, not return the same line");
+        }
+        caret = next;
+        steps += 1;
+        assert!(steps < 100, "walking down must terminate");
+    }
+    assert!(
+        steps >= 1,
+        "a wrapped paragraph must have at least one line below the first"
+    );
+}

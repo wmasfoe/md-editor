@@ -135,6 +135,33 @@ impl TypesetDocument {
         &self.spans
     }
 
+    /// The source span of `key`, when the parser reported one.
+    ///
+    /// Leaf geometry counts bytes from the start of the leaf, while a caret is a
+    /// document-wide offset. Callers convert between the two with this span.
+    pub fn span_of(&self, key: u64) -> Option<Range<usize>> {
+        self.spans
+            .iter()
+            .find(|leaf| leaf.key == key)
+            .and_then(|leaf| leaf.span())
+    }
+
+    /// The leaf keys that reported geometry, ordered by document position.
+    ///
+    /// Vertical movement needs this rather than `key ± 1`: a block whose leaf
+    /// reported no geometry leaves a gap in the key sequence, and stepping by
+    /// one would stop there instead of reaching the next laid-out block.
+    pub fn ordered_keys(&self, laid_out: &[u64]) -> Vec<u64> {
+        let mut keys: Vec<u64> = self
+            .spans
+            .iter()
+            .map(|leaf| leaf.key)
+            .filter(|key| laid_out.contains(key))
+            .collect();
+        keys.sort_unstable();
+        keys
+    }
+
     /// The leaf whose source span contains `offset`.
     ///
     /// Falls back to the last block that starts at or before `offset`, because

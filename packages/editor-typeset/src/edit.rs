@@ -191,6 +191,12 @@ impl History {
         Some(next)
     }
 
+    /// Drops both stacks, for when the buffer is replaced wholesale.
+    fn clear(&mut self) {
+        self.undos.clear();
+        self.redos.clear();
+    }
+
     fn can_undo(&self) -> bool {
         !self.undos.is_empty()
     }
@@ -276,12 +282,17 @@ impl TypesetEditor {
         true
     }
 
-    /// Records the current state so the next edit can be undone.
+    /// Applies `edit`, recording the pre-edit state only if it lands.
     ///
-    /// Called before each mutation, not after: the snapshot to restore is the
-    /// state the user is about to leave.
-    fn record(&mut self) {
-        self.history.push(self.snapshot());
+    /// The snapshot has to describe the state before the edit, so it is taken
+    /// first — but committed afterwards. Pushing it up front would leave a
+    /// phantom step when the edit is rejected, and `push` also drops the redo
+    /// branch, so a failed edit would silently discard the user's redo.
+    fn apply_recording(&mut self, edit: SourceEdit) -> Result<(), TypesetError> {
+        let before = self.snapshot();
+        self.apply(edit)?;
+        self.history.push(before);
+        Ok(())
     }
 
     /// The current Markdown source.
@@ -322,6 +333,9 @@ impl TypesetEditor {
         let len = self.document.source().len();
         self.selection = Selection::caret(self.selection.head().min(len));
         self.revision = self.revision.wrapping_add(1);
+        // The history belongs to the document that was open. Keeping it would
+        // let undo restore the previous file's text into this one.
+        self.history.clear();
     }
 
     /// Moves the caret to `offset`, clamped to the source length.
@@ -369,8 +383,7 @@ impl TypesetEditor {
         } else {
             range
         };
-        self.record();
-        self.apply(SourceEdit {
+        self.apply_recording(SourceEdit {
             range: target.clone(),
             replacement: String::new(),
             selection_after: target.start..target.start,
@@ -381,10 +394,9 @@ impl TypesetEditor {
         if self.readonly {
             return Err(TypesetError::ReadOnly);
         }
-        self.record();
         let range = self.selection.range();
         let caret = range.start + text.len();
-        self.apply(SourceEdit {
+        self.apply_recording(SourceEdit {
             range,
             replacement: text.to_string(),
             selection_after: caret..caret,
@@ -398,8 +410,7 @@ impl TypesetEditor {
         }
         let selection = self.selection.range();
         let edit = self.document.set_heading(selection, level)?;
-        self.record();
-        self.apply(edit)
+        self.apply_recording(edit)
     }
 
     /// Wraps the selection in `prefix` and `suffix`, e.g. `**` for bold.
@@ -409,8 +420,7 @@ impl TypesetEditor {
         }
         let selection = self.selection.range();
         let edit = self.document.wrap_selection(selection, prefix, suffix)?;
-        self.record();
-        self.apply(edit)
+        self.apply_recording(edit)
     }
 
     /// Toggles a line prefix such as `> ` or `- ` on every selected line.
@@ -420,8 +430,7 @@ impl TypesetEditor {
         }
         let selection = self.selection.range();
         let edit = self.document.toggle_line_prefix(selection, prefix)?;
-        self.record();
-        self.apply(edit)
+        self.apply_recording(edit)
     }
 
     /// Replaces the text of the table cell that contains `offset`.
@@ -440,8 +449,7 @@ impl TypesetEditor {
         let cell = self.cell_at(offset)?;
         let range = cell.content_range.clone();
         let caret = range.start + text.len();
-        self.record();
-        Some(self.apply(SourceEdit {
+        Some(self.apply_recording(SourceEdit {
             range,
             replacement: text.to_string(),
             selection_after: caret..caret,
@@ -596,6 +604,38 @@ mod tests {
         assert_eq!(editor.source(), "hello");
         assert!(editor.undo());
         assert_eq!(editor.source(), "hello world");
+    }
+
+    #[test]
+    fn replacing_the_source_clears_the_history() {
+        // Undo after a reload would otherwise restore the previous file's text
+        // into the newly opened one.
+        let mut editor = TypesetEditor::new("first file");
+        editor.set_caret(5);
+        editor.insert("X").expect("insert applies");
+        assert!(editor.can_undo());
+        editor.replace_source("second file");
+        assert!(
+            !editor.can_undo(),
+            "a new document must not inherit the old undo history"
+        );
+        assert!(!editor.redo());
+    }
+
+    #[test]
+    fn a_rejected_edit_leaves_no_undo_step_and_keeps_redo() {
+        let mut editor = TypesetEditor::new("ab");
+        editor.set_caret(1);
+        editor.insert("X").expect("insert applies");
+        assert!(editor.undo());
+        assert!(editor.can_redo());
+        // A rejected edit must not consume the redo branch or add a step.
+        editor.set_readonly(true);
+        assert!(editor.insert("Y").is_err());
+        assert!(editor.can_redo(), "a failed edit must not drop redo");
+        editor.set_readonly(false);
+        assert!(editor.redo());
+        assert_eq!(editor.source(), "aXb");
     }
 
     #[test]

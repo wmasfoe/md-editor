@@ -37,12 +37,20 @@ pub fn move_vertical(leaf: &LeafGeometry, caret: Caret, direction: Vertical) -> 
     };
 
     // A caret above the first line or below the last would leave the leaf.
-    // Comparing against the leaf's own vertical extent is what distinguishes
-    // "moved to another visual line" from "ran off the block".
+    // The target line has to exist inside the leaf, not merely sit within its
+    // bounds. A caret on the last of N lines has `origin.y` at the top of that
+    // line, so stepping down lands exactly on `bottom` — inside the box, but on
+    // no line. Testing `> bottom` there would report a move that has nowhere to
+    // go, which is why the down test is strict at the bottom edge while the up
+    // test is strict at the top.
     let bounds = leaf.bounds();
     let top = bounds.origin.y;
     let bottom = bounds.origin.y + bounds.size.height;
-    if target_y < top || target_y > bottom {
+    let outside = match direction {
+        Vertical::Up => target_y < top,
+        Vertical::Down => target_y + step > bottom,
+    };
+    if outside {
         return None;
     }
 
