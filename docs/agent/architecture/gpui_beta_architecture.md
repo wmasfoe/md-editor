@@ -69,7 +69,7 @@ Beta CI 生成 Apple Silicon DMG 与独立的 Playground ZIP。Playground ZIP �
 
 桌面端与 Playground 都能编辑 Markdown、渲染标题层级、表格单元格编辑与中文输入。
 
-mermaid 与 math 的渲染能力已在 `editor-typeset` 实现并有测试，但尚未接入块流：`editor_host` 的块树没有公开方式注入内存中的渲染图。当前两者按代码块显示源码，编辑不受影响。原因见 ADR。
+mermaid 与 math fence 会被渲染成图片显示（`DiagramRenderer` → PNG `data:` URL），渲染失败时该块保持源码显示，不阻塞编辑。为什么走 PNG 而不是 SVG 见 ADR。
 
 尚未迁移到桌面端的能力：外部插件运行、会话恢复、文档历史、AI 纠错与风格学习、PDF/HTML 导出、Quick Look、Sentry。
 

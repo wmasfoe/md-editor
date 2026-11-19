@@ -70,19 +70,13 @@
 - mermaid：`mermaid-rs-renderer`，**不启用 `png` feature**，因此不引入 `resvg ^0.47`，避开工作区已有的 0.45.1 与 0.46.0 两份
 - 数学公式：`latex-rust`，其 MSRV 是 1.99，这是工作区工具链升级的直接原因
 
-`editor-typeset` 提供的是**渲染能力**，不是已接线的产品路径。`render_diagram` 与 `MathRenderer::render` 能把 fence 内容变成 `ImageSource`，失败时返回带原因的 `Source` 变体，单元测试覆盖了两条分支（真实 flowchart 与 `\frac` 渲染成图像；垃圾输入保留原文）。
+**已接线。** `DiagramRenderer::replace_diagrams` 把 `mermaid` 与 `math` fence 换成图片段落，其余块原样通过；`TypesetDocument::parse_with` 接受一个渲染器，`TypesetView` 跨 re-parse 保留同一个实例（它持有字体数据库与解析后的数学字体）。渲染失败时该块保持代码块原样，即降级为源码。
 
-但**把它们接进文档块流尚未完成**。`editor_host` 的块树没有公开方式注入内存中的渲染图，三条路都堵住了：
+**图片以 PNG `data:` URL 承载。** 块树只能按 URI 持有图片，而它的解码器读不了 SVG。`data:image/svg+xml` 也不行——`ImageFormat::Svg` 虽然存在，实际解码走 `image` crate 的 `decode_static_image`，不支持 SVG。可行路径是把已经光栅化好的像素编码成 PNG：`tiny-skia` 的 `Pixmap::encode_png` 与 `image` 的 `PngEncoder` 都在依赖树里（前者来自 GPUI 的 resvg）。
 
-- `ImageNode` 只有 `url: SharedUri` 可以公开赋值，内存图像存在 `pub(super) embedded` 里，外部写不进去。
-- `with_image_source` 的解析器要求 `Send + Sync`，而 `ImageSource::Render` 持有的 `RenderImage` 两者都不是（它内部是 `Rc`/`RefCell` 那一套单线程结构）。
-- `data:image/svg+xml;base64,…` 看似可行，但 `ImageFormat::Svg` 虽然存在，实际解码走的是 `image` crate 的 `decode_static_image`，它不支持 SVG。
+代价是每个图每帧要多一次 PNG 编码与 base64。图不大时无感；若将来发现大图拖慢输入，可以按 `(source, size)` 缓存编码结果。
 
-要接线需要上游提供按块注入 `ImageSource` 的入口，或先把 SVG 光栅化成 PNG 再走 `data:` URL（多一次编解码，且 `resvg` 与 `image` 两套栈都要进二进制）。
-
-在那之前，mermaid 与 math fence 在桌面与 Playground 中都按代码块显示源码，编辑不受影响。
-
-注意这条降级只覆盖 mermaid 与 math。Markdown 解析失败是另一回事：`TypesetView::new` 会用一个空块树顶上，缓冲区仍在、仍可编辑，但页面是空白，由宿主把解析错误显示在状态栏。把损坏的 Markdown 渲染成源码是另一个决定，尚未实现。
+**Markdown 解析失败是另一回事。** `TypesetView::new` 会把整篇原文当作一个代码块渲染（不是白屏），`reparse` 失败时保留上一棵树；`parse_error()` 供宿主把原因显示在状态栏。
 
 两个依赖都验证过可编译到 `wasm32-unknown-unknown`（`cargo +nightly check --package inkpoint-editor-web --target wasm32-unknown-unknown` 通过）。这一点必须守住：`editor-web` → `editor-gpui` → `editor-typeset` 这条链意味着 Playground 也会编译这两个 crate，任何一个不支持 wasm 都会同时打断桌面与 Playground 的构建。
 
