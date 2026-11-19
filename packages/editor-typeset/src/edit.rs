@@ -148,12 +148,12 @@ struct History {
     undos: Vec<Snapshot>,
     redos: Vec<Snapshot>,
     limit: usize,
-    /// Whether the next push continues the previous undo step.
+    /// Where the step on top of the stack ended, so a typing burst only joins
+    /// when the next character continues from exactly there.
     ///
-    /// Typing produces one edit per character. Without coalescing, undo would
-    /// step back a letter at a time, which is not how a text editor behaves: a
-    /// burst of typing is one thing the user did.
-    coalesce: bool,
+    /// Without this, typing "ab", clicking back to the start and typing "X"
+    /// would merge into one step whose restore point predates the "ab".
+    joined_end: Option<usize>,
 }
 
 impl History {
@@ -162,29 +162,30 @@ impl History {
             undos: Vec::new(),
             redos: Vec::new(),
             limit,
-            coalesce: false,
+            joined_end: None,
         }
     }
 
-    /// Starts a step that later pushes may join.
-    fn begin_coalescing(&mut self) {
-        self.coalesce = true;
-    }
-
-    /// Ends the current step, so the next push starts a new one.
-    fn end_coalescing(&mut self) {
-        self.coalesce = false;
+    /// Whether a character typed at `at` continues the step on top.
+    fn continues_at(&self, at: usize) -> bool {
+        self.joined_end == Some(at)
     }
 
     /// Records `snapshot` and drops the redo branch, which a new edit invalidates.
-    fn push(&mut self, snapshot: Snapshot) {
+    ///
+    /// `joins_previous` says this edit continues the step already on top rather
+    /// than starting a new one. It is a parameter, not stored state: a stored
+    /// flag has to be cleared by every caller that does not want to join, and the
+    /// first one that forgets silently merges unrelated edits into one undo step.
+    fn push(&mut self, snapshot: Snapshot, joins_previous: bool, ends_at: usize) {
         if self.limit == 0 {
             return;
         }
-        // A coalesced push keeps the earlier snapshot: the step is "the state
-        // before the burst", so only the first push of the burst matters.
-        if self.coalesce && !self.undos.is_empty() {
+        // Joining keeps the earlier snapshot: the step is "the state before the
+        // burst", so only the first push of the burst matters.
+        if joins_previous && !self.undos.is_empty() {
             self.redos.clear();
+            self.joined_end = Some(ends_at);
             return;
         }
         if self.undos.len() == self.limit {
@@ -192,10 +193,11 @@ impl History {
         }
         self.undos.push(snapshot);
         self.redos.clear();
+        self.joined_end = Some(ends_at);
     }
 
     fn undo(&mut self, current: Snapshot) -> Option<Snapshot> {
-        self.coalesce = false;
+        self.joined_end = None;
         let previous = self.undos.pop()?;
         if self.redos.len() == self.limit {
             self.redos.remove(0);
@@ -205,7 +207,7 @@ impl History {
     }
 
     fn redo(&mut self, current: Snapshot) -> Option<Snapshot> {
-        self.coalesce = false;
+        self.joined_end = None;
         let next = self.redos.pop()?;
         if self.undos.len() == self.limit {
             self.undos.remove(0);
@@ -218,7 +220,7 @@ impl History {
     fn clear(&mut self) {
         self.undos.clear();
         self.redos.clear();
-        self.coalesce = false;
+        self.joined_end = None;
     }
 
     fn can_undo(&self) -> bool {
@@ -313,9 +315,27 @@ impl TypesetEditor {
     /// phantom step when the edit is rejected, and `push` also drops the redo
     /// branch, so a failed edit would silently discard the user's redo.
     fn apply_recording(&mut self, edit: SourceEdit) -> Result<(), TypesetError> {
+        self.apply_recording_joining(edit, false)
+    }
+
+    /// Applies `edit`, optionally continuing the undo step already on top.
+    ///
+    /// Only consecutive single characters typed at a collapsed caret join: a
+    /// paste, a formatting command, a delete or a click that moved the caret all
+    /// start their own step, because each is a distinct thing the user did.
+    fn apply_recording_joining(
+        &mut self,
+        edit: SourceEdit,
+        joins_previous: bool,
+    ) -> Result<(), TypesetError> {
+        let at = edit.range.start;
+        let ends_at = edit.selection_after.end;
         let before = self.snapshot();
         self.apply(edit)?;
-        self.history.push(before);
+        // A join also requires the edit to start exactly where the previous step
+        // ended; otherwise a click that moved the caret would be swallowed.
+        let joins = joins_previous && self.history.continues_at(at);
+        self.history.push(before, joins, ends_at);
         Ok(())
     }
 
@@ -446,22 +466,11 @@ impl TypesetEditor {
             replacement: text.to_string(),
             selection_after: caret..caret,
         };
-        if typing {
-            self.history.begin_coalescing();
-            let result = self.apply_recording(edit);
-            if result.is_err() {
-                self.history.end_coalescing();
-            }
-            result
-        } else {
-            self.history.end_coalescing();
-            self.apply_recording(edit)
-        }
+        self.apply_recording_joining(edit, typing)
     }
 
     /// Sets the heading level of every line the selection touches.
     pub fn set_heading(&mut self, level: u8) -> Result<(), TypesetError> {
-        self.history.end_coalescing();
         if self.readonly {
             return Err(TypesetError::ReadOnly);
         }
@@ -782,5 +791,78 @@ mod tests {
         editor.replace_source("short");
         assert_eq!(editor.source(), "short");
         assert_eq!(editor.selection().head(), 5);
+    }
+}
+
+#[cfg(test)]
+mod undo_sequence_tests {
+    use super::*;
+
+    /// Typing, then a formatting command, then undo must restore the typed text.
+    ///
+    /// A stored "keep joining" flag used to make the bold command join the
+    /// typing burst, so one undo took the text away instead of the bold.
+    #[test]
+    fn a_formatting_command_after_typing_is_its_own_undo_step() {
+        let mut editor = TypesetEditor::new("");
+        editor.set_caret(0);
+        editor.insert("a").expect("typing applies");
+        editor.set_selection(0, 1);
+        editor.wrap_selection("**", "**").expect("bold applies");
+        assert_eq!(editor.source(), "**a**");
+        assert!(editor.undo(), "undo takes back the bold");
+        assert_eq!(editor.source(), "a", "the typed text survives");
+    }
+
+    /// A click that moves the caret ends the burst.
+    #[test]
+    fn typing_after_a_caret_move_starts_a_new_step() {
+        let mut editor = TypesetEditor::new("");
+        editor.set_caret(0);
+        editor.insert("a").expect("typing applies");
+        editor.insert("b").expect("typing applies");
+        assert_eq!(editor.source(), "ab");
+        editor.set_caret(0);
+        editor.insert("X").expect("typing applies");
+        assert_eq!(editor.source(), "Xab");
+        assert!(editor.undo());
+        assert_eq!(editor.source(), "ab", "undo takes back only the X");
+    }
+
+    /// Backspace is its own step even right after typing.
+    #[test]
+    fn backspace_after_typing_is_its_own_undo_step() {
+        let mut editor = TypesetEditor::new("");
+        editor.set_caret(0);
+        editor.insert("a").expect("typing applies");
+        editor.delete_backward().expect("delete applies");
+        assert_eq!(editor.source(), "");
+        assert!(editor.undo(), "undo brings the character back");
+        assert_eq!(editor.source(), "a", "and only the delete is undone");
+    }
+
+    /// A line-prefix command after typing is its own step.
+    #[test]
+    fn a_prefix_command_after_typing_is_its_own_undo_step() {
+        let mut editor = TypesetEditor::new("");
+        editor.set_caret(0);
+        editor.insert("y").expect("typing applies");
+        editor.toggle_line_prefix("> ").expect("quote applies");
+        assert_eq!(editor.source(), "> y");
+        assert!(editor.undo());
+        assert_eq!(editor.source(), "y", "the typed text survives");
+    }
+
+    /// Consecutive characters at one place still merge.
+    #[test]
+    fn consecutive_characters_still_merge_into_one_step() {
+        let mut editor = TypesetEditor::new("");
+        editor.set_caret(0);
+        for character in ["a", "b", "c"] {
+            editor.insert(character).expect("typing applies");
+        }
+        assert_eq!(editor.source(), "abc");
+        assert!(editor.undo());
+        assert_eq!(editor.source(), "", "one undo takes back the burst");
     }
 }

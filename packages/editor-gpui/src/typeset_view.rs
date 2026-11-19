@@ -106,6 +106,8 @@ pub struct TypesetView {
     /// Draws `mermaid` and `math` fences. Kept across re-parses because it owns
     /// a font database and a parsed math face.
     diagrams: inkpoint_editor_typeset::DiagramRenderer,
+    /// Why the last command was rejected, when it was.
+    last_error: Option<String>,
     /// The container's scroll position, so a click can be mapped back from
     /// window coordinates into the document's own space.
     scroll: gpui_kit::ScrollHandle,
@@ -147,6 +149,7 @@ impl TypesetView {
             caret_leaf: None,
             marked: None,
             diagrams,
+            last_error: None,
             scroll: gpui_kit::ScrollHandle::new(),
             drag_anchor: None,
             parse_error,
@@ -1068,37 +1071,50 @@ impl TypesetView {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        match command {
+        let result = match command {
             inkpoint_editor_typeset::EditorCommand::ToggleBold => {
-                let _ = self.editor.wrap_selection("**", "**");
+                self.editor.wrap_selection("**", "**")
             }
             inkpoint_editor_typeset::EditorCommand::ToggleItalic => {
-                let _ = self.editor.wrap_selection("*", "*");
+                self.editor.wrap_selection("*", "*")
             }
             inkpoint_editor_typeset::EditorCommand::ToggleInlineCode => {
-                let _ = self.editor.wrap_selection("`", "`");
+                self.editor.wrap_selection("`", "`")
             }
             inkpoint_editor_typeset::EditorCommand::ToggleStrikethrough => {
-                let _ = self.editor.wrap_selection("~~", "~~");
+                self.editor.wrap_selection("~~", "~~")
             }
             inkpoint_editor_typeset::EditorCommand::ToggleQuote => {
-                let _ = self.editor.toggle_line_prefix("> ");
+                self.editor.toggle_line_prefix("> ")
             }
             inkpoint_editor_typeset::EditorCommand::ToggleBulletList => {
-                let _ = self.editor.toggle_line_prefix("- ");
+                self.editor.toggle_line_prefix("- ")
             }
             inkpoint_editor_typeset::EditorCommand::ToggleOrderedList => {
-                let _ = self.editor.toggle_line_prefix("1. ");
+                self.editor.toggle_line_prefix("1. ")
             }
             inkpoint_editor_typeset::EditorCommand::ToggleTaskList => {
-                let _ = self.editor.toggle_line_prefix("- [ ] ");
+                self.editor.toggle_line_prefix("- [ ] ")
             }
             inkpoint_editor_typeset::EditorCommand::Heading(level) => {
-                let _ = self.editor.set_heading(level);
+                self.editor.set_heading(level)
             }
+        };
+        // A rejected command is kept rather than dropped: a read-only document or
+        // a range the source cannot take would otherwise fail silently, and the
+        // user would see a menu click do nothing.
+        if let Err(error) = result {
+            self.last_error = Some(error.to_string());
+        } else {
+            self.last_error = None;
         }
         self.reparse();
         cx.notify();
+    }
+
+    /// Why the last command was rejected, when it was.
+    pub fn last_error(&self) -> Option<&str> {
+        self.last_error.as_deref()
     }
 }
 

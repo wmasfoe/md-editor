@@ -633,6 +633,12 @@ impl Render for Workspace {
                 {
                     this.editor
                         .update(cx, |editor, cx| editor.execute_command(mapped, window, cx));
+                    // A rejected command used to fail silently: the menu click did
+                    // nothing and the user had no way to know why.
+                    let error = this.editor.read(cx).last_error().map(ToString::to_string);
+                    if let Some(error) = error {
+                        this.message(error, cx);
+                    }
                 }
             }))
             .child(title_bar)
