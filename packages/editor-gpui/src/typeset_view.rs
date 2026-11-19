@@ -103,6 +103,9 @@ pub struct TypesetView {
     caret_leaf: Option<u64>,
     /// Composing text range in UTF-8 bytes, while an IME is active.
     marked: Option<Range<usize>>,
+    /// Draws `mermaid` and `math` fences. Kept across re-parses because it owns
+    /// a font database and a parsed math face.
+    diagrams: inkpoint_editor_typeset::DiagramRenderer,
     /// The container's scroll position, so a click can be mapped back from
     /// window coordinates into the document's own space.
     scroll: gpui_kit::ScrollHandle,
@@ -128,10 +131,12 @@ impl TypesetView {
         // instead of a blank page, which is the same intent as the degradation
         // mermaid and math use. `reparse` keeps the previous tree instead, since
         // by then one exists.
-        let (document, parse_error) = match TypesetDocument::parse(editor.source()) {
-            Ok(document) => (document, None),
-            Err(error) => (Self::source_fallback(editor.source()), Some(error)),
-        };
+        let diagrams = inkpoint_editor_typeset::DiagramRenderer::new(cx.asset_source().clone());
+        let (document, parse_error) =
+            match TypesetDocument::parse_with(editor.source(), Some(&diagrams)) {
+                Ok(document) => (document, None),
+                Err(error) => (Self::source_fallback(editor.source()), Some(error)),
+            };
         let focus = cx.focus_handle();
         focus.focus(window, cx);
         Self {
@@ -141,6 +146,7 @@ impl TypesetView {
             focus,
             caret_leaf: None,
             marked: None,
+            diagrams,
             scroll: gpui_kit::ScrollHandle::new(),
             drag_anchor: None,
             parse_error,
@@ -207,7 +213,7 @@ impl TypesetView {
 
     /// Re-parses after the source changed.
     fn reparse(&mut self) {
-        match TypesetDocument::parse(self.editor.source()) {
+        match TypesetDocument::parse_with(self.editor.source(), Some(&self.diagrams)) {
             Ok(document) => {
                 self.document = document;
                 self.parse_error = None;

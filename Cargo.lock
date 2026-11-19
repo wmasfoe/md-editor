@@ -3692,6 +3692,7 @@ name = "inkpoint-editor-typeset"
 version = "0.1.0"
 dependencies = [
  "gpui-kit",
+ "image",
  "inkpoint-editor-core",
  "latex-rust",
  "mermaid-rs-renderer",

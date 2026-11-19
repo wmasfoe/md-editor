@@ -9,6 +9,7 @@ description = "Editable Markdown typesetting surface on top of gpui-kit text ren
 
 [dependencies]
 gpui-kit.workspace = true
+image = { version = "0.25", default-features = false, features = ["png"] }
 inkpoint-editor-core.workspace = true
 latex-rust = { version = "3.0.3", default-features = false }
 mermaid-rs-renderer = { version = "0.3.1", default-features = false }

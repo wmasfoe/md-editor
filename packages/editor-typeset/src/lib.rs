@@ -15,6 +15,7 @@
 //!   geometry the caret needs: bounds, line height, and the byte index at a
 //!   window point.
 
+mod diagram;
 mod edit;
 mod geometry;
 mod math;
@@ -23,12 +24,13 @@ mod movement;
 mod svg;
 mod text;
 
+pub use diagram::DiagramRenderer;
 pub use edit::{EditorCommand, Selection, TypesetEditor, TypesetError};
 pub use geometry::{LeafIndex, caret_at};
 pub use math::{Formula, FormulaError, MATH_LANGUAGE, MathRenderer, is_math_fence};
 pub use mermaid::{Diagram, DiagramError, MERMAID_LANGUAGE, is_mermaid_fence, render_diagram};
 pub use movement::{Vertical, move_down, move_left, move_right, move_up, move_vertical};
-pub use svg::{SvgError, SvgImageChannel, try_svg_to_image};
+pub use svg::{SvgError, SvgImageChannel, to_png_data_url, try_svg_to_image};
 pub use text::{byte_offset, line_start, utf16_offset};
 
 use std::collections::HashMap;
@@ -93,8 +95,22 @@ impl TypesetDocument {
     /// The parser reports an error for input it cannot structure; the caller
     /// keeps showing the previous document rather than losing the buffer.
     pub fn parse(source: impl Into<String>) -> Result<Self, SharedString> {
+        Self::parse_with(source, None)
+    }
+
+    /// Parses `source`, drawing `mermaid` and `math` fences with `diagrams`.
+    ///
+    /// Without a renderer those fences stay code blocks, which is the same thing
+    /// a failed render produces: the source the user typed.
+    pub fn parse_with(
+        source: impl Into<String>,
+        diagrams: Option<&DiagramRenderer>,
+    ) -> Result<Self, SharedString> {
         let source = source.into();
-        let parsed = parse_markdown(&source, Default::default())?;
+        let mut parsed = parse_markdown(&source, Default::default())?;
+        if let Some(diagrams) = diagrams {
+            parsed = diagrams.replace_diagrams(parsed, gpui_kit::SvgSize::ScaleFactor(1.0));
+        }
         let mut keys = Vec::with_capacity(parsed.len());
         let mut spans = Vec::with_capacity(parsed.len());
         let mut blocks = Vec::with_capacity(parsed.len());
