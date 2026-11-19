@@ -682,7 +682,7 @@ fn host_command(command: EditorCommand) -> Option<inkpoint_editor_typeset::Edito
             BlockFormat::Quote => Typeset::ToggleQuote,
             BlockFormat::UnorderedList => Typeset::ToggleBulletList,
             BlockFormat::OrderedList => Typeset::ToggleOrderedList,
-            BlockFormat::TaskList => Typeset::ToggleBulletList,
+            BlockFormat::TaskList => Typeset::ToggleTaskList,
         }),
         EditorCommand::ShowSource
         | EditorCommand::ShowBlockEditor

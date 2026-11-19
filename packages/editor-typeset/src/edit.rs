@@ -120,6 +120,8 @@ pub enum EditorCommand {
     ToggleBulletList,
     /// Toggle a `1. ` prefix on every selected line.
     ToggleOrderedList,
+    /// Toggle a `- [ ] ` prefix on every selected line.
+    ToggleTaskList,
     /// Set every selected line to a heading of this level (1-6).
     Heading(u8),
 }
@@ -388,6 +390,16 @@ mod tests {
     fn an_offset_outside_a_table_reports_no_cell() {
         let editor = TypesetEditor::new("Just a paragraph.\n");
         assert!(editor.cell_at(3).is_none());
+    }
+
+    #[test]
+    fn a_task_list_toggle_writes_a_checkbox_not_a_bullet() {
+        let mut editor = TypesetEditor::new("item\n");
+        editor.set_caret(0);
+        editor
+            .toggle_line_prefix("- [ ] ")
+            .expect("the prefix should apply");
+        assert_eq!(editor.source(), "- [ ] item\n");
     }
 
     #[test]

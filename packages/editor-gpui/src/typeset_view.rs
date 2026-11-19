@@ -672,6 +672,9 @@ impl TypesetView {
             inkpoint_editor_typeset::EditorCommand::ToggleOrderedList => {
                 let _ = self.editor.toggle_line_prefix("1. ");
             }
+            inkpoint_editor_typeset::EditorCommand::ToggleTaskList => {
+                let _ = self.editor.toggle_line_prefix("- [ ] ");
+            }
             inkpoint_editor_typeset::EditorCommand::Heading(level) => {
                 let _ = self.editor.set_heading(level);
             }
