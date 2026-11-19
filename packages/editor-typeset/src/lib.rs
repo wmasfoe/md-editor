@@ -176,7 +176,9 @@ impl TypesetDocument {
             // must not all carry the table's range: a click's offset is
             // `span.start + local`, so sharing one range sends every cell's click
             // to the same offset and the text lands in the first cell.
-            let cell_ranges = cell_source_ranges(&source, &block);
+            let cell_ranges = span
+                .as_ref()
+                .and_then(|span| cell_source_ranges(&source, &block, span));
             for (index, key) in owned_keys.iter().enumerate() {
                 let leaf_span = cell_ranges
                     .as_ref()
@@ -325,21 +327,6 @@ impl TypesetDocument {
                 })
                 .collect::<Vec<_>>(),
         )
-    }
-
-    /// Renders the document and returns the frame's leaf geometry alongside
-    /// the element.
-    ///
-    /// Geometry is frame-local: it is valid for the frame that produced it and
-    /// must be recollected after content, width, typography or scroll changes.
-    pub fn render(
-        &self,
-        body_font_size: Pixels,
-        context: RenderContext,
-        window: &mut Window,
-        cx: &mut App,
-    ) -> impl IntoElement {
-        self.render_blocks(body_font_size, context, window, cx)
     }
 
     /// Renders the document, painting `selection` behind the selected text.
@@ -711,36 +698,86 @@ mod tests {
 /// `editor-core` already knows every cell's content range; this maps it into the
 /// row-major order the renderer lays cells out in, so each cell's leaf can carry
 /// its own position instead of the whole table's.
-fn cell_source_ranges(source: &str, block: &BlockNode) -> Option<Vec<Option<Range<usize>>>> {
+fn cell_source_ranges(
+    source: &str,
+    block: &BlockNode,
+    table_span: &Range<usize>,
+) -> Option<Vec<Option<Range<usize>>>> {
     let BlockNode::Table(table) = block else {
         return None;
     };
+    // Only this table's cells. Collecting every table's cells and comparing
+    // against one table's count mismatches as soon as a document has two tables,
+    // which would silently send every cell back to the whole-table range.
     let document = inkpoint_editor_core::MarkdownDocument::new(source);
     let blocks = document.blocks().ok()?;
     let mut cells = Vec::new();
-    collect_table_cells(&blocks, &mut cells);
+    collect_table_cells(&blocks, table_span, &mut cells);
     let expected: usize = table.rows().map(|row| row.count()).sum();
     if cells.len() != expected {
-        // The two parsers disagree; fall back to the table's own range rather
-        // than pairing cells with the wrong positions.
+        // The two parsers disagree about this table; fall back to the table's own
+        // range rather than pairing cells with the wrong positions.
         return None;
     }
     Some(cells.into_iter().map(Some).collect())
 }
 
 /// Collects table-cell content ranges in document order.
-fn collect_table_cells(blocks: &[inkpoint_editor_core::SourceBlock], out: &mut Vec<Range<usize>>) {
+fn collect_table_cells(
+    blocks: &[inkpoint_editor_core::SourceBlock],
+    table: &Range<usize>,
+    out: &mut Vec<Range<usize>>,
+) {
+    for block in blocks {
+        if matches!(block.kind, inkpoint_editor_core::BlockKind::Table)
+            && block.range.start == table.start
+        {
+            // Found this table: take its cells and stop descending into it.
+            let mut cells = Vec::new();
+            gather_cells(&block.children, &mut cells);
+            out.extend(cells);
+            continue;
+        }
+        collect_table_cells(&block.children, table, out);
+    }
+}
+
+/// Gathers cell content ranges from inside one table.
+fn gather_cells(blocks: &[inkpoint_editor_core::SourceBlock], out: &mut Vec<Range<usize>>) {
     for block in blocks {
         if matches!(block.kind, inkpoint_editor_core::BlockKind::TableCell) {
             out.push(block.content_range.clone());
         }
-        collect_table_cells(&block.children, out);
+        gather_cells(&block.children, out);
     }
 }
 
 #[cfg(test)]
 mod table_span_tests {
     use super::*;
+
+    /// Two tables in one document must each map their own cells.
+    ///
+    /// Collecting every table's cells and comparing against one table's count
+    /// mismatches as soon as a second table exists, which silently sends every
+    /// cell back to the whole-table range.
+    #[test]
+    fn two_tables_each_map_their_own_cells() {
+        let source = "| a | b |\n| --- | --- |\n| c | d |\n\n| e | f |\n| --- | --- |\n| g | h |\n";
+        let document = TypesetDocument::parse(source).expect("markdown parses");
+        let starts: Vec<usize> = document
+            .leaf_spans()
+            .iter()
+            .filter_map(|leaf| leaf.span().map(|span| span.start))
+            .collect();
+        assert_eq!(starts.len(), 8, "two 2x2 tables");
+        let unique: std::collections::HashSet<usize> = starts.iter().copied().collect();
+        assert_eq!(
+            unique.len(),
+            8,
+            "every cell of both tables must start at its own offset, got {starts:?}"
+        );
+    }
 
     /// Each cell leaf must carry its own range.
     ///

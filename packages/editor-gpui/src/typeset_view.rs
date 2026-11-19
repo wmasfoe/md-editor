@@ -747,8 +747,10 @@ impl EntityInputHandler for TypesetView {
         let local = offset.saturating_sub(span.start);
         let position = leaf.position_for_index(local.min(leaf.len()));
         let height = leaf.caret_height();
+        // The platform wants window coordinates for the composing rectangle.
+        let offset = self.scroll.offset();
         Some(Bounds {
-            origin: position,
+            origin: gpui_kit::point(position.x - offset.x, position.y - offset.y),
             size: gpui_kit::size(px(2.), height),
         })
     }
@@ -763,6 +765,13 @@ impl EntityInputHandler for TypesetView {
         // caret: clicking into another block while the caret sits here would
         // otherwise report an offset from the wrong block, and an IME composing
         // region would open in the wrong place.
+        // The point arrives in window space and geometry is in the document's
+        // own space, so it is translated first — the same conversion the click
+        // path does.
+        let point = Point {
+            x: point.x + self.scroll.offset().x,
+            y: point.y + self.scroll.offset().y,
+        };
         let (key, caret) = self.geometry.caret_and_key_for_point(point)?;
         let span = self.document.span_of(key)?;
         let document_offset = span.start + caret.index.min(span.len());
