@@ -8,7 +8,7 @@ mod workspace;
 
 use futures::{StreamExt, channel::mpsc};
 use gpui_kit::*;
-use inkpoint_editor_gpui::{BlockFormat, EditorCommand::*, InlineFormat};
+use inkpoint_editor_gpui::{BlockFormat, HostCommand::*, InlineFormat};
 use settings::OpenSettings;
 use std::path::PathBuf;
 use workspace::{

@@ -18,7 +18,7 @@ use gpui_kit::{
     *,
 };
 use inkpoint_editor_core::{BlockKind, MarkdownDocument, SourceBlock};
-use inkpoint_editor_gpui::{BlockFormat, EditorCommand, InlineFormat};
+use inkpoint_editor_gpui::{BlockFormat, HostCommand, InlineFormat};
 
 const TITLE_BAR_HEIGHT: Pixels = px(36.);
 const SIDEBAR_FOOTER_HEIGHT: Pixels = px(38.);
@@ -625,8 +625,8 @@ impl Render for Workspace {
             .on_action(cx.listener(|this, _: &ContinueWithLocalAi, window, cx| {
                 this.request_completion(window, cx)
             }))
-            .on_action(cx.listener(|this, command: &EditorCommand, window, cx| {
-                if *command == EditorCommand::ToggleOutline {
+            .on_action(cx.listener(|this, command: &HostCommand, window, cx| {
+                if *command == HostCommand::ToggleOutline {
                     this.show_outline(cx);
                 } else if this.has_active_document
                     && let Some(mapped) = host_command(*command)
@@ -668,26 +668,26 @@ impl Render for Workspace {
 /// The menu keeps naming the commands it always did; the view modes it used to
 /// toggle no longer exist because the GPUI editor renders and edits at once, so
 /// those return `None` and the menu entry becomes inert.
-fn host_command(command: EditorCommand) -> Option<inkpoint_editor_typeset::EditorCommand> {
+fn host_command(command: HostCommand) -> Option<inkpoint_editor_typeset::EditorCommand> {
     use inkpoint_editor_typeset::EditorCommand as Typeset;
     match command {
-        EditorCommand::FormatInline(format) => Some(match format {
+        HostCommand::FormatInline(format) => Some(match format {
             InlineFormat::Bold => Typeset::ToggleBold,
             InlineFormat::Italic => Typeset::ToggleItalic,
             InlineFormat::Strikethrough => Typeset::ToggleStrikethrough,
             InlineFormat::Code => Typeset::ToggleInlineCode,
         }),
-        EditorCommand::FormatBlock(format) => Some(match format {
+        HostCommand::FormatBlock(format) => Some(match format {
             BlockFormat::Heading(level) => Typeset::Heading(level),
             BlockFormat::Quote => Typeset::ToggleQuote,
             BlockFormat::UnorderedList => Typeset::ToggleBulletList,
             BlockFormat::OrderedList => Typeset::ToggleOrderedList,
             BlockFormat::TaskList => Typeset::ToggleTaskList,
         }),
-        EditorCommand::ShowSource
-        | EditorCommand::ShowBlockEditor
-        | EditorCommand::ShowSplitPreview
-        | EditorCommand::ToggleSourceMode
-        | EditorCommand::ToggleOutline => None,
+        HostCommand::ShowSource
+        | HostCommand::ShowBlockEditor
+        | HostCommand::ShowSplitPreview
+        | HostCommand::ToggleSourceMode
+        | HostCommand::ToggleOutline => None,
     }
 }

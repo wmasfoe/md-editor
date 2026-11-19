@@ -18,8 +18,8 @@ use gpui_kit::{
     Render, SharedString, UTF16Selection, Window, actions, div, prelude::*, px,
 };
 use inkpoint_editor_typeset::{
-    LeafIndex, TypesetDocument, TypesetEditor, TypesetError, caret_at, move_down, move_left,
-    move_right, move_up,
+    LeafIndex, TypesetDocument, TypesetEditor, TypesetError, byte_offset, caret_at, line_start,
+    move_down, move_left, move_right, move_up, utf16_offset,
 };
 
 actions!(
@@ -325,34 +325,6 @@ impl TypesetView {
     }
 }
 
-/// Converts a UTF-8 byte offset to UTF-16 code units, for the platform.
-fn utf16_offset(text: &str, byte: usize) -> usize {
-    let byte = byte.min(text.len());
-    text.get(..byte)
-        .map_or(0, |prefix| prefix.encode_utf16().count())
-}
-
-/// Converts a UTF-16 code-unit offset to UTF-8 bytes, for this crate.
-///
-/// An offset that lands inside a surrogate pair rounds down to the character
-/// start, because every byte offset this crate accepts must be a char boundary.
-fn byte_offset(text: &str, utf16: usize) -> usize {
-    let mut units = 0;
-    for (byte, character) in text.char_indices() {
-        // Compare after adding this character: an offset that falls inside a
-        // surrogate pair then stays at the character start, which is the only
-        // boundary the source can be sliced at.
-        units += character.len_utf16();
-        if units > utf16 {
-            return byte;
-        }
-        if units == utf16 {
-            return byte + character.len_utf8();
-        }
-    }
-    text.len()
-}
-
 impl EntityInputHandler for TypesetView {
     fn text_for_range(
         &mut self,
@@ -576,57 +548,6 @@ impl TypesetView {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn ascii_offsets_map_one_to_one() {
-        let text = "hello";
-        assert_eq!(utf16_offset(text, 0), 0);
-        assert_eq!(utf16_offset(text, 3), 3);
-        assert_eq!(byte_offset(text, 3), 3);
-    }
-
-    #[test]
-    fn a_cjk_character_is_one_utf16_unit_and_three_bytes() {
-        // "中" is one UTF-16 unit and three UTF-8 bytes. Getting this wrong puts
-        // the IME composing region in the wrong place.
-        let text = "a中b";
-        assert_eq!(utf16_offset(text, 0), 0);
-        assert_eq!(utf16_offset(text, 1), 1);
-        assert_eq!(utf16_offset(text, 4), 2);
-        assert_eq!(utf16_offset(text, 5), 3);
-        assert_eq!(byte_offset(text, 0), 0);
-        assert_eq!(byte_offset(text, 1), 1);
-        assert_eq!(byte_offset(text, 2), 4);
-        assert_eq!(byte_offset(text, 3), 5);
-    }
-
-    #[test]
-    fn an_emoji_uses_a_surrogate_pair() {
-        // "😀" is four UTF-8 bytes but two UTF-16 units.
-        let text = "a😀b";
-        assert_eq!(utf16_offset(text, 1), 1);
-        assert_eq!(utf16_offset(text, 5), 3);
-        assert_eq!(byte_offset(text, 3), 5);
-    }
-
-    #[test]
-    fn an_offset_inside_a_surrogate_pair_rounds_to_the_character_start() {
-        let text = "a😀b";
-        // UTF-16 offset 2 is the middle of the surrogate pair.
-        assert_eq!(byte_offset(text, 2), 1);
-    }
-
-    #[test]
-    fn offsets_past_the_end_clamp() {
-        let text = "abc";
-        assert_eq!(utf16_offset(text, 99), 3);
-        assert_eq!(byte_offset(text, 99), 3);
-    }
-}
-
 /// What a paste target remembers, so an async image insert can verify the
 /// document has not moved on before it lands.
 #[derive(Clone, Debug)]
@@ -770,50 +691,5 @@ impl TypesetView {
         }
         self.reparse();
         cx.notify();
-    }
-}
-
-/// The byte offset where `line` starts, counting from one.
-///
-/// Out-of-range lines clamp: line 0 and line 1 both give the document start,
-/// and a line past the end gives the offset after the last newline.
-fn line_start(source: &str, line: usize) -> usize {
-    if line <= 1 {
-        return 0;
-    }
-    let mut current = 1;
-    for (index, byte) in source.bytes().enumerate() {
-        if byte == b'\n' {
-            current += 1;
-            if current == line {
-                return index + 1;
-            }
-        }
-    }
-    source.len()
-}
-
-#[cfg(test)]
-mod line_tests {
-    use super::line_start;
-
-    #[test]
-    fn the_first_line_starts_at_the_document_start() {
-        let source = "one\ntwo\nthree\n";
-        assert_eq!(line_start(source, 0), 0);
-        assert_eq!(line_start(source, 1), 0);
-    }
-
-    #[test]
-    fn each_line_starts_after_the_previous_newline() {
-        let source = "one\ntwo\nthree\n";
-        assert_eq!(&source[line_start(source, 2)..], "two\nthree\n");
-        assert_eq!(&source[line_start(source, 3)..], "three\n");
-    }
-
-    #[test]
-    fn a_line_past_the_end_clamps_to_the_end() {
-        let source = "one\ntwo\n";
-        assert_eq!(line_start(source, 99), source.len());
     }
 }

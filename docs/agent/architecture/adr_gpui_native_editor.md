@@ -70,7 +70,9 @@
 - mermaid：`mermaid-rs-renderer`，**不启用 `png` feature**，因此不引入 `resvg ^0.47`，避开工作区已有的 0.45.1 与 0.46.0 两份
 - 数学公式：`latex-rust`，其 MSRV 是 1.99，这是工作区工具链升级的直接原因
 
-**渲染失败一律降级为源码展示**，绝不阻塞编辑。这是产品要求，不是容错补丁。
+**mermaid 与数学公式渲染失败时降级为源码展示**，绝不阻塞编辑。这是产品要求，不是容错补丁；`Diagram::Source` 与 `Formula::Source` 各自带着原因返回，调用方据此显示源码。
+
+注意这条降级只覆盖 mermaid 与 math。Markdown 解析失败是另一回事：`TypesetView::new` 会用一个空块树顶上，缓冲区仍在、仍可编辑，但页面是空白，由宿主把解析错误显示在状态栏。把损坏的 Markdown 渲染成源码是另一个决定，尚未实现。
 
 两个依赖都验证过可编译到 `wasm32-unknown-unknown`（`cargo +nightly check --package inkpoint-editor-web --target wasm32-unknown-unknown` 通过）。这一点必须守住：`editor-web` → `editor-gpui` → `editor-typeset` 这条链意味着 Playground 也会编译这两个 crate，任何一个不支持 wasm 都会同时打断桌面与 Playground 的构建。
 
@@ -81,13 +83,14 @@
 - 桌面端无 TypeScript、无 wry、无 WebKit
 - `workspace.rs` 的 13 处 `#[cfg(target_os)]` 分叉全部消除
 - 单一构建链
-- 桌面端排版与编辑语义集中到 `editor-typeset`，为 Playground 后续迁移铺路
+- 编辑语义（选区、撤销、编辑操作、光标移动、偏移换算、行定位）集中到 `editor-typeset`，为 Playground 后续迁移铺路。跨 leaf 的邻接选择、图片路径白名单仍在视图层，见下方代价
 
 **负向 / 已知代价**
 
 - `packages/editor`（CodeMirror）仍服务 Web 应用，桌面不再用它
 - `editor-gpui` 内并存两个视图：桌面用 `TypesetView`，Playground 仍用旧的 `EditorView`（块卡片式）。把 Playground 也迁到 `TypesetView` 是后续工作
 - mermaid 与 math 的渲染覆盖度与 npm 版 mermaid/KaTeX 存在差异，未逐项比对
+- 两处文档级策略仍在视图层：跨 leaf 的垂直邻接选择（`move_vertical` 的调用方）与图片路径白名单。前者依赖 `editor-typeset` 已导出的 `ordered_keys` / `span_of`，可进一步下沉；后者是「什么内容允许进入缓冲区」的文档策略，应随其余插入守卫一起下沉
 - 系统输入法的组合输入仍需 macOS 实机验收
 - 工作区 MSRV 从 1.98 升到 1.99，贡献者需同步工具链
 

@@ -21,6 +21,7 @@ mod math;
 mod mermaid;
 mod movement;
 mod svg;
+mod text;
 
 pub use edit::{EditorCommand, Selection, TypesetEditor, TypesetError};
 pub use geometry::{LeafIndex, caret_at};
@@ -33,6 +34,7 @@ pub use mermaid::{
 };
 pub use movement::{Vertical, move_down, move_left, move_right, move_up, move_vertical};
 pub use svg::{SvgError, SvgImageChannel, try_svg_to_image};
+pub use text::{byte_offset, line_start, utf16_offset};
 
 use std::ops::Range;
 

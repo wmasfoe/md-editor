@@ -34,10 +34,15 @@ pub enum BlockFormat {
     TaskList,
 }
 
-/// Editor commands shared by the desktop menus and the Playground controls.
+/// Commands the host's menus and shortcuts dispatch.
+///
+/// Named apart from `editor_typeset::EditorCommand` on purpose: that one is a
+/// formatting command the editor executes, while these are host actions, several
+/// of which the typeset view does not implement at all. Two types sharing the
+/// name in the same crate root made every import ambiguous.
 #[derive(Action, Clone, Copy, Debug, PartialEq, Eq)]
 #[action(namespace = inkpoint_editor, no_json)]
-pub enum EditorCommand {
+pub enum HostCommand {
     ShowSource,
     ShowBlockEditor,
     ShowSplitPreview,
@@ -289,25 +294,25 @@ impl EditorView {
 
     pub fn execute_command(
         &mut self,
-        command: EditorCommand,
+        command: HostCommand,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         let mode = match command {
-            EditorCommand::ShowSource => PreviewMode::Source,
-            EditorCommand::ShowBlockEditor => PreviewMode::Preview,
-            EditorCommand::ShowSplitPreview => PreviewMode::Split,
-            EditorCommand::ToggleSourceMode if self.preview_mode == PreviewMode::Source => {
+            HostCommand::ShowSource => PreviewMode::Source,
+            HostCommand::ShowBlockEditor => PreviewMode::Preview,
+            HostCommand::ShowSplitPreview => PreviewMode::Split,
+            HostCommand::ToggleSourceMode if self.preview_mode == PreviewMode::Source => {
                 PreviewMode::Preview
             }
-            EditorCommand::ToggleSourceMode => PreviewMode::Source,
-            EditorCommand::ToggleOutline => {
+            HostCommand::ToggleSourceMode => PreviewMode::Source,
+            HostCommand::ToggleOutline => {
                 self.outline_open = !self.outline_open;
                 cx.notify();
                 return;
             }
-            EditorCommand::FormatInline(format) => return self.format_inline(format, window, cx),
-            EditorCommand::FormatBlock(format) => return self.format_block(format, window, cx),
+            HostCommand::FormatInline(format) => return self.format_inline(format, window, cx),
+            HostCommand::FormatBlock(format) => return self.format_block(format, window, cx),
         };
         self.set_preview_mode(mode, window, cx);
     }
@@ -648,7 +653,7 @@ impl Render for EditorView {
 
 impl EditorView {
     fn render_toolbar(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        use EditorCommand::*;
+        use HostCommand::*;
         let outline_label = if self.outline_open {
             "Hide outline"
         } else {
@@ -950,7 +955,7 @@ impl EditorView {
 fn command_button(
     id: &'static str,
     label: &'static str,
-    command: EditorCommand,
+    command: HostCommand,
     cx: &mut Context<EditorView>,
 ) -> Button {
     Button::new(id)
