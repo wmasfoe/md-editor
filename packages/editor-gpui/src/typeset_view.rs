@@ -909,14 +909,10 @@ impl Render for TypesetView {
             )
             .child(scrollable)
             .into_any_element();
-        // The caret rectangle comes from the same geometry the hit testing uses,
-        // so it sits exactly where a click at that offset would land.
-        let caret = self.caret_bounds();
         InputSurface {
             view: cx.entity(),
             focus: self.focus.clone(),
             child: surface,
-            caret,
             caret_color: gpui_kit::component::theme::Theme::global(cx).foreground,
             decorations,
         }
@@ -1172,8 +1168,6 @@ struct InputSurface {
     view: Entity<TypesetView>,
     focus: FocusHandle,
     child: AnyElement,
-    /// Where to draw the insertion caret, when the caret's leaf laid out.
-    caret: Option<Bounds<Pixels>>,
     /// The colour to draw it in.
     caret_color: gpui_kit::Hsla,
     /// Selection decorations to paint behind the text.
@@ -1250,9 +1244,11 @@ impl Element for InputSurface {
         cx: &mut App,
     ) {
         self.child.paint(window, cx);
-        // A text editor has to show where the next character goes. The leaf
-        // geometry already knows, so the caret is one filled rectangle.
-        if let Some(caret) = self.caret {
+        // The caret is computed here, not in `render`: `render` runs before this
+        // frame's geometry exists, so a rectangle taken there would draw last
+        // frame's caret one frame behind the text.
+        let caret = self.view.read(cx).caret_bounds();
+        if let Some(caret) = caret {
             window.paint_quad(gpui_kit::fill(caret, self.caret_color));
         }
         // This is the line that makes typing work: it tells the window which
