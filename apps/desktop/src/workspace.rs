@@ -587,7 +587,7 @@ impl Workspace {
             let _ = workspace.update_in(cx, |this, _, cx| {
                 this.ai_busy = false;
                 let editor = this.editor.read(cx);
-                let unstable = editor.composing() || editor.has_pending_rich_edit();
+                let unstable = editor.composing();
                 if unstable || editor.revision() != revision || editor.selected_range() != selection
                 {
                     this.message(

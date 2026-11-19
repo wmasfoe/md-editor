@@ -629,15 +629,6 @@ impl TypesetView {
         self.insert_if_unchanged(target.revision, target.selection.clone(), &markdown, cx)?;
         Ok(())
     }
-
-    /// Whether the view has an uncommitted edit.
-    ///
-    /// This view commits every edit immediately, so the answer is always
-    /// `false`. It exists so the host's save path does not have to special-case
-    /// the editor implementation.
-    pub fn has_pending_rich_edit(&self) -> bool {
-        false
-    }
 }
 
 impl TypesetView {
