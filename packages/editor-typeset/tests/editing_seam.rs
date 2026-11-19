@@ -15,7 +15,7 @@ use gpui_kit::{
     AnyElement, App, Bounds, Element, ElementId, GlobalElementId, InspectorElementId, IntoElement,
     LayoutId, Pixels, Window, div, px,
 };
-use inkpoint_editor_typeset::{LeafIndex, TypesetDocument};
+use inkpoint_editor_typeset::{LeafIndex, TypesetDocument, move_down, move_up};
 
 /// Runs `collect_leaf_geometry` around a prepaint of `element` and records what
 /// each keyed leaf reported.
@@ -215,5 +215,69 @@ fn chinese_text_lays_out_and_hit_tests(cx: &mut gpui_kit::TestAppContext) {
         hit <= leaf.len(),
         "CJK hit test produced {hit}, beyond leaf length {}",
         leaf.len()
+    );
+}
+
+#[gpui_kit::test]
+fn a_wrapped_paragraph_supports_vertical_caret_movement(cx: &mut gpui_kit::TestAppContext) {
+    // A paragraph long enough to wrap in a 600px column. This is the case the
+    // upstream docs leave to the host: editor_host says it is not a complete
+    // visual-caret navigation API, so vertical movement has to be built here.
+    let long = "The quick brown fox jumps over the lazy dog while the \
+                editor lays this line out across several visual rows so that \
+                moving down a line has somewhere to go.";
+    let index = draw(cx, &format!("{long}\n"));
+    let leaf = index
+        .leaves()
+        .find(|leaf| !leaf.is_empty())
+        .expect("a non-empty leaf");
+
+    let bounds = leaf.bounds();
+    let height = leaf.line_height();
+    assert!(
+        bounds.size.height > height * 1.5,
+        "the paragraph should wrap onto several visual lines: height {:?} vs line {:?}",
+        bounds.size.height,
+        height
+    );
+
+    // Start on the first visual line, then walk down one line.
+    let start = leaf.caret_for_position(gpui_kit::point(
+        bounds.origin.x + px(4.),
+        bounds.origin.y + height / 2.,
+    ));
+    let down = move_down(leaf, start).expect("a wrapped paragraph has a line below the first");
+    assert!(
+        down.index != start.index,
+        "moving down must change the caret index within a wrapped paragraph"
+    );
+    assert!(
+        down.index <= leaf.len(),
+        "the moved caret must stay inside the leaf"
+    );
+
+    // And back up again.
+    let up = move_up(leaf, down).expect("the second line has a line above it");
+    assert!(
+        up.index <= leaf.len(),
+        "moving back up must stay inside the leaf"
+    );
+}
+
+#[gpui_kit::test]
+fn vertical_movement_stops_at_the_first_line(cx: &mut gpui_kit::TestAppContext) {
+    let index = draw(cx, "One short line.\n");
+    let leaf = index
+        .leaves()
+        .find(|leaf| !leaf.is_empty())
+        .expect("a non-empty leaf");
+    let bounds = leaf.bounds();
+    let top = leaf.caret_for_position(gpui_kit::point(
+        bounds.origin.x + px(4.),
+        bounds.origin.y + leaf.line_height() / 2.,
+    ));
+    assert!(
+        move_up(leaf, top).is_none(),
+        "moving up from the first line must report that it left the leaf"
     );
 }
