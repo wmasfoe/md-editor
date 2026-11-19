@@ -650,8 +650,17 @@ impl TypesetView {
         if self.marked.is_some() {
             return Err("Finish the current text composition before inserting.");
         }
-        let result = self.editor.insert(text);
-        self.apply(result, cx);
+        // A guard passed but the insert can still fail at the source level, and
+        // reporting success then would tell the host a suggestion landed when it
+        // did not.
+        if let Err(error) = self.editor.insert(text) {
+            return Err(match error {
+                TypesetError::ReadOnly => "The editor is read-only.",
+                TypesetError::Source(_) => "The insert was rejected by the document.",
+            });
+        }
+        self.reparse();
+        cx.notify();
         Ok(self.editor.revision())
     }
 
