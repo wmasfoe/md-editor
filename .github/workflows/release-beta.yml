@@ -34,9 +34,13 @@ jobs:
           targets: aarch64-apple-darwin
           components: rustfmt, clippy
 
+      # dtolnay/rust-toolchain 的 ref 只能是分支/tag（stable、nightly、1.98.0…），
+      # 不能写 `nightly-2026-11-17` 这种日期——那会直接报 unable to resolve action。
+      # 具体日期版通过 `toolchain` 输入传给 action。
       - name: Set up WebAssembly toolchain
-        uses: dtolnay/rust-toolchain@nightly-2026-11-17
+        uses: dtolnay/rust-toolchain@nightly
         with:
+          toolchain: nightly-2026-11-17
           targets: wasm32-unknown-unknown
 
       - name: Cache Cargo
