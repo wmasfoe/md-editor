@@ -45,6 +45,29 @@ const BODY_FONT_SIZE: f32 = 17.;
 /// The key context the editor's bindings are scoped to.
 const KEY_CONTEXT: &str = "TypesetView";
 
+/// The command modifier on this platform: cmd on macOS, ctrl elsewhere.
+///
+/// `KeyBinding::new` parses statically and cannot resolve `secondary-`, so the
+/// spelling is chosen here instead. Getting this wrong is not cosmetic: with
+/// only `cmd-` bindings, Windows and Linux users have no undo and no select-all.
+#[cfg(target_os = "macos")]
+mod keys {
+    pub(super) const SELECT_ALL_KEY: &str = "cmd-a";
+    pub(super) const UNDO_KEY: &str = "cmd-z";
+    pub(super) const REDO_KEY: &str = "cmd-shift-z";
+    pub(super) const REDO_ALT_KEY: &str = "cmd-y";
+}
+
+#[cfg(not(target_os = "macos"))]
+mod keys {
+    pub(super) const SELECT_ALL_KEY: &str = "ctrl-a";
+    pub(super) const UNDO_KEY: &str = "ctrl-z";
+    pub(super) const REDO_KEY: &str = "ctrl-shift-z";
+    pub(super) const REDO_ALT_KEY: &str = "ctrl-y";
+}
+
+use keys::{REDO_ALT_KEY, REDO_KEY, SELECT_ALL_KEY, UNDO_KEY};
+
 /// A GPUI element that renders and edits Markdown.
 pub struct TypesetView {
     editor: TypesetEditor,
@@ -352,10 +375,13 @@ impl TypesetView {
             KeyBinding::new("down", MoveDown, Some(KEY_CONTEXT)),
             KeyBinding::new("enter", InsertNewline, Some(KEY_CONTEXT)),
             KeyBinding::new("backspace", DeleteBackward, Some(KEY_CONTEXT)),
-            KeyBinding::new("cmd-z", Undo, Some(KEY_CONTEXT)),
-            KeyBinding::new("cmd-shift-z", Redo, Some(KEY_CONTEXT)),
-            KeyBinding::new("cmd-y", Redo, Some(KEY_CONTEXT)),
-            KeyBinding::new("cmd-a", SelectAll, Some(KEY_CONTEXT)),
+            // `KeyBinding::new` cannot resolve `secondary-`, so the platform
+            // modifier is spelled out. Binding only `cmd-` would leave Windows
+            // and Linux with no undo and no select-all.
+            KeyBinding::new(SELECT_ALL_KEY, SelectAll, Some(KEY_CONTEXT)),
+            KeyBinding::new(UNDO_KEY, Undo, Some(KEY_CONTEXT)),
+            KeyBinding::new(REDO_KEY, Redo, Some(KEY_CONTEXT)),
+            KeyBinding::new(REDO_ALT_KEY, Redo, Some(KEY_CONTEXT)),
         ]);
     }
 }
