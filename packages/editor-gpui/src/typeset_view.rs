@@ -15,7 +15,7 @@ use std::ops::Range;
 use gpui_kit::base::text::editor_host::RenderContext;
 use gpui_kit::{
     App, Bounds, Context, EntityInputHandler, FocusHandle, IntoElement, KeyBinding, Pixels, Point,
-    Render, UTF16Selection, Window, actions, div, prelude::*, px,
+    Render, SharedString, UTF16Selection, Window, actions, div, prelude::*, px,
 };
 use inkpoint_editor_typeset::{
     LeafIndex, TypesetDocument, TypesetEditor, TypesetError, caret_at, move_down, move_left,
@@ -48,17 +48,28 @@ pub struct TypesetView {
     caret_leaf: Option<u64>,
     /// Composing text range in UTF-8 bytes, while an IME is active.
     marked: Option<Range<usize>>,
+    /// Why the last parse failed, when it did.
+    ///
+    /// Kept rather than swallowed: a document that will not parse still opens
+    /// for editing, but the host has to be able to say so instead of showing an
+    /// empty page with no explanation.
+    parse_error: Option<SharedString>,
 }
 
 impl TypesetView {
     /// Opens `source` in a new view.
     pub fn new(window: &mut Window, cx: &mut Context<Self>, source: impl Into<String>) -> Self {
         let editor = TypesetEditor::new(source);
-        let document = TypesetDocument::parse(editor.source()).unwrap_or_else(|_| {
-            // A document that will not parse still has to be editable: an empty
-            // tree keeps the buffer alive instead of losing the user's file.
-            TypesetDocument::parse("").expect("the empty document parses")
-        });
+        // A document that will not parse still opens: the buffer is the user's
+        // file and losing it would be worse than showing it unrendered. The
+        // failure is kept so the host can report it.
+        let (document, parse_error) = match TypesetDocument::parse(editor.source()) {
+            Ok(document) => (document, None),
+            Err(error) => (
+                TypesetDocument::parse("").expect("the empty document parses"),
+                Some(error),
+            ),
+        };
         let focus = cx.focus_handle();
         focus.focus(window, cx);
         Self {
@@ -68,6 +79,7 @@ impl TypesetView {
             focus,
             caret_leaf: None,
             marked: None,
+            parse_error,
         }
     }
 
@@ -79,6 +91,13 @@ impl TypesetView {
     /// A revision counter that changes on every edit.
     pub fn revision(&self) -> u64 {
         self.editor.revision()
+    }
+
+    /// Why the last parse failed, when it did.
+    ///
+    /// `None` once the source parses again.
+    pub fn parse_error(&self) -> Option<&SharedString> {
+        self.parse_error.as_ref()
     }
 
     /// Whether an IME is composing, in which case the host must not save.
@@ -112,8 +131,16 @@ impl TypesetView {
 
     /// Re-parses after the source changed.
     fn reparse(&mut self) {
-        if let Ok(document) = TypesetDocument::parse(self.editor.source()) {
-            self.document = document;
+        match TypesetDocument::parse(self.editor.source()) {
+            Ok(document) => {
+                self.document = document;
+                self.parse_error = None;
+            }
+            Err(error) => {
+                // Keep the previous tree: an edit that the parser rejects should
+                // not blank the page under the caret.
+                self.parse_error = Some(error);
+            }
         }
     }
 

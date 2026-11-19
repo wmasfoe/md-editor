@@ -187,7 +187,16 @@ impl Workspace {
         self.document = Arc::new(document);
         self.suggestion = None;
         self.update_title(window, cx);
-        self.message("Ready", cx);
+        // A file the parser cannot structure still opens, so the user keeps
+        // their buffer, but saying so beats an unexplained empty page.
+        let parse_error = self.editor.read(cx).parse_error().map(ToString::to_string);
+        match parse_error {
+            Some(error) => self.message(
+                format!("Opened, but the Markdown did not parse: {error}"),
+                cx,
+            ),
+            None => self.message("Ready", cx),
+        }
     }
 
     fn file_action(&mut self, action: FileAction, window: &mut Window, cx: &mut Context<Self>) {
