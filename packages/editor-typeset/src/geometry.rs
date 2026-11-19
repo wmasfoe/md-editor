@@ -49,6 +49,16 @@ impl LeafIndex {
         self.leaves.values()
     }
 
+    /// The caret for a click at `point`, together with the leaf it landed in.
+    ///
+    /// The key matters as much as the index: a caret index counts bytes from the
+    /// leaf's own start, so a caller that only receives the index has no way to
+    /// turn it into a document offset. Returning both keeps that pairing intact.
+    pub fn caret_and_key_for_point(&self, point: Point<Pixels>) -> Option<(u64, Caret)> {
+        let (key, geometry) = self.nearest(point)?;
+        Some((key, geometry.caret_for_position(point)))
+    }
+
     /// The caret for a click at `point`, choosing the leaf whose bounds
     /// contain it.
     ///

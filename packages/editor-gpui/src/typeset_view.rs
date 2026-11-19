@@ -20,8 +20,8 @@ use gpui_kit::{
     prelude::*, px,
 };
 use inkpoint_editor_typeset::{
-    LeafIndex, TypesetDocument, TypesetEditor, TypesetError, byte_offset, caret_at, line_start,
-    move_down, move_left, move_right, move_up, utf16_offset,
+    LeafIndex, TypesetDocument, TypesetEditor, TypesetError, byte_offset, line_start, move_down,
+    move_left, move_right, move_up, utf16_offset,
 };
 
 actions!(
@@ -42,6 +42,9 @@ actions!(
 /// The body font size a document lays out at.
 const BODY_FONT_SIZE: f32 = 17.;
 
+/// The key context the editor's bindings are scoped to.
+const KEY_CONTEXT: &str = "TypesetView";
+
 /// A GPUI element that renders and edits Markdown.
 pub struct TypesetView {
     editor: TypesetEditor,
@@ -52,6 +55,9 @@ pub struct TypesetView {
     caret_leaf: Option<u64>,
     /// Composing text range in UTF-8 bytes, while an IME is active.
     marked: Option<Range<usize>>,
+    /// The container's scroll position, so a click can be mapped back from
+    /// window coordinates into the document's own space.
+    scroll: gpui_kit::ScrollHandle,
     /// Why the last parse failed, when it did.
     ///
     /// Kept rather than swallowed: a document that will not parse still opens
@@ -85,6 +91,7 @@ impl TypesetView {
             focus,
             caret_leaf: None,
             marked: None,
+            scroll: gpui_kit::ScrollHandle::new(),
             parse_error,
         }
     }
@@ -254,6 +261,19 @@ impl TypesetView {
         cx.notify();
     }
 
+    /// Re-anchors the selection at `anchor`, keeping the caret where it moved.
+    ///
+    /// A vertical move places the caret; extending it means restoring the
+    /// anchor the selection had before the move, so the range grows instead of
+    /// collapsing.
+    fn extend_to(&mut self, anchor: Option<usize>, cx: &mut Context<Self>) {
+        if let Some(anchor) = anchor {
+            let head = self.editor.selection().head();
+            self.editor.set_selection(anchor, head);
+            cx.notify();
+        }
+    }
+
     /// Reverts the last edit.
     fn undo(&mut self, cx: &mut Context<Self>) {
         if self.editor.undo() {
@@ -316,17 +336,23 @@ impl TypesetView {
     }
 
     /// Binds the movement keys.
+    /// Binds the editor's keys inside the editor's own key context.
+    ///
+    /// Scoped, not app-global: an unscoped `backspace` or `cmd-a` would claim
+    /// those keys everywhere, so a focused settings field or a tree rename would
+    /// silently lose them.
     pub fn bind_keys(cx: &mut App) {
         cx.bind_keys([
-            KeyBinding::new("left", MoveLeft, None),
-            KeyBinding::new("right", MoveRight, None),
-            KeyBinding::new("up", MoveUp, None),
-            KeyBinding::new("down", MoveDown, None),
-            KeyBinding::new("enter", InsertNewline, None),
-            KeyBinding::new("backspace", DeleteBackward, None),
-            KeyBinding::new("cmd-z", Undo, None),
-            KeyBinding::new("cmd-shift-z", Redo, None),
-            KeyBinding::new("cmd-a", SelectAll, None),
+            KeyBinding::new("left", MoveLeft, Some(KEY_CONTEXT)),
+            KeyBinding::new("right", MoveRight, Some(KEY_CONTEXT)),
+            KeyBinding::new("up", MoveUp, Some(KEY_CONTEXT)),
+            KeyBinding::new("down", MoveDown, Some(KEY_CONTEXT)),
+            KeyBinding::new("enter", InsertNewline, Some(KEY_CONTEXT)),
+            KeyBinding::new("backspace", DeleteBackward, Some(KEY_CONTEXT)),
+            KeyBinding::new("cmd-z", Undo, Some(KEY_CONTEXT)),
+            KeyBinding::new("cmd-shift-z", Redo, Some(KEY_CONTEXT)),
+            KeyBinding::new("cmd-y", Redo, Some(KEY_CONTEXT)),
+            KeyBinding::new("cmd-a", SelectAll, Some(KEY_CONTEXT)),
         ]);
     }
 }
@@ -440,10 +466,10 @@ impl EntityInputHandler for TypesetView {
     ) -> Option<Bounds<Pixels>> {
         let source = self.editor.source();
         let offset = byte_offset(source, range.start);
-        let key = self.caret_leaf?;
+        // The leaf that owns the range, not the leaf holding the caret: the IME
+        // asks for the rectangle of text it is composing.
+        let key = self.document.leaf_at(offset)?;
         let leaf = self.geometry.get(key)?;
-        // The range arrives as a document-wide offset; leaf geometry counts from
-        // the leaf's own start.
         let span = self.document.span_of(key)?;
         let local = offset.saturating_sub(span.start);
         let position = leaf.position_for_index(local.min(leaf.len()));
@@ -460,12 +486,13 @@ impl EntityInputHandler for TypesetView {
         _window: &mut Window,
         _cx: &mut Context<Self>,
     ) -> Option<usize> {
-        let caret = caret_at(&self.geometry, point)?;
-        let key = self.caret_leaf?;
-        // `caret.index` counts bytes from the leaf's start; the platform wants a
-        // document-wide UTF-16 offset.
+        // The leaf must be the one under the point, not the one holding the
+        // caret: clicking into another block while the caret sits here would
+        // otherwise report an offset from the wrong block, and an IME composing
+        // region would open in the wrong place.
+        let (key, caret) = self.geometry.caret_and_key_for_point(point)?;
         let span = self.document.span_of(key)?;
-        let document_offset = span.start + caret.index;
+        let document_offset = span.start + caret.index.min(span.len());
         let source = self.editor.source();
         Some(utf16_offset(source, document_offset))
     }
@@ -502,8 +529,20 @@ impl Render for TypesetView {
         let on_right = cx.listener(|this, _: &MoveRight, window, cx| {
             this.do_move_right(window.modifiers().shift, cx);
         });
-        let on_up = cx.listener(|this, _: &MoveUp, _, cx| this.caret_up(cx));
-        let on_down = cx.listener(|this, _: &MoveDown, _, cx| this.caret_down(cx));
+        // Shift extends the selection vertically, matching what shift+left/right
+        // already do horizontally.
+        let on_up = cx.listener(|this, _: &MoveUp, window, cx| {
+            let shift = window.modifiers().shift;
+            let anchor = shift.then(|| this.editor.selection().anchor());
+            this.caret_up(cx);
+            this.extend_to(anchor, cx);
+        });
+        let on_down = cx.listener(|this, _: &MoveDown, window, cx| {
+            let shift = window.modifiers().shift;
+            let anchor = shift.then(|| this.editor.selection().anchor());
+            this.caret_down(cx);
+            this.extend_to(anchor, cx);
+        });
         let on_select_all = cx.listener(|this, _: &SelectAll, _, cx| this.select_all(cx));
         let on_newline = cx.listener(|this, _: &InsertNewline, _, cx| this.insert("\n", cx));
         let on_backspace = cx.listener(|this, _: &DeleteBackward, _, cx| this.delete_backward(cx));
@@ -511,9 +550,16 @@ impl Render for TypesetView {
         let on_redo = cx.listener(|this, _: &Redo, _, cx| this.redo(cx));
 
         let context = RenderContext::from_app(cx);
-        let (element, geometry) = self
-            .document
-            .render(px(BODY_FONT_SIZE), context, window, cx);
+        // Pass the selection through so the selected text is visibly highlighted:
+        // without it, cmd-a and shift-arrow change state the user cannot see.
+        let selection = self.editor.selection().range();
+        let (element, geometry) = self.document.render_with_selection(
+            px(BODY_FONT_SIZE),
+            context,
+            window,
+            cx,
+            Some(selection),
+        );
         // Resolve the caret's leaf from the document's source spans, not from
         // the leaf lengths: a caret offset is document-wide, while a leaf only
         // knows its own length, so comparing the two picks the wrong block as
@@ -530,13 +576,14 @@ impl Render for TypesetView {
             .id("typeset-scroll")
             .size_full()
             .overflow_y_scroll()
+            .track_scroll(&self.scroll)
             .child(element);
         // The action handlers live on this wrapper: `InputSurface` is a plain
         // element and only registers input, it does not dispatch actions.
         let surface = div()
             .id("typeset-view")
             .track_focus(&self.focus)
-            .key_context("TypesetView")
+            .key_context(KEY_CONTEXT)
             .size_full()
             .on_action(on_left)
             .on_action(on_right)
@@ -649,10 +696,11 @@ impl TypesetView {
 impl TypesetView {
     /// Places the caret where the user clicked.
     ///
-    /// The click lands in window coordinates; geometry is also window
-    /// coordinates for the frame that produced it, so the two agree directly.
-    /// The resolved index is leaf-local and is shifted by the leaf's span before
-    /// it becomes a document offset.
+    /// The click lands in window coordinates and the leaf bounds are the ones
+    /// recorded at layout time. Inside a scrolled container those two differ by
+    /// the scroll offset, so the point is translated into the document's own
+    /// space first. The resolved index is leaf-local and is shifted by the
+    /// leaf's span before it becomes a document offset.
     fn place_caret_from_click(
         &mut self,
         point: Point<Pixels>,
@@ -660,6 +708,7 @@ impl TypesetView {
         cx: &mut Context<Self>,
     ) {
         self.focus.focus(window, cx);
+        let point = self.document_point(point, window, cx);
         let Some(key) = self.caret_leaf_from_point(point) else {
             return;
         };
@@ -669,6 +718,25 @@ impl TypesetView {
         let local = leaf.index_for_position(point).min(leaf.len());
         self.editor.set_caret(span.start + local);
         cx.notify();
+    }
+
+    /// Translates a window point into the scrolled document's own space.
+    ///
+    /// Leaf bounds come from layout, before the container's scroll offset is
+    /// applied. Adding that offset back makes a click land where the user sees
+    /// the text, not where it would be if the document were not scrolled.
+    fn document_point(
+        &self,
+        point: Point<Pixels>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Point<Pixels> {
+        let _ = (window, cx);
+        let offset = self.scroll.offset();
+        Point {
+            x: point.x + offset.x,
+            y: point.y + offset.y,
+        }
     }
 
     /// The leaf whose bounds contain `point`, else the vertically nearest one.
@@ -961,21 +1029,22 @@ mod input_tests {
             markdown(&view, vcx)
         );
 
-        // The heading command rewrites the line the caret is on.
+        // The heading command rewrites the line the caret is on, driven through
+        // the command path the menu uses rather than by reaching into the
+        // editor — otherwise `execute_command` has no end-to-end coverage.
         vcx.update(|window, cx| {
             view.update(cx, |view, cx| {
                 view.focus(window, cx);
                 view.set_caret(0, cx);
+                view.execute_command(
+                    inkpoint_editor_typeset::EditorCommand::Heading(3),
+                    window,
+                    cx,
+                );
             });
             window.draw(cx).clear(cx);
         });
         vcx.run_until_parked();
-        vcx.update(|_, cx| {
-            view.update(cx, |view, cx| {
-                let _ = view.editor.set_heading(3);
-                cx.notify();
-            });
-        });
         assert!(
             markdown(&view, vcx).starts_with("###"),
             "setting a heading rewrites the line: {:?}",

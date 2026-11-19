@@ -31,6 +31,7 @@ pub use movement::{Vertical, move_down, move_left, move_right, move_up, move_ver
 pub use svg::{SvgError, SvgImageChannel, try_svg_to_image};
 pub use text::{byte_offset, line_start, utf16_offset};
 
+use std::collections::HashMap;
 use std::ops::Range;
 
 use gpui_kit::base::text::editor_host::{BlockNode, FlowPosition, RenderContext, parse_markdown};
@@ -251,12 +252,63 @@ impl TypesetDocument {
         window: &mut Window,
         cx: &mut App,
     ) -> (impl IntoElement, LeafIndex) {
+        self.render_with_selection(body_font_size, context, window, cx, None)
+    }
+
+    /// Renders the document, painting `selection` behind the selected text.
+    ///
+    /// `selection` is a document-wide byte range. It is split per leaf here
+    /// because the decoration API works in leaf-local bytes; a caller that had
+    /// to do that itself would need the same span bookkeeping the caret does.
+    pub fn render_with_selection(
+        &self,
+        body_font_size: Pixels,
+        context: RenderContext,
+        window: &mut Window,
+        cx: &mut App,
+        selection: Option<Range<usize>>,
+    ) -> (impl IntoElement, LeafIndex) {
+        let decorations = self.selection_decorations(selection);
         let (element, leaves) =
-            gpui_kit::base::text::editor_host::collect_leaf_geometry(Default::default(), || {
+            gpui_kit::base::text::editor_host::collect_leaf_geometry(decorations, || {
                 self.render_blocks(body_font_size, context, window, cx)
                     .into_any_element()
             });
         (element, LeafIndex::new(leaves))
+    }
+
+    /// Splits a document-wide selection into per-leaf decorations.
+    ///
+    /// Each leaf gets the part of the selection that falls inside its span,
+    /// rebased to leaf-local bytes. An empty selection paints nothing, which is
+    /// why a bare caret needs no decoration of its own.
+    fn selection_decorations(
+        &self,
+        selection: Option<Range<usize>>,
+    ) -> HashMap<u64, Vec<(Range<usize>, gpui_kit::Hsla)>> {
+        let Some(selection) = selection else {
+            return HashMap::new();
+        };
+        if selection.start >= selection.end {
+            return HashMap::new();
+        }
+        let color: gpui_kit::Hsla = gpui_kit::rgba(0x3b82f640).into();
+        let mut decorations: HashMap<u64, Vec<(Range<usize>, gpui_kit::Hsla)>> = HashMap::new();
+        for leaf in &self.spans {
+            let Some(span) = leaf.span.as_ref() else {
+                continue;
+            };
+            let start = selection.start.max(span.start);
+            let end = selection.end.min(span.end);
+            if start >= end {
+                continue;
+            }
+            decorations
+                .entry(leaf.key)
+                .or_default()
+                .push((start - span.start..end - span.start, color));
+        }
+        decorations
     }
 }
 
