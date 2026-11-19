@@ -1,5 +1,10 @@
-import type { EditorState, Range } from "@codemirror/state";
-import { Decoration } from "@codemirror/view";
+import {
+  EditorSelection,
+  type EditorState,
+  type Range,
+  type SelectionRange,
+} from "@codemirror/state";
+import { Decoration, type DecorationSet } from "@codemirror/view";
 import type { FrontmatterSourceRange } from "@md-editor/markdown-fidelity";
 import { getWysiwygDiagnostics } from "../../diagnostics.ts";
 import {
@@ -9,6 +14,9 @@ import {
 import type { MarkdownRangeRecord, SourceRange } from "@md-editor/plugin-sdk/syntax";
 import { fingerprintSource } from "../../markdown/range-types.ts";
 import { FrontmatterHeaderWidget } from "../widgets/frontmatter-header-widget.ts";
+
+const FRONTMATTER_HEADER = "frontmatter-header";
+const FRONTMATTER_CLOSING_FENCE = "frontmatter-closing-fence";
 
 export function buildFrontmatterLayoutDecorations(
   record: MarkdownRangeRecord,
@@ -30,7 +38,7 @@ export function buildFrontmatterLayoutDecorations(
       }),
       inclusive: false,
       wysiwygRecordId: record.id,
-      wysiwygRole: "frontmatter-header",
+      wysiwygRole: FRONTMATTER_HEADER,
     }).range(frontmatter.openingFenceRange.from, frontmatter.openingFenceRange.to),
     frontmatterLineDecoration(record.id, "header", hasError).range(
       state.doc.lineAt(frontmatter.openingFenceRange.from).from,
@@ -45,7 +53,7 @@ export function buildFrontmatterLayoutDecorations(
       Decoration.replace({
         inclusive: false,
         wysiwygRecordId: record.id,
-        wysiwygRole: "frontmatter-closing-fence",
+        wysiwygRole: FRONTMATTER_CLOSING_FENCE,
       }).range(frontmatter.closingFenceRange.from, frontmatter.closingFenceRange.to),
       frontmatterLineDecoration(record.id, "footer", hasError).range(
         state.doc.lineAt(frontmatter.closingFenceRange.from).from,
@@ -55,6 +63,34 @@ export function buildFrontmatterLayoutDecorations(
   ranges.push(...yamlTokenDecorations(record.id, analysis));
   ranges.push(...yamlErrorDecorations(record.id, analysis));
   return ranges;
+}
+
+/** A hidden fence covers an entire line, so it has no text coordinates for selection drawing. */
+export function frontmatterSelectionDrawingRange(
+  layout: DecorationSet,
+  range: SelectionRange,
+): SelectionRange | null {
+  const startFence = findProjectedFenceAt(layout, range.from);
+  const endFence = findProjectedFenceAt(layout, range.to);
+  if (!startFence && !endFence) return range;
+
+  // Measure from the next line start or previous line end. The editor's selection still includes
+  // both fences for copy, deletion, and history.
+  const from = startFence ? startFence.to + 1 : range.from;
+  const to = endFence ? endFence.from - 1 : range.to;
+  return from < to ? EditorSelection.range(from, to) : null;
+}
+
+function findProjectedFenceAt(layout: DecorationSet, position: number): SourceRange | undefined {
+  let fence: SourceRange | undefined;
+  layout.between(position, position, (from, to, decoration) => {
+    const role = decoration.spec.wysiwygRole;
+    if (role === FRONTMATTER_HEADER || role === FRONTMATTER_CLOSING_FENCE) {
+      fence = { from, to };
+      return false;
+    }
+  });
+  return fence;
 }
 
 export function buildFrontmatterAtomicRanges(

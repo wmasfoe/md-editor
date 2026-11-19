@@ -20,6 +20,7 @@ import {
   getFencedCodeBlockBodyRange,
   isProjectableCodeBlock,
 } from "../projections/code-block-projection.ts";
+import { frontmatterSelectionDrawingRange } from "../projections/frontmatter-projection.ts";
 import { wysiwygProjectionField } from "../state/projection-field.ts";
 
 /**
@@ -250,14 +251,18 @@ export function computeSelectionMarkers(view: EditorView): readonly RectangleMar
     const markers: RectangleMarker[] = [];
     const base = getBase(view);
     const { ranges } = view.state.selection;
+    const layout = view.state.field(wysiwygProjectionField, false)?.layoutDecorations;
 
-    for (const range of ranges) {
-      if (range.empty) continue;
+    for (const selection of ranges) {
+      if (selection.empty) continue;
 
       // 若该选区对应整块原子选区（如水平分割线），其选中态由组件自身外框呈现，跳过绘制文本选区背景
-      if (isAtomSelection(view.state, range)) {
+      if (isAtomSelection(view.state, selection)) {
         continue;
       }
+
+      const range = layout ? frontmatterSelectionDrawingRange(layout, selection) : selection;
+      if (!range) continue;
 
       const codeBlocks = findIntersectingCodeBlocks(view.state, range.from, range.to);
       if (codeBlocks.length === 0) {
