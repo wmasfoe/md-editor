@@ -154,6 +154,13 @@ struct History {
     /// Without this, typing "ab", clicking back to the start and typing "X"
     /// would merge into one step whose restore point predates the "ab".
     joined_end: Option<usize>,
+    /// Whether an IME composition is in progress.
+    ///
+    /// A composition rewrites the same region on every keystroke, so its
+    /// offsets move backwards and a positional join cannot match. It is its own
+    /// state rather than "join anything": without that, composing after an
+    /// unrelated edit would merge the two into one undo step.
+    composing: bool,
 }
 
 impl History {
@@ -163,7 +170,23 @@ impl History {
             redos: Vec::new(),
             limit,
             joined_end: None,
+            composing: false,
         }
+    }
+
+    /// Whether a composition is already on top of the stack.
+    fn is_composing(&self) -> bool {
+        self.composing
+    }
+
+    /// Marks that a composition is starting or continuing.
+    fn begin_composition(&mut self) {
+        self.composing = true;
+    }
+
+    /// Ends the composition, so the next edit starts a new step.
+    fn end_composition(&mut self) {
+        self.composing = false;
     }
 
     /// Whether a character typed at `at` continues the step on top.
@@ -194,10 +217,16 @@ impl History {
         self.undos.push(snapshot);
         self.redos.clear();
         self.joined_end = Some(ends_at);
+        // Any step that starts fresh also ends a composition: the next keystroke
+        // must not join a step it has nothing to do with.
+        if !joins_previous {
+            self.composing = false;
+        }
     }
 
     fn undo(&mut self, current: Snapshot) -> Option<Snapshot> {
         self.joined_end = None;
+        self.composing = false;
         let previous = self.undos.pop()?;
         if self.redos.len() == self.limit {
             self.redos.remove(0);
@@ -208,6 +237,7 @@ impl History {
 
     fn redo(&mut self, current: Snapshot) -> Option<Snapshot> {
         self.joined_end = None;
+        self.composing = false;
         let next = self.redos.pop()?;
         if self.undos.len() == self.limit {
             self.undos.remove(0);
@@ -221,6 +251,7 @@ impl History {
         self.undos.clear();
         self.redos.clear();
         self.joined_end = None;
+        self.composing = false;
     }
 
     fn can_undo(&self) -> bool {
@@ -345,11 +376,24 @@ impl TypesetEditor {
     /// so the offset moves backwards and a positional join would never match.
     fn apply_recording_joining_anywhere(&mut self, edit: SourceEdit) -> Result<(), TypesetError> {
         let ends_at = edit.selection_after.end;
+        // Join only when a composition is already on top. The first keystroke of
+        // a composition starts its own step, so composing after an unrelated edit
+        // does not merge the two.
+        let joins = self.history.is_composing() && !self.history.undos.is_empty();
         let before = self.snapshot();
         self.apply(edit)?;
-        let joins = !self.history.undos.is_empty();
+        // Mark the composition *after* the push: a fresh push ends any previous
+        // composition, and this one has to survive that.
         self.history.push(before, joins, ends_at);
+        self.history.begin_composition();
         Ok(())
+    }
+
+    /// Ends a composition, so the next keystroke starts a new undo step.
+    ///
+    /// Called when the platform commits the composition.
+    pub fn commit_composition(&mut self) {
+        self.history.end_composition();
     }
 
     /// The current Markdown source.
@@ -959,11 +1003,14 @@ mod undo_sequence_tests {
     }
 
     /// Composition keystrokes join one undo step.
+    ///
+    /// The view sets the selection to the composing region and calls
+    /// `insert_composing`; that selection change is part of the composition, not
+    /// an unrelated edit, so the step still joins.
     #[test]
     fn composition_keystrokes_undo_as_one_step() {
         let mut editor = TypesetEditor::new("");
         editor.set_caret(0);
-        // An IME replaces the composing region on each keystroke.
         editor.insert_composing("z").expect("applies");
         editor.set_selection(0, 1);
         editor.insert_composing("zh").expect("applies");
@@ -975,6 +1022,31 @@ mod undo_sequence_tests {
             editor.source(),
             "",
             "one undo removes the composed character, not a stage of it"
+        );
+    }
+
+    /// Composing after an unrelated edit must not merge the two.
+    ///
+    /// A composition rewrites the same region each keystroke, so it joins its own
+    /// step — but joining "whatever is on top" would make one undo erase the
+    /// earlier, unrelated edit as well.
+    #[test]
+    fn composition_after_an_unrelated_edit_is_its_own_step() {
+        let mut editor = TypesetEditor::new("");
+        editor.set_caret(0);
+        editor.insert("a").expect("typing applies");
+        editor.insert("b").expect("typing applies");
+        editor.insert("c").expect("typing applies");
+        assert_eq!(editor.source(), "abc");
+        // Move elsewhere and compose a character.
+        editor.set_caret(0);
+        editor.insert_composing("中").expect("composition applies");
+        assert_eq!(editor.source(), "中abc");
+        assert!(editor.undo());
+        assert_eq!(
+            editor.source(),
+            "abc",
+            "one undo removes the composition only, not the earlier typing"
         );
     }
 

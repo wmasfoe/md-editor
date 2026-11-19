@@ -182,6 +182,7 @@ impl TypesetView {
     /// Replaces the document from disk.
     pub fn replace_markdown(&mut self, source: impl Into<String>, cx: &mut Context<Self>) {
         self.editor.replace_source(source);
+        self.last_error = None;
         self.reparse();
         cx.notify();
     }
@@ -189,6 +190,7 @@ impl TypesetView {
     /// Sets whether the view rejects edits.
     pub fn set_readonly(&mut self, readonly: bool, cx: &mut Context<Self>) {
         self.editor.set_readonly(readonly);
+        self.last_error = None;
         cx.notify();
     }
 
@@ -217,6 +219,9 @@ impl TypesetView {
 
     /// Re-parses after the source changed.
     fn reparse(&mut self) {
+        // Every successful edit ends with a re-parse, so this is the one place
+        // that can clear a stale rejection.
+        self.last_error = None;
         match TypesetDocument::parse_with(self.editor.source(), Some(&self.diagrams)) {
             Ok(document) => {
                 self.document = document;
@@ -382,14 +387,22 @@ impl TypesetView {
     }
 
     /// Writes the selection to the clipboard and removes it.
+    ///
+    /// The clipboard is written only after the removal succeeded: writing first
+    /// would clobber what the user had copied even when the cut itself was
+    /// rejected.
     fn cut(&mut self, cx: &mut Context<Self>) {
-        let text = self.editor.selected_text().to_string();
-        if text.is_empty() {
+        if self.editor.selected_text().is_empty() {
             return;
         }
-        cx.write_to_clipboard(gpui_kit::ClipboardItem::new_string(text));
-        let result = self.editor.cut_selection();
-        self.apply(result.map(|_| ()), cx);
+        match self.editor.cut_selection() {
+            Ok(removed) if !removed.is_empty() => {
+                cx.write_to_clipboard(gpui_kit::ClipboardItem::new_string(removed));
+                self.apply(Ok(()), cx);
+            }
+            Ok(_) => {}
+            Err(error) => self.apply(Err(error), cx),
+        }
     }
 
     /// Inserts the clipboard's text at the caret.
@@ -405,7 +418,13 @@ impl TypesetView {
 
     /// Reverts the last edit.
     fn undo(&mut self, cx: &mut Context<Self>) {
+        if self.editor.is_readonly() {
+            self.last_error = Some("The document is read-only.".into());
+            cx.notify();
+            return;
+        }
         if self.editor.undo() {
+            self.last_error = None;
             self.reparse();
             cx.notify();
         }
@@ -413,7 +432,13 @@ impl TypesetView {
 
     /// Reapplies the last undone edit.
     fn redo(&mut self, cx: &mut Context<Self>) {
+        if self.editor.is_readonly() {
+            self.last_error = Some("The document is read-only.".into());
+            cx.notify();
+            return;
+        }
         if self.editor.redo() {
+            self.last_error = None;
             self.reparse();
             cx.notify();
         }
@@ -640,6 +665,9 @@ impl EntityInputHandler for TypesetView {
 
     fn unmark_text(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
         self.marked = None;
+        // The composition is committed, so the next keystroke starts a new undo
+        // step instead of joining the composed text.
+        self.editor.commit_composition();
         cx.notify();
     }
 
