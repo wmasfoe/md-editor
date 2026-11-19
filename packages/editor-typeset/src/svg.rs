@@ -88,18 +88,6 @@ impl SvgImageChannel {
     }
 }
 
-/// Rasterizes `svg`, reporting `None` instead of an error.
-///
-/// Rendering a diagram or formula must never block editing, so the fallback
-/// path — show the source instead — only needs to know whether it worked.
-pub fn try_svg_to_image(
-    asset_source: Arc<dyn AssetSource>,
-    svg: &str,
-    size: impl Into<SvgSize>,
-) -> Option<ImageSource> {
-    SvgImageChannel::new(asset_source).image(svg, size).ok()
-}
-
 /// Encodes a rendered image as a PNG data URL.
 ///
 /// The block tree can only hold an image by URI, and its decoder cannot read
@@ -199,6 +187,11 @@ mod tests {
 
     #[test]
     fn the_fallback_path_reports_none_instead_of_failing() {
-        assert!(try_svg_to_image(Arc::new(()), "not an svg", SvgSize::ScaleFactor(1.0)).is_none());
+        let channel = SvgImageChannel::new(Arc::new(()));
+        assert!(
+            channel
+                .image("not an svg", SvgSize::ScaleFactor(1.0))
+                .is_err()
+        );
     }
 }

@@ -30,7 +30,7 @@ pub use geometry::{LeafIndex, caret_at};
 pub use math::{Formula, FormulaError, MATH_LANGUAGE, MathRenderer, is_math_fence};
 pub use mermaid::{Diagram, DiagramError, MERMAID_LANGUAGE, is_mermaid_fence, render_diagram};
 pub use movement::{Vertical, move_down, move_left, move_right, move_up, move_vertical};
-pub use svg::{SvgError, SvgImageChannel, to_png_data_url, try_svg_to_image};
+pub use svg::{SvgError, SvgImageChannel, to_png_data_url};
 pub use text::{byte_offset, line_start, utf16_offset};
 
 use std::collections::HashMap;
