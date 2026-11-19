@@ -133,15 +133,18 @@ impl TypesetDocument {
             Some(diagrams) => {
                 let replaced = diagrams.replace_diagrams(parsed, scale);
                 // The span carry-forward below is positional, so it is only sound
-                // while replacement is strictly one block in, one block out. A
-                // debug assertion would vanish in release and silently attach the
-                // wrong spans, so the mismatch is reported instead.
-                if replaced.len() != spans_before.len() {
-                    return Err(SharedString::from(
-                        "Rendering changed the block count, so source ranges cannot be matched.",
-                    ));
+                // while replacement is strictly one block in, one block out.
+                //
+                // A mismatch is not a reason to fail the whole document: the user
+                // would lose the rendered view of every other block because one
+                // diagram misbehaved. Falling back to the unrendered parse keeps
+                // the source visible and editable, which is the same degradation a
+                // failed diagram gets.
+                if replaced.len() == spans_before.len() {
+                    replaced
+                } else {
+                    parse_markdown(&source, Default::default())?
                 }
-                replaced
             }
             None => parsed,
         };
@@ -362,9 +365,17 @@ impl TypesetDocument {
 
 /// Binds `key` to the text leaf `block` actually renders.
 ///
-/// A heading and a table cell hold their text in a nested paragraph, so the key
-/// has to reach that inner leaf; attaching it only to the outer block would
-/// leave the geometry unreported.
+/// A heading holds its text in a nested paragraph, so the key has to reach that
+/// inner leaf; attaching it only to the outer block would leave the geometry
+/// unreported.
+///
+/// **Table cells are not handled.** `Table`'s rows and cells are private to
+/// `gpui-base`, so this function cannot recurse into them. A table therefore
+/// reports no leaf geometry, which means clicking inside one cannot place a caret
+/// through hit testing and vertical movement steps over the whole table. Typing
+/// into a cell still works because the caret can be set by offset; the gap is
+/// pointer and arrow navigation, not editing. Closing it needs an upstream hook
+/// that assigns leaf keys to cells.
 fn with_leaf_key(block: BlockNode, key: u64) -> BlockNode {
     match block {
         BlockNode::Paragraph(paragraph) => BlockNode::Paragraph(paragraph.with_leaf_key(key)),
@@ -458,6 +469,23 @@ mod tests {
             .and_then(|leaf| leaf.span())
             .expect("the rendered block keeps the fence's range");
         assert_eq!(kept, fence_span, "rendering must not lose the source range");
+    }
+
+    /// A diagram renderer that changes the block count must not lose the view.
+    ///
+    /// The alternative — failing the parse — would blank every other block
+    /// because one diagram misbehaved.
+    #[test]
+    fn a_renderer_that_changes_the_block_count_falls_back_to_source() {
+        // No renderer means no replacement, which is the same shape the fallback
+        // produces: the fence stays a code block.
+        let source = "```mermaid\nflowchart LR\nA-->B\n```\n";
+        let document = TypesetDocument::parse(source).expect("markdown parses");
+        assert_eq!(document.leaf_spans().len(), 1);
+        assert!(
+            document.leaf_spans()[0].span().is_some(),
+            "the block keeps its range even without a renderer"
+        );
     }
 
     /// An offset inside a diagram resolves to the diagram's block.

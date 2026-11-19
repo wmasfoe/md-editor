@@ -264,6 +264,14 @@ impl History {
 }
 
 /// The most edits one document remembers for undo.
+///
+/// Each step stores the whole source, so memory is roughly
+/// `HISTORY_LIMIT × document size`. For a typical article that is well under a
+/// megabyte; a very large document would hold its own size 200 times over. The
+/// trade is deliberate: a snapshot cannot disagree with the edit that produced
+/// it the way a hand-written inverse can, and correctness matters more than a
+/// bounded worst case here. Lower this if a document large enough to matter
+/// shows up.
 const HISTORY_LIMIT: usize = 200;
 
 /// An editable Markdown document with a caret and selection.
