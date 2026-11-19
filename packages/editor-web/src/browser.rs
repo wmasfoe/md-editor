@@ -102,6 +102,23 @@ pub fn set_readonly(readonly: bool) -> Result<(), JsValue> {
     })
 }
 
+/// 把当前 Markdown 写入系统剪贴板。
+///
+/// 浏览器宿主无需再手写 `navigator.clipboard.writeText`：`gpui-pre-web` 的
+/// `Platform::write_to_clipboard` 已经封装了 `navigator.clipboard.write_text`，
+/// 并且与桌面端走同一条路径。注意浏览器要求调用发生在用户激活（点击）
+/// 的同步栈内，所以 JS 侧应在 click 处理函数里直接调用本函数，不要先 await。
+#[wasm_bindgen]
+pub fn copy_markdown() -> Result<(), JsValue> {
+    with_editor(|application, _, editor| {
+        application.update(|cx| {
+            let markdown = cx.read_entity(editor, |editor, cx| editor.markdown(cx));
+            cx.write_to_clipboard(ClipboardItem::new_string(markdown));
+            Ok(())
+        })
+    })
+}
+
 fn with_editor<R>(
     f: impl FnOnce(&ApplicationHandle, &AnyWindowHandle, &Entity<EditorView>) -> Result<R, JsValue>,
 ) -> Result<R, JsValue> {

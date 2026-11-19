@@ -31,6 +31,15 @@ export async function mountPlayground({
       wasm.set_markdown(markdown);
       lastRevision = wasm.get_revision();
     },
+    /**
+     * 把当前 Markdown 写入剪贴板。
+     *
+     * 实现在 Rust 侧（`Platform::write_to_clipboard`），与桌面端共用同一条路径，
+     * 浏览器宿主不再自己拼 `navigator.clipboard.writeText`。
+     * 浏览器要求写剪贴板发生在用户激活（点击）的同步栈内，所以调用方要在
+     * click 处理函数里直接调，不要先 await 其他异步操作。
+     */
+    copyMarkdown: wasm.copy_markdown,
     setReadonly: wasm.set_readonly,
     dispose() {
       if (disposed) return;

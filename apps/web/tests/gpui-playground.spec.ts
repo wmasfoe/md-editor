@@ -45,5 +45,15 @@ test("GPUI browser playground imports, edits, and downloads Markdown", async ({ 
   const saved = await readFile((await download.path())!, "utf8");
   expect(saved).toContain(imported);
   expect(saved).not.toContain("键盘编辑");
+
+  // 剪贴板写入走 Rust 的 Platform::write_to_clipboard，不再由 JS 拼
+  // navigator.clipboard.writeText。这里授予权限后点一次，确认整条链路通。
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.getByRole("button", { name: "Copy Markdown" }).click();
+  await expect(page.locator("#playground-status")).toHaveText("Copied Markdown");
+  const clipboardText = await page.evaluate(() => navigator.clipboard.readText());
+  expect(clipboardText).toContain(imported);
+  expect(clipboardText).not.toContain("键盘编辑");
+
   expect(pageErrors).toEqual([]);
 });
