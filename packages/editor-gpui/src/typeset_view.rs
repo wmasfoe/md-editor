@@ -1484,3 +1484,92 @@ mod clipboard_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod ime_tests {
+    use super::*;
+    use gpui_kit::TestAppContext;
+
+    fn open<'a>(
+        cx: &'a mut TestAppContext,
+        source: &str,
+    ) -> (Entity<TypesetView>, &'a mut gpui_kit::VisualTestContext) {
+        cx.update(gpui_kit::init);
+        cx.update(TypesetView::bind_keys);
+        let (view, vcx) = cx.add_window_view(|window, cx| TypesetView::new(window, cx, source));
+        for _ in 0..2 {
+            vcx.update(|window, cx| {
+                view.update(cx, |view, cx| view.focus(window, cx));
+                window.draw(cx).clear(cx);
+            });
+            vcx.run_until_parked();
+        }
+        (view, vcx)
+    }
+
+    /// Composing text must be insertable, reportable and clearable.
+    ///
+    /// The OS drives this sequence for every CJK keystroke: it replaces a range
+    /// with the current composition, asks where the composing region is, and
+    /// finally clears the mark when the character commits.
+    #[gpui_kit::test]
+    fn a_composition_is_marked_and_then_cleared(cx: &mut TestAppContext) {
+        let (view, vcx) = open(cx, "");
+        vcx.update(|window, cx| {
+            view.update(cx, |view, cx| {
+                // Start composing at the caret.
+                view.replace_and_mark_text_in_range(None, "zhong", None, window, cx);
+                assert!(
+                    view.marked_text_range(window, cx).is_some(),
+                    "a composition in progress must be reported"
+                );
+                assert!(view.composing(), "and the view must say it is composing");
+                // Commit: the OS clears the mark.
+                view.unmark_text(window, cx);
+                assert!(
+                    view.marked_text_range(window, cx).is_none(),
+                    "a committed composition is no longer marked"
+                );
+                assert!(!view.composing());
+            });
+        });
+        assert_eq!(
+            view.read_with(&*vcx, |view, _| view.markdown().to_string()),
+            "zhong",
+            "the composed text is in the document"
+        );
+    }
+
+    /// The platform asks for text by UTF-16 range and gets the right slice.
+    #[gpui_kit::test]
+    fn text_for_a_utf16_range_returns_the_matching_slice(cx: &mut TestAppContext) {
+        let (view, vcx) = open(cx, "a中b");
+        vcx.update(|window, cx| {
+            view.update(cx, |view, cx| {
+                let mut adjusted = None;
+                let all = view
+                    .text_for_range(0..3, &mut adjusted, window, cx)
+                    .expect("the whole document");
+                assert_eq!(all, "a中b", "three UTF-16 units cover the document");
+                assert_eq!(adjusted, Some(0..3));
+            });
+        });
+        vcx.run_until_parked();
+    }
+
+    /// Replacing a UTF-16 range writes through to the document.
+    #[gpui_kit::test]
+    fn replacing_a_utf16_range_edits_the_document(cx: &mut TestAppContext) {
+        let (view, vcx) = open(cx, "abc");
+        vcx.update(|window, cx| {
+            view.update(cx, |view, cx| {
+                view.replace_text_in_range(Some(1..2), "X", window, cx);
+            });
+        });
+        assert_eq!(
+            view.read_with(&*vcx, |view, _| view.markdown().to_string()),
+            "aXc",
+            "the range was replaced in place"
+        );
+    }
+}
