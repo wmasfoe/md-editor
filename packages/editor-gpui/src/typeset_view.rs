@@ -62,15 +62,17 @@ impl TypesetView {
     /// Opens `source` in a new view.
     pub fn new(window: &mut Window, cx: &mut Context<Self>, source: impl Into<String>) -> Self {
         let editor = TypesetEditor::new(source);
-        // A document that will not parse still opens: the buffer is the user's
-        // file and losing it would be worse than showing it unrendered. The
-        // failure is kept so the host can report it.
+        // A document that will not parse still opens, because the buffer is the
+        // user's file and losing it would be worse than showing it unrendered.
+        //
+        // There is no previous tree to keep on the first open, so the fallback
+        // shows the raw source as one code block: the user sees their text
+        // instead of a blank page, which is the same intent as the degradation
+        // mermaid and math use. `reparse` keeps the previous tree instead, since
+        // by then one exists.
         let (document, parse_error) = match TypesetDocument::parse(editor.source()) {
             Ok(document) => (document, None),
-            Err(error) => (
-                TypesetDocument::parse("").expect("the empty document parses"),
-                Some(error),
-            ),
+            Err(error) => (Self::source_fallback(editor.source()), Some(error)),
         };
         let focus = cx.focus_handle();
         focus.focus(window, cx);
@@ -129,6 +131,18 @@ impl TypesetView {
     /// Focuses the view.
     pub fn focus(&self, window: &mut Window, cx: &mut Context<Self>) {
         self.focus.focus(window, cx);
+    }
+
+    /// Renders the raw source as a single fenced block.
+    ///
+    /// Used when Markdown cannot be structured: showing the text beats a blank
+    /// page, and it is what the mermaid and math paths do when they fail.
+    fn source_fallback(source: &str) -> TypesetDocument {
+        let body = source.replace("```", "'''");
+        let fenced = format!("```text\n{body}\n```\n");
+        TypesetDocument::parse(fenced)
+            .or_else(|_| TypesetDocument::parse(""))
+            .expect("an empty document parses")
     }
 
     /// Re-parses after the source changed.
