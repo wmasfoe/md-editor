@@ -73,15 +73,9 @@ fn main() {
                 MenuItem::action("Save As…", SaveAs),
                 MenuItem::action("Close", CloseDocument),
             ]),
-            Menu::new("View").items([
-                MenuItem::action("Toggle Source Mode", ToggleSourceMode),
-                #[cfg(not(target_os = "macos"))]
-                MenuItem::action("Block Editor", ShowBlockEditor),
-                #[cfg(not(target_os = "macos"))]
-                MenuItem::action("Side-by-Side Preview", ShowSplitPreview),
-                MenuItem::separator(),
-                MenuItem::action("Toggle Outline", ToggleOutline),
-            ]),
+            // The source / block / split entries are gone: the GPUI editor
+            // renders and edits at once, so there is no mode to switch between.
+            Menu::new("View").items([MenuItem::action("Toggle Outline", ToggleOutline)]),
             Menu::new("Format").items([
                 MenuItem::action("Bold", FormatInline(InlineFormat::Bold)),
                 MenuItem::action("Italic", FormatInline(InlineFormat::Italic)),
