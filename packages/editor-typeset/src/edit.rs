@@ -126,12 +126,88 @@ pub enum EditorCommand {
     Heading(u8),
 }
 
+/// One undoable step: the whole source before the edit, plus the selection.
+///
+/// Storing the full source per step is simpler and safer than inverting each
+/// edit, and a Markdown buffer is small enough that the cost does not matter
+/// against the risk of an inverse that disagrees with the forward edit.
+#[derive(Clone, Debug)]
+struct Snapshot {
+    source: String,
+    anchor: usize,
+    head: usize,
+}
+
+/// A bounded undo/redo stack of whole-source snapshots.
+///
+/// Deliberately simple: a Markdown buffer is small, and restoring a snapshot
+/// cannot disagree with the edit that produced it the way an inverse operation
+/// can. The bound keeps memory flat over a long session.
+#[derive(Debug)]
+struct History {
+    undos: Vec<Snapshot>,
+    redos: Vec<Snapshot>,
+    limit: usize,
+}
+
+impl History {
+    fn new(limit: usize) -> Self {
+        Self {
+            undos: Vec::new(),
+            redos: Vec::new(),
+            limit,
+        }
+    }
+
+    /// Records `snapshot` and drops the redo branch, which a new edit invalidates.
+    fn push(&mut self, snapshot: Snapshot) {
+        if self.limit == 0 {
+            return;
+        }
+        if self.undos.len() == self.limit {
+            self.undos.remove(0);
+        }
+        self.undos.push(snapshot);
+        self.redos.clear();
+    }
+
+    fn undo(&mut self, current: Snapshot) -> Option<Snapshot> {
+        let previous = self.undos.pop()?;
+        if self.redos.len() == self.limit {
+            self.redos.remove(0);
+        }
+        self.redos.push(current);
+        Some(previous)
+    }
+
+    fn redo(&mut self, current: Snapshot) -> Option<Snapshot> {
+        let next = self.redos.pop()?;
+        if self.undos.len() == self.limit {
+            self.undos.remove(0);
+        }
+        self.undos.push(current);
+        Some(next)
+    }
+
+    fn can_undo(&self) -> bool {
+        !self.undos.is_empty()
+    }
+
+    fn can_redo(&self) -> bool {
+        !self.redos.is_empty()
+    }
+}
+
+/// The most edits one document remembers for undo.
+const HISTORY_LIMIT: usize = 200;
+
 /// An editable Markdown document with a caret and selection.
 pub struct TypesetEditor {
     document: MarkdownDocument,
     selection: Selection,
     revision: u64,
     readonly: bool,
+    history: History,
 }
 
 impl TypesetEditor {
@@ -142,7 +218,68 @@ impl TypesetEditor {
             selection: Selection::caret(0),
             revision: 0,
             readonly: false,
+            history: History::new(HISTORY_LIMIT),
         }
+    }
+
+    /// The current state as an undoable snapshot.
+    fn snapshot(&self) -> Snapshot {
+        Snapshot {
+            source: self.document.source().to_string(),
+            anchor: self.selection.anchor(),
+            head: self.selection.head(),
+        }
+    }
+
+    /// Restores `snapshot` and bumps the revision.
+    fn restore(&mut self, snapshot: Snapshot) {
+        self.document = MarkdownDocument::new(snapshot.source);
+        self.selection = Selection::new(snapshot.anchor, snapshot.head);
+        self.revision = self.revision.wrapping_add(1);
+    }
+
+    /// Whether there is an edit to undo.
+    pub fn can_undo(&self) -> bool {
+        self.history.can_undo()
+    }
+
+    /// Whether there is an undone edit to redo.
+    pub fn can_redo(&self) -> bool {
+        self.history.can_redo()
+    }
+
+    /// Reverts the last edit, returning whether anything changed.
+    pub fn undo(&mut self) -> bool {
+        if self.readonly {
+            return false;
+        }
+        let current = self.snapshot();
+        let Some(previous) = self.history.undo(current) else {
+            return false;
+        };
+        self.restore(previous);
+        true
+    }
+
+    /// Reapplies the last undone edit, returning whether anything changed.
+    pub fn redo(&mut self) -> bool {
+        if self.readonly {
+            return false;
+        }
+        let current = self.snapshot();
+        let Some(next) = self.history.redo(current) else {
+            return false;
+        };
+        self.restore(next);
+        true
+    }
+
+    /// Records the current state so the next edit can be undone.
+    ///
+    /// Called before each mutation, not after: the snapshot to restore is the
+    /// state the user is about to leave.
+    fn record(&mut self) {
+        self.history.push(self.snapshot());
     }
 
     /// The current Markdown source.
@@ -218,6 +355,7 @@ impl TypesetEditor {
         if self.readonly {
             return Err(TypesetError::ReadOnly);
         }
+        self.record();
         let range = self.selection.range();
         let caret = range.start + text.len();
         self.apply(SourceEdit {
@@ -234,6 +372,7 @@ impl TypesetEditor {
         }
         let selection = self.selection.range();
         let edit = self.document.set_heading(selection, level)?;
+        self.record();
         self.apply(edit)
     }
 
@@ -244,6 +383,7 @@ impl TypesetEditor {
         }
         let selection = self.selection.range();
         let edit = self.document.wrap_selection(selection, prefix, suffix)?;
+        self.record();
         self.apply(edit)
     }
 
@@ -254,6 +394,7 @@ impl TypesetEditor {
         }
         let selection = self.selection.range();
         let edit = self.document.toggle_line_prefix(selection, prefix)?;
+        self.record();
         self.apply(edit)
     }
 
@@ -273,6 +414,7 @@ impl TypesetEditor {
         let cell = self.cell_at(offset)?;
         let range = cell.content_range.clone();
         let caret = range.start + text.len();
+        self.record();
         Some(self.apply(SourceEdit {
             range,
             replacement: text.to_string(),
@@ -400,6 +542,74 @@ mod tests {
             .toggle_line_prefix("- [ ] ")
             .expect("the prefix should apply");
         assert_eq!(editor.source(), "- [ ] item\n");
+    }
+
+    #[test]
+    fn undo_restores_the_text_and_the_caret() {
+        let mut editor = TypesetEditor::new("ab");
+        editor.set_caret(1);
+        editor.insert("X").expect("insert applies");
+        assert_eq!(editor.source(), "aXb");
+        assert!(editor.can_undo());
+        assert!(editor.undo());
+        assert_eq!(editor.source(), "ab", "undo restores the previous text");
+        assert_eq!(editor.selection().head(), 1, "and the caret it had");
+    }
+
+    #[test]
+    fn redo_reapplies_the_undone_edit() {
+        let mut editor = TypesetEditor::new("ab");
+        editor.set_caret(1);
+        editor.insert("X").expect("insert applies");
+        assert!(editor.undo());
+        assert!(editor.can_redo());
+        assert!(editor.redo());
+        assert_eq!(editor.source(), "aXb");
+    }
+
+    #[test]
+    fn a_new_edit_drops_the_redo_branch() {
+        let mut editor = TypesetEditor::new("ab");
+        editor.set_caret(1);
+        editor.insert("X").expect("insert applies");
+        assert!(editor.undo());
+        editor.insert("Y").expect("insert applies");
+        assert!(!editor.can_redo(), "a fresh edit invalidates redo");
+    }
+
+    #[test]
+    fn undo_and_redo_report_nothing_when_the_stack_is_empty() {
+        let mut editor = TypesetEditor::new("ab");
+        assert!(!editor.can_undo());
+        assert!(!editor.undo());
+        assert!(!editor.can_redo());
+        assert!(!editor.redo());
+    }
+
+    #[test]
+    fn a_readonly_document_refuses_undo() {
+        let mut editor = TypesetEditor::new("ab");
+        editor.set_caret(1);
+        editor.insert("X").expect("insert applies");
+        editor.set_readonly(true);
+        assert!(!editor.undo(), "read-only means no history movement either");
+        assert_eq!(editor.source(), "aXb");
+    }
+
+    #[test]
+    fn several_edits_undo_one_at_a_time() {
+        let mut editor = TypesetEditor::new("");
+        editor.set_caret(0);
+        editor.insert("a").expect("insert applies");
+        editor.insert("b").expect("insert applies");
+        editor.insert("c").expect("insert applies");
+        assert_eq!(editor.source(), "abc");
+        assert!(editor.undo());
+        assert_eq!(editor.source(), "ab");
+        assert!(editor.undo());
+        assert_eq!(editor.source(), "a");
+        assert!(editor.redo());
+        assert_eq!(editor.source(), "ab");
     }
 
     #[test]

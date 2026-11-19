@@ -32,6 +32,8 @@ actions!(
         SelectAll,
         InsertNewline,
         DeleteBackward,
+        Undo,
+        Redo,
     ]
 );
 
@@ -236,6 +238,32 @@ impl TypesetView {
         gpui_kit::base::text::editor_host::Caret::new(limit)
     }
 
+    /// Reverts the last edit.
+    fn undo(&mut self, cx: &mut Context<Self>) {
+        if self.editor.undo() {
+            self.reparse();
+            cx.notify();
+        }
+    }
+
+    /// Reapplies the last undone edit.
+    fn redo(&mut self, cx: &mut Context<Self>) {
+        if self.editor.redo() {
+            self.reparse();
+            cx.notify();
+        }
+    }
+
+    /// Whether there is an edit to undo.
+    pub fn can_undo(&self) -> bool {
+        self.editor.can_undo()
+    }
+
+    /// Whether there is an undone edit to redo.
+    pub fn can_redo(&self) -> bool {
+        self.editor.can_redo()
+    }
+
     /// Selects the whole document.
     fn select_all(&mut self, cx: &mut Context<Self>) {
         let len = self.editor.source().len();
@@ -280,6 +308,8 @@ impl TypesetView {
             KeyBinding::new("down", MoveDown, None),
             KeyBinding::new("enter", InsertNewline, None),
             KeyBinding::new("backspace", DeleteBackward, None),
+            KeyBinding::new("cmd-z", Undo, None),
+            KeyBinding::new("cmd-shift-z", Redo, None),
             KeyBinding::new("cmd-a", SelectAll, None),
         ]);
     }
@@ -480,6 +510,8 @@ impl Render for TypesetView {
         let on_select_all = cx.listener(|this, _: &SelectAll, _, cx| this.select_all(cx));
         let on_newline = cx.listener(|this, _: &InsertNewline, _, cx| this.insert("\n", cx));
         let on_backspace = cx.listener(|this, _: &DeleteBackward, _, cx| this.delete_backward(cx));
+        let on_undo = cx.listener(|this, _: &Undo, _, cx| this.undo(cx));
+        let on_redo = cx.listener(|this, _: &Redo, _, cx| this.redo(cx));
 
         let context = RenderContext::from_app(cx);
         let (element, geometry) = self
@@ -507,6 +539,8 @@ impl Render for TypesetView {
             .on_action(on_select_all)
             .on_action(on_newline)
             .on_action(on_backspace)
+            .on_action(on_undo)
+            .on_action(on_redo)
             .child(element)
     }
 }
