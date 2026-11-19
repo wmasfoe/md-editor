@@ -15,7 +15,7 @@ use std::ops::Range;
 use gpui_kit::base::text::editor_host::RenderContext;
 use gpui_kit::{
     App, Bounds, Context, EntityInputHandler, FocusHandle, IntoElement, KeyBinding, Pixels, Point,
-    Render, SharedString, UTF16Selection, Window, actions, div, prelude::*, px,
+    Render, UTF16Selection, Window, actions, div, prelude::*, px,
 };
 use inkpoint_editor_typeset::{
     LeafIndex, TypesetDocument, TypesetEditor, TypesetError, caret_at, move_down, move_left,
@@ -450,13 +450,15 @@ impl Render for TypesetView {
         let (element, geometry) = self
             .document
             .render(px(BODY_FONT_SIZE), context, window, cx);
-        // The caret follows the selection, so resolve which leaf holds it from
-        // this frame's geometry rather than trusting a stale key.
+        // Resolve the caret's leaf from the document's source spans, not from
+        // the leaf lengths: a caret offset is document-wide, while a leaf only
+        // knows its own length, so comparing the two picks the wrong block as
+        // soon as the document has more than one.
         let offset = self.editor.selection().head();
-        self.caret_leaf = geometry
-            .entries()
-            .find(|(_, leaf)| offset <= leaf.len())
-            .map(|(key, _)| key);
+        self.caret_leaf = self
+            .document
+            .leaf_at(offset)
+            .filter(|key| geometry.get(*key).is_some());
         self.geometry = geometry;
         div()
             .id("typeset-view")
@@ -475,11 +477,6 @@ impl Render for TypesetView {
 }
 
 impl TypesetView {
-    /// Inserts `text` at the caret from outside the input path, e.g. a paste.
-    pub fn paste_text(&mut self, text: &str, cx: &mut Context<Self>) {
-        self.insert(text, cx);
-    }
-
     /// The selection as byte offsets, for the host's snapshot protocol.
     pub fn selected_range(&self) -> Range<usize> {
         self.editor.selection().range()
@@ -488,11 +485,6 @@ impl TypesetView {
     /// The leaf key the caret is in, when the last frame laid it out.
     pub fn caret_leaf(&self) -> Option<u64> {
         self.caret_leaf
-    }
-
-    /// The shared string form of the document, for elements that need one.
-    pub fn markdown_shared(&self) -> SharedString {
-        SharedString::from(self.editor.source().to_string())
     }
 }
 

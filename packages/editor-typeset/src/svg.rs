@@ -12,7 +12,7 @@
 
 use std::sync::Arc;
 
-use gpui_kit::{AssetSource, ImageSource, ParsedSvg, RenderImage, SvgRenderer, SvgSize};
+use gpui_kit::{AssetSource, ImageSource, ParsedSvg, SvgRenderer, SvgSize};
 
 /// Why an SVG could not become an image.
 #[derive(Clone, Debug)]
@@ -86,18 +86,6 @@ impl SvgImageChannel {
     }
 }
 
-/// Rasterizes `svg` into a drawable image using a fresh channel.
-///
-/// Convenience for callers that do not keep a channel around. A long-lived
-/// channel avoids reloading system fonts per call.
-pub fn svg_to_image(
-    asset_source: Arc<dyn AssetSource>,
-    svg: &str,
-    size: impl Into<SvgSize>,
-) -> Result<ImageSource, SvgError> {
-    SvgImageChannel::new(asset_source).image(svg, size)
-}
-
 /// Rasterizes `svg`, reporting `None` instead of an error.
 ///
 /// Rendering a diagram or formula must never block editing, so the fallback
@@ -107,21 +95,23 @@ pub fn try_svg_to_image(
     svg: &str,
     size: impl Into<SvgSize>,
 ) -> Option<ImageSource> {
-    svg_to_image(asset_source, svg, size).ok()
-}
-
-/// The pixel size of a rendered image, which layout needs to reserve space.
-pub fn image_size(image: &RenderImage) -> (u32, u32) {
-    let size = image.size(0);
-    (size.width.0.max(0) as u32, size.height.0.max(0) as u32)
+    SvgImageChannel::new(asset_source).image(svg, size).ok()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use gpui_kit::RenderImage;
 
     /// The smallest SVG that still exercises parse and rasterize.
     const SQUARE: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="black"/></svg>"#;
+
+    /// The pixel size of a rendered image, used to check that rasterizing
+    /// produced something non-empty.
+    fn image_size(image: &RenderImage) -> (u32, u32) {
+        let size = image.size(0);
+        (size.width.0.max(0) as u32, size.height.0.max(0) as u32)
+    }
 
     #[test]
     fn a_well_formed_svg_parses_and_rasterizes() {

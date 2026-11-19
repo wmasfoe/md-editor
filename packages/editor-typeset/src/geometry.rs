@@ -95,11 +95,6 @@ pub fn caret_at(index: &LeafIndex, point: Point<Pixels>) -> Option<Caret> {
     index.caret_for_point(point)
 }
 
-/// The byte index for a click at `point` across the whole frame.
-pub fn index_at(index: &LeafIndex, point: Point<Pixels>) -> Option<usize> {
-    index.index_for_point(point)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

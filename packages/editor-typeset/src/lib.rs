@@ -23,7 +23,7 @@ mod movement;
 mod svg;
 
 pub use edit::{EditorCommand, Selection, TypesetEditor, TypesetError};
-pub use geometry::{LeafIndex, caret_at, index_at};
+pub use geometry::{LeafIndex, caret_at};
 pub use math::{
     Formula, FormulaError, MATH_LANGUAGE, MathRenderer, default_font_size, is_math_fence,
     try_render_formula,
@@ -32,7 +32,9 @@ pub use mermaid::{
     Diagram, DiagramError, MERMAID_LANGUAGE, is_mermaid_fence, render_diagram, try_render_diagram,
 };
 pub use movement::{Vertical, move_down, move_left, move_right, move_up, move_vertical};
-pub use svg::{SvgError, SvgImageChannel, image_size, svg_to_image, try_svg_to_image};
+pub use svg::{SvgError, SvgImageChannel, try_svg_to_image};
+
+use std::ops::Range;
 
 use gpui_kit::base::text::editor_host::{BlockNode, FlowPosition, RenderContext, parse_markdown};
 use gpui_kit::{App, Pixels, SharedString, Window, div, prelude::*};
@@ -43,10 +45,43 @@ use gpui_kit::{App, Pixels, SharedString, Window, div, prelude::*};
 /// editor uses them to match geometry back to the block it came from.
 pub const FIRST_LEAF_KEY: u64 = 1;
 
+/// One block's place in the source and the leaf key it renders under.
+///
+/// `span` is the block's byte range in the whole Markdown source, which is what
+/// lets a document-wide caret offset be resolved to the leaf that holds it. A
+/// leaf's own geometry only knows its local length, so comparing a global offset
+/// against it would pick the wrong block.
+#[derive(Clone, Debug)]
+pub struct LeafSpan {
+    key: u64,
+    span: Option<Range<usize>>,
+}
+
+impl LeafSpan {
+    /// The leaf key this block renders under.
+    pub fn key(&self) -> u64 {
+        self.key
+    }
+
+    /// The block's byte range in the document source, when the parser reported
+    /// one. Blocks such as unknown constructs carry no span.
+    pub fn span(&self) -> Option<Range<usize>> {
+        self.span.clone()
+    }
+
+    /// Whether `offset` falls inside this block.
+    pub fn contains(&self, offset: usize) -> bool {
+        self.span
+            .as_ref()
+            .is_some_and(|span| span.contains(&offset))
+    }
+}
+
 /// A parsed document ready to be rendered and edited.
 pub struct TypesetDocument {
     blocks: Vec<BlockNode>,
     keys: Vec<u64>,
+    spans: Vec<LeafSpan>,
     source: String,
 }
 
@@ -63,15 +98,19 @@ impl TypesetDocument {
         let source = source.into();
         let parsed = parse_markdown(&source, Default::default())?;
         let mut keys = Vec::with_capacity(parsed.len());
+        let mut spans = Vec::with_capacity(parsed.len());
         let mut blocks = Vec::with_capacity(parsed.len());
         for (index, block) in parsed.into_iter().enumerate() {
             let key = FIRST_LEAF_KEY + index as u64;
+            let span = block.span().map(|span| span.start..span.end);
             keys.push(key);
+            spans.push(LeafSpan { key, span });
             blocks.push(with_leaf_key(block, key));
         }
         Ok(Self {
             blocks,
             keys,
+            spans,
             source,
         })
     }
@@ -89,6 +128,29 @@ impl TypesetDocument {
     /// The leaf key for `index`, or `None` when out of range.
     pub fn leaf_key(&self, index: usize) -> Option<u64> {
         self.keys.get(index).copied()
+    }
+
+    /// Every block's key and source span, in document order.
+    pub fn leaf_spans(&self) -> &[LeafSpan] {
+        &self.spans
+    }
+
+    /// The leaf whose source span contains `offset`.
+    ///
+    /// Falls back to the last block that starts at or before `offset`, because
+    /// an offset in the gap between two blocks belongs to the block before it:
+    /// that is where a caret at the end of a line sits.
+    pub fn leaf_at(&self, offset: usize) -> Option<u64> {
+        let mut candidate = None;
+        for leaf in &self.spans {
+            if leaf.contains(offset) {
+                return Some(leaf.key);
+            }
+            if leaf.span.as_ref().is_some_and(|span| span.start <= offset) {
+                candidate = Some(leaf.key);
+            }
+        }
+        candidate.or_else(|| self.spans.first().map(|leaf| leaf.key))
     }
 
     /// Renders the document's blocks without collecting geometry.
@@ -165,5 +227,68 @@ fn with_leaf_key(block: BlockNode, key: u64) -> BlockNode {
             span,
         },
         other => other,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The parser reports document-wide spans, which is what lets a caret
+    /// offset resolve to a leaf.
+    #[test]
+    fn each_block_carries_its_source_span() {
+        let document = TypesetDocument::parse("# One\n\nTwo\n").expect("markdown parses");
+        let spans: Vec<_> = document
+            .leaf_spans()
+            .iter()
+            .map(|leaf| leaf.span())
+            .collect();
+        assert_eq!(spans.len(), 2, "a heading and a paragraph");
+        let heading = spans[0].clone().expect("the heading has a span");
+        assert_eq!(heading.start, 0, "the heading starts the document");
+        let paragraph = spans[1].clone().expect("the paragraph has a span");
+        assert!(
+            paragraph.start >= heading.end,
+            "the paragraph starts after the heading: {paragraph:?} vs {heading:?}"
+        );
+    }
+
+    /// A caret offset is document-wide. Resolving it by leaf length would land
+    /// on the first block every time, so this pins the span-based lookup.
+    #[test]
+    fn a_caret_offset_resolves_to_the_block_that_contains_it() {
+        let source = "# One\n\nTwo\n";
+        let document = TypesetDocument::parse(source).expect("markdown parses");
+        let first = document.leaf_key(0).expect("a first key");
+        let second = document.leaf_key(1).expect("a second key");
+        assert_eq!(document.leaf_at(0), Some(first), "the start is the heading");
+        let paragraph_start = source.find("Two").expect("the paragraph text");
+        assert_eq!(
+            document.leaf_at(paragraph_start),
+            Some(second),
+            "an offset inside the paragraph resolves to it, not the heading"
+        );
+    }
+
+    /// A caret sitting in the blank line between blocks belongs to the block
+    /// before it, which is where the end of a line actually is.
+    #[test]
+    fn an_offset_between_blocks_resolves_to_the_earlier_one() {
+        let document = TypesetDocument::parse("# One\n\nTwo\n").expect("markdown parses");
+        let first = document.leaf_key(0).expect("a first key");
+        assert_eq!(
+            document.leaf_at(6),
+            Some(first),
+            "offset 6 is the blank line"
+        );
+    }
+
+    #[test]
+    fn a_heading_leaf_key_reaches_its_nested_paragraph() {
+        // Without this the heading reports no geometry at all.
+        let document = TypesetDocument::parse("# One\n").expect("markdown parses");
+        assert_eq!(document.block_count(), 1);
+        assert_eq!(document.leaf_key(0), Some(FIRST_LEAF_KEY));
     }
 }
