@@ -8,7 +8,9 @@ mod workspace;
 
 use futures::{StreamExt, channel::mpsc};
 use gpui_kit::*;
-use inkpoint_editor_gpui::{BlockFormat, HostCommand::*, InlineFormat, TypesetView};
+use inkpoint_editor_gpui::{
+    BlockFormat, Copy, Cut, HostCommand::*, InlineFormat, Paste, TypesetView,
+};
 use settings::OpenSettings;
 use std::path::PathBuf;
 use workspace::{
@@ -78,6 +80,11 @@ fn main() {
             ]),
             // The source / block / split entries are gone: the GPUI editor
             // renders and edits at once, so there is no mode to switch between.
+            Menu::new("Edit").items([
+                MenuItem::action("Cut", Cut),
+                MenuItem::action("Copy", Copy),
+                MenuItem::action("Paste", Paste),
+            ]),
             Menu::new("View").items([MenuItem::action("Toggle Outline", ToggleOutline)]),
             Menu::new("Format").items([
                 MenuItem::action("Bold", FormatInline(InlineFormat::Bold)),

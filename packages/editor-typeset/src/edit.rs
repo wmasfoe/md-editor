@@ -504,6 +504,10 @@ impl TypesetEditor {
     /// A table cell is its own editable region: its `content_range` excludes the
     /// surrounding pipes and padding, so writing into it leaves the table's
     /// shape untouched. Returns `None` when `offset` is not inside a cell.
+    ///
+    /// Typing in a cell goes through plain `insert` with the caret inside it;
+    /// this is the programmatic writer, for a host that knows a cell's offset and
+    /// wants to set its whole content in one step.
     pub fn set_table_cell(
         &mut self,
         offset: usize,
@@ -626,6 +630,17 @@ mod tests {
             .expect("the offset is inside a cell")
             .expect("the edit should apply");
         assert_eq!(editor.source(), "| alpha | b |\n| --- | --- |\n| c | d |\n");
+    }
+
+    #[test]
+    fn typing_into_a_table_cell_works_without_the_cell_api() {
+        // Users edit a table cell by putting the caret in it and typing. That
+        // path is plain `insert`, so the dedicated cell writer is not needed for
+        // editing to work.
+        let mut editor = TypesetEditor::new("| a | b |\n| --- | --- |\n| c | d |\n");
+        editor.set_caret(2);
+        editor.insert("X").expect("typing applies");
+        assert_eq!(editor.source(), "| Xa | b |\n| --- | --- |\n| c | d |\n");
     }
 
     #[test]

@@ -8,4 +8,4 @@ mod commands;
 mod typeset_view;
 
 pub use commands::{BlockFormat, HostCommand, InlineFormat};
-pub use typeset_view::{PasteTarget, TypesetView};
+pub use typeset_view::{Copy, Cut, Paste, PasteTarget, TypesetView};
