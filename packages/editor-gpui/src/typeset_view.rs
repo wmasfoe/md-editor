@@ -58,6 +58,8 @@ pub struct TypesetView {
     /// The container's scroll position, so a click can be mapped back from
     /// window coordinates into the document's own space.
     scroll: gpui_kit::ScrollHandle,
+    /// Where a mouse drag started, while the button is held.
+    drag_anchor: Option<usize>,
     /// Why the last parse failed, when it did.
     ///
     /// Kept rather than swallowed: a document that will not parse still opens
@@ -92,6 +94,7 @@ impl TypesetView {
             caret_leaf: None,
             marked: None,
             scroll: gpui_kit::ScrollHandle::new(),
+            drag_anchor: None,
             parse_error,
         }
     }
@@ -598,6 +601,27 @@ impl Render for TypesetView {
                 gpui_kit::MouseButton::Left,
                 cx.listener(|this, event: &gpui_kit::MouseDownEvent, window, cx| {
                     this.place_caret_from_click(event.position, window, cx);
+                    // Anchor the drag at the click, so moving the mouse extends
+                    // the selection from here instead of moving the caret.
+                    this.drag_anchor = Some(this.editor.selection().head());
+                }),
+            )
+            .on_mouse_move(
+                cx.listener(|this, event: &gpui_kit::MouseMoveEvent, window, cx| {
+                    // Only while a button is held: a bare hover must not move the
+                    // caret.
+                    if event.pressed_button != Some(gpui_kit::MouseButton::Left) {
+                        return;
+                    }
+                    this.extend_to(this.drag_anchor, cx);
+                    this.place_caret_from_click(event.position, window, cx);
+                }),
+            )
+            .on_mouse_up(
+                gpui_kit::MouseButton::Left,
+                cx.listener(|this, _: &gpui_kit::MouseUpEvent, _, cx| {
+                    this.drag_anchor = None;
+                    cx.notify();
                 }),
             )
             .child(scrollable)
