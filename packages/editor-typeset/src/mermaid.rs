@@ -9,9 +9,7 @@
 //! That is why the public entry point returns a [`Diagram`] describing which of
 //! the two happened, rather than an error the caller has to translate.
 
-use std::sync::Arc;
-
-use gpui_kit::{AssetSource, ImageSource, SvgSize};
+use gpui_kit::{ImageSource, SvgSize};
 
 use crate::svg::{SvgError, SvgImageChannel};
 
@@ -89,25 +87,10 @@ pub fn render_diagram(
     }
 }
 
-/// Renders `source` as a diagram, reporting only whether it worked.
-///
-/// Convenience for a render path that already has the source in hand and only
-/// needs to know which of the two things to draw.
-pub fn try_render_diagram(
-    asset_source: Arc<dyn AssetSource>,
-    source: &str,
-    size: impl Into<SvgSize>,
-) -> Option<ImageSource> {
-    let channel = SvgImageChannel::new(asset_source);
-    match render_diagram(&channel, source, size) {
-        Diagram::Rendered(image) => Some(image),
-        Diagram::Source { .. } => None,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Arc;
 
     #[test]
     fn a_mermaid_fence_is_recognized_case_and_space_insensitively() {

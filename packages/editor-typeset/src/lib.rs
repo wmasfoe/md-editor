@@ -25,13 +25,8 @@ mod text;
 
 pub use edit::{EditorCommand, Selection, TypesetEditor, TypesetError};
 pub use geometry::{LeafIndex, caret_at};
-pub use math::{
-    Formula, FormulaError, MATH_LANGUAGE, MathRenderer, default_font_size, is_math_fence,
-    try_render_formula,
-};
-pub use mermaid::{
-    Diagram, DiagramError, MERMAID_LANGUAGE, is_mermaid_fence, render_diagram, try_render_diagram,
-};
+pub use math::{Formula, FormulaError, MATH_LANGUAGE, MathRenderer, is_math_fence};
+pub use mermaid::{Diagram, DiagramError, MERMAID_LANGUAGE, is_mermaid_fence, render_diagram};
 pub use movement::{Vertical, move_down, move_left, move_right, move_up, move_vertical};
 pub use svg::{SvgError, SvgImageChannel, try_svg_to_image};
 pub use text::{byte_offset, line_start, utf16_offset};

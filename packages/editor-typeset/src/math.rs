@@ -14,8 +14,8 @@
 use std::sync::Arc;
 
 use gpui_kit::{AssetSource, ImageSource, SvgSize};
+use latex_rust::MathFont;
 use latex_rust::render::svg::{SvgOptions, latex_to_svg};
-use latex_rust::{Dim, MathFont};
 
 use crate::svg::{SvgError, SvgImageChannel};
 
@@ -119,28 +119,6 @@ impl MathRenderer {
                 reason: FormulaError::Svg(error),
             },
         }
-    }
-}
-
-/// The default em size in points for a rendered formula.
-///
-/// It matches the renderer's own default; a document that scales formula text
-/// overrides it through [`SvgSize`] rather than here.
-pub fn default_font_size() -> Dim {
-    Dim::from_i64(12)
-}
-
-/// Renders `latex`, reporting only whether it worked.
-pub fn try_render_formula(
-    asset_source: Arc<dyn AssetSource>,
-    latex: &str,
-    display: bool,
-    size: impl Into<SvgSize>,
-) -> Option<ImageSource> {
-    let renderer = MathRenderer::new(asset_source);
-    match renderer.render(latex, display, size) {
-        Formula::Rendered(image) => Some(image),
-        Formula::Source { .. } => None,
     }
 }
 

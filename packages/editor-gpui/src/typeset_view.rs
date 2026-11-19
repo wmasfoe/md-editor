@@ -563,14 +563,6 @@ pub struct PasteTarget {
 }
 
 impl TypesetView {
-    /// The revision and selection an async insert must still match.
-    pub fn paste_target(&self) -> PasteTarget {
-        PasteTarget {
-            revision: self.editor.revision(),
-            selection: self.editor.selection().range(),
-        }
-    }
-
     /// Inserts `text` only when the document and selection still match.
     ///
     /// An AI reply or an image write takes time; by the time it lands the user
@@ -632,11 +624,6 @@ impl TypesetView {
 }
 
 impl TypesetView {
-    /// The current view mode.
-    pub fn source_mode(&self) -> bool {
-        false
-    }
-
     /// Moves the caret to the start of `line`, counting from one.
     pub fn seek_line(&mut self, line: usize, cx: &mut Context<Self>) {
         self.editor
