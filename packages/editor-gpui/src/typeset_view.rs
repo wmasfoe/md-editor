@@ -624,13 +624,6 @@ impl TypesetView {
     pub fn has_pending_rich_edit(&self) -> bool {
         false
     }
-
-    /// Whether the view has rich-text changes that are not in the source.
-    ///
-    /// Always `false` for the same reason: there is no separate rich buffer.
-    pub fn has_unsaved_rich_changes(&self, _cx: &App) -> bool {
-        false
-    }
 }
 
 impl TypesetView {

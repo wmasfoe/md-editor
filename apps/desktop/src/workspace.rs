@@ -395,14 +395,6 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        #[cfg(not(target_os = "macos"))]
-        if let Err(error) = self
-            .editor
-            .update(cx, |editor, cx| editor.commit_pending_rich_edit(window, cx))
-        {
-            self.message(error, cx);
-            return;
-        }
         if !save_as && let Some(path) = &self.document.path {
             self.write_document(path.clone(), next, window, cx);
             return;
@@ -551,14 +543,6 @@ impl Workspace {
             return;
         };
         let editor = self.editor.read(cx);
-        #[cfg(not(target_os = "macos"))]
-        if editor.has_pending_rich_edit() {
-            self.message(
-                "Apply or cancel the current block edit before asking AI.",
-                cx,
-            );
-            return;
-        }
         let markdown = editor.markdown().to_string();
         let revision = editor.revision();
         let selection = editor.selected_range();
