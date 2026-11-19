@@ -79,6 +79,15 @@ impl Workspace {
                 }) {
                     this.suggestion = None;
                 }
+                // A rejected edit — typing into a read-only document, or past a
+                // boundary — used to be silent. Report it once, when it appears,
+                // rather than leaving the user with a key that does nothing.
+                let error = this.editor.read(cx).last_error().map(ToString::to_string);
+                if let Some(error) = error
+                    && this.status.as_ref() != error
+                {
+                    this.message(error, cx);
+                }
                 cx.notify();
             });
         let appearance_observer = window.observe_window_appearance(settings::sync_system_theme);

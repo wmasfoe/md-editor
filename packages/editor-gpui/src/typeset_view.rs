@@ -1122,13 +1122,15 @@ impl TypesetView {
         };
         // A rejected command is kept rather than dropped: a read-only document or
         // a range the source cannot take would otherwise fail silently, and the
-        // user would see a menu click do nothing.
-        if let Err(error) = result {
-            self.last_error = Some(error.to_string());
-        } else {
-            self.last_error = None;
+        // user would see a menu click do nothing. Re-parsing only on success
+        // keeps a rejected command from rebuilding the tree for nothing.
+        match result {
+            Ok(()) => {
+                self.last_error = None;
+                self.reparse();
+            }
+            Err(error) => self.last_error = Some(error.to_string()),
         }
-        self.reparse();
         cx.notify();
     }
 
