@@ -8,6 +8,7 @@
     "./hooks": "./src/hooks/index.ts",
     "./OutlinePanel": "./src/components/OutlinePanel.tsx",
     "./settings": "./src/components/settings/index.ts",
+    "./themes": "./src/themes/index.ts",
     "./tailwind-sources.css": "./styles/tailwind-sources.css"
   },
   "scripts": {
