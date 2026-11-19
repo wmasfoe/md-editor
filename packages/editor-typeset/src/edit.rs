@@ -12,7 +12,7 @@ use std::ops::Range;
 
 use gpui_kit::base::text::editor_host::Caret;
 
-use crate::movement::move_left;
+use crate::movement::{move_left, move_right};
 use inkpoint_editor_core::{BlockKind, EditError, MarkdownDocument, SourceBlock, SourceEdit};
 
 /// Why an edit did not apply.
@@ -339,6 +339,19 @@ impl TypesetEditor {
         Ok(())
     }
 
+    /// Applies an edit that joins the current step regardless of position.
+    ///
+    /// For an IME: every keystroke rewrites the composing region from its start,
+    /// so the offset moves backwards and a positional join would never match.
+    fn apply_recording_joining_anywhere(&mut self, edit: SourceEdit) -> Result<(), TypesetError> {
+        let ends_at = edit.selection_after.end;
+        let before = self.snapshot();
+        self.apply(edit)?;
+        let joins = !self.history.undos.is_empty();
+        self.history.push(before, joins, ends_at);
+        Ok(())
+    }
+
     /// The current Markdown source.
     pub fn source(&self) -> &str {
         self.document.source()
@@ -417,6 +430,27 @@ impl TypesetEditor {
         })
     }
 
+    /// Deletes the selection, or one character after the caret when collapsed.
+    ///
+    /// The mirror of `delete_backward`, and one undo step for the same reason.
+    pub fn delete_forward(&mut self) -> Result<(), TypesetError> {
+        if self.readonly {
+            return Err(TypesetError::ReadOnly);
+        }
+        let range = self.selection.range();
+        let target = if range.is_empty() {
+            let next = move_right(self.document.source(), Caret::new(range.start)).index;
+            range.start..next
+        } else {
+            range
+        };
+        self.apply_recording(SourceEdit {
+            range: target.clone(),
+            replacement: String::new(),
+            selection_after: target.start..target.start,
+        })
+    }
+
     /// The selected text, or an empty string for a bare caret.
     pub fn selected_text(&self) -> &str {
         let range = self.selection.range();
@@ -447,6 +481,28 @@ impl TypesetEditor {
             selection_after: range.start..range.start,
         })?;
         Ok(removed)
+    }
+
+    /// Inserts composition text, continuing the current undo step.
+    ///
+    /// An IME replaces the composing region on every keystroke, so treating each
+    /// replacement as its own step makes undo replay composition stages instead
+    /// of removing the character the user actually committed.
+    pub fn insert_composing(&mut self, text: &str) -> Result<(), TypesetError> {
+        if self.readonly {
+            return Err(TypesetError::ReadOnly);
+        }
+        let range = self.selection.range();
+        let caret = range.start + text.len();
+        let edit = SourceEdit {
+            range,
+            replacement: text.to_string(),
+            selection_after: caret..caret,
+        };
+        // A composition rewrites the same region each keystroke, so the start
+        // moves backwards relative to the previous end. Positional joining would
+        // therefore never match; a composition always joins its own step.
+        self.apply_recording_joining_anywhere(edit)
     }
 
     /// Inserts `text` at the caret, replacing the selection.
@@ -866,6 +922,60 @@ mod undo_sequence_tests {
         assert_eq!(editor.source(), "> y");
         assert!(editor.undo());
         assert_eq!(editor.source(), "y", "the typed text survives");
+    }
+
+    /// A table-cell write after typing is its own step.
+    #[test]
+    fn a_table_cell_write_after_typing_is_its_own_undo_step() {
+        let mut editor = TypesetEditor::new("Z\n\n| a | b |\n| --- | --- |\n");
+        editor.set_caret(1);
+        // Find a cell offset rather than assuming one: the parser's ranges depend
+        // on how it slices pipes and padding.
+        let offset = (0..editor.source().len())
+            .find(|offset| editor.cell_at(*offset).is_some())
+            .expect("a table cell exists");
+        let cell = editor.cell_at(offset).expect("the first cell");
+        editor
+            .set_table_cell(cell.content_range.start, "cell")
+            .expect("the offset is inside a cell")
+            .expect("the write applies");
+        assert!(editor.undo(), "undo takes back the cell write");
+        assert!(
+            editor.source().contains("| a | b |"),
+            "and leaves the cell as it was: {:?}",
+            editor.source()
+        );
+    }
+
+    /// Forward delete removes the character after the caret, in one step.
+    #[test]
+    fn delete_forward_removes_the_next_character() {
+        let mut editor = TypesetEditor::new("abc");
+        editor.set_caret(1);
+        editor.delete_forward().expect("delete applies");
+        assert_eq!(editor.source(), "ac");
+        assert!(editor.undo());
+        assert_eq!(editor.source(), "abc");
+    }
+
+    /// Composition keystrokes join one undo step.
+    #[test]
+    fn composition_keystrokes_undo_as_one_step() {
+        let mut editor = TypesetEditor::new("");
+        editor.set_caret(0);
+        // An IME replaces the composing region on each keystroke.
+        editor.insert_composing("z").expect("applies");
+        editor.set_selection(0, 1);
+        editor.insert_composing("zh").expect("applies");
+        editor.set_selection(0, 2);
+        editor.insert_composing("zhong").expect("applies");
+        assert_eq!(editor.source(), "zhong");
+        assert!(editor.undo());
+        assert_eq!(
+            editor.source(),
+            "",
+            "one undo removes the composed character, not a stage of it"
+        );
     }
 
     /// Consecutive characters at one place still merge.

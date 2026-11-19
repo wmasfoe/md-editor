@@ -34,6 +34,7 @@ actions!(
         SelectAll,
         InsertNewline,
         DeleteBackward,
+        DeleteForward,
         Undo,
         Redo,
         Copy,
@@ -230,10 +231,21 @@ impl TypesetView {
     }
 
     /// Applies an edit, then re-parses and notifies.
+    ///
+    /// A rejected edit is recorded rather than dropped: typing into a read-only
+    /// document or past a boundary would otherwise do nothing with no
+    /// explanation, which reads as a broken key.
     fn apply(&mut self, edit: Result<(), TypesetError>, cx: &mut Context<Self>) {
-        if edit.is_ok() {
-            self.reparse();
-            cx.notify();
+        match edit {
+            Ok(()) => {
+                self.last_error = None;
+                self.reparse();
+                cx.notify();
+            }
+            Err(error) => {
+                self.last_error = Some(error.to_string());
+                cx.notify();
+            }
         }
     }
 
@@ -467,6 +479,7 @@ impl TypesetView {
             KeyBinding::new("down", MoveDown, Some(KEY_CONTEXT)),
             KeyBinding::new("enter", InsertNewline, Some(KEY_CONTEXT)),
             KeyBinding::new("backspace", DeleteBackward, Some(KEY_CONTEXT)),
+            KeyBinding::new("delete", DeleteForward, Some(KEY_CONTEXT)),
             KeyBinding::new("home", MoveToLineStart, Some(KEY_CONTEXT)),
             KeyBinding::new("end", MoveToLineEnd, Some(KEY_CONTEXT)),
             KeyBinding::load(
@@ -663,7 +676,9 @@ impl EntityInputHandler for TypesetView {
         };
         self.editor.set_selection(target.start, target.end);
         let start = target.start;
-        let result = self.editor.insert(new_text);
+        // Composition replaces the marked region on every keystroke; joining keeps
+        // it one undo step so Cmd-Z removes the character, not a stage of it.
+        let result = self.editor.insert_composing(new_text);
         let inserted = result.is_ok();
         self.apply(result, cx);
         // The composing region covers the text just inserted. Only mark it when
@@ -773,6 +788,10 @@ impl Render for TypesetView {
         let on_select_all = cx.listener(|this, _: &SelectAll, _, cx| this.select_all(cx));
         let on_newline = cx.listener(|this, _: &InsertNewline, _, cx| this.insert("\n", cx));
         let on_backspace = cx.listener(|this, _: &DeleteBackward, _, cx| this.delete_backward(cx));
+        let on_delete = cx.listener(|this, _: &DeleteForward, _, cx| {
+            let result = this.editor.delete_forward();
+            this.apply(result, cx);
+        });
         let on_undo = cx.listener(|this, _: &Undo, _, cx| this.undo(cx));
         let on_redo = cx.listener(|this, _: &Redo, _, cx| this.redo(cx));
         let on_copy = cx.listener(|this, _: &Copy, _, cx| this.copy(cx));
@@ -830,6 +849,7 @@ impl Render for TypesetView {
             .on_action(on_select_all)
             .on_action(on_newline)
             .on_action(on_backspace)
+            .on_action(on_delete)
             .on_action(on_undo)
             .on_action(on_redo)
             .on_action(on_copy)

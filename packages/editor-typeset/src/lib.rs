@@ -130,7 +130,17 @@ impl TypesetDocument {
             .map(|block| block.span().map(|span| span.start..span.end))
             .collect();
         let parsed = match diagrams {
-            Some(diagrams) => diagrams.replace_diagrams(parsed, scale),
+            Some(diagrams) => {
+                let replaced = diagrams.replace_diagrams(parsed, scale);
+                // The span carry-forward below is positional, so it is only sound
+                // while replacement is strictly one block in, one block out.
+                debug_assert_eq!(
+                    replaced.len(),
+                    spans_before.len(),
+                    "replace_diagrams must not change the block count"
+                );
+                replaced
+            }
             None => parsed,
         };
         let mut keys = Vec::with_capacity(parsed.len());
