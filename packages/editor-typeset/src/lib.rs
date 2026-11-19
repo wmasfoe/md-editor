@@ -164,6 +164,33 @@ impl TypesetDocument {
         keys
     }
 
+    /// The laid-out leaf adjacent to `key` in the direction of travel.
+    ///
+    /// Keys are not contiguous: a block whose leaf reported no geometry leaves a
+    /// gap, so stepping by one would stop at that gap instead of reaching the
+    /// next block that is actually on screen. The caller supplies which keys were
+    /// laid out, because that is a per-frame fact.
+    ///
+    /// Returns the neighbour's key and its source span. Deciding which leaf comes
+    /// next is document topology, which belongs here; placing the caret inside
+    /// that leaf needs geometry, which belongs to the caller.
+    pub fn vertical_neighbour(
+        &self,
+        key: u64,
+        up: bool,
+        laid_out: &[u64],
+    ) -> Option<(u64, Range<usize>)> {
+        let ordered = self.ordered_keys(laid_out);
+        let position = ordered.iter().position(|candidate| *candidate == key)?;
+        let neighbour = if up {
+            position.checked_sub(1).and_then(|index| ordered.get(index))
+        } else {
+            ordered.get(position + 1)
+        }?;
+        let span = self.span_of(*neighbour)?;
+        Some((*neighbour, span))
+    }
+
     /// The leaf whose source span contains `offset`.
     ///
     /// Falls back to the last block that starts at or before `offset`, because
@@ -310,6 +337,42 @@ mod tests {
             document.leaf_at(6),
             Some(first),
             "offset 6 is the blank line"
+        );
+    }
+
+    #[test]
+    fn a_vertical_neighbour_skips_keys_that_reported_no_geometry() {
+        // Three blocks, but the middle one did not lay out this frame. Stepping
+        // by one from the first would stop at the gap; the neighbour must be the
+        // third block.
+        let document = TypesetDocument::parse("one\n\ntwo\n\nthree\n").expect("parses");
+        let first = document.leaf_key(0).expect("a first key");
+        let third = document.leaf_key(2).expect("a third key");
+        let laid_out = vec![first, third];
+        let (key, span) = document
+            .vertical_neighbour(first, false, &laid_out)
+            .expect("the third block is below");
+        assert_eq!(key, third);
+        assert!(span.start > 0);
+    }
+
+    #[test]
+    fn a_vertical_neighbour_stops_at_the_edges() {
+        let document = TypesetDocument::parse("one\n\ntwo\n").expect("parses");
+        let first = document.leaf_key(0).expect("a first key");
+        let second = document.leaf_key(1).expect("a second key");
+        let laid_out = vec![first, second];
+        assert!(
+            document
+                .vertical_neighbour(first, true, &laid_out)
+                .is_none(),
+            "nothing is above the first block"
+        );
+        assert!(
+            document
+                .vertical_neighbour(second, false, &laid_out)
+                .is_none(),
+            "nothing is below the last block"
         );
     }
 

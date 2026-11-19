@@ -209,26 +209,16 @@ impl TypesetView {
             return;
         }
 
-        // Otherwise cross into the nearest laid-out neighbour. Keys are not
-        // contiguous: a block that reported no geometry leaves a gap, so step
-        // through the ordered list rather than by one.
+        // Otherwise cross into the nearest laid-out neighbour. Which leaf that is
+        // is document topology, so the document answers it; the geometry below
+        // only decides where inside that leaf the caret lands.
         let laid_out: Vec<u64> = self.geometry.entries().map(|(key, _)| key).collect();
-        let ordered = self.document.ordered_keys(&laid_out);
-        let Some(position) = ordered.iter().position(|candidate| *candidate == key) else {
+        let Some((neighbour_key, neighbour_span)) =
+            self.document.vertical_neighbour(key, up, &laid_out)
+        else {
             return;
         };
-        let neighbour_key = if up {
-            position.checked_sub(1).and_then(|index| ordered.get(index))
-        } else {
-            ordered.get(position + 1)
-        };
-        let Some(neighbour_key) = neighbour_key.copied() else {
-            return;
-        };
-        let (Some(neighbour), Some(neighbour_span)) = (
-            self.geometry.get(neighbour_key),
-            self.document.span_of(neighbour_key),
-        ) else {
+        let Some(neighbour) = self.geometry.get(neighbour_key) else {
             return;
         };
         // Enter at the edge we came from: the end of the previous leaf when
