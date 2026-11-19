@@ -72,6 +72,8 @@
 
 **渲染失败一律降级为源码展示**，绝不阻塞编辑。这是产品要求，不是容错补丁。
 
+两个依赖都验证过可编译到 `wasm32-unknown-unknown`（`cargo +nightly check --package inkpoint-editor-web --target wasm32-unknown-unknown` 通过）。这一点必须守住：`editor-web` → `editor-gpui` → `editor-typeset` 这条链意味着 Playground 也会编译这两个 crate，任何一个不支持 wasm 都会同时打断桌面与 Playground 的构建。
+
 ## 后果
 
 **正向**
