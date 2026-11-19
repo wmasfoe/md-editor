@@ -74,7 +74,7 @@
 
 **图片以 PNG `data:` URL 承载。** 块树只能按 URI 持有图片，而它的解码器读不了 SVG。`data:image/svg+xml` 也不行——`ImageFormat::Svg` 虽然存在，实际解码走 `image` crate 的 `decode_static_image`，不支持 SVG。可行路径是把已经光栅化好的像素编码成 PNG：`tiny-skia` 的 `Pixmap::encode_png` 与 `image` 的 `PngEncoder` 都在依赖树里（前者来自 GPUI 的 resvg）。
 
-代价是每个图每帧要多一次 PNG 编码与 base64。图不大时无感；若将来发现大图拖慢输入，可以按 `(source, size)` 缓存编码结果。
+代价是**每次解析**多一次 PNG 编码与 base64（不是每帧）：图在 `TypesetDocument::parse_at` 时编码一次，之后每帧只绘制已生成的图片。重解析发生在打开文档、每次编辑与切换缩放时。若将来发现大图在连续输入下拖慢，可以按 `(source, scale)` 缓存编码结果。
 
 **Markdown 解析失败是另一回事。** `TypesetView::new` 会把整篇原文当作一个代码块渲染（不是白屏），`reparse` 失败时保留上一棵树；`parse_error()` 供宿主把原因显示在状态栏。
 
@@ -95,7 +95,6 @@
 - `editor-gpui` 只剩 `TypesetView`；旧的 `EditorView`（块卡片式）已删除，桌面与 Playground 跑同一个视图
 - mermaid 与 math 的渲染覆盖度与 npm 版 mermaid/KaTeX 存在差异，未逐项比对
 - 图片路径白名单仍在视图层。它是「什么内容允许进入缓冲区」的文档策略，应随其余插入守卫一起下沉到 `editor-typeset`
-- mermaid 与 math 的渲染能力已实现但尚未接入块流，原因见上方（上游无公开的按块注入入口）
 - 系统输入法的组合输入仍需 macOS 实机验收
 - 工作区 MSRV 从 1.98 升到 1.99，贡献者需同步工具链
 
