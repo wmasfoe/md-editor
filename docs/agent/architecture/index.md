@@ -21,7 +21,7 @@
 - 端侧专属小模型 (SLM) 紧凑协议与客户端对接规范： [slm_compact_protocol_and_client_integration.md](./slm_compact_protocol_and_client_integration.md)
 - Desktop Editor Actions Context（Provider 依赖型动作的组织规范）： [desktop_editor_actions_context.md](./desktop_editor_actions_context.md)
 - WYSIWYG 内联可删除语法标记（Milkdown 路线 D 历史实现）+ 编辑器视觉优化记录： [inline_syntax_markers_and_visual_refresh.md](./inline_syntax_markers_and_visual_refresh.md)
-- GPUI Beta 目录、共享编辑器边界与功能差异：[GPUI Beta 架构](./gpui_beta_architecture.md)
+- GPUI Beta 桌面编辑区、Playground 边界与本地启动命令：[GPUI Beta 架构](./gpui_beta_architecture.md)
 - CodeMirror 6 Markdown 可视化编辑器架构方案（权威目标；S1/M0 beta 可用，M1/S2、M1-FM/S5-FM-only、M2/S3、M3 表格、M4 HTML/MDX 与 M5 均已验证，M6 收口进行中）： [custom_markdown_renderer_architecture.md](./custom_markdown_renderer_architecture.md)
 - Linux 与 Windows 平台支持、ARM 架构与终端一键安装方案： [cross_platform_support_plan.md](./cross_platform_support_plan.md)
 - Web 端（Playground 体验版）架构方案： [web_app_architecture_plan.md](./web_app_architecture_plan.md)

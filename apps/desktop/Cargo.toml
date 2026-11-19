@@ -14,8 +14,13 @@ path = "src/main.rs"
 dirs = "6"
 futures = "0.3"
 gpui-kit.workspace = true
+inkpoint-editor-core.workspace = true
 inkpoint-editor-gpui.workspace = true
+serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tempfile = "3"
 ureq = { version = "2.12", default-features = false, features = ["json"] }
 url = "2"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+wry = { version = "=0.55.1", default-features = false, features = ["protocol"] }
