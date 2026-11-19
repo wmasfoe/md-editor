@@ -39,6 +39,10 @@ actions!(
         Copy,
         Cut,
         Paste,
+        MoveToLineStart,
+        MoveToLineEnd,
+        MoveToDocumentStart,
+        MoveToDocumentEnd,
     ]
 );
 
@@ -60,6 +64,8 @@ struct CommandKeys {
     copy: String,
     cut: String,
     paste: String,
+    document_start: String,
+    document_end: String,
     undo: String,
     redo: String,
     redo_alt: String,
@@ -78,6 +84,8 @@ impl CommandKeys {
             copy: format!("{modifier}-c"),
             cut: format!("{modifier}-x"),
             paste: format!("{modifier}-v"),
+            document_start: format!("{modifier}-up"),
+            document_end: format!("{modifier}-down"),
             undo: format!("{modifier}-z"),
             redo: format!("{modifier}-shift-z"),
             redo_alt: format!("{modifier}-y"),
@@ -317,6 +325,31 @@ impl TypesetView {
         }
     }
 
+    /// Moves the caret to the start or end of the line, or of the document.
+    ///
+    /// `within_line` picks the line around the caret; otherwise the whole
+    /// document. `to_end` picks which end.
+    fn move_to(&mut self, within_line: bool, to_end: bool, cx: &mut Context<Self>) {
+        let source = self.editor.source().to_string();
+        let head = self.editor.selection().head();
+        let target = if within_line {
+            let start = source[..head].rfind('\n').map_or(0, |index| index + 1);
+            if to_end {
+                source[head..]
+                    .find('\n')
+                    .map_or(source.len(), |offset| head + offset)
+            } else {
+                start
+            }
+        } else if to_end {
+            source.len()
+        } else {
+            0
+        };
+        self.editor.set_caret(target);
+        cx.notify();
+    }
+
     /// Writes the selection to the clipboard.
     fn copy(&mut self, cx: &mut Context<Self>) {
         let text = self.editor.selected_text().to_string();
@@ -425,6 +458,32 @@ impl TypesetView {
             KeyBinding::new("down", MoveDown, Some(KEY_CONTEXT)),
             KeyBinding::new("enter", InsertNewline, Some(KEY_CONTEXT)),
             KeyBinding::new("backspace", DeleteBackward, Some(KEY_CONTEXT)),
+            KeyBinding::new("home", MoveToLineStart, Some(KEY_CONTEXT)),
+            KeyBinding::new("end", MoveToLineEnd, Some(KEY_CONTEXT)),
+            KeyBinding::load(
+                &keys.document_start,
+                Box::new(MoveToDocumentStart),
+                Some(std::rc::Rc::new(
+                    gpui_kit::KeyBindingContextPredicate::parse(KEY_CONTEXT)
+                        .expect("the editor key context parses"),
+                )),
+                false,
+                None,
+                cx,
+            )
+            .expect("document-start binding"),
+            KeyBinding::load(
+                &keys.document_end,
+                Box::new(MoveToDocumentEnd),
+                Some(std::rc::Rc::new(
+                    gpui_kit::KeyBindingContextPredicate::parse(KEY_CONTEXT)
+                        .expect("the editor key context parses"),
+                )),
+                false,
+                None,
+                cx,
+            )
+            .expect("document-end binding"),
             KeyBinding::load(
                 &keys.copy,
                 Box::new(Copy),
@@ -710,6 +769,14 @@ impl Render for TypesetView {
         let on_copy = cx.listener(|this, _: &Copy, _, cx| this.copy(cx));
         let on_cut = cx.listener(|this, _: &Cut, _, cx| this.cut(cx));
         let on_paste = cx.listener(|this, _: &Paste, _, cx| this.paste(cx));
+        let on_line_start =
+            cx.listener(|this, _: &MoveToLineStart, _, cx| this.move_to(true, false, cx));
+        let on_line_end =
+            cx.listener(|this, _: &MoveToLineEnd, _, cx| this.move_to(true, true, cx));
+        let on_doc_start =
+            cx.listener(|this, _: &MoveToDocumentStart, _, cx| this.move_to(false, false, cx));
+        let on_doc_end =
+            cx.listener(|this, _: &MoveToDocumentEnd, _, cx| this.move_to(false, true, cx));
 
         let context = RenderContext::from_app(cx);
         // Pass the selection through so the selected text is visibly highlighted:
@@ -759,6 +826,10 @@ impl Render for TypesetView {
             .on_action(on_copy)
             .on_action(on_cut)
             .on_action(on_paste)
+            .on_action(on_line_start)
+            .on_action(on_line_end)
+            .on_action(on_doc_start)
+            .on_action(on_doc_end)
             .on_mouse_down(
                 gpui_kit::MouseButton::Left,
                 cx.listener(|this, event: &gpui_kit::MouseDownEvent, window, cx| {
