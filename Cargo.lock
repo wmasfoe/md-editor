@@ -3803,6 +3803,7 @@ version = "0.1.0"
 dependencies = [
  "gpui-kit",
  "inkpoint-editor-core",
+ "inkpoint-editor-typeset",
 ]
 
 [[package]]
