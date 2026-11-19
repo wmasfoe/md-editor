@@ -1050,9 +1050,14 @@ impl TypesetView {
         let leaf = self.geometry.get(key)?;
         let span = self.document.span_of(key)?;
         let local = self.editor.selection().head().saturating_sub(span.start);
+        // Leaf geometry is in the document's own space; every consumer needs
+        // window space, so the conversion happens here rather than at each call
+        // site. Doing it at only some call sites is what made the caret drift by
+        // the scroll offset while the IME rectangle stayed put.
         let position = leaf.position_for_index(local.min(leaf.len()));
+        let offset = self.scroll.offset();
         Some(Bounds {
-            origin: position,
+            origin: gpui_kit::point(position.x - offset.x, position.y - offset.y),
             size: gpui_kit::size(px(2.), leaf.caret_height()),
         })
     }

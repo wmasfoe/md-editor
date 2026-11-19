@@ -289,7 +289,12 @@ impl TypesetDocument {
                 cursor + 1
             };
             let candidate = *ordered.get(cursor)?;
-            let candidate_span = self.span_of(candidate)?;
+            // Skip a laid-out leaf that has no span instead of ending the walk:
+            // stopping there would freeze vertical navigation at that block, the
+            // failure this function exists to prevent.
+            let Some(candidate_span) = self.span_of(candidate) else {
+                continue;
+            };
             if self.block_of(candidate) == own_block {
                 continue;
             }
@@ -742,6 +747,23 @@ mod tests {
             .vertical_neighbour(first_cell, false, &laid_out)
             .expect("there is a block below");
         assert_eq!(key, after, "Down from a cell must leave the table entirely");
+    }
+
+    /// A laid-out leaf with no span must be skipped, not end the walk.
+    ///
+    /// Ending there would freeze vertical navigation at that block — the failure
+    /// `vertical_neighbour` exists to prevent.
+    #[test]
+    fn a_vertical_neighbour_skips_a_leaf_without_a_span() {
+        let document = TypesetDocument::parse("one\n\ntwo\n\nthree\n").expect("parses");
+        let first = document.leaf_key(0).expect("a first key");
+        let third = document.leaf_key(2).expect("a third key");
+        // The middle key is "laid out" but has no span of its own.
+        let laid_out = vec![first, third];
+        let (key, _) = document
+            .vertical_neighbour(first, false, &laid_out)
+            .expect("the walk reaches the third block");
+        assert_eq!(key, third);
     }
 
     #[test]
