@@ -72,7 +72,13 @@
 
 `editor-typeset` 提供的是**渲染能力**，不是已接线的产品路径。`render_diagram` 与 `MathRenderer::render` 能把 fence 内容变成 `ImageSource`，失败时返回带原因的 `Source` 变体，单元测试覆盖了两条分支（真实 flowchart 与 `\frac` 渲染成图像；垃圾输入保留原文）。
 
-但**把它们接进文档块流尚未完成**。`editor_host` 的块树没有公开方式注入内存中的渲染图：`ImageNode` 的 `url` 只能是 URI，`with_image_source` 的解析器要求 `Send + Sync`，而 `ImageSource::Render` 持有的 `RenderImage` 两者都不是。要接线需要上游提供按块注入 `ImageSource` 的入口，或接受把图编码成 `data:` URL 的异步路径。
+但**把它们接进文档块流尚未完成**。`editor_host` 的块树没有公开方式注入内存中的渲染图，三条路都堵住了：
+
+- `ImageNode` 只有 `url: SharedUri` 可以公开赋值，内存图像存在 `pub(super) embedded` 里，外部写不进去。
+- `with_image_source` 的解析器要求 `Send + Sync`，而 `ImageSource::Render` 持有的 `RenderImage` 两者都不是（它内部是 `Rc`/`RefCell` 那一套单线程结构）。
+- `data:image/svg+xml;base64,…` 看似可行，但 `ImageFormat::Svg` 虽然存在，实际解码走的是 `image` crate 的 `decode_static_image`，它不支持 SVG。
+
+要接线需要上游提供按块注入 `ImageSource` 的入口，或先把 SVG 光栅化成 PNG 再走 `data:` URL（多一次编解码，且 `resvg` 与 `image` 两套栈都要进二进制）。
 
 在那之前，mermaid 与 math fence 在桌面与 Playground 中都按代码块显示源码，编辑不受影响。
 
