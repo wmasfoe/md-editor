@@ -89,11 +89,12 @@ pub struct TypesetDocument {
 }
 
 impl TypesetDocument {
-    /// Parses `source` and assigns one leaf key per rendered block.
+    /// Parses `source` and assigns leaf keys to the text leaves it renders.
     ///
-    /// The key is bound to the block's text leaf at parse time, because a
-    /// heading carries its text in a nested paragraph: attaching the key to the
-    /// outer block alone would leave the heading reporting no geometry.
+    /// A heading carries its text in a nested paragraph and a table carries one
+    /// paragraph per cell, so keys reach those inner leaves; attaching a key to
+    /// the outer block alone would leave that block reporting no geometry. A
+    /// table therefore consumes several keys and a block's key is not its index.
     ///
     /// The parser reports an error for input it cannot structure; the caller
     /// keeps showing the previous document rather than losing the buffer.
@@ -200,7 +201,11 @@ impl TypesetDocument {
         self.block_keys.get(index).copied()
     }
 
-    /// Every block's key and source span, in document order.
+    /// Every leaf key with its source span, in document order.
+    ///
+    /// One entry per key, not per block: a table owns one key per cell, so it
+    /// contributes several entries that share the table's range. Use
+    /// [`Self::leaf_key`] when you need one key per block.
     pub fn leaf_spans(&self) -> &[LeafSpan] {
         &self.spans
     }
@@ -393,7 +398,11 @@ impl TypesetDocument {
 fn with_leaf_keys(block: BlockNode, keys: &mut impl Iterator<Item = u64>) -> BlockNode {
     match block {
         BlockNode::Paragraph(paragraph) => {
-            let key = keys.next().unwrap_or(FIRST_LEAF_KEY);
+            // A missing key would silently duplicate key 1, so the count from
+            // `leaf_count` has to match what the block really renders.
+            let key = keys
+                .next()
+                .expect("leaf_count must match the leaves a block renders");
             BlockNode::Paragraph(paragraph.with_leaf_key(key))
         }
         BlockNode::Heading {
@@ -401,7 +410,9 @@ fn with_leaf_keys(block: BlockNode, keys: &mut impl Iterator<Item = u64>) -> Blo
             children,
             span,
         } => {
-            let key = keys.next().unwrap_or(FIRST_LEAF_KEY);
+            let key = keys
+                .next()
+                .expect("leaf_count must match the leaves a block renders");
             BlockNode::Heading {
                 level,
                 children: children.with_leaf_key(key),
@@ -417,7 +428,9 @@ fn with_leaf_keys(block: BlockNode, keys: &mut impl Iterator<Item = u64>) -> Blo
                 .rows()
                 .map(|row| {
                     row.map(|paragraph| {
-                        let key = keys.next().unwrap_or(FIRST_LEAF_KEY);
+                        let key = keys
+                            .next()
+                            .expect("leaf_count must match the leaves a block renders");
                         paragraph.clone().with_leaf_key(key)
                     })
                     .collect()
@@ -517,6 +530,35 @@ mod tests {
             .and_then(|leaf| leaf.span())
             .expect("the rendered block keeps the fence's range");
         assert_eq!(kept, fence_span, "rendering must not lose the source range");
+    }
+
+    /// A table consumes one key per cell, so a block's key is not its index.
+    #[test]
+    fn a_table_consumes_one_key_per_cell() {
+        let document = TypesetDocument::parse("| a | b |\n| --- | --- |\n| c | d |\n")
+            .expect("markdown parses");
+        // Two paragraphs before/after would each take one key; the table takes
+        // four (2x2), so the total is larger than the block count.
+        assert_eq!(document.leaf_spans().len(), 4, "2x2 cells");
+        assert_eq!(
+            document.leaf_key(0),
+            Some(FIRST_LEAF_KEY),
+            "the first block starts at the first key"
+        );
+    }
+
+    /// A table and the paragraph after it get distinct, non-overlapping keys.
+    #[test]
+    fn a_block_after_a_table_starts_past_the_cells() {
+        let document =
+            TypesetDocument::parse("| a | b |\n| --- | --- |\n\nafter\n").expect("markdown parses");
+        let table_first = document.leaf_key(0).expect("the table");
+        let after_first = document.leaf_key(1).expect("the paragraph");
+        assert_eq!(
+            after_first,
+            table_first + 2,
+            "the paragraph follows the table's two cells"
+        );
     }
 
     /// A diagram renderer that changes the block count must not lose the view.
