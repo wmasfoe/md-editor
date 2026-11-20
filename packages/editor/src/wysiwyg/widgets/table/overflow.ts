@@ -39,45 +39,54 @@ function syncOverflowState(wrapper: HTMLElement): boolean {
 /**
  * 开始观测视口溢出状态。
  *
- * 需要观测的三类变化，缺一都会让状态陈旧：
+ * 需要观测的四类变化，缺一都会让状态陈旧：
  * 1. **容器宽度变化**（窗口缩放、侧栏折叠）—— 视口尺寸变但内容不变；
  * 2. **表格内容变化**（单元格文本、增删行列）—— 内容尺寸变但视口不变；
- * 3. **字体加载完成** —— 字宽变化会改变 min-content 宽度。
+ * 3. **字体就绪**（首次加载完成）—— 字宽变化会改变 min-content 宽度；
+ * 4. **字体晚到**（主题切换、`@font-face` 懒加载）—— `document.fonts.ready` 只解析**一次**，
+ *    后续动态字体加载不会再触发它，因此必须额外监听 `document.fonts` 的 `loadingdone`
+ *    事件，否则溢出状态会永久陈旧（手柄停在外侧却被滚动盒裁掉）。
  *
- * 因此同时观测视口（尺寸）与表格（尺寸），并在字体就绪后补测一次。
- * 返回停止函数；`destroy()` 必须调用，否则 ResizeObserver 会随 widget 复用持续累积。
+ * 返回停止函数；`destroy()` 必须调用，否则 ResizeObserver 与字体监听会随 widget 复用持续累积。
  */
 export function observeTableOverflow(wrapper: HTMLElement): () => void {
   syncOverflowState(wrapper);
 
   const view = wrapper.ownerDocument?.defaultView;
   const ResizeObserverCtor = view?.ResizeObserver;
-  if (!ResizeObserverCtor) {
-    // 无 ResizeObserver 的环境（旧 WebView / Node 测试桩）：静态测量一次即可。
-    return () => {};
+
+  const observer = ResizeObserverCtor
+    ? new ResizeObserverCtor(() => {
+        syncOverflowState(wrapper);
+      })
+    : null;
+  if (observer) {
+    observer.observe(wrapper);
+    const viewport = wrapper.querySelector<HTMLElement>(viewportSelector);
+    if (viewport) {
+      observer.observe(viewport);
+    }
+    const grid = wrapper.querySelector<HTMLElement>(".cm-md-table-widget__grid");
+    if (grid) {
+      observer.observe(grid);
+    }
   }
 
-  const observer = new ResizeObserverCtor(() => {
-    syncOverflowState(wrapper);
-  });
-  observer.observe(wrapper);
-  const viewport = wrapper.querySelector<HTMLElement>(viewportSelector);
-  if (viewport) {
-    observer.observe(viewport);
-  }
-  const grid = wrapper.querySelector<HTMLElement>(".cm-md-table-widget__grid");
-  if (grid) {
-    observer.observe(grid);
-  }
-
-  // 字体晚于 widget 挂载就绪时，min-content 宽度会变；就绪后补测一次。
-  void view?.document?.fonts?.ready?.then(() => {
+  // 字体相关补测：`ready` 只覆盖首次加载，`loadingdone` 覆盖后续动态加载。
+  const fontSet = wrapper.ownerDocument?.fonts;
+  const resyncIfConnected = () => {
     if (wrapper.isConnected) {
       syncOverflowState(wrapper);
     }
-  });
+  };
+  // `loadingdone` 在 FontFaceSet 上触发（TS lib 未声明该事件，用 addEventListener 的宽签名）。
+  fontSet?.addEventListener?.("loadingdone", resyncIfConnected);
+  void fontSet?.ready?.then(resyncIfConnected);
 
-  return () => observer.disconnect();
+  return () => {
+    observer?.disconnect();
+    fontSet?.removeEventListener?.("loadingdone", resyncIfConnected);
+  };
 }
 
 /** 手动触发一次重测（内容/行列变更后由 `updateDOM` 调用）。 */

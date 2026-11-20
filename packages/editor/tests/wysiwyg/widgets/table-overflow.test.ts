@@ -28,7 +28,10 @@ interface Metrics {
 }
 
 /** 最小 DOM 桩：只实现 overflow.ts 用到的 querySelector / setAttribute / isConnected。 */
-function createWrapper(metrics: Metrics, options: { withObserver?: boolean } = {}) {
+function createWrapper(
+  metrics: Metrics,
+  options: { withObserver?: boolean; withFonts?: boolean } = {},
+) {
   const attributes = new Map<string, string>();
   // 用 getter 读实时 metrics：测试需要模拟“容器变窄”后同一批节点上数值变化。
   const viewport = {
@@ -55,9 +58,25 @@ function createWrapper(metrics: Metrics, options: { withObserver?: boolean } = {
     disconnect = disconnect;
   }
 
+  // document.fonts 桩：ready 是一次性 Promise，loadingdone 是可持续触发的事件。
+  const fontListeners = new Set<EventListener>();
+  let resolveReady: (() => void) | null = null;
+  const fontSet = {
+    ready: new Promise<void>((resolve) => {
+      resolveReady = resolve;
+    }),
+    addEventListener: vi.fn((type: string, listener: EventListener) => {
+      if (type === "loadingdone") fontListeners.add(listener);
+    }),
+    removeEventListener: vi.fn((type: string, listener: EventListener) => {
+      if (type === "loadingdone") fontListeners.delete(listener);
+    }),
+  };
+
   const wrapper = {
     isConnected: true,
     ownerDocument: {
+      fonts: options.withFonts === false ? undefined : fontSet,
       defaultView: options.withObserver === false ? {} : { ResizeObserver: FakeResizeObserver },
     },
     querySelector(selector: string) {
@@ -77,7 +96,15 @@ function createWrapper(metrics: Metrics, options: { withObserver?: boolean } = {
     wrapper: wrapper as unknown as HTMLElement,
     attributes,
     disconnect,
+    fontSet,
     triggerResize: () => observerCallback?.(),
+    /** 模拟字体就绪（首次加载完成）。 */
+    resolveFontsReady: () => resolveReady?.(),
+    /** 模拟后续动态字体加载完成（主题切换 / @font-face 懒加载）。 */
+    dispatchFontsLoadingDone: () => {
+      for (const listener of fontListeners) listener(new Event("loadingdone"));
+    },
+    fontListenerCount: () => fontListeners.size,
   };
 }
 
@@ -133,6 +160,64 @@ describe("表格横向溢出判定", () => {
     const { wrapper, attributes } = createWrapper(
       { grid: 1557, viewport: 844, scroll: 1559 },
       { withObserver: false },
+    );
+    const stop = observeTableOverflow(wrapper);
+    expect(attributes.get(TABLE_OVERFLOW_ATTRIBUTE)).toBe("true");
+    expect(() => stop()).not.toThrow();
+  });
+
+  it("字体首次就绪后重测（ready 解析完成时字宽已变）", async () => {
+    const metrics: Metrics = { grid: 844, viewport: 844, scroll: 853 };
+    const { wrapper, attributes, resolveFontsReady } = createWrapper(metrics);
+    const stop = observeTableOverflow(wrapper);
+    expect(attributes.get(TABLE_OVERFLOW_ATTRIBUTE)).toBe("false");
+
+    // 字体就绪后字宽变大，表格撑破容器。
+    metrics.grid = 934;
+    resolveFontsReady();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(attributes.get(TABLE_OVERFLOW_ATTRIBUTE)).toBe("true");
+    stop();
+  });
+
+  it("后续动态字体加载（loadingdone）也会重测，不只依赖一次性的 ready", () => {
+    // 回归锁：历史实现只挂 `document.fonts.ready`，而它只解析**一次**。
+    // 用户切换主题字体 / 懒加载 @font-face 后溢出状态会永久陈旧，
+    // 手柄停在外侧却被滚动框裁掉（点不到）。
+    const metrics: Metrics = { grid: 844, viewport: 844, scroll: 853 };
+    const { wrapper, attributes, dispatchFontsLoadingDone } = createWrapper(metrics);
+    const stop = observeTableOverflow(wrapper);
+    expect(attributes.get(TABLE_OVERFLOW_ATTRIBUTE)).toBe("false");
+
+    metrics.grid = 1200;
+    dispatchFontsLoadingDone();
+    expect(attributes.get(TABLE_OVERFLOW_ATTRIBUTE)).toBe("true");
+
+    // 反向：字体变化让表格重新装得下。
+    metrics.grid = 800;
+    dispatchFontsLoadingDone();
+    expect(attributes.get(TABLE_OVERFLOW_ATTRIBUTE)).toBe("false");
+    stop();
+  });
+
+  it("停止函数同时断开 ResizeObserver 与字体监听（不得泄漏）", () => {
+    const { wrapper, disconnect, fontListenerCount } = createWrapper({
+      grid: 844,
+      viewport: 844,
+      scroll: 853,
+    });
+    const stop = observeTableOverflow(wrapper);
+    expect(fontListenerCount()).toBe(1);
+    stop();
+    expect(disconnect).toHaveBeenCalledTimes(1);
+    expect(fontListenerCount()).toBe(0);
+  });
+
+  it("无 document.fonts 的环境不报错（旧 WebView / Node 桩）", () => {
+    const { wrapper, attributes } = createWrapper(
+      { grid: 1557, viewport: 844, scroll: 1559 },
+      { withFonts: false },
     );
     const stop = observeTableOverflow(wrapper);
     expect(attributes.get(TABLE_OVERFLOW_ATTRIBUTE)).toBe("true");

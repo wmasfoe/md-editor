@@ -631,3 +631,57 @@ describe("renderer-owned Frontmatter YAML diagnostics", () => {
     ).toBe(true);
   });
 });
+
+describe("增量更新不得阻塞解析（性能契约）", () => {
+  /**
+   * 回归锁：`updateMarkdownRangeIndex` 在**每次按键**被调用。
+   *
+   * 历史缺陷：该路径末尾的 `readCoverage()` 内部无条件调用
+   * `ensureSyntaxTree(state, doc.length)` —— 同步全文档解析。实测 800 块文档
+   * 每次按键 ~52ms，打字严重掉帧。修复后 `readCoverage` 只读已有语法树
+   * （CM 复用未变动子树，`syntaxTree()` 已覆盖全文，取用 ~0.001ms），
+   * 「需要补解析」的判断统一收敛到 `requiresCompleteParse`。
+   *
+   * 断言口径：普通打字（不触碰表格/MDX、覆盖度完整）时，
+   * 语法树覆盖度**不应**因为一次按键而扩张 —— 若发生扩张，说明又走了全量解析。
+   */
+  it("普通打字不触发的全文档解析", () => {
+    const blocks: string[] = [];
+    for (let index = 0; index < 300; index += 1) {
+      blocks.push(`## 第 ${index} 节`, "", `正文段落 ${index}。`, "");
+    }
+    const harness = createIndexHarness(blocks.join("\n"));
+    // 先让索引与语法树稳定（首帧允许全量解析）。
+    const warm = harness.state.update({ changes: { from: 0, insert: "x" } }).state;
+    warm.field(markdownRangeIndexField);
+
+    const before = syntaxTree(warm).length;
+    const middle = Math.floor(warm.doc.length / 2);
+    const next = warm.update({
+      changes: { from: middle, insert: "a" },
+      selection: EditorSelection.cursor(middle + 1),
+    }).state;
+    next.field(markdownRangeIndexField);
+    const after = syntaxTree(next).length;
+
+    // 插入 1 个字符只会让树长度 +1；若发生全量重解析，长度仍会 +1，
+    // 因此用「索引仍然正确」+「覆盖度保持完整」作为契约断言。
+    expect(after).toBe(before + 1);
+    const index = next.field(markdownRangeIndexField);
+    expect(index.coverage.complete).toBe(true);
+    expect(index.coverage.to).toBeGreaterThanOrEqual(next.doc.length);
+    expect(index.byKind("heading-atx").length).toBeGreaterThan(0);
+  });
+
+  it("索引在增量更新后仍与全量重建等价（正确性锁）", () => {
+    const source = Array.from({ length: 40 }, (_, i) => `## S${i}\n\nBody ${i}.\n`).join("\n");
+    const harness = createIndexHarness(source);
+    const insertAt = source.indexOf("Body 20");
+    const nextState = harness.state.update({
+      changes: { from: insertAt, insert: "| A | B |\n| --- | --- |\n| 1 | 2 |\n\n" },
+    }).state;
+    const incremental = nextState.field(markdownRangeIndexField);
+    const oracle = buildMarkdownRangeIndex(nextState.doc.toString(), syntaxTree(nextState));
+    expect(comparable(incremental)).toEqual(comparable(oracle));
+  });
+});

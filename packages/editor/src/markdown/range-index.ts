@@ -240,7 +240,7 @@ export const markdownRangeIndexField = StateField.define<MarkdownRangeIndex>({
     diagnostics?.recordFullIndexBuild();
     const tree = ensureSyntaxTree(state, state.doc.length, 5_000) ?? syntaxTree(state);
     return buildMarkdownRangeIndex(state.doc.toString(), tree, {
-      coverage: readCoverage(state),
+      coverage: readCoverageAfterParse(state),
       mdxMode: state.facet(mdxModeFacet),
       pluginRegistry: state.facet(syntaxPluginRegistryFacet),
     });
@@ -258,7 +258,7 @@ export const markdownRangeIndexField = StateField.define<MarkdownRangeIndex>({
         ensureSyntaxTree(transaction.state, transaction.state.doc.length, 5_000) ??
         syntaxTree(transaction.state);
       return buildMarkdownRangeIndex(transaction.newDoc.toString(), tree, {
-        coverage: readCoverage(transaction.state),
+        coverage: readCoverageAfterParse(transaction.state),
         version: previous.version + 1,
         mdxMode: transaction.state.facet(mdxModeFacet),
         pluginRegistry: transaction.state.facet(syntaxPluginRegistryFacet),
@@ -403,15 +403,37 @@ function requiresCompleteParse(transaction: Transaction, previous: MarkdownRange
 }
 
 /**
- * 计算语法树的解析覆盖深度与完成状态。
+ * 从**已存在**的语法树读取解析覆盖深度（不做任何解析工作）。
+ *
+ * 为什么不在这里 `ensureSyntaxTree`：该函数会被增量更新路径（每次按键）调用，
+ * 而 `ensureSyntaxTree` 是**同步阻塞**的全文档解析 —— 实测 8000 行文档每次 20-77ms，
+ * 直接把打字卡成幻灯片（远超 16ms 帧预算）。
+ *
+ * 增量编辑后 CM 复用未变动的子树，`syntaxTree(state)` 本身就已覆盖全文
+ * （实测 treeLen == docLen，取用耗时 0.001ms）。真正需要「确保完整解析」的场景
+ * （MDX 模式、结构编辑、覆盖度不足）统一由 `requiresCompleteParse` 在更新前显式调用
+ * `ensureSyntaxTree`，职责分明：**解析决策归 `requiresCompleteParse`，覆盖度测量归本函数**。
  */
 function readCoverage(state: EditorState): MarkdownParseCoverage {
-  const tree = ensureSyntaxTree(state, state.doc.length, 5_000) ?? syntaxTree(state);
+  const tree = syntaxTree(state);
   const to = Math.min(tree.length, state.doc.length);
   return Object.freeze({
     to,
     complete: to >= state.doc.length || syntaxTreeAvailable(state, state.doc.length),
   });
+}
+
+/**
+ * 初始化 / 覆盖度刷新路径专用的覆盖度读取：允许同步补解析。
+ *
+ * 与 {@link readCoverage} 的区别仅在于「是否允许花时间解析」：
+ * - 创建 StateField、响应 `refreshMarkdownParseCoverageEffect` 属于低频事件，
+ *   且语义上就是「把覆盖度补满」，因此必须 `ensureSyntaxTree`；
+ * - 增量更新（每次按键）绝不能阻塞解析，只能用已有的树。
+ */
+function readCoverageAfterParse(state: EditorState): MarkdownParseCoverage {
+  ensureSyntaxTree(state, state.doc.length, 5_000);
+  return readCoverage(state);
 }
 
 /**
@@ -642,6 +664,19 @@ function collectChangedRanges(
 
 /**
  * 结合旧文档及旧记录边界扩展旧脏区间。
+ *
+ * ## 为什么必须二分而不是线性扫描
+ *
+ * 本函数在**每次按键**的增量更新路径上被调用（见 `updateMarkdownRangeIndex`）。
+ * 历史实现遍历全部 `records` 并对每个记录做 `rangesTouch` —— 4000 条记录时单次
+ * 按键即 ~55ms（实测），打字直接掉帧。
+ *
+ * 但“扩展”会**迭代放大**查询区间：某个记录被并入后 `expanded` 变宽，可能再触及
+ * 邻居记录。因此不能只查一次：每轮用二分定位首个候选（`blockRange.from` 有序），
+ * 向后扫描到 `blockRange.from > expanded.to` 即停，直到区间不再增长。
+ *
+ * 记录按 `blockRange.from` 升序排列（`insertRecord` 保证），故用
+ * `findFirstCandidate` 对前缀最大值数组做 O(log N) 定位。
  */
 function expandOldDirtyRange(
   document: Text,
@@ -649,16 +684,44 @@ function expandOldDirtyRange(
   records: readonly MarkdownRangeRecord[],
 ): SourceRange {
   let expanded = lineRangeForDocument(document, changed);
-  for (const record of records) {
-    if (rangesTouch(record.blockRange, expanded)) {
-      expanded = unionRanges(expanded, record.blockRange);
-    }
+  if (records.length === 0) {
+    return expanded;
   }
-  return expanded;
+  // 记录数组按 blockRange.from 升序；用其终点前缀最大值做二分候选定位。
+  const prefixMaximumEnds: number[] = [];
+  let maximumEnd = -1;
+  for (const record of records) {
+    maximumEnd = Math.max(maximumEnd, record.blockRange.to);
+    prefixMaximumEnds.push(maximumEnd);
+  }
+
+  let previousFrom = expanded.from;
+  let previousTo = expanded.to;
+  for (;;) {
+    const firstCandidate = findFirstCandidate(prefixMaximumEnds, expanded.from);
+    for (let index = firstCandidate; index < records.length; index += 1) {
+      const blockRange = records[index].blockRange;
+      // 起点已越过当前区间终点：后续记录的起点只会更大，不可能再触及。
+      if (blockRange.from > expanded.to) {
+        break;
+      }
+      if (rangesTouch(blockRange, expanded)) {
+        expanded = unionRanges(expanded, blockRange);
+      }
+    }
+    if (expanded.from === previousFrom && expanded.to === previousTo) {
+      return expanded;
+    }
+    previousFrom = expanded.from;
+    previousTo = expanded.to;
+  }
 }
 
 /**
  * 结合新文档及顶层语法块边界扩展新脏区间。
+ *
+ * 与 {@link expandOldDirtyRange} 同构：顶层节点数量可达数千（每个段落/列表各一个），
+ * 线性扫描同样是每次按键的 O(n) 成本。顶层范围天然按起点升序，同样用二分定位候选。
  */
 function expandNewDirtyRange(
   document: Text,
@@ -666,12 +729,35 @@ function expandNewDirtyRange(
   topLevelRanges: readonly SourceRange[],
 ): SourceRange {
   let expanded = lineRangeForDocument(document, changed);
-  for (const topLevel of topLevelRanges) {
-    if (rangesTouch(topLevel, expanded)) {
-      expanded = unionRanges(expanded, topLevel);
-    }
+  if (topLevelRanges.length === 0) {
+    return expanded;
   }
-  return expanded;
+  const prefixMaximumEnds: number[] = [];
+  let maximumEnd = -1;
+  for (const topLevel of topLevelRanges) {
+    maximumEnd = Math.max(maximumEnd, topLevel.to);
+    prefixMaximumEnds.push(maximumEnd);
+  }
+
+  let previousFrom = expanded.from;
+  let previousTo = expanded.to;
+  for (;;) {
+    const firstCandidate = findFirstCandidate(prefixMaximumEnds, expanded.from);
+    for (let index = firstCandidate; index < topLevelRanges.length; index += 1) {
+      const topLevel = topLevelRanges[index];
+      if (topLevel.from > expanded.to) {
+        break;
+      }
+      if (rangesTouch(topLevel, expanded)) {
+        expanded = unionRanges(expanded, topLevel);
+      }
+    }
+    if (expanded.from === previousFrom && expanded.to === previousTo) {
+      return expanded;
+    }
+    previousFrom = expanded.from;
+    previousTo = expanded.to;
+  }
 }
 
 /**
