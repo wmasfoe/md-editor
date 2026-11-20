@@ -5,12 +5,12 @@ use gpui_kit::{
     web::{CanvasFontFallback, WebBackendPreference, WebPlatform},
     *,
 };
-use inkpoint_editor_gpui::EditorView;
+use inkpoint_editor_gpui::TypesetView;
 use wasm_bindgen::prelude::*;
 
 thread_local! {
     static APPLICATION: RefCell<Option<ApplicationHandle>> = const { RefCell::new(None) };
-    static EDITOR: RefCell<Option<(AnyWindowHandle, Entity<EditorView>)>> = const { RefCell::new(None) };
+    static EDITOR: RefCell<Option<(AnyWindowHandle, Entity<TypesetView>)>> = const { RefCell::new(None) };
 }
 
 #[wasm_bindgen]
@@ -36,6 +36,10 @@ pub fn run(
     APPLICATION.with(|handle| {
         *handle.borrow_mut() = Some(application.run_embedded(move |cx| {
             gpui_kit::init(cx);
+            // The editor's own keys: without this the Playground accepts typing
+            // but arrows, backspace and undo do nothing, because the actions the
+            // view listens for have no keystroke bound to them.
+            TypesetView::bind_keys(cx);
             gpui_kit::component::Theme::update(cx, |theme| {
                 theme.font_family = "Inter".into();
                 theme.mono_font_family = "Fira Mono".into();
@@ -51,7 +55,7 @@ pub fn run(
                 ..Default::default()
             };
             let (window, editor) = gpui_kit::open_window(window, cx, |window, cx| {
-                cx.new(|cx| EditorView::new(window, cx, &initial_markdown))
+                cx.new(|cx| TypesetView::new(window, cx, initial_markdown.clone()))
             })
             .expect("open GPUI Playground window");
             EDITOR.with(|current| *current.borrow_mut() = Some((window, editor)));
@@ -65,7 +69,8 @@ pub fn run(
 #[wasm_bindgen]
 pub fn get_markdown() -> Result<String, JsValue> {
     with_editor(|application, _, editor| {
-        Ok(application.update(|cx| cx.read_entity(editor, |editor, cx| editor.markdown(cx))))
+        Ok(application
+            .update(|cx| cx.read_entity(editor, |editor, _| editor.markdown().to_string())))
     })
 }
 
@@ -80,10 +85,8 @@ pub fn get_revision() -> Result<u64, JsValue> {
 pub fn set_markdown(markdown: String) -> Result<(), JsValue> {
     with_editor(|application, window, editor| {
         application.update(|cx| {
-            cx.update_window(*window, |_, window, cx| {
-                editor.update(cx, |editor, cx| {
-                    editor.replace_markdown(&markdown, window, cx)
-                })
+            cx.update_window(*window, |_, _window, cx| {
+                editor.update(cx, |editor, cx| editor.replace_markdown(&markdown, cx))
             })
             .map_err(|error| JsValue::from_str(&error.to_string()))
         })
@@ -112,7 +115,7 @@ pub fn set_readonly(readonly: bool) -> Result<(), JsValue> {
 pub fn copy_markdown() -> Result<(), JsValue> {
     with_editor(|application, _, editor| {
         application.update(|cx| {
-            let markdown = cx.read_entity(editor, |editor, cx| editor.markdown(cx));
+            let markdown = cx.read_entity(editor, |editor, _| editor.markdown().to_string());
             cx.write_to_clipboard(ClipboardItem::new_string(markdown));
             Ok(())
         })
@@ -120,7 +123,7 @@ pub fn copy_markdown() -> Result<(), JsValue> {
 }
 
 fn with_editor<R>(
-    f: impl FnOnce(&ApplicationHandle, &AnyWindowHandle, &Entity<EditorView>) -> Result<R, JsValue>,
+    f: impl FnOnce(&ApplicationHandle, &AnyWindowHandle, &Entity<TypesetView>) -> Result<R, JsValue>,
 ) -> Result<R, JsValue> {
     APPLICATION.with(|application| {
         let application = application.borrow();

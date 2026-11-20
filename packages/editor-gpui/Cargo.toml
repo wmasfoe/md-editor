@@ -8,3 +8,7 @@ publish = false
 [dependencies]
 gpui-kit.workspace = true
 inkpoint-editor-core.workspace = true
+inkpoint-editor-typeset.workspace = true
+
+[dev-dependencies]
+gpui-kit = { workspace = true, features = ["test-support"] }

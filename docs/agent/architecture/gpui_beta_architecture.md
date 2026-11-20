@@ -1,48 +1,76 @@
-# GPUI Beta 架构
+# GPUI 桌面编辑区架构
 
-用途：记录 macOS GPUI 桌面端和 Playground 的编辑器边界、构建入口和 Beta 验收范围。
+用途：记录桌面端与 Playground 的编辑器边界、构建入口，以及「为什么桌面正文是纯 Rust 而不是 WebView」这个决定的完整理由。
+
+## 目录职责
 
 | 目录 | 职责 |
 | --- | --- |
-| `packages/editor-core` | Markdown 源文档、原始字节偏移、语法投影和格式操作 |
-| `packages/editor-gpui` | Playground 的 GPUI 编辑、选区、可视化区块、表格单元格和大纲 |
-| `packages/editor` | macOS 桌面正文使用的 CodeMirror 源码和所见即所得编辑器 |
-| `apps/desktop` | GPUI 窗口与侧栏、WKWebView 编辑区、Finder 打开、文件与图片读写、本地模型调用 |
-| `packages/editor-web` | GPUI 浏览器后端的 WASM 入口和私有 JavaScript 接口 |
+| `packages/editor-core` | Markdown 源文档、UTF-8 字节偏移、语法投影和格式操作原语 |
+| `packages/editor-typeset` | 排版与编辑引擎：文档解析、光标与选区、编辑操作、垂直移动、SVG 通道、mermaid 与数学公式渲染 |
+| `packages/editor-gpui` | GPUI 视图层：`TypesetView`，桌面与 Playground 共用 |
+| `packages/editor-web` | 浏览器 WASM 入口 |
+| `apps/desktop` | GPUI 窗口与侧栏、文件与图片读写、本地模型调用 |
 | `apps/web` | Playground 页面、文件导入和下载 |
 
-macOS 桌面正文默认所见即所得，源码模式与它共用同一份 Markdown、选区和撤销历史。桌面宿主在保存或关闭前读取编辑器快照，负责文件和图片写入。插入图片与本地 AI 续写时，由编辑器再次校验文档版本、选区和输入法状态。llama.cpp 由桌面宿主管理，已安装的 GGUF 模型按需加载。浏览器 Playground 通过 `inkpoint-editor-gpui` 编辑原始 Markdown。
+`packages/editor`（CodeMirror 6）仍服务于 Web 应用，桌面端不再使用它。
+
+## 分层与依赖方向
+
+```
+editor-core      文档模型（无 DOM、无 GPUI）
+     ↓
+editor-typeset   排版 + 编辑引擎
+     ↓
+editor-gpui      GPUI 视图
+     ↓
+apps/desktop     GPUI 宿主
+apps/web         Playground
+```
+
+排版渲染由上游 `gpui-base` 承担，编辑层由 `editor-typeset` 承担。这条分界的依据见下方 ADR。
+
+桌面与 Playground 都通过 `TypesetView` 编辑，旧的块卡片式 `EditorView` 已删除。
 
 ## 本地构建
 
-- `pnpm dev:desktop` 先构建编辑区资源，再启动原生桌面应用。可在命令后直接传入 Markdown 路径。
+- `pnpm dev:desktop` 直接启动原生桌面应用，可在命令后传入 Markdown 路径。桌面端不再有独立的编辑器资源构建步骤。
 - `pnpm dev:web` 构建 WASM 并启动 Playground。构建需要 WASM 工具链与 `wasm-bindgen-cli`，版本以 Beta CI 为准。
 - `pnpm --filter @md-editor/editor-web test:packed` 在临时目录安装生成的包并检查入口。该包为私有 workspace 依赖。
 
-Beta CI 将编辑区资源打包进 Apple Silicon `.app`，并生成 DMG 和独立的 Playground ZIP。Playground ZIP 解压后从静态 HTTP 服务打开。
+Beta CI 生成 Apple Silicon DMG 与独立的 Playground ZIP。Playground ZIP 解压后从静态 HTTP 服务打开。
 
-## Web 端 JS 层边界
+## 排版与编辑的分工
 
-JS 只承担两件 WASM 无法自举的事：`wasm-bindgen` 的 `init()`，以及 DOM 宿主
-（挂载点、`<input type=file>` 文件选择、`<a download>` 下载）。总计约 110 行。
+`gpui-base` 的 `editor_host` 模块就是为「外部编辑器 + gpui 渲染」设计的。它的契约原文：
 
-**剪贴板写在 Rust。** `gpui-pre-web` 的 `Platform::write_to_clipboard` 已封装
-`navigator.clipboard.write_text`，与桌面端同一条路径。`packages/editor-web` 导出
-`copy_markdown()`，JS 侧只需在 click 的同步栈内调用（浏览器要求用户激活）。
+> An editor that lives outside gpui-kit keeps its own document model and hands gpui-kit a `BlockNode` tree, the same tree `TextView` renders. gpui-kit renders it and gives back, per text leaf, the geometry the editor needs for hit-testing, caret placement and platform input (IME) bounds.
+>
+> The host owns editing semantics, document revisions, accessibility and native input integration.
 
-**文件选择与下载保留 DOM，是权衡而非能力缺失：**
+因此职责是：
 
-- `Platform::prompt_for_paths` / `prompt_for_new_path` 在 web 端明确返回
-  `not supported on the web`，没有现成 API 可用。
-- `gpui-pre-web` 全仓没有 aria / accesskit 实现。UI 全部画到 canvas 后，屏幕阅读器
-  读不到任何控件；现在的 DOM 按钮是唯一无障碍载体。
-- Playwright 用 `getByRole` / `#id` 定位控件（见 `apps/web/tests/gpui-playground.spec.ts`）。
-  全进 canvas 后只能改坐标点击，e2e 会明显变脆。
+| 能力 | 归属 |
+| --- | --- |
+| Markdown → 块树 | `gpui-base::editor_host::parse_markdown` |
+| 标题字号层级、行内样式、表格、代码块、图片排版 | `gpui-base` 渲染器（`TextViewStyle`） |
+| 文本叶几何（位置、行高、命中、光标） | `gpui-base::editor_host::collect_leaf_geometry` |
+| 选区状态、编辑操作、撤销、文档版本 | `editor-typeset` |
+| 垂直光标导航 | `editor-typeset`（上游明确不提供） |
+| UTF-16 / UTF-8 偏移转换、IME 接线 | `editor-gpui`（`EntityInputHandler`） |
 
-彻底 Rust only 只能把 JS 压到约 10 行加载器，代价是无障碍归零与 e2e 重写。
-若后续要做，应先确认 `gpui-pre-web` 是否补齐了 a11y，并先为 canvas 场景
-建立可定位的 DOM 镜像层。
+### 两个必须记住的实现约束
+
+**leaf key 必须下达到真正承载文本的那一层。** 标题的文本在内嵌的 `Paragraph` 里，把 key 只挂在 `BlockNode::Heading` 外层会导致该标题完全不上报几何。
+
+**几何收集作用域是隔离的。** 宿主若在自己的 `prepaint` 里收集几何，必须调用 `TypesetDocument::render_blocks` 而不是 `render`；后者自带一层收集作用域，嵌套后外层什么都拿不到。
 
 ## 当前功能差异
 
-Playground 的富文本模式按区块或表格单元格进入编辑。桌面端的外部插件运行、会话恢复、文档历史、AI 纠错和风格学习尚未迁移。Playground 的 Chromium 验证覆盖文件导入、中文输入、撤销和下载，macOS 的系统输入法仍需单独验收。
+桌面端与 Playground 都能编辑 Markdown、渲染标题层级、表格单元格编辑与中文输入。
+
+mermaid 与 math fence 会被渲染成图片显示（`DiagramRenderer` → PNG `data:` URL），渲染失败时该块保持源码显示，不阻塞编辑。为什么走 PNG 而不是 SVG 见 ADR。
+
+尚未迁移到桌面端的能力：外部插件运行、会话恢复、文档历史、AI 纠错与风格学习、PDF/HTML 导出、Quick Look、Sentry。
+
+mermaid 与数学公式在渲染失败时降级为源码展示，不阻塞编辑。macOS 简体拼音已在桌面端实机验证候选框定位、选词上屏及一次撤销。

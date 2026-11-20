@@ -1,27 +1,13 @@
 {
   "name": "@md-editor/desktop",
   "version": "0.23.4",
-  "license": "GPL-3.0-or-later",
   "private": true,
   "type": "module",
-  "description": "Inkpoint desktop app (Rust and WebKit editor).",
+  "description": "Inkpoint GPUI desktop app (Rust, gpui-kit).",
   "scripts": {
-    "dev": "pnpm build:editor && cargo run --locked --package inkpoint-gpui --",
-    "build": "pnpm build:editor && cargo build --locked --release --package inkpoint-gpui",
-    "build:editor": "vite build --config vite.config.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "dev": "cargo run --locked --package inkpoint-gpui --",
+    "build": "cargo build --locked --release --package inkpoint-gpui",
     "bundle": "node scripts/package-macos.mjs",
     "test": "cargo test --locked --package inkpoint-gpui"
-  },
-  "dependencies": {
-    "@md-editor/app-ui": "workspace:*",
-    "@md-editor/core": "workspace:*",
-    "@md-editor/editor": "workspace:*",
-    "@md-editor/syntax-plugins": "workspace:*"
-  },
-  "devDependencies": {
-    "@types/node": "catalog:",
-    "typescript": "catalog:",
-    "vite": "catalog:"
   }
 }

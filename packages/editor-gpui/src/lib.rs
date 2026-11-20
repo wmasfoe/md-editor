@@ -1,5 +1,11 @@
-//! GPUI editor components shared by native desktop and the WebAssembly playground.
+//! GPUI editor components shared by the native desktop app and the WebAssembly
+//! Playground.
+//!
+//! The editing engine lives in `editor-typeset`; this crate is the GPUI layer
+//! that renders it and answers the platform's text-input contract.
 
-mod view;
+mod commands;
+mod typeset_view;
 
-pub use view::{BlockFormat, EditorCommand, EditorView, InlineFormat, PasteContext, PasteHandler};
+pub use commands::{BlockFormat, HostCommand, InlineFormat};
+pub use typeset_view::{Copy, Cut, Paste, PasteTarget, TypesetView};

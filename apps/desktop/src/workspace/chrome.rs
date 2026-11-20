@@ -18,7 +18,7 @@ use gpui_kit::{
     *,
 };
 use inkpoint_editor_core::{BlockKind, MarkdownDocument, SourceBlock};
-use inkpoint_editor_gpui::EditorCommand;
+use inkpoint_editor_gpui::{BlockFormat, HostCommand, InlineFormat};
 
 const TITLE_BAR_HEIGHT: Pixels = px(36.);
 const SIDEBAR_FOOTER_HEIGHT: Pixels = px(38.);
@@ -196,21 +196,12 @@ impl Workspace {
     }
 
     fn mode_button(&self, palette: Palette, cx: &mut Context<Self>) -> Button {
-        #[cfg(target_os = "macos")]
-        let (icon, label, mode) = if self.editor.read(cx).source_mode() {
-            (IconName::SquareTerminal, "Switch to WYSIWYG", "Source")
-        } else {
-            (IconName::BookOpen, "Switch to Markdown source", "WYSIWYG")
-        };
-        #[cfg(not(target_os = "macos"))]
-        let (icon, label, mode) = (IconName::SquareTerminal, "Toggle source mode", "Markdown");
+        let (icon, label, mode) = (IconName::BookOpen, "Rendered Markdown", "Typeset");
 
         let button = icon_button("editor-mode-toggle", icon, label, palette, cx).on_click(
             cx.listener(|this, _, window, cx| {
-                this.editor.update(cx, |editor, cx| {
-                    editor.execute_command(EditorCommand::ToggleSourceMode, window, cx);
-                    editor.focus(window, cx);
-                });
+                this.editor
+                    .update(cx, |editor, cx| editor.focus(window, cx));
             }),
         );
         if self.sidebar_visible {
@@ -482,7 +473,7 @@ impl Workspace {
             .as_ref()
             .is_none_or(|(cached, _)| *cached != revision)
         {
-            let document = MarkdownDocument::new(editor.markdown(cx));
+            let document = MarkdownDocument::new(editor.markdown());
             let mut entries = Vec::new();
             if let Ok(blocks) = document.blocks() {
                 let mut line_start = 0;
@@ -525,9 +516,9 @@ impl Workspace {
                     .pl(px(8. + f32::from(entry.level.saturating_sub(1)) * 12.))
                     .accessibility_label(entry.title.clone())
                     .child(div().truncate().text_sm().child(entry.title.clone()))
-                    .on_click(cx.listener(move |this, _, window, cx| {
+                    .on_click(cx.listener(move |this, _, _window, cx| {
                         this.editor
-                            .update(cx, |editor, cx| editor.seek_line(line, window, cx));
+                            .update(cx, |editor, cx| editor.seek_line(line, cx));
                     }))
             }))
     }
@@ -634,13 +625,20 @@ impl Render for Workspace {
             .on_action(cx.listener(|this, _: &ContinueWithLocalAi, window, cx| {
                 this.request_completion(window, cx)
             }))
-            .on_action(cx.listener(|this, command: &EditorCommand, window, cx| {
-                if *command == EditorCommand::ToggleOutline {
+            .on_action(cx.listener(|this, command: &HostCommand, window, cx| {
+                if *command == HostCommand::ToggleOutline {
                     this.show_outline(cx);
-                } else if this.has_active_document {
-                    this.editor.update(cx, |editor, cx| {
-                        editor.execute_command(*command, window, cx)
-                    });
+                } else if this.has_active_document
+                    && let Some(mapped) = host_command(*command)
+                {
+                    this.editor
+                        .update(cx, |editor, cx| editor.execute_command(mapped, window, cx));
+                    // A rejected command used to fail silently: the menu click did
+                    // nothing and the user had no way to know why.
+                    let error = this.editor.read(cx).last_error().map(ToString::to_string);
+                    if let Some(error) = error {
+                        this.message(error, cx);
+                    }
                 }
             }))
             .child(title_bar)
@@ -668,5 +666,34 @@ impl Render for Workspace {
                     )
                 },
             )
+    }
+}
+
+/// Maps a host menu command to the formatting command the typeset editor runs.
+///
+/// The menu keeps naming the commands it always did; the view modes it used to
+/// toggle no longer exist because the GPUI editor renders and edits at once, so
+/// those return `None` and the menu entry becomes inert.
+fn host_command(command: HostCommand) -> Option<inkpoint_editor_typeset::EditorCommand> {
+    use inkpoint_editor_typeset::EditorCommand as Typeset;
+    match command {
+        HostCommand::FormatInline(format) => Some(match format {
+            InlineFormat::Bold => Typeset::ToggleBold,
+            InlineFormat::Italic => Typeset::ToggleItalic,
+            InlineFormat::Strikethrough => Typeset::ToggleStrikethrough,
+            InlineFormat::Code => Typeset::ToggleInlineCode,
+        }),
+        HostCommand::FormatBlock(format) => Some(match format {
+            BlockFormat::Heading(level) => Typeset::Heading(level),
+            BlockFormat::Quote => Typeset::ToggleQuote,
+            BlockFormat::UnorderedList => Typeset::ToggleBulletList,
+            BlockFormat::OrderedList => Typeset::ToggleOrderedList,
+            BlockFormat::TaskList => Typeset::ToggleTaskList,
+        }),
+        HostCommand::ShowSource
+        | HostCommand::ShowBlockEditor
+        | HostCommand::ShowSplitPreview
+        | HostCommand::ToggleSourceMode
+        | HostCommand::ToggleOutline => None,
     }
 }

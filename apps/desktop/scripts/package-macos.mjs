@@ -26,12 +26,6 @@ const binaryPath = path.join(
 if (!fs.existsSync(binaryPath)) {
   throw new Error(`The release binary is missing at ${binaryPath}. Build it before packaging.`);
 }
-const editorAssets = path.join(repositoryRoot, "apps/desktop/editor-dist");
-if (!fs.existsSync(path.join(editorAssets, "editor.html"))) {
-  throw new Error(
-    "The editor assets are missing. Run pnpm --filter @md-editor/desktop build:editor.",
-  );
-}
 
 fs.mkdirSync(bundleRoot, { recursive: true });
 const stageRoot = fs.mkdtempSync(path.join(os.tmpdir(), "inkpoint-gpui-dmg-"));
@@ -49,7 +43,6 @@ fs.mkdirSync(macosRoot, { recursive: true });
 fs.mkdirSync(llamaRoot, { recursive: true });
 fs.copyFileSync(binaryPath, path.join(macosRoot, binaryName));
 fs.chmodSync(path.join(macosRoot, binaryName), 0o755);
-fs.cpSync(editorAssets, path.join(resourcesRoot, "editor"), { recursive: true });
 // 图标与 llama.cpp 运行时曾寄存在 Tauri 的 src-tauri 目录。Tauri 退役后
 // 这两个资产由 GPUI 宿主直接拥有，路径固定在 apps/desktop/assets 与 apps/desktop/runtime。
 fs.copyFileSync(

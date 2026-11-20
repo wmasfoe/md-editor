@@ -4,13 +4,13 @@ mod folder;
 mod image_assets;
 mod local_ai;
 mod settings;
-#[cfg(target_os = "macos")]
-mod web_editor;
 mod workspace;
 
 use futures::{StreamExt, channel::mpsc};
 use gpui_kit::*;
-use inkpoint_editor_gpui::{BlockFormat, EditorCommand::*, InlineFormat};
+use inkpoint_editor_gpui::{
+    BlockFormat, Copy, Cut, HostCommand::*, InlineFormat, Paste, TypesetView,
+};
 use settings::OpenSettings;
 use std::path::PathBuf;
 use workspace::{
@@ -39,6 +39,9 @@ fn main() {
     app.run(move |cx| {
         init(cx);
         settings::init(cx);
+        // The editor's own keys: arrows, enter, backspace, undo/redo, select all.
+        // Without this the view never receives them and typing moves nothing.
+        TypesetView::bind_keys(cx);
         cx.bind_keys([
             KeyBinding::new("cmd-n", NewDocument, Some("Inkpoint")),
             KeyBinding::new("cmd-o", OpenDocument, Some("Inkpoint")),
@@ -75,15 +78,14 @@ fn main() {
                 MenuItem::action("Save As…", SaveAs),
                 MenuItem::action("Close", CloseDocument),
             ]),
-            Menu::new("View").items([
-                MenuItem::action("Toggle Source Mode", ToggleSourceMode),
-                #[cfg(not(target_os = "macos"))]
-                MenuItem::action("Block Editor", ShowBlockEditor),
-                #[cfg(not(target_os = "macos"))]
-                MenuItem::action("Side-by-Side Preview", ShowSplitPreview),
-                MenuItem::separator(),
-                MenuItem::action("Toggle Outline", ToggleOutline),
+            // The source / block / split entries are gone: the GPUI editor
+            // renders and edits at once, so there is no mode to switch between.
+            Menu::new("Edit").items([
+                MenuItem::action("Cut", Cut),
+                MenuItem::action("Copy", Copy),
+                MenuItem::action("Paste", Paste),
             ]),
+            Menu::new("View").items([MenuItem::action("Toggle Outline", ToggleOutline)]),
             Menu::new("Format").items([
                 MenuItem::action("Bold", FormatInline(InlineFormat::Bold)),
                 MenuItem::action("Italic", FormatInline(InlineFormat::Italic)),

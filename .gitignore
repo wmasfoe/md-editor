@@ -4,7 +4,6 @@ node_modules/
 
 # JavaScript / TypeScript build output
 dist/
-apps/desktop/editor-dist/
 # Sentry 插件会自动读取这个文件里的 token，禁止入库。CI 只用 SENTRY_AUTH_TOKEN。
 .env.sentry-build-plugin
 build/
