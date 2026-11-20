@@ -7,6 +7,8 @@
 //!
 //! All offsets here are UTF-8 byte offsets into the leaf's own text.
 
+use std::ops::Range;
+
 use gpui_kit::base::text::editor_host::{Caret, LeafGeometry};
 use gpui_kit::{Pixels, Point};
 
@@ -26,6 +28,17 @@ pub enum Vertical {
 /// down from the middle of a line lands in the middle of the next one, not at
 /// its start. A short line clamps to its own end.
 pub fn move_vertical(leaf: &LeafGeometry, caret: Caret, direction: Vertical) -> Option<Caret> {
+    move_vertical_with_goal(leaf, caret, direction, None)
+}
+
+/// The caret one visual line above or below `caret` within `leaf`, preserving
+/// `goal_x` if provided.
+pub fn move_vertical_with_goal(
+    leaf: &LeafGeometry,
+    caret: Caret,
+    direction: Vertical,
+    goal_x: Option<Pixels>,
+) -> Option<Caret> {
     let origin = leaf.position_for_caret(caret);
     let step = leaf.line_height();
     if step <= Pixels::ZERO {
@@ -54,8 +67,9 @@ pub fn move_vertical(leaf: &LeafGeometry, caret: Caret, direction: Vertical) -> 
         return None;
     }
 
+    let target_x = goal_x.unwrap_or(origin.x);
     Some(leaf.caret_for_position(Point {
-        x: origin.x,
+        x: target_x,
         y: target_y,
     }))
 }
@@ -94,6 +108,135 @@ pub fn move_right(text: &str, caret: Caret) -> Caret {
     Caret::new(next)
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum CharClass {
+    Whitespace,
+    Word,
+    Punctuation,
+}
+
+fn char_class(c: char) -> CharClass {
+    if c.is_whitespace() {
+        CharClass::Whitespace
+    } else if c.is_alphanumeric() || c == '_' {
+        CharClass::Word
+    } else {
+        CharClass::Punctuation
+    }
+}
+
+/// The caret one word backwards, stopping at word or punctuation boundaries.
+pub fn move_word_left(text: &str, caret: Caret) -> Caret {
+    let index = caret.index.min(text.len());
+    if index == 0 {
+        return Caret::new(0);
+    }
+    let chars: Vec<(usize, char)> = text[..index].char_indices().collect();
+    if chars.is_empty() {
+        return Caret::new(0);
+    }
+    let mut i = chars.len();
+    while i > 0 && char_class(chars[i - 1].1) == CharClass::Whitespace {
+        if chars[i - 1].1 == '\n' {
+            return Caret::new(chars[i - 1].0);
+        }
+        i -= 1;
+    }
+    if i == 0 {
+        return Caret::new(0);
+    }
+    let class = char_class(chars[i - 1].1);
+    while i > 0 && char_class(chars[i - 1].1) == class {
+        i -= 1;
+    }
+    Caret::new(chars[i].0)
+}
+
+/// The caret one word forward, stopping at word or punctuation boundaries.
+pub fn move_word_right(text: &str, caret: Caret) -> Caret {
+    let index = caret.index.min(text.len());
+    if index >= text.len() {
+        return Caret::new(text.len());
+    }
+    let chars: Vec<(usize, char)> = text[index..]
+        .char_indices()
+        .map(|(offset, ch)| (index + offset, ch))
+        .collect();
+    if chars.is_empty() {
+        return Caret::new(text.len());
+    }
+    let mut i = 0;
+    while i < chars.len() && char_class(chars[i].1) == CharClass::Whitespace {
+        if chars[i].1 == '\n' {
+            return Caret::new(chars[i].0 + 1);
+        }
+        i += 1;
+    }
+    if i >= chars.len() {
+        return Caret::new(text.len());
+    }
+    let class = char_class(chars[i].1);
+    while i < chars.len() && char_class(chars[i].1) == class {
+        i += 1;
+    }
+    if i < chars.len() {
+        Caret::new(chars[i].0)
+    } else {
+        Caret::new(text.len())
+    }
+}
+
+/// The word range surrounding `index`, suitable for double-click selection.
+pub fn word_range_at(text: &str, index: usize) -> Range<usize> {
+    let len = text.len();
+    if len == 0 {
+        return 0..0;
+    }
+    let index = index.min(len);
+    let char_index = if index == len {
+        text.char_indices().last().map(|(i, _)| i).unwrap_or(0)
+    } else {
+        let mut idx = index;
+        while idx > 0 && !text.is_char_boundary(idx) {
+            idx -= 1;
+        }
+        idx
+    };
+    let target_char = text[char_index..].chars().next().unwrap_or(' ');
+    let target_class = char_class(target_char);
+
+    let mut start = char_index;
+    for (i, ch) in text[..char_index].char_indices().rev() {
+        if char_class(ch) == target_class {
+            start = i;
+        } else {
+            break;
+        }
+    }
+
+    let mut end = char_index + target_char.len_utf8();
+    for (i, ch) in text[end..].char_indices() {
+        if char_class(ch) == target_class {
+            end = char_index + target_char.len_utf8() + i + ch.len_utf8();
+        } else {
+            break;
+        }
+    }
+    start..end
+}
+
+/// The line range surrounding `index`, including any trailing newline, suitable for triple-click selection.
+pub fn line_range_at(text: &str, index: usize) -> Range<usize> {
+    let len = text.len();
+    if len == 0 {
+        return 0..0;
+    }
+    let index = index.min(len);
+    let start = text[..index].rfind('\n').map_or(0, |i| i + 1);
+    let end = text[index..].find('\n').map_or(len, |i| index + i + 1);
+    start..end
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -122,5 +265,29 @@ mod tests {
         let text = "ab";
         assert_eq!(move_left(text, Caret::new(99)).index, 1);
         assert_eq!(move_right(text, Caret::new(99)).index, 2);
+    }
+
+    #[test]
+    fn moving_word_left_and_right() {
+        let text = "hello world foo.bar";
+        assert_eq!(move_word_left(text, Caret::new(11)).index, 6);
+        assert_eq!(move_word_left(text, Caret::new(6)).index, 0);
+        assert_eq!(move_word_left(text, Caret::new(0)).index, 0);
+
+        assert_eq!(move_word_right(text, Caret::new(0)).index, 5);
+        assert_eq!(move_word_right(text, Caret::new(5)).index, 11);
+        assert_eq!(move_word_right(text, Caret::new(11)).index, 15);
+        assert_eq!(move_word_right(text, Caret::new(15)).index, 16);
+        assert_eq!(move_word_right(text, Caret::new(16)).index, 19);
+        assert_eq!(move_word_right(text, Caret::new(19)).index, 19);
+    }
+
+    #[test]
+    fn word_and_line_ranges() {
+        let text = "hello world\nsecond line";
+        assert_eq!(word_range_at(text, 1), 0..5);
+        assert_eq!(word_range_at(text, 7), 6..11);
+        assert_eq!(line_range_at(text, 2), 0..12);
+        assert_eq!(line_range_at(text, 15), 12..23);
     }
 }

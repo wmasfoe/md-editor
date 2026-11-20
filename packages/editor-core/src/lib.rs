@@ -62,6 +62,15 @@ pub enum InlineMarkKind {
     InlineMath,
 }
 
+/// Inline Markdown delimiters supported by the formatting commands.
+#[derive(Clone, Copy)]
+pub enum InlineFormat {
+    Bold,
+    Italic,
+    Strikethrough,
+    Code,
+}
+
 /// Renderer-neutral source edit. Applying an edit changes only its requested
 /// range, preserving surrounding spelling and whitespace.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -69,6 +78,46 @@ pub struct SourceEdit {
     pub range: Range<usize>,
     pub replacement: String,
     pub selection_after: Range<usize>,
+}
+
+/// Checks if text is a valid standalone URL (http, https, ftp).
+pub fn is_valid_url(text: &str) -> bool {
+    let trimmed = text.trim();
+    if trimmed.is_empty() || trimmed.contains(char::is_whitespace) {
+        return false;
+    }
+    let Some(scheme_end) = trimmed.find("://") else {
+        return false;
+    };
+    let scheme = &trimmed[..scheme_end];
+    if !scheme.eq_ignore_ascii_case("http")
+        && !scheme.eq_ignore_ascii_case("https")
+        && !scheme.eq_ignore_ascii_case("ftp")
+    {
+        return false;
+    }
+    let rest = &trimmed[scheme_end + 3..];
+    !rest.is_empty() && rest.contains('.')
+}
+
+#[allow(dead_code)]
+fn word_range_at(source: &str, offset: usize) -> Range<usize> {
+    if source.is_empty() {
+        return 0..0;
+    }
+    let offset = offset.min(source.len());
+    let before = &source[..offset];
+    let after = &source[offset..];
+    let start = before
+        .rfind(|c: char| !c.is_alphanumeric() && c != '_')
+        .map_or(0, |i| {
+            let ch_len = before[i..].chars().next().map_or(1, char::len_utf8);
+            i + ch_len
+        });
+    let end = after
+        .find(|c: char| !c.is_alphanumeric() && c != '_')
+        .map_or(source.len(), |i| offset + i);
+    start..end
 }
 
 impl MarkdownDocument {
@@ -132,8 +181,140 @@ impl MarkdownDocument {
         })
     }
 
+    /// Toggle one inline mark around a selected source range or word.
+    /// An exact matching content range removes only that mark's syntax.
+    pub fn toggle_inline_mark(
+        &self,
+        selection: Range<usize>,
+        format: InlineFormat,
+    ) -> Result<SourceEdit, EditError> {
+        validate_range(&self.source, &selection)?;
+        let (kind, delimiter) = match format {
+            InlineFormat::Bold => (InlineMarkKind::Strong, "**"),
+            InlineFormat::Italic => (InlineMarkKind::Emphasis, "*"),
+            InlineFormat::Strikethrough => (InlineMarkKind::Strikethrough, "~~"),
+            InlineFormat::Code => (InlineMarkKind::Code, "`"),
+        };
+        let d_len = delimiter.len();
+
+        // 1. Collapsed selection handling
+        if selection.is_empty() {
+            let pos = selection.start;
+            // Case 1a: Exactly between delimiters: **|**
+            if self.source[..pos].ends_with(delimiter) && self.source[pos..].starts_with(delimiter)
+            {
+                let start = pos - d_len;
+                return Ok(SourceEdit {
+                    range: start..pos + d_len,
+                    replacement: String::new(),
+                    selection_after: start..start,
+                });
+            }
+            // Case 1b: Caret is inside an existing mark of this kind: **he|llo** -> unwrap!
+            if let Some(mark) = self
+                .inline_marks()
+                .unwrap_or_default()
+                .into_iter()
+                .find(|mark| mark.kind == kind && mark.syntax_range.contains(&pos))
+            {
+                let content = self.source[mark.range.clone()].to_string();
+                let start = mark.syntax_range.start;
+                let end = start + content.len();
+                return Ok(SourceEdit {
+                    range: mark.syntax_range,
+                    replacement: content,
+                    selection_after: start..end,
+                });
+            }
+            return self.wrap_selection(selection, delimiter, delimiter);
+        }
+
+        // 2. Non-collapsed selection handling
+        // Case 2a: Delimiters are immediately outside selection: **[hello]** -> unwrap!
+        if selection.start >= d_len
+            && selection.end + d_len <= self.source.len()
+            && self.source[..selection.start].ends_with(delimiter)
+            && self.source[selection.end..].starts_with(delimiter)
+        {
+            let selected = self.source[selection.clone()].to_string();
+            let start = selection.start - d_len;
+            return Ok(SourceEdit {
+                range: start..selection.end + d_len,
+                replacement: selected.clone(),
+                selection_after: start..start + selected.len(),
+            });
+        }
+
+        // Case 2b: Delimiters are inside selection: [**hello**] -> unwrap!
+        let selected_text = &self.source[selection.clone()];
+        if selected_text.len() >= 2 * d_len
+            && selected_text.starts_with(delimiter)
+            && selected_text.ends_with(delimiter)
+        {
+            let inner = &selected_text[d_len..selected_text.len() - d_len];
+            return Ok(SourceEdit {
+                range: selection.clone(),
+                replacement: inner.to_string(),
+                selection_after: selection.start..selection.start + inner.len(),
+            });
+        }
+
+        // Case 2c: Existing mark matches selection or syntax_range
+        if let Some(mark) = self
+            .inline_marks()
+            .unwrap_or_default()
+            .into_iter()
+            .find(|mark| {
+                mark.kind == kind && (mark.range == selection || mark.syntax_range == selection)
+            })
+        {
+            let content = self.source[mark.range.clone()].to_string();
+            let start = mark.syntax_range.start;
+            let end = start + content.len();
+            return Ok(SourceEdit {
+                range: mark.syntax_range,
+                replacement: content,
+                selection_after: start..end,
+            });
+        }
+
+        // Case 2d: Wrap selection, but trim leading/trailing spaces outside delimiters so Markdown is valid CommonMark!
+        let leading_spaces = selected_text
+            .chars()
+            .take_while(|c| c.is_whitespace())
+            .map(char::len_utf8)
+            .sum::<usize>();
+        let trailing_spaces = selected_text
+            .chars()
+            .rev()
+            .take_while(|c| c.is_whitespace())
+            .map(char::len_utf8)
+            .sum::<usize>();
+        if leading_spaces > 0 || trailing_spaces > 0 {
+            if leading_spaces >= selected_text.len() {
+                // Whole selection is spaces
+                return self.wrap_selection(selection, delimiter, delimiter);
+            }
+            let inner_start = selection.start + leading_spaces;
+            let inner_end = selection.end - trailing_spaces;
+            let body = &self.source[inner_start..inner_end];
+            let leading = &selected_text[..leading_spaces];
+            let trailing = &selected_text[selected_text.len() - trailing_spaces..];
+            let replacement = format!("{leading}{delimiter}{body}{delimiter}{trailing}");
+            let sel_start = selection.start + leading_spaces + d_len;
+            let sel_end = sel_start + body.len();
+            return Ok(SourceEdit {
+                range: selection,
+                replacement,
+                selection_after: sel_start..sel_end,
+            });
+        }
+
+        self.wrap_selection(selection, delimiter, delimiter)
+    }
+
     pub fn set_heading(&self, selection: Range<usize>, level: u8) -> Result<SourceEdit, EditError> {
-        if !(1..=6).contains(&level) {
+        if level > 6 {
             return Err(EditError::InvalidHeadingLevel);
         }
         self.transform_selected_lines(selection, |line| {
@@ -150,12 +331,16 @@ impl MarkdownDocument {
             } else {
                 body
             };
-            format!(
-                "{}{} {}",
-                &line[..leading],
-                "#".repeat(level as usize),
-                text
-            )
+            if level == 0 {
+                format!("{}{}", &line[..leading], text)
+            } else {
+                format!(
+                    "{}{} {}",
+                    &line[..leading],
+                    "#".repeat(level as usize),
+                    text
+                )
+            }
         })
     }
 
@@ -165,10 +350,12 @@ impl MarkdownDocument {
         prefix: &str,
     ) -> Result<SourceEdit, EditError> {
         self.transform_selected_lines(selection, |line| {
-            if let Some(unprefixed) = line.strip_prefix(prefix) {
-                unprefixed.to_string()
+            let body = line.trim_start();
+            let leading = &line[..line.len() - body.len()];
+            if let Some(unprefixed) = body.strip_prefix(prefix) {
+                format!("{leading}{unprefixed}")
             } else {
-                format!("{prefix}{line}")
+                format!("{leading}{prefix}{body}")
             }
         })
     }
@@ -612,4 +799,163 @@ fn image_alt_range(
 ) -> Option<Range<usize>> {
     let syntax_range = self::position(position)?;
     literal_range(source, &syntax_range, alt)
+}
+
+/// Options controlling document find queries.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct FindOptions {
+    pub case_sensitive: bool,
+    pub whole_word: bool,
+    pub regex: bool,
+}
+
+/// Finds all matching UTF-8 byte ranges in `source`.
+pub fn find_matches(source: &str, query: &str, options: &FindOptions) -> Vec<Range<usize>> {
+    if query.is_empty() {
+        return Vec::new();
+    }
+    if options.regex {
+        let pattern = if options.whole_word {
+            format!(r"\b(?:{query})\b")
+        } else {
+            query.to_owned()
+        };
+        let re = match regex::RegexBuilder::new(&pattern)
+            .case_insensitive(!options.case_sensitive)
+            .build()
+        {
+            Ok(re) => re,
+            Err(_) => return Vec::new(),
+        };
+        re.find_iter(source).map(|m| m.start()..m.end()).collect()
+    } else if options.whole_word {
+        let escaped = regex::escape(query);
+        let pattern = format!(r"\b{escaped}\b");
+        let re = match regex::RegexBuilder::new(&pattern)
+            .case_insensitive(!options.case_sensitive)
+            .build()
+        {
+            Ok(re) => re,
+            Err(_) => return Vec::new(),
+        };
+        re.find_iter(source).map(|m| m.start()..m.end()).collect()
+    } else if options.case_sensitive {
+        source
+            .match_indices(query)
+            .map(|(start, _)| start..start + query.len())
+            .collect()
+    } else {
+        let escaped = regex::escape(query);
+        let re = match regex::RegexBuilder::new(&escaped)
+            .case_insensitive(true)
+            .build()
+        {
+            Ok(re) => re,
+            Err(_) => return Vec::new(),
+        };
+        re.find_iter(source).map(|m| m.start()..m.end()).collect()
+    }
+}
+
+/// Replaces a single match range with `replacement`.
+pub fn replace_single_match(
+    source: &str,
+    range: Range<usize>,
+    replacement: &str,
+) -> Option<SourceEdit> {
+    if range.start > range.end || range.end > source.len() {
+        return None;
+    }
+    let after_end = range.start + replacement.len();
+    Some(SourceEdit {
+        range: range.clone(),
+        replacement: replacement.to_owned(),
+        selection_after: range.start..after_end,
+    })
+}
+
+/// Replaces all `matches` with `replacement` in a single transactional edit.
+pub fn replace_all_matches(
+    source: &str,
+    matches: &[Range<usize>],
+    replacement: &str,
+) -> Option<SourceEdit> {
+    if matches.is_empty() {
+        return None;
+    }
+    let first_start = matches.first()?.start;
+    let last_end = matches.last()?.end;
+    if first_start > last_end || last_end > source.len() {
+        return None;
+    }
+
+    let mut result = String::new();
+    let mut last_offset = first_start;
+    for match_range in matches {
+        if match_range.start < last_offset || match_range.end > source.len() {
+            continue;
+        }
+        result.push_str(&source[last_offset..match_range.start]);
+        result.push_str(replacement);
+        last_offset = match_range.end;
+    }
+    result.push_str(&source[last_offset..last_end]);
+
+    let selection_start = first_start;
+    let selection_end = first_start + result.len();
+    Some(SourceEdit {
+        range: first_start..last_end,
+        replacement: result,
+        selection_after: selection_start..selection_end,
+    })
+}
+
+/// Computes document metrics matching Tauri: word count (CJK character = 1 word + alphanumeric words),
+/// line count, and character count.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct DocumentMetrics {
+    pub words: usize,
+    pub lines: usize,
+    pub characters: usize,
+}
+
+pub fn calculate_document_metrics(markdown: &str) -> DocumentMetrics {
+    let lines = if markdown.is_empty() {
+        0
+    } else {
+        markdown.split('\n').count()
+    };
+    let characters = markdown.chars().count();
+    let mut words = 0;
+    let mut in_word = false;
+    for ch in markdown.chars() {
+        if is_cjk(ch) {
+            words += 1;
+            in_word = false;
+        } else if ch.is_alphanumeric() || ch == '\'' || ch == '’' || ch == '-' {
+            if !in_word && ch.is_alphanumeric() {
+                words += 1;
+                in_word = true;
+            }
+        } else {
+            in_word = false;
+        }
+    }
+    DocumentMetrics {
+        words,
+        lines,
+        characters,
+    }
+}
+
+fn is_cjk(ch: char) -> bool {
+    matches!(ch as u32,
+        0x4E00..=0x9FFF | // CJK Unified Ideographs
+        0x3400..=0x4DBF | // CJK Unified Ideographs Extension A
+        0x20000..=0x2A6DF | // Extension B
+        0xF900..=0xFAFF | // CJK Compatibility Ideographs
+        0x3040..=0x309F | // Hiragana
+        0x30A0..=0x30FF | // Katakana
+        0xAC00..=0xD7AF   // Hangul Syllables
+    )
 }

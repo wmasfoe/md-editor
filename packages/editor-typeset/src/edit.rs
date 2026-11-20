@@ -12,7 +12,7 @@ use std::ops::Range;
 
 use gpui_kit::base::text::editor_host::Caret;
 
-use crate::movement::{move_left, move_right};
+use crate::movement::{move_left, move_right, move_word_left, move_word_right};
 use inkpoint_editor_core::{EditError, MarkdownDocument, SourceEdit};
 
 /// Why an edit did not apply.
@@ -473,9 +473,105 @@ impl TypesetEditor {
             return Err(TypesetError::ReadOnly);
         }
         let range = self.selection.range();
+        if range.is_empty() {
+            let pos = range.start;
+            let source = self.document.source();
+            // Check for task checkbox deletion: `- [ ] ` -> `- `
+            if source[..pos].ends_with("- [ ] ") || source[..pos].ends_with("- [x] ") {
+                return self.apply_recording(SourceEdit {
+                    range: pos - 4..pos,
+                    replacement: String::new(),
+                    selection_after: pos - 4..pos - 4,
+                });
+            }
+            // Smart Backspace between paired delimiters
+            let pairs = [
+                ("**", "**"),
+                ("~~", "~~"),
+                ("==", "=="),
+                ("`", "`"),
+                ("*", "*"),
+                ("_", "_"),
+                ("(", ")"),
+                ("[", "]"),
+                ("{", "}"),
+                ("\"", "\""),
+                ("'", "'"),
+                ("<", ">"),
+            ];
+            for (open, close) in pairs {
+                if source[..pos].ends_with(open) && source[pos..].starts_with(close) {
+                    let start = pos - open.len();
+                    let end = pos + close.len();
+                    return self.apply_recording(SourceEdit {
+                        range: start..end,
+                        replacement: String::new(),
+                        selection_after: start..start,
+                    });
+                }
+            }
+        }
         let target = if range.is_empty() {
             let previous = move_left(self.document.source(), Caret::new(range.start)).index;
             previous..range.start
+        } else {
+            range
+        };
+        self.apply_recording(SourceEdit {
+            range: target.clone(),
+            replacement: String::new(),
+            selection_after: target.start..target.start,
+        })
+    }
+
+    /// Deletes backward by one word or deletes the current selection.
+    pub fn delete_word_backward(&mut self) -> Result<(), TypesetError> {
+        if self.readonly {
+            return Err(TypesetError::ReadOnly);
+        }
+        let range = self.selection.range();
+        let target = if range.is_empty() {
+            let previous = move_word_left(self.document.source(), Caret::new(range.start)).index;
+            previous..range.start
+        } else {
+            range
+        };
+        self.apply_recording(SourceEdit {
+            range: target.clone(),
+            replacement: String::new(),
+            selection_after: target.start..target.start,
+        })
+    }
+
+    /// Deletes forward by one word or deletes the current selection.
+    pub fn delete_word_forward(&mut self) -> Result<(), TypesetError> {
+        if self.readonly {
+            return Err(TypesetError::ReadOnly);
+        }
+        let range = self.selection.range();
+        let target = if range.is_empty() {
+            let next = move_word_right(self.document.source(), Caret::new(range.start)).index;
+            range.start..next
+        } else {
+            range
+        };
+        self.apply_recording(SourceEdit {
+            range: target.clone(),
+            replacement: String::new(),
+            selection_after: target.start..target.start,
+        })
+    }
+
+    /// Deletes from caret back to start of current line or deletes the current selection.
+    pub fn delete_to_line_start(&mut self) -> Result<(), TypesetError> {
+        if self.readonly {
+            return Err(TypesetError::ReadOnly);
+        }
+        let range = self.selection.range();
+        let target = if range.is_empty() {
+            let source = self.document.source();
+            let start = source[..range.start].rfind('\n').map_or(0, |i| i + 1);
+            start..range.start
         } else {
             range
         };
@@ -581,6 +677,62 @@ impl TypesetEditor {
         self.apply_recording_joining(edit, typing)
     }
 
+    /// Inserts a newline, continuing or exiting a parsed list item or blockquote when appropriate,
+    /// or navigating / appending table rows when inside a table cell.
+    pub fn insert_newline(&mut self) -> Result<(), TypesetError> {
+        if self.readonly {
+            return Err(TypesetError::ReadOnly);
+        }
+        if self.selection.is_collapsed() {
+            let head = self.selection.head();
+            if let Some(edit) = crate::table_navigation::exit_table(self.source(), head) {
+                return self.apply_recording(edit);
+            }
+            if let Some(target) =
+                crate::table_navigation::navigate_table_vertical(self.source(), head, true)
+            {
+                match target {
+                    crate::table_navigation::TableNavigation::Select(range) => {
+                        self.set_selection(range.start, range.end);
+                        return Ok(());
+                    }
+                    crate::table_navigation::TableNavigation::AppendRow {
+                        offset,
+                        text,
+                        caret,
+                    } => {
+                        self.set_caret(offset);
+                        self.apply_recording(SourceEdit {
+                            range: offset..offset,
+                            replacement: text,
+                            selection_after: caret..caret,
+                        })?;
+                        return Ok(());
+                    }
+                }
+            }
+            if let Some(edit) = crate::list_newline::list_newline(&self.document, head) {
+                return self.apply_recording(edit);
+            }
+            if let Some(edit) = crate::list_newline::blockquote_newline(&self.document, head) {
+                return self.apply_recording(edit);
+            }
+        }
+        self.insert("\n")
+    }
+
+    /// Soft break (Shift-Enter): `<br>` in table, or raw `\n` in text/lists without marker continuation.
+    pub fn insert_soft_break(&mut self) -> Result<(), TypesetError> {
+        if self.readonly {
+            return Err(TypesetError::ReadOnly);
+        }
+        let head = self.selection.head();
+        if let Some(edit) = crate::table_navigation::soft_break_in_table(self.source(), head) {
+            return self.apply_recording(edit);
+        }
+        self.insert("\n")
+    }
+
     /// Sets the heading level of every line the selection touches.
     pub fn set_heading(&mut self, level: u8) -> Result<(), TypesetError> {
         if self.readonly {
@@ -601,6 +753,34 @@ impl TypesetEditor {
         self.apply_recording(edit)
     }
 
+    /// Toggles an inline format as one undoable edit, retaining selection direction.
+    pub fn toggle_inline_mark(
+        &mut self,
+        format: inkpoint_editor_core::InlineFormat,
+    ) -> Result<(), TypesetError> {
+        if self.readonly {
+            return Err(TypesetError::ReadOnly);
+        }
+        let reversed = self.selection.anchor() > self.selection.head();
+        let edit = self
+            .document
+            .toggle_inline_mark(self.selection.range(), format)?;
+        self.apply_recording(edit)?;
+        if reversed {
+            let range = self.selection.range();
+            self.selection = Selection::new(range.end, range.start);
+        }
+        Ok(())
+    }
+
+    /// Applies `edit` and records it in history.
+    pub fn apply_edit(&mut self, edit: SourceEdit) -> Result<(), TypesetError> {
+        if self.readonly {
+            return Err(TypesetError::ReadOnly);
+        }
+        self.apply_recording(edit)
+    }
+
     /// Toggles a line prefix such as `> ` or `- ` on every selected line.
     pub fn toggle_line_prefix(&mut self, prefix: &str) -> Result<(), TypesetError> {
         if self.readonly {
@@ -609,6 +789,250 @@ impl TypesetEditor {
         let selection = self.selection.range();
         let edit = self.document.toggle_line_prefix(selection, prefix)?;
         self.apply_recording(edit)
+    }
+
+    /// Replaces a single match range and records it in undo history.
+    pub fn replace_match(
+        &mut self,
+        range: Range<usize>,
+        replacement: &str,
+    ) -> Result<(), TypesetError> {
+        if self.readonly {
+            return Err(TypesetError::ReadOnly);
+        }
+        let edit = inkpoint_editor_core::replace_single_match(self.source(), range, replacement)
+            .ok_or(TypesetError::Source(
+                inkpoint_editor_core::EditError::InvalidRange,
+            ))?;
+        self.apply_recording(edit)
+    }
+
+    /// Replaces all matches with `replacement` in one undoable step.
+    pub fn replace_all(
+        &mut self,
+        query: &str,
+        replacement: &str,
+        options: &inkpoint_editor_core::FindOptions,
+    ) -> Result<usize, TypesetError> {
+        if self.readonly {
+            return Err(TypesetError::ReadOnly);
+        }
+        let matches = inkpoint_editor_core::find_matches(self.source(), query, options);
+        if matches.is_empty() {
+            return Ok(0);
+        }
+        let count = matches.len();
+        let edit = inkpoint_editor_core::replace_all_matches(self.source(), &matches, replacement)
+            .ok_or(TypesetError::Source(
+                inkpoint_editor_core::EditError::InvalidRange,
+            ))?;
+        self.apply_recording(edit)?;
+        Ok(count)
+    }
+
+    /// Wraps non-empty selections or handles smart auto-pairing / skip-over when typing brackets.
+    pub fn try_wrap_pair(&mut self, text: &str) -> Result<bool, TypesetError> {
+        if self.readonly {
+            return Err(TypesetError::ReadOnly);
+        }
+        if self.selection.is_collapsed() {
+            let head = self.selection.head();
+            // Skip-over closing brackets
+            if matches!(text, ")" | "]" | "}") {
+                if self.source().get(head..head + text.len()) == Some(text) {
+                    self.set_caret(head + text.len());
+                    return Ok(true);
+                }
+                return Ok(false);
+            }
+            // Auto-closing brackets
+            let pair = match text {
+                "(" => Some(("(", ")")),
+                "[" => Some(("[", "]")),
+                "{" => Some(("{", "}")),
+                _ => None,
+            };
+            if let Some((open, close)) = pair {
+                let rest = self.source().get(head..).unwrap_or("");
+                let should_pair = rest.is_empty()
+                    || rest.starts_with(|c: char| c.is_whitespace() || c.is_ascii_punctuation());
+                if should_pair {
+                    self.apply_recording(SourceEdit {
+                        range: head..head,
+                        replacement: format!("{open}{close}"),
+                        selection_after: head + open.len()..head + open.len(),
+                    })?;
+                    return Ok(true);
+                }
+            }
+            return Ok(false);
+        }
+        let (prefix, suffix) = match text {
+            "*" => ("*", "*"),
+            "_" => ("_", "_"),
+            "`" => ("`", "`"),
+            "~" => ("~~", "~~"),
+            "[" => ("[", "]"),
+            "(" => ("(", ")"),
+            "\"" => ("\"", "\""),
+            "'" => ("'", "'"),
+            "{" => ("{", "}"),
+            "<" => ("<", ">"),
+            _ => return Ok(false),
+        };
+        self.wrap_selection(prefix, suffix)?;
+        Ok(true)
+    }
+
+    /// Pastes `url` as a Markdown link `[selected](url)` if a non-empty selection exists.
+    pub fn paste_smart_link(&mut self, url: &str) -> Result<bool, TypesetError> {
+        if self.readonly {
+            return Err(TypesetError::ReadOnly);
+        }
+        if self.selection.is_collapsed() || !inkpoint_editor_core::is_valid_url(url) {
+            return Ok(false);
+        }
+        let selected = self.selected_text().to_string();
+        let markdown_link = format!("[{selected}]({})", url.trim());
+        let range = self.selection.range();
+        let end = range.start + markdown_link.len();
+        self.apply_recording(SourceEdit {
+            range,
+            replacement: markdown_link,
+            selection_after: end..end,
+        })?;
+        Ok(true)
+    }
+
+    /// Indents or outdents the selected lines, or indents a list item under cursor.
+    pub fn indent_selection(&mut self, forward: bool) -> Result<bool, TypesetError> {
+        if self.readonly {
+            return Err(TypesetError::ReadOnly);
+        }
+        if self.selection.is_collapsed() {
+            return self.indent_list(forward);
+        }
+        let range = self.selection.range();
+        let source = self.source();
+        let start = source[..range.start].rfind('\n').map_or(0, |i| i + 1);
+        let end = source[range.end..]
+            .find('\n')
+            .map_or(source.len(), |i| range.end + i);
+        let slice = &source[start..end];
+        let mut replacement = String::new();
+        let mut lines = slice.split('\n').peekable();
+        while let Some(line) = lines.next() {
+            if forward {
+                replacement.push_str("  ");
+                replacement.push_str(line);
+            } else {
+                let spaces = line.bytes().take_while(|&b| b == b' ').take(2).count();
+                replacement.push_str(&line[spaces..]);
+            }
+            if lines.peek().is_some() {
+                replacement.push('\n');
+            }
+        }
+        let new_end = start + replacement.len();
+        self.apply_recording(SourceEdit {
+            range: start..end,
+            replacement,
+            selection_after: start..new_end,
+        })?;
+        Ok(true)
+    }
+
+    /// Checks if the current line touches a Markdown list item.
+    pub fn is_in_list(&self) -> bool {
+        let source = self.source();
+        let caret = self.selection.head();
+        if !source.is_char_boundary(caret) {
+            return false;
+        }
+        let before = match source.get(..caret) {
+            Some(b) => b,
+            None => return false,
+        };
+        let start = before.rfind('\n').map_or(0, |i| i + 1);
+        let end = source[caret..]
+            .find('\n')
+            .map_or(source.len(), |i| caret + i);
+        let line = &source[start..end];
+        let indent = line
+            .bytes()
+            .take_while(|b| matches!(b, b' ' | b'\t'))
+            .count();
+        let rest = &line[indent..];
+        if rest.starts_with(['-', '+', '*']) {
+            return rest
+                .as_bytes()
+                .get(1)
+                .is_some_and(|&b| b == b' ' || b == b'\t');
+        }
+        let digits = rest.bytes().take_while(u8::is_ascii_digit).count();
+        if digits > 0 && digits <= 9 && matches!(rest.as_bytes().get(digits), Some(b'.' | b')')) {
+            return rest
+                .as_bytes()
+                .get(digits + 1)
+                .is_some_and(|&b| b == b' ' || b == b'\t');
+        }
+        false
+    }
+
+    /// Indents or outdents a list item under cursor.
+    pub fn indent_list(&mut self, forward: bool) -> Result<bool, TypesetError> {
+        if self.readonly {
+            return Err(TypesetError::ReadOnly);
+        }
+        if let Some(edit) =
+            crate::list_newline::indent_list(&self.document, self.selection.head(), forward)
+        {
+            self.apply_recording(edit)?;
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
+    /// Outdents the current line by removing up to 2 spaces of indentation, or outdents a list.
+    pub fn outdent_current(&mut self) -> Result<bool, TypesetError> {
+        if self.readonly {
+            return Err(TypesetError::ReadOnly);
+        }
+        if let Ok(true) = self.indent_list(false) {
+            return Ok(true);
+        }
+        let source = self.source();
+        let head = self.selection.head();
+        let before = match source.get(..head) {
+            Some(b) => b,
+            None => return Ok(false),
+        };
+        let start = before.rfind('\n').map_or(0, |i| i + 1);
+        let line = &source[start..];
+        let spaces = line.bytes().take_while(|&b| b == b' ').take(2).count();
+        if spaces > 0 {
+            self.apply_recording(SourceEdit {
+                range: start..start + spaces,
+                replacement: String::new(),
+                selection_after: (head.saturating_sub(spaces))..(head.saturating_sub(spaces)),
+            })?;
+            return Ok(true);
+        }
+        Ok(false)
+    }
+
+    /// Toggles a task checkbox `[ ]` <-> `[x]` at or near `offset`.
+    pub fn toggle_task_checkbox(&mut self, offset: usize) -> Result<bool, TypesetError> {
+        if self.readonly {
+            return Err(TypesetError::ReadOnly);
+        }
+        if let Some(edit) = crate::list_newline::toggle_task_checkbox(&self.document, offset) {
+            self.apply_recording(edit)?;
+            Ok(true)
+        } else {
+            Ok(false)
+        }
     }
 
     /// Applies `edit` and moves the caret to the edit's own selection.
@@ -726,6 +1150,32 @@ mod tests {
     }
 
     #[test]
+    fn try_wrap_pair_wraps_selection_and_undoes() {
+        let mut editor = TypesetEditor::new("selected text");
+        editor.set_selection(0, "selected text".len());
+        assert!(editor.try_wrap_pair("[").unwrap());
+        assert_eq!(editor.source(), "[selected text]");
+        assert!(editor.undo());
+        assert_eq!(editor.source(), "selected text");
+    }
+
+    #[test]
+    fn replace_all_undoes_in_one_step() {
+        let mut editor = TypesetEditor::new("apple pie with apple juice");
+        let count = editor
+            .replace_all(
+                "apple",
+                "orange",
+                &inkpoint_editor_core::FindOptions::default(),
+            )
+            .unwrap();
+        assert_eq!(count, 2);
+        assert_eq!(editor.source(), "orange pie with orange juice");
+        assert!(editor.undo());
+        assert_eq!(editor.source(), "apple pie with apple juice");
+    }
+
+    #[test]
     fn delete_backward_removes_a_selection_in_one_step() {
         let mut editor = TypesetEditor::new("hello world");
         editor.set_selection(5, 11);
@@ -765,6 +1215,34 @@ mod tests {
         editor.set_readonly(false);
         assert!(editor.redo());
         assert_eq!(editor.source(), "aXb");
+    }
+
+    #[test]
+    fn inline_format_preserves_reverse_selection_and_undo() {
+        let mut editor = TypesetEditor::new("中文");
+        editor.set_selection("中文".len(), 0);
+        editor
+            .toggle_inline_mark(inkpoint_editor_core::InlineFormat::Bold)
+            .unwrap();
+        assert_eq!(editor.source(), "**中文**");
+        assert_eq!(
+            (editor.selection().anchor(), editor.selection().head()),
+            (8, 2)
+        );
+        editor
+            .toggle_inline_mark(inkpoint_editor_core::InlineFormat::Bold)
+            .unwrap();
+        assert_eq!(editor.source(), "中文");
+        assert_eq!(
+            (editor.selection().anchor(), editor.selection().head()),
+            (6, 0)
+        );
+        assert!(editor.undo());
+        assert_eq!(editor.source(), "**中文**");
+        assert_eq!(
+            (editor.selection().anchor(), editor.selection().head()),
+            (8, 2)
+        );
     }
 
     #[test]

@@ -30,6 +30,14 @@ static WELCOME_LOGO: LazyLock<Arc<Image>> = LazyLock::new(|| {
     ))
 });
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum DocumentMetricKind {
+    #[default]
+    Words,
+    Lines,
+    Characters,
+}
+
 pub(super) struct OutlineEntry {
     line: usize,
     level: u8,
@@ -81,6 +89,42 @@ impl Workspace {
             APP_NAME.into()
         };
         let dirty = self.has_active_document && self.dirty(cx);
+        let metric_button = self.has_active_document.then(|| {
+            let markdown = self.editor.read(cx).markdown();
+            let metrics = inkpoint_editor_core::calculate_document_metrics(markdown);
+            let label = match self.metric_kind {
+                DocumentMetricKind::Words => format!("{} 词", metrics.words),
+                DocumentMetricKind::Lines => format!("{} 行", metrics.lines),
+                DocumentMetricKind::Characters => format!("{} 字符", metrics.characters),
+            };
+            Button::new("document-metric")
+                .custom(
+                    ButtonCustomVariant::new(cx)
+                        .foreground(palette.muted)
+                        .hover(palette.hover)
+                        .active(palette.active),
+                )
+                .small()
+                .h(px(24.))
+                .rounded(px(6.))
+                .px_2()
+                .text_size(px(12.))
+                .label(label)
+                .tooltip("点击切换统计维度（词数 / 行数 / 字符数）")
+                .on_click(cx.listener(|this, _, _, cx| {
+                    this.metric_kind = match this.metric_kind {
+                        DocumentMetricKind::Words => DocumentMetricKind::Lines,
+                        DocumentMetricKind::Lines => DocumentMetricKind::Characters,
+                        DocumentMetricKind::Characters => DocumentMetricKind::Words,
+                    };
+                    cx.notify();
+                }))
+        });
+        let controls_width = if self.has_active_document {
+            px(180.)
+        } else {
+            px(88.)
+        };
         let sidebar_toggle = icon_button(
             "sidebar-toggle",
             if self.sidebar_visible {
@@ -146,7 +190,7 @@ impl Workspace {
                             .bg(palette.surface)
                             .gap_2()
                             .px_2()
-                            .child(div().w(px(88.)).flex_shrink_0())
+                            .child(div().w(controls_width).flex_shrink_0())
                             .child(
                                 div()
                                     .flex()
@@ -172,10 +216,13 @@ impl Workspace {
                             )
                             .child(
                                 div()
-                                    .w(px(88.))
+                                    .w(controls_width)
                                     .flex_shrink_0()
                                     .flex()
+                                    .items_center()
                                     .justify_end()
+                                    .gap_1()
+                                    .children(metric_button)
                                     .children(mode)
                                     .children(settings)
                                     .child(sidebar_toggle),
@@ -522,6 +569,194 @@ impl Workspace {
                     }))
             }))
     }
+
+    fn draft_recovery_banner(
+        &self,
+        palette: Palette,
+        cx: &mut Context<Self>,
+    ) -> Option<AnyElement> {
+        let draft = self.pending_draft.as_ref()?;
+        let time_str = {
+            let secs = draft.last_modified_at / 1000;
+            let mins = (secs / 60) % 60;
+            let hours = (secs / 3600) % 24;
+            format!("{hours:02}:{mins:02}")
+        };
+        let message = format!("检测到该文档存在上次未保存的本地草稿（记录于 {time_str}）。");
+        let is_dark = gpui_kit::component::theme::Theme::global(cx).is_dark();
+        let (banner_bg, banner_border) = if is_dark {
+            (rgb(0x2d1f04), rgb(0x523405))
+        } else {
+            (rgb(0xfef3c7), rgb(0xfcd34d))
+        };
+
+        Some(
+            div()
+                .id("draft-recovery-banner")
+                .flex()
+                .items_center()
+                .justify_between()
+                .px_4()
+                .py_2()
+                .text_xs()
+                .bg(banner_bg)
+                .border_b_1()
+                .border_color(banner_border)
+                .text_color(palette.text)
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap_2()
+                        .child(
+                            Icon::new(IconName::FileText)
+                                .size(px(14.))
+                                .text_color(rgb(0xf59e0b)),
+                        )
+                        .child(message),
+                )
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap_2()
+                        .child(
+                            Button::new("preview-draft")
+                                .ghost()
+                                .small()
+                                .label("查看草稿预览")
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.draft_preview_open = true;
+                                    cx.notify();
+                                })),
+                        )
+                        .child(
+                            Button::new("discard-draft")
+                                .ghost()
+                                .small()
+                                .label("放弃草稿")
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.discard_pending_draft(cx);
+                                })),
+                        )
+                        .child(
+                            Button::new("restore-draft")
+                                .primary()
+                                .small()
+                                .label("恢复草稿")
+                                .on_click(cx.listener(|this, _, window, cx| {
+                                    this.restore_pending_draft(window, cx);
+                                })),
+                        ),
+                )
+                .into_any_element(),
+        )
+    }
+
+    fn draft_preview_modal(&self, palette: Palette, cx: &mut Context<Self>) -> Option<AnyElement> {
+        if !self.draft_preview_open {
+            return None;
+        }
+        let draft = self.pending_draft.as_ref()?;
+        let draft_content = draft.draft_content.clone();
+
+        Some(
+            div()
+                .id("draft-preview-modal-backdrop")
+                .absolute()
+                .inset_0()
+                .flex()
+                .items_center()
+                .justify_center()
+                .bg(gpui::black().opacity(0.4))
+                .child(
+                    div()
+                        .id("draft-preview-modal")
+                        .w(px(640.))
+                        .max_h(px(520.))
+                        .flex()
+                        .flex_col()
+                        .rounded_xl()
+                        .border_1()
+                        .border_color(palette.border)
+                        .bg(palette.surface)
+                        .shadow_lg()
+                        .overflow_hidden()
+                        .child(
+                            div()
+                                .flex()
+                                .items_center()
+                                .justify_between()
+                                .border_b_1()
+                                .border_color(palette.border)
+                                .px_4()
+                                .py_3()
+                                .child(
+                                    div()
+                                        .text_sm()
+                                        .font_weight(FontWeight::MEDIUM)
+                                        .text_color(palette.text)
+                                        .child("未保存草稿预览"),
+                                )
+                                .child(
+                                    Button::new("close-draft-preview-x")
+                                        .ghost()
+                                        .small()
+                                        .label("✕")
+                                        .on_click(cx.listener(|this, _, _, cx| {
+                                            this.draft_preview_open = false;
+                                            cx.notify();
+                                        })),
+                                ),
+                        )
+                        .child(
+                            div()
+                                .id("draft-preview-content")
+                                .flex_1()
+                                .min_h(px(200.))
+                                .max_h(px(380.))
+                                .overflow_y_scroll()
+                                .p_4()
+                                .font_family("monospace")
+                                .text_xs()
+                                .text_color(palette.text)
+                                .bg(palette.sidebar)
+                                .child(draft_content),
+                        )
+                        .child(
+                            div()
+                                .flex()
+                                .items_center()
+                                .justify_end()
+                                .gap_2()
+                                .border_t_1()
+                                .border_color(palette.border)
+                                .px_4()
+                                .py_3()
+                                .child(
+                                    Button::new("close-draft-preview")
+                                        .ghost()
+                                        .small()
+                                        .label("关闭")
+                                        .on_click(cx.listener(|this, _, _, cx| {
+                                            this.draft_preview_open = false;
+                                            cx.notify();
+                                        })),
+                                )
+                                .child(
+                                    Button::new("restore-draft-modal")
+                                        .primary()
+                                        .small()
+                                        .label("恢复此草稿")
+                                        .on_click(cx.listener(|this, _, window, cx| {
+                                            this.restore_pending_draft(window, cx);
+                                        })),
+                                ),
+                        ),
+                )
+                .into_any_element(),
+        )
+    }
 }
 
 fn collect_headings(
@@ -560,8 +795,16 @@ impl Render for Workspace {
         });
         let title_bar = self.title_bar(sidebar_width, palette, window, cx);
         let sidebar = sidebar_width.map(|width| self.sidebar(width, palette, cx));
+        let banner = self.draft_recovery_banner(palette, cx);
+        let preview_modal = self.draft_preview_modal(palette, cx);
         let content = if self.has_active_document {
-            self.editor.clone().into_any_element()
+            div()
+                .flex()
+                .flex_col()
+                .size_full()
+                .children(banner)
+                .child(self.editor.clone().into_any_element())
+                .into_any_element()
         } else {
             // The native child view is only mounted once a document is ready to edit.
             self.welcome(palette, cx).into_any_element()
@@ -651,6 +894,7 @@ impl Render for Workspace {
                     .child(div().flex_1().min_w_0().h_full().child(content)),
             )
             .children(suggestion)
+            .children(preview_modal)
             .when(
                 !matches!(self.status.as_ref(), "Ready" | "Saved" | "Opened folder"),
                 |this| {
@@ -690,10 +934,6 @@ fn host_command(command: HostCommand) -> Option<inkpoint_editor_typeset::EditorC
             BlockFormat::OrderedList => Typeset::ToggleOrderedList,
             BlockFormat::TaskList => Typeset::ToggleTaskList,
         }),
-        HostCommand::ShowSource
-        | HostCommand::ShowBlockEditor
-        | HostCommand::ShowSplitPreview
-        | HostCommand::ToggleSourceMode
-        | HostCommand::ToggleOutline => None,
+        HostCommand::ToggleOutline => None,
     }
 }
