@@ -63,6 +63,7 @@ catalog:
 onlyBuiltDependencies:
   - esbuild
 allowBuilds:
+  core-js: false
   esbuild: true
   sharp: true
 confirmModulesPurge: false

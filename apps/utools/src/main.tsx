@@ -1,6 +1,12 @@
 // apps/utools/src/main.tsx
 // uTools 插件入口文件
 
+// Shared editor and lint code uses built-ins newer than uTools 7.x's Chromium 108.
+import "core-js/actual/array/find-last";
+import "core-js/actual/array/to-reversed";
+import "core-js/actual/array/to-sorted";
+import "core-js/actual/string/to-well-formed";
+
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { UtoolsApp } from "./components/UtoolsApp";

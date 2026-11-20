@@ -91,7 +91,8 @@ function scanNode(target, depth, nodes) {
               .readdirSync(target)
               .map((entry) => scanNode(path.join(target, entry), depth + 1, nodes))
               .filter(Boolean)
-              .toSorted(
+              // oxlint-disable-next-line unicorn/no-array-sort -- Electron 22 lacks toSorted; this array is local.
+              .sort(
                 (a, b) =>
                   Number(b.kind === "directory") - Number(a.kind === "directory") ||
                   a.name.localeCompare(b.name, "zh-CN", { sensitivity: "base" }),
