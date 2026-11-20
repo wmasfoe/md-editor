@@ -25,10 +25,13 @@
     "@md-editor/editor": "workspace:*"
   },
   "devDependencies": {
+    "@babel/core": "^7.29.7",
+    "@babel/plugin-transform-unicode-sets-regex": "^7.29.7",
     "@tailwindcss/vite": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",
+    "core-js": "^3.51.0",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
     "utools-api-types": "catalog:",

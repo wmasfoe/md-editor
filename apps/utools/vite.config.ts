@@ -1,5 +1,7 @@
 import { fileURLToPath } from "node:url";
-import { defineConfig } from "vite";
+import { transformSync } from "@babel/core";
+import unicodeSetsRegex from "@babel/plugin-transform-unicode-sets-regex";
+import { defineConfig, type Plugin, type UserConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
@@ -10,10 +12,58 @@ function workspacePath(subpath: string): string {
   return fileURLToPath(new URL(subpath, import.meta.url));
 }
 
+const utoolsChromiumTarget = "chrome108";
+const stringWidthEntry = /[/\\]string-width[/\\]index\.js$/u;
+
+function transformStringWidth(code: string): string {
+  return (
+    transformSync(code, {
+      babelrc: false,
+      configFile: false,
+      plugins: [unicodeSetsRegex],
+    })?.code ?? code
+  );
+}
+
+function utoolsUnicodeRegexPlugin(): Plugin {
+  return {
+    name: "utools-unicode-regex",
+    enforce: "pre",
+    // uTools 7.x uses Chromium 108. markdownlint imports string-width eagerly,
+    // and esbuild alone preserves the unsupported RegExp v flag at runtime.
+    transform(code, id) {
+      if (stringWidthEntry.test(id)) return transformStringWidth(code);
+    },
+    config(): UserConfig {
+      return {
+        optimizeDeps: {
+          esbuildOptions: {
+            plugins: [
+              {
+                name: "utools-unicode-regex",
+                setup(build) {
+                  // esbuild passes this filter to Go's regexp engine, which has no u flag.
+                  build.onLoad(
+                    { filter: new RegExp(stringWidthEntry.source) },
+                    async ({ path: entryPath }) => ({
+                      contents: transformStringWidth(await fs.promises.readFile(entryPath, "utf8")),
+                      loader: "js",
+                    }),
+                  );
+                },
+              },
+            ],
+          },
+        },
+      };
+    },
+  };
+}
+
 function utoolsDistBundlePlugin() {
   return {
     name: "utools-dist-bundle",
-    closeBundle() {
+    writeBundle() {
       const outDir = workspacePath("dist");
       if (!fs.existsSync(outDir)) return;
 
@@ -60,13 +110,14 @@ function utoolsDistBundlePlugin() {
  */
 export default defineConfig({
   base: "./",
-  plugins: [react(), tailwindcss(), utoolsDistBundlePlugin()],
+  plugins: [utoolsUnicodeRegexPlugin(), react(), tailwindcss(), utoolsDistBundlePlugin()],
   server: {
     host: "0.0.0.0",
     port: 5174,
     strictPort: true,
   },
   build: {
+    target: utoolsChromiumTarget,
     outDir: "dist",
     emptyOutDir: true,
   },
