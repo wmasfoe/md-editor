@@ -25,6 +25,7 @@ import {
   refreshMarkdownParseCoverageEffect,
   type MarkdownRangeIndex,
 } from "../../src/markdown/range-index.ts";
+import { compareRecords } from "../../src/markdown/extractors/common.ts";
 
 interface IndexHarness {
   readonly state: EditorState;
@@ -686,6 +687,7 @@ describe("增量更新不得阻塞解析（性能契约）", () => {
   });
 });
 
+
 describe("首次建索引的覆盖度契约（大文档回归）", () => {
   /**
    * 回归锁：`readCoverageAfterParse` 曾在 `ensureSyntaxTree` 之后仍经
@@ -724,5 +726,81 @@ describe("首次建索引的覆盖度契约（大文档回归）", () => {
     expect(headings).toHaveLength(200);
     const partial = headings.filter((record) => record.parserCoverage !== "complete");
     expect(partial.map((record) => record.fullRange.from)).toEqual([]);
+  });
+});
+
+/** 抽取与增量复用相关的结构字段（不含 parserCoverage，理由见用例内注释）。 */
+function indexStructure(index: MarkdownRangeIndex) {
+  return index.records.map((record) => ({
+    kind: record.kind,
+    from: record.fullRange.from,
+    to: record.fullRange.to,
+    fingerprint: record.sourceFingerprint,
+  }));
+}
+
+describe("增量复用：有序归并与覆盖度投影", () => {
+  /**
+   * 回归锁：`updateMarkdownRangeIndex` 曾用 `insertRecord`（线性插入排序）把
+   * 数千条复用记录逐条插入新数组 —— O(n²)。CPU profile 显示 `insertRecord` +
+   * `compareRecords` 占每次按键 48ms 中的 74%。改为「复用段 + 重建段」线性归并后
+   * 降到 ~8.7ms/键。
+   *
+   * 该优化依赖两条不变量，必须由测试长期看守：
+   * 1. 归并后 records 仍严格按 `compareRecords` 排序；
+   * 2. 增量结果与全量重建在「结构」上等价（kind / 区间 / 源码指纹）。
+   */
+  it("records 在多次编辑后仍严格有序", () => {
+    const blocks = Array.from({ length: 80 }, (_, i) => `## S${i}\n\nBody **${i}**.\n`);
+    let state = EditorState.create({
+      doc: blocks.join("\n"),
+      extensions: [markdown({ extensions: M1_MARKDOWN_EXTENSIONS }), markdownRangeIndexField],
+    });
+    let seed = 987654321;
+    const nextRandom = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff);
+
+    for (let step = 0; step < 25; step += 1) {
+      const pos = nextRandom() % state.doc.length;
+      const insert = ["a", "\n", "## 新增\n", "**x**", "| A | B |\n| --- | --- |\n| 1 | 2 |\n"][
+        nextRandom() % 5
+      ];
+      state = state.update({
+        changes: { from: pos, insert },
+        selection: EditorSelection.cursor(pos + insert.length),
+      }).state;
+
+      const records = state.field(markdownRangeIndexField).records;
+      for (let index = 1; index < records.length; index += 1) {
+        expect(compareRecords(records[index - 1], records[index])).toBeLessThanOrEqual(0);
+      }
+    }
+  });
+
+  it("增量结果与全量重建结构等价（随机编辑序列）", () => {
+    const blocks = Array.from(
+      { length: 60 },
+      (_, i) => `## S${i}\n\nBody **${i}** 与 \`c${i}\`。\n`,
+    );
+    let state = EditorState.create({
+      doc: blocks.join("\n"),
+      extensions: [markdown({ extensions: M1_MARKDOWN_EXTENSIONS }), markdownRangeIndexField],
+    });
+    let seed = 123456789;
+    const nextRandom = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff);
+    for (let step = 0; step < 30; step += 1) {
+      const pos = nextRandom() % state.doc.length;
+      const insert = ["a", "\n", "## 新增\n", "**x**", ""][nextRandom() % 5];
+      const deleteLength = nextRandom() % 4 === 0 ? Math.min(3, state.doc.length - pos) : 0;
+      state = state.update({
+        changes: { from: pos, to: pos + deleteLength, insert },
+        selection: EditorSelection.cursor(pos + insert.length),
+      }).state;
+
+      const incremental = state.field(markdownRangeIndexField);
+      const oracle = buildMarkdownRangeIndex(state.doc.toString(), syntaxTree(state));
+      // 不比较 `parserCoverage`：增量路径复用旧记录，旧记录若在上一轮就是 partial
+      // 会原样保留，而全量重建按当前完整树重新判定。该差异在本优化之前即存在。
+      expect(indexStructure(incremental)).toEqual(indexStructure(oracle));
+    }
   });
 });

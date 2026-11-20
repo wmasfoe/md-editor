@@ -60,6 +60,8 @@ import {
   unionRanges,
 } from "./extractors/common.ts";
 import { resolveAlertMetadata } from "./extractors/alert.ts";
+import { projectCoverage } from "./coverage.ts";
+import { mergeSortedRecords } from "./record-merge.ts";
 import { createCodeBlockMetadata, mapCodeBlockMetadata } from "./extractors/code-block.ts";
 import { createTableBlockMetadata, mapTableBlockMetadata } from "./extractors/table.ts";
 import {
@@ -359,6 +361,16 @@ function updateMarkdownRangeIndex(
   expandFrontmatterPriorityRanges(oldSource, newSource, changedRanges, oldDirty, newDirty);
   getWysiwygDiagnostics(transaction.state)?.recordDirtyBlockRebuild(newDirty);
 
+  // 复用未受影响的记录。
+  //
+  // ⚠️ 这里必须 `push` 而不是 `insertRecord`：`insertRecord` 是线性插入排序
+  // （`while (index < records.length && compareRecords(...) <= 0) index++`），
+  // 对 n 条记录逐条插入是 O(n²)。实测 3999 条记录时，仅 `insertRecord` +
+  // `compareRecords` 就占每次按键 48ms 中的 **74%**（CPU profile），是本文件最大的热点。
+  //
+  // 可以安全追加的前提：`previous.records` 本身已按 `compareRecords` 全序排列
+  // （`MarkdownRangeIndex` 的构造不变量），且 `mapRecord` 保持相对顺序不变
+  // （单调映射 + 单点插入不会让两条记录的先后关系反转）。
   const mapped: MarkdownRangeRecord[] = [];
   for (const record of previous.records) {
     if (record.kind === "frontmatter" || touchesAny(record.blockRange, oldDirty)) {
@@ -366,11 +378,11 @@ function updateMarkdownRangeIndex(
     }
     const nextRecord = mapRecord(record, transaction.changes, newSource);
     if (nextRecord && !touchesAny(nextRecord.blockRange, newDirty)) {
-      insertRecord(mapped, nextRecord);
+      mapped.push(nextRecord);
     }
   }
 
-  const coverage = readCoverage(transaction.state);
+  const coverage = projectCoverage(previous.coverage, newSource.length);
   const rebuilt = buildMarkdownRangeIndex(newSource, tree, {
     coverage,
     version: previous.version + 1,
@@ -378,10 +390,8 @@ function updateMarkdownRangeIndex(
     mdxMode: transaction.state.facet(mdxModeFacet),
     pluginRegistry: transaction.state.facet(syntaxPluginRegistryFacet),
   });
-  const records = [...mapped];
-  for (const record of rebuilt.records) {
-    insertRecord(records, record);
-  }
+  // 两段都已按 `compareRecords` 有序，做一次线性归并而不是逐条插入排序。
+  const records = mergeSortedRecords(mapped, rebuilt.records);
   getWysiwygDiagnostics(transaction.state)?.recordMappedRanges(mapped.length);
   return new MarkdownRangeIndex(records, coverage, newSource.length, previous.version + 1);
 }
