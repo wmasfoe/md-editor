@@ -326,9 +326,11 @@ function updateMarkdownRangeIndex(
 ): MarkdownRangeIndex {
   const oldSource = transaction.startState.doc.toString();
   const newSource = transaction.newDoc.toString();
-  // 结构化编辑（如表格增删行）后必须拿到完整语法树，否则 dirty rebuild
-  // 无法识别顶层 Table 节点，导致 range-index 短暂丢表。
-  ensureSyntaxTree(transaction.state, transaction.state.doc.length, 5_000);
+  // Keep ordinary typing incremental. CodeMirror parses the changed viewport as needed,
+  // while table and MDX edits need the complete tree to preserve structural boundaries.
+  if (requiresCompleteParse(transaction, previous)) {
+    ensureSyntaxTree(transaction.state, transaction.state.doc.length, 5_000);
+  }
   const tree = syntaxTree(transaction.state);
   const changedRanges = collectChangedRanges(transaction);
   const oldDirty = mergeRanges(
@@ -381,6 +383,23 @@ function updateMarkdownRangeIndex(
   }
   getWysiwygDiagnostics(transaction.state)?.recordMappedRanges(mapped.length);
   return new MarkdownRangeIndex(records, coverage, newSource.length, previous.version + 1);
+}
+
+function requiresCompleteParse(transaction: Transaction, previous: MarkdownRangeIndex): boolean {
+  if (transaction.state.facet(mdxModeFacet)) return true;
+  // The partial index cannot prove that a newly created block outside parser coverage is
+  // absent. Recover complete coverage before applying structural edits to a partial index.
+  if (!previous.coverage.complete) return true;
+  let touchesTable = false;
+  transaction.changes.iterChangedRanges((fromA, toA, fromB, toB) => {
+    if (
+      previous.overlapping(fromA, toA).some((record) => record.kind === "table") ||
+      previous.overlapping(fromB, toB).some((record) => record.kind === "table")
+    ) {
+      touchesTable = true;
+    }
+  });
+  return touchesTable;
 }
 
 /**

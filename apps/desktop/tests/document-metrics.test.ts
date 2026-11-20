@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { calculateDocumentMetrics, getDocumentMetricLabel } from "../src/app/document-metrics";
+import { calculateDocumentMetrics } from "@md-editor/editor";
+import { getDocumentMetricLabel } from "../src/app/document-metrics";
 
 describe("document metrics", () => {
   it("counts words, lines, and characters for mixed Markdown", () => {

@@ -446,6 +446,22 @@ describe("M2 code-block parser range index", () => {
 });
 
 describe("M3 table parser range index", () => {
+  it("indexes a newly inserted table and shifts following records after insertion", () => {
+    const source = `${"Paragraph text.\n\n".repeat(80)}Tail **bold**.\n`;
+    const harness = createIndexHarness(source);
+    const insertAt = source.indexOf("Tail");
+    const insertion = "| A | B |\n| --- | --- |\n| x | y |\n\n";
+    const nextState = harness.state.update({
+      changes: { from: insertAt, insert: insertion },
+    }).state;
+    const next = nextState.field(markdownRangeIndexField);
+    const oracle = buildMarkdownRangeIndex(nextState.doc.toString(), syntaxTree(nextState));
+
+    expect(next.byKind("table")).toHaveLength(1);
+    expect(next.byKind("bold")[0]?.fullRange.from).toBe(insertAt + insertion.length + 5);
+    expect(comparable(next)).toEqual(comparable(oracle));
+  });
+
   it("M3T-U01 builds exact header, delimiter, and body row ranges for an aligned table", () => {
     const fixture = getM3TableFixture("M3T-F01");
     const { index } = createIndexHarness(fixture.markdown);

@@ -29,7 +29,9 @@ export const tableCss = String.raw`
 .cm-md-editor.cm-editor.cm-md-editor--wysiwyg .cm-md-table-widget__grid {
   border-collapse: collapse;
   font-size: 0.92em;
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
+  table-layout: fixed;
 }
 .cm-md-editor.cm-editor.cm-md-editor--wysiwyg .cm-md-table-widget__cell {
   box-sizing: border-box;
@@ -51,6 +53,19 @@ export const tableCss = String.raw`
   outline: none;
   box-shadow: inset 0 0 0 1.5px var(--theme-primary, currentColor);
   background: var(--theme-surface, transparent);
+}
+.cm-md-editor.cm-editor.cm-md-editor--wysiwyg .cm-md-table-widget__cell--range-selected {
+  background: color-mix(in srgb, var(--theme-primary, #4c8bf5) 18%, transparent);
+}
+.cm-md-editor.cm-editor.cm-md-editor--wysiwyg .cm-md-table-widget__resize-grip {
+  position: absolute;
+  z-index: 4;
+  top: 0;
+  right: -3px;
+  width: 7px;
+  height: 100%;
+  cursor: col-resize;
+  touch-action: none;
 }
 .cm-md-editor.cm-editor.cm-md-editor--wysiwyg .cm-md-table-widget__cell-editor {
   min-height: 1.35em;

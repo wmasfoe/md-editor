@@ -7,7 +7,10 @@ use std::{
 use crate::save_runtime::{SaveCommitResult, SaveWarning};
 
 use super::{
-    assets::link_href_to_path,
+    assets::{
+        inspect_markdown_link_targets_blocking, link_href_to_path, markdown_heading_context,
+        LinkTargetProbeRequest,
+    },
     document::{commit_markdown_save_with, write_atomically},
     mutations::create_markdown_tree_item,
     path_utils::{
@@ -17,6 +20,87 @@ use super::{
     tree::build_markdown_folder,
     types::{CreateTreeItemKind, MarkdownFileTreeNodeKind},
 };
+
+#[test]
+fn batch_link_probe_reads_unicode_markdown_once_and_preserves_missing_status() {
+    let root = unique_test_directory("batch-link-probe");
+    fs::create_dir_all(&root).unwrap();
+    let path = root.join("设计.md");
+    fs::write(&path, "# API\n\nA body").unwrap();
+    let missing = root.join("missing.md");
+    let invalid_utf8 = root.join("invalid.md");
+    fs::write(&invalid_utf8, [0xff, 0xfe]).unwrap();
+    let result = inspect_markdown_link_targets_blocking(vec![
+        LinkTargetProbeRequest {
+            path: path.to_string_lossy().into_owned(),
+            include_headings: true,
+        },
+        LinkTargetProbeRequest {
+            path: path.to_string_lossy().into_owned(),
+            include_headings: false,
+        },
+        LinkTargetProbeRequest {
+            path: missing.to_string_lossy().into_owned(),
+            include_headings: false,
+        },
+        LinkTargetProbeRequest {
+            path: invalid_utf8.to_string_lossy().into_owned(),
+            include_headings: false,
+        },
+    ]);
+    let found = result.get(&path.to_string_lossy().to_string()).unwrap();
+    assert!(found.exists);
+    assert_eq!(found.heading_lines.as_deref(), Some("# API"));
+    assert!(!found.access_error);
+    let absent = result.get(&missing.to_string_lossy().to_string()).unwrap();
+    assert!(!absent.exists);
+    assert!(!absent.access_error);
+    let invalid = result
+        .get(&invalid_utf8.to_string_lossy().to_string())
+        .unwrap();
+    assert!(invalid.exists);
+    assert!(invalid.heading_lines.is_none());
+    assert!(!invalid.access_error);
+    let anchored_invalid = inspect_markdown_link_targets_blocking(vec![LinkTargetProbeRequest {
+        path: invalid_utf8.to_string_lossy().into_owned(),
+        include_headings: true,
+    }]);
+    assert!(anchored_invalid[&invalid_utf8.to_string_lossy().to_string()].access_error);
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn link_probe_returns_only_heading_lines_from_large_markdown_body() {
+    let root = unique_test_directory("link-probe-headings");
+    fs::create_dir_all(&root).unwrap();
+    let path = root.join("guide.md");
+    let body = "body text ".repeat(100_000);
+    fs::write(&path, format!("# Guide\n\n## API Reference\n\n{body}")).unwrap();
+    let result = inspect_markdown_link_targets_blocking(vec![LinkTargetProbeRequest {
+        path: path.to_string_lossy().into_owned(),
+        include_headings: true,
+    }]);
+    assert_eq!(
+        result[&path.to_string_lossy().to_string()]
+            .heading_lines
+            .as_deref(),
+        Some("# Guide\n# API Reference")
+    );
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn markdown_heading_context_preserves_js_cross_line_and_whitespace_heading_matches() {
+    let markdown = "##\n\n  Cross Line\n##   Trailing spaces   \n#\u{FEFF}Bom\n###Not a heading\n";
+    assert_eq!(
+        markdown_heading_context(markdown),
+        "# Cross Line\n# Trailing spaces   \n# Bom"
+    );
+    assert_eq!(
+        markdown_heading_context("##\u{2028}\nTitle\r\n# \r\nNext"),
+        "# Title\n# Next"
+    );
+}
 
 #[test]
 fn folder_tree_keeps_empty_directories_visible() {

@@ -31,13 +31,40 @@ function stageRuntime(t) {
   return { binDir, executable };
 }
 
-test("macOS bundle places the complete llama dylib payload beside the sidecar", (t) => {
-  const { binDir } = stageRuntime(t);
-  const payload = path.join(tauriDir, "binaries/llama-runtime-macos-arm64");
-  for (const name of fs.readdirSync(payload).filter((entry) => entry.endsWith(".dylib"))) {
-    assert.ok(fs.existsSync(path.join(binDir, name)), `missing bundled dependency: ${name}`);
-  }
-});
+test(
+  "macOS bundle contains exactly the sidecar dependency closure",
+  { skip: process.platform !== "darwin" },
+  (t) => {
+    const { binDir } = stageRuntime(t);
+    const sidecar = path.join(tauriDir, "binaries/llama-server-aarch64-apple-darwin");
+    const pending = [sidecar];
+    const visited = new Set();
+
+    while (pending.length > 0) {
+      const binary = pending.pop();
+      if (visited.has(binary)) continue;
+      visited.add(binary);
+
+      const result = spawnSync("otool", ["-L", binary], { encoding: "utf8" });
+      if (result.status !== 0) {
+        assert.fail(`otool failed for ${binary}: ${result.stderr}`);
+      }
+      const dependencies = result.stdout.matchAll(/^\s+@(?:rpath|loader_path)\/([^\s]+).*$/gmu);
+      for (const [, name] of dependencies) {
+        const bundledPath = path.join(binDir, name);
+        assert.ok(fs.existsSync(bundledPath), `missing transitive dependency: ${name}`);
+        pending.push(bundledPath);
+      }
+    }
+
+    const bundledDylibs = fs.readdirSync(binDir).filter((entry) => entry.endsWith(".dylib"));
+    assert.equal(
+      bundledDylibs.length,
+      visited.size - 1,
+      "bundle only transitive dylib dependencies",
+    );
+  },
+);
 
 test(
   "hardened macOS sidecar starts from the bundle without DYLD overrides or app writes",

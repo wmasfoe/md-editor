@@ -73,6 +73,9 @@ function createRendererFacade(controller: CodeMirrorRendererController): CodeMir
     toggleTypewriterMode: () => controller.toggleTypewriterMode(),
     dismissSuggestion: () => controller.dismissSuggestion(),
     getSuggestion: () => controller.getSuggestion(),
+    getDocumentMetrics: (
+      snapshot: Pick<DocumentSnapshot, "documentGeneration" | "contentRevision">,
+    ) => controller.getDocumentMetrics(snapshot),
     getSelectionSnapshot: () => controller.getSelectionSnapshot(),
     undo: () => controller.undo(),
     get isComposing(): boolean {

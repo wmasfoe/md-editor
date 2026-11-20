@@ -18,6 +18,31 @@ export const DEFAULT_HEADROOM_RATIO = 0.03;
 /** 参与预算判定的指标（chunkCount 仅作信息展示：代码分割策略变化会合法地改变它）。 */
 export const BUDGETED_METRICS = ["bootJavaScriptGzipBytes", "totalJavaScriptGzipBytes"];
 
+/** Locate App.tsx by Rollup's module graph, independent of facade/entry naming. */
+export function collectBootChunkFiles(chunks) {
+  const appChunks = chunks.filter((chunk) =>
+    chunk.moduleIds.some((moduleId) => moduleId.replaceAll("\\", "/").endsWith("/src/app/App.tsx")),
+  );
+  if (appChunks.length !== 1) {
+    throw new Error(`预期恰有一个包含 src/app/App.tsx 的生产 chunk，实际找到 ${appChunks.length}`);
+  }
+
+  const chunksByFileName = new Map(chunks.map((chunk) => [chunk.fileName, chunk]));
+  const bootFiles = new Set();
+  function includeStaticImports(chunk) {
+    if (bootFiles.has(chunk.fileName)) return;
+    bootFiles.add(chunk.fileName);
+    for (const importedFile of chunk.imports) {
+      const importedChunk = chunksByFileName.get(importedFile);
+      if (importedChunk) includeStaticImports(importedChunk);
+    }
+  }
+  for (const seed of new Set([...chunks.filter((chunk) => chunk.isEntry), ...appChunks])) {
+    includeStaticImports(seed);
+  }
+  return bootFiles;
+}
+
 /**
  * 评估报告是否满足预算。
  * @param {{ bootJavaScriptGzipBytes: number, totalJavaScriptGzipBytes: number }} report

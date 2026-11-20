@@ -47,6 +47,20 @@ export function createEditableCell(
   editor.textContent = text;
   cell.append(editor);
 
+  // A dedicated gutter keeps column resizing separate from text editing and
+  // the existing column actions menu. The grip only changes rendered widths;
+  // Markdown has no column-width syntax to write back to the source.
+  if (tag === "th") {
+    const resizeGrip = document.createElement("span");
+    resizeGrip.className = "cm-md-table-widget__resize-grip";
+    resizeGrip.dataset.colIndex = String(colIndex);
+    resizeGrip.setAttribute("role", "separator");
+    resizeGrip.setAttribute("aria-orientation", "vertical");
+    resizeGrip.setAttribute("aria-label", `Resize column ${colIndex + 1}`);
+    resizeGrip.contentEditable = "false";
+    cell.append(resizeGrip);
+  }
+
   return cell;
 }
 

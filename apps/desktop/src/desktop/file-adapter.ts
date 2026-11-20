@@ -96,12 +96,15 @@ export function createDesktopNativeSaveAdapter(): NativeSaveAdapter {
  */
 export async function savePastedImage(input: ImageSaveInput): Promise<PastedImageFile> {
   assertDesktopRuntime();
-  return invoke<PastedImageFile>("save_pasted_image", {
+  const metadata = {
     documentPath: input.context.documentPath,
     defaultAssetsDir: input.context.defaultAssetsDir,
     preferredName: input.context.preferredName ?? null,
     mimeType: input.mimeType,
-    bytes: Array.from(input.bytes),
+  };
+  return invoke<PastedImageFile>("save_pasted_image", input.bytes, {
+    // Header values are byte-oriented; percent encoding keeps Unicode paths valid.
+    headers: { "x-image-metadata": encodeURIComponent(JSON.stringify(metadata)) },
   });
 }
 

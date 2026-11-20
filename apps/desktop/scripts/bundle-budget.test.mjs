@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { BUDGETED_METRICS, buildBaseline, evaluateBundleBudget } from "./bundle-budget.mjs";
+import {
+  BUDGETED_METRICS,
+  buildBaseline,
+  collectBootChunkFiles,
+  evaluateBundleBudget,
+} from "./bundle-budget.mjs";
 
 const baseline = { bootJavaScriptGzipBytes: 1000, totalJavaScriptGzipBytes: 4000, chunkCount: 80 };
 
@@ -71,4 +76,34 @@ test("buildBaseline 只写入受预算约束的指标与信息字段", () => {
     chunkCount: 7,
     note: "custom note",
   });
+});
+
+test("boot graph 包含 App.tsx 所在 chunk 与全部静态依赖", () => {
+  const chunks = [
+    { fileName: "entry.js", isEntry: true, imports: ["shared.js"], moduleIds: ["/src/main.ts"] },
+    {
+      fileName: "app.js",
+      isEntry: false,
+      imports: ["app-dep.js"],
+      moduleIds: ["C:\\repo\\apps\\desktop\\src\\app\\App.tsx"],
+    },
+    { fileName: "shared.js", isEntry: false, imports: [], moduleIds: [] },
+    { fileName: "app-dep.js", isEntry: false, imports: ["shared.js"], moduleIds: [] },
+    { fileName: "lazy.js", isEntry: false, imports: [], moduleIds: [] },
+  ];
+
+  assert.deepEqual([...collectBootChunkFiles(chunks)].toSorted(), [
+    "app-dep.js",
+    "app.js",
+    "entry.js",
+    "shared.js",
+  ]);
+});
+
+test("boot graph regression fails when App.tsx is missing", () => {
+  assert.throws(
+    () =>
+      collectBootChunkFiles([{ fileName: "entry.js", isEntry: true, imports: [], moduleIds: [] }]),
+    /包含 src\/app\/App\.tsx/u,
+  );
 });

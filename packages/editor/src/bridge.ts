@@ -1,7 +1,9 @@
+import type { DocumentMetrics } from "./markdown/document-metrics.ts";
 import {
   synchronizeRendererEvent,
   type DocumentMutationResult,
   type DocumentState,
+  type DocumentSnapshot,
   type ExternalEditFinalizeReceipt,
   type ExternalEditReservationResult,
   type ModeReceipt,
@@ -62,6 +64,10 @@ export interface CodeMirrorEditorPorts {
   acceptSuggestion(): boolean;
   dismissSuggestion(): boolean;
   getSuggestion(): AiSuggestionValue | null;
+  /** Read cached counters only when the renderer represents this exact snapshot. */
+  getDocumentMetrics?(
+    snapshot: Pick<DocumentSnapshot, "documentGeneration" | "contentRevision">,
+  ): DocumentMetrics | null;
   getSelectionSnapshot(): {
     readonly from: number;
     readonly to: number;
@@ -341,6 +347,9 @@ export function createCodeMirrorEditorBridge(
     acceptSuggestion: () => renderer.acceptSuggestion(),
     dismissSuggestion: () => renderer.dismissSuggestion(),
     getSuggestion: () => renderer.getSuggestion(),
+    getDocumentMetrics: (
+      snapshot: Pick<DocumentSnapshot, "documentGeneration" | "contentRevision">,
+    ) => renderer.getDocumentMetrics?.(snapshot) ?? null,
     getSelectionSnapshot: () => renderer.getSelectionSnapshot(),
     undo: () => renderer.undo(),
     focus: () => renderer.focus(),

@@ -90,4 +90,44 @@ describe("LinkValidator (本地相对链接与图片检查探针)", () => {
     expect(diagnostics[0].kind).toBe("anchor-missing");
     expect(diagnostics[0].anchor).toBe("not-found");
   });
+
+  it("批量探针按目标文件去重并只读一次锚点内容", async () => {
+    const calls: string[][] = [];
+    const markdown =
+      "[one](./guide.md#api-reference) [two](./guide.md#missing) [plain](./guide.md)";
+    const diagnostics = await validateMarkdownRelativeLinks(markdown, {
+      documentPath: "/workspace/文档.md",
+      probeTargets: async (targets) => {
+        calls.push(targets.map(({ path, includeHeadings }) => `${path}:${includeHeadings}`));
+        return { "/workspace/guide.md": { exists: true, headingLines: "## API Reference" } };
+      },
+    });
+    expect(calls).toEqual([["/workspace/guide.md:true"]]);
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0].anchor).toBe("missing");
+  });
+
+  it("批量探针将原生读取权限错误保留为 access-error", async () => {
+    const diagnostics = await validateMarkdownRelativeLinks("[Guide](./guide.md#intro)", {
+      documentPath: "/workspace/doc.md",
+      probeTargets: async () => ({
+        "/workspace/guide.md": { exists: true, headingLines: null, accessError: true },
+      }),
+    });
+    expect(diagnostics.map(({ kind }) => kind)).toEqual(["access-error"]);
+  });
+
+  it("批量探针保留 Windows 路径分隔符与编码字符", async () => {
+    let probed: readonly string[] = [];
+    const markdown = "[文档](./设计%20文档.md#api)";
+    const diagnostics = await validateMarkdownRelativeLinks(markdown, {
+      documentPath: "C:\\workspace\\note.md",
+      probeTargets: async (targets) => {
+        probed = targets.map(({ path, includeHeadings }) => `${path}:${includeHeadings}`);
+        return { "C:/workspace/设计 文档.md": { exists: true, headingLines: "# API" } };
+      },
+    });
+    expect(probed).toEqual(["C:/workspace/设计 文档.md:true"]);
+    expect(diagnostics).toEqual([]);
+  });
 });

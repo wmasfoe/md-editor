@@ -57,6 +57,10 @@ export interface TableGridValue {
 
 interface TableWidgetListeners {
   readonly pointerdown: EventListener;
+  readonly pointermove: EventListener;
+  readonly pointerup: EventListener;
+  readonly pointercancel: EventListener;
+  readonly copy: EventListener;
   readonly focusin: EventListener;
   readonly focusout: EventListener;
   readonly keydown: EventListener;
@@ -178,7 +182,7 @@ export class TableGridWidget extends WidgetType {
 
     const pointerdown: EventListener = (event) => {
       const target = event.target;
-      if (!target || (typeof Element !== "undefined" && !(target instanceof Element))) {
+      if (!target || typeof (target as Element).closest !== "function") {
         return;
       }
       if (
@@ -186,6 +190,24 @@ export class TableGridWidget extends WidgetType {
           ".cm-md-table-widget__cell, .cm-md-table-widget__btn, .cm-md-table-widget__menu",
         )
       ) {
+        const grip = (target as Element).closest?.<HTMLElement>(".cm-md-table-widget__resize-grip");
+        if (grip) {
+          const column = Number(grip.dataset.colIndex);
+          const header = wrapper.querySelector<HTMLElement>(`thead [data-col-index="${column}"]`);
+          if (header) {
+            const startWidth = header.getBoundingClientRect().width;
+            const startX = (event as PointerEvent).clientX;
+            const pointerId = (event as PointerEvent).pointerId;
+            wrapper.dataset.resizeColumn = String(column);
+            wrapper.dataset.resizeStartX = String(startX);
+            wrapper.dataset.resizeStartWidth = String(startWidth);
+            startPointerTracking();
+            if (pointerId !== undefined) wrapper.setPointerCapture?.(pointerId);
+            event.preventDefault();
+            event.stopPropagation();
+            return;
+          }
+        }
         // 单元格/手柄按钮/菜单：不拦截默认行为（让浏览器把焦点交给 contenteditable）；
         // 若表格正处于原子选中态，先清除选中高亮。
         if (currentValue().selected) {
@@ -201,8 +223,23 @@ export class TableGridWidget extends WidgetType {
             ".cm-md-table-widget__btn, .cm-md-table-widget__handle, .cm-md-table-widget__menu",
           )
         ) {
+          if (cell && !(target as HTMLElement).closest?.(".cm-md-table-widget__resize-grip")) {
+            wrapper
+              .querySelectorAll(".cm-md-table-widget__cell--range-selected")
+              .forEach((candidate) => {
+                candidate.classList.remove("cm-md-table-widget__cell--range-selected");
+              });
+            const row = cell.dataset.rowKind === "header" ? 0 : Number(cell.dataset.rowIndex) + 1;
+            wrapper.dataset.selectionAnchor = `${row}:${Number(cell.dataset.colIndex)}`;
+            delete wrapper.dataset.selectionMoved;
+            startPointerTracking();
+          }
           const editor = cell.querySelector<HTMLElement>(".cm-md-table-widget__cell-editor");
-          if (editor && target !== editor) {
+          if (
+            editor &&
+            target !== editor &&
+            !(target as HTMLElement).closest?.(".cm-md-table-widget__resize-grip")
+          ) {
             editor.focus();
           }
         }
@@ -215,6 +252,122 @@ export class TableGridWidget extends WidgetType {
         wrapper.dataset.recordId ?? currentValue().recordId,
         (event as MouseEvent).metaKey || (event as MouseEvent).ctrlKey,
       );
+    };
+
+    const pointermove: EventListener = (event) => {
+      const column = wrapper.dataset.resizeColumn;
+      if (column !== undefined) {
+        const delta = (event as PointerEvent).clientX - Number(wrapper.dataset.resizeStartX);
+        const width = Math.max(40, Number(wrapper.dataset.resizeStartWidth) + delta);
+        wrapper
+          .querySelectorAll<HTMLElement>(`.cm-md-table-widget__cell[data-col-index="${column}"]`)
+          .forEach((cell) => {
+            cell.style.width = `${width}px`;
+            cell.style.minWidth = `${width}px`;
+          });
+        event.preventDefault();
+        return;
+      }
+      const anchor = wrapper.dataset.selectionAnchor;
+      const target = event.target;
+      const pointer = event as PointerEvent;
+      const hit = document.elementFromPoint?.(pointer.clientX, pointer.clientY) ?? target;
+      const cell =
+        hit && typeof (hit as Element).closest === "function"
+          ? (hit as Element).closest<HTMLElement>(".cm-md-table-widget__cell")
+          : null;
+      if (anchor !== undefined && cell && wrapper.contains(cell)) {
+        const [anchorRow, anchorCol] = anchor.split(":").map(Number);
+        const row = cell.dataset.rowKind === "header" ? 0 : Number(cell.dataset.rowIndex) + 1;
+        const col = Number(cell.dataset.colIndex);
+        if (row === anchorRow && col === anchorCol && wrapper.dataset.selectionMoved !== "true") {
+          return;
+        }
+        const minRow = Math.min(anchorRow, row);
+        const maxRow = Math.max(anchorRow, row);
+        const minCol = Math.min(anchorCol, col);
+        const maxCol = Math.max(anchorCol, col);
+        wrapper.querySelectorAll<HTMLElement>(".cm-md-table-widget__cell").forEach((candidate) => {
+          const candidateRow =
+            candidate.dataset.rowKind === "header" ? 0 : Number(candidate.dataset.rowIndex) + 1;
+          const candidateCol = Number(candidate.dataset.colIndex);
+          candidate.classList.toggle(
+            "cm-md-table-widget__cell--range-selected",
+            candidateRow >= minRow &&
+              candidateRow <= maxRow &&
+              candidateCol >= minCol &&
+              candidateCol <= maxCol,
+          );
+        });
+        wrapper.dataset.selectionMoved = "true";
+      }
+    };
+    const pointerup: EventListener = () => {
+      stopPointerTracking();
+      delete wrapper.dataset.resizeColumn;
+      delete wrapper.dataset.resizeStartX;
+      delete wrapper.dataset.resizeStartWidth;
+      if (wrapper.dataset.selectionMoved !== "true") {
+        wrapper.querySelectorAll(".cm-md-table-widget__cell--range-selected").forEach((cell) => {
+          cell.classList.remove("cm-md-table-widget__cell--range-selected");
+        });
+      }
+      delete wrapper.dataset.selectionAnchor;
+      delete wrapper.dataset.selectionMoved;
+    };
+    const pointercancel: EventListener = () => {
+      stopPointerTracking();
+      delete wrapper.dataset.resizeColumn;
+      delete wrapper.dataset.resizeStartX;
+      delete wrapper.dataset.resizeStartWidth;
+      delete wrapper.dataset.selectionAnchor;
+      delete wrapper.dataset.selectionMoved;
+      wrapper.querySelectorAll(".cm-md-table-widget__cell--range-selected").forEach((cell) => {
+        cell.classList.remove("cm-md-table-widget__cell--range-selected");
+      });
+    };
+    let pointerTracking = false;
+    const startPointerTracking = () => {
+      if (pointerTracking) return;
+      pointerTracking = true;
+      document.addEventListener("pointermove", pointermove);
+      document.addEventListener("pointerup", pointerup);
+      document.addEventListener("pointercancel", pointercancel);
+    };
+    const stopPointerTracking = () => {
+      if (!pointerTracking) return;
+      pointerTracking = false;
+      document.removeEventListener("pointermove", pointermove);
+      document.removeEventListener("pointerup", pointerup);
+      document.removeEventListener("pointercancel", pointercancel);
+    };
+    const copy: EventListener = (event) => {
+      const selected = [
+        ...wrapper.querySelectorAll<HTMLElement>(".cm-md-table-widget__cell--range-selected"),
+      ];
+      if (selected.length < 2) return;
+      const rows = new Map<number, Map<number, string>>();
+      for (const cell of selected) {
+        const row = cell.dataset.rowKind === "header" ? 0 : Number(cell.dataset.rowIndex) + 1;
+        const col = Number(cell.dataset.colIndex);
+        const text =
+          cell.querySelector<HTMLElement>(".cm-md-table-widget__cell-editor")?.innerText ?? "";
+        const values = rows.get(row) ?? new Map<number, string>();
+        values.set(col, text);
+        rows.set(row, values);
+      }
+      const orderedRows = [...rows.entries()].toSorted(([left], [right]) => left - right);
+      const tsv = orderedRows
+        .map(([, values]) =>
+          [...values.entries()]
+            .toSorted(([left], [right]) => left - right)
+            .map(([, text]) => text)
+            .join("\t"),
+        )
+        .join("\n");
+      (event as ClipboardEvent).clipboardData?.setData("text/plain", tsv);
+      event.preventDefault();
+      event.stopPropagation();
     };
 
     const focusin: EventListener = (event) => {
@@ -276,6 +429,13 @@ export class TableGridWidget extends WidgetType {
       //    并因 doc 变更清掉待处理的 AI 建议（D-1 PM-4 硬闸门）。
       // 无输入变化时仍需更新“最近编辑单元格”记忆，保持 Tab/Enter 重进语义不变。
       commitCellOnFocusOut(view, wrapper, cell, currentValue());
+      if (!next || !wrapper.contains(next as Node)) {
+        wrapper
+          .querySelectorAll(".cm-md-table-widget__cell--range-selected")
+          .forEach((candidate) => {
+            candidate.classList.remove("cm-md-table-widget__cell--range-selected");
+          });
+      }
     };
 
     const keydown: EventListener = (event) => {
@@ -536,12 +696,17 @@ export class TableGridWidget extends WidgetType {
     };
 
     wrapper.addEventListener("pointerdown", pointerdown);
+    wrapper.addEventListener("copy", copy);
     wrapper.addEventListener("focusin", focusin);
     wrapper.addEventListener("focusout", focusout);
     wrapper.addEventListener("keydown", keydown);
     wrapper.addEventListener("click", actionClick);
     listenersByDom.set(wrapper, {
       pointerdown,
+      pointermove,
+      pointerup,
+      pointercancel,
+      copy,
       focusin,
       focusout,
       keydown,
@@ -609,6 +774,10 @@ export class TableGridWidget extends WidgetType {
     const listeners = listenersByDom.get(dom);
     if (listeners) {
       dom.removeEventListener("pointerdown", listeners.pointerdown);
+      dom.ownerDocument.removeEventListener("pointermove", listeners.pointermove);
+      dom.ownerDocument.removeEventListener("pointerup", listeners.pointerup);
+      dom.ownerDocument.removeEventListener("pointercancel", listeners.pointercancel);
+      dom.removeEventListener("copy", listeners.copy);
       dom.removeEventListener("focusin", listeners.focusin);
       dom.removeEventListener("focusout", listeners.focusout);
       dom.removeEventListener("keydown", listeners.keydown);

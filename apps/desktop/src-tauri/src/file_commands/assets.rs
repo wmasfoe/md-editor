@@ -7,6 +7,7 @@ use std::{
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
+use tauri::ipc::{InvokeBody, Request};
 use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
 
@@ -25,26 +26,46 @@ use super::{
 #[tauri::command]
 pub(crate) fn save_pasted_image(
     app: tauri::AppHandle,
-    document_path: String,
-    default_assets_dir: String,
-    preferred_name: Option<String>,
-    mime_type: String,
-    bytes: Vec<u8>,
+    request: Request<'_>,
 ) -> Result<PastedImageFile, String> {
+    #[derive(serde::Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Metadata {
+        document_path: String,
+        default_assets_dir: String,
+        preferred_name: Option<String>,
+        mime_type: String,
+    }
+    let metadata = request
+        .headers()
+        .get("x-image-metadata")
+        .ok_or_else(|| "Missing image metadata header.".to_string())?
+        .to_str()
+        .map_err(|error| format!("Invalid image metadata header: {error}"))?;
+    let metadata = percent_decode(metadata);
+    let metadata: Metadata = serde_json::from_str(&metadata)
+        .map_err(|error| format!("Invalid image metadata: {error}"))?;
+    let bytes = match request.body() {
+        InvokeBody::Raw(bytes) => bytes,
+        InvokeBody::Json(_) => return Err("Image payload must use a raw binary request.".into()),
+    };
     // 粘贴图片写入当前文档旁边的资源目录，返回给 Markdown 的路径必须保持相对路径。
-    let extension = image_extension(&mime_type)
-        .ok_or_else(|| format!("Unsupported image type: {mime_type}"))?;
-    let doc_path = Path::new(&document_path);
-    let document_directory = doc_path
-        .parent()
-        .ok_or_else(|| format!("Cannot resolve parent directory for {document_path}"))?;
+    let extension = image_extension(&metadata.mime_type)
+        .ok_or_else(|| format!("Unsupported image type: {}", metadata.mime_type))?;
+    let doc_path = Path::new(&metadata.document_path);
+    let document_directory = doc_path.parent().ok_or_else(|| {
+        format!(
+            "Cannot resolve parent directory for {}",
+            metadata.document_path
+        )
+    })?;
     let file_stem = doc_path
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("document");
 
     let assets_directory =
-        resolve_assets_directory(document_directory, file_stem, &default_assets_dir)?;
+        resolve_assets_directory(document_directory, file_stem, &metadata.default_assets_dir)?;
     fs::create_dir_all(&assets_directory).map_err(|error| {
         format!(
             "Failed to create image assets directory {}: {error}",
@@ -52,19 +73,177 @@ pub(crate) fn save_pasted_image(
         )
     })?;
 
-    let image_path = next_image_path(&assets_directory, extension, preferred_name.as_deref());
-    write_atomically(&image_path, &bytes)?;
+    let image_path = next_image_path(
+        &assets_directory,
+        extension,
+        metadata.preferred_name.as_deref(),
+    );
+    write_atomically(&image_path, bytes)?;
     allow_asset_directory(&app, &assets_directory)?;
 
     let md_path = markdown_relative_path_with_preference(
         document_directory,
         &image_path,
-        &default_assets_dir,
+        &metadata.default_assets_dir,
     )?;
 
     Ok(PastedImageFile {
         markdown_path: md_path,
     })
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct LinkTargetProbe {
+    pub(crate) exists: bool,
+    pub(crate) heading_lines: Option<String>,
+    pub(crate) access_error: bool,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct LinkTargetProbeRequest {
+    pub(crate) path: String,
+    pub(crate) include_headings: bool,
+}
+
+/// Probe each distinct target once and only read Markdown headings when an anchor needs checking.
+#[tauri::command]
+pub(crate) async fn inspect_markdown_link_targets(
+    targets: Vec<LinkTargetProbeRequest>,
+) -> Result<std::collections::HashMap<String, LinkTargetProbe>, String> {
+    tauri::async_runtime::spawn_blocking(move || inspect_markdown_link_targets_blocking(targets))
+        .await
+        .map_err(|error| format!("Failed to inspect Markdown link targets: {error}"))
+}
+
+pub(crate) fn inspect_markdown_link_targets_blocking(
+    targets: Vec<LinkTargetProbeRequest>,
+) -> std::collections::HashMap<String, LinkTargetProbe> {
+    let mut unique = std::collections::HashMap::<String, bool>::new();
+    for target in targets {
+        unique
+            .entry(target.path)
+            .and_modify(|include| *include |= target.include_headings)
+            .or_insert(target.include_headings);
+    }
+    let mut results = std::collections::HashMap::new();
+    for (path, include_headings) in unique {
+        let target = Path::new(&path);
+        let metadata = match fs::metadata(target) {
+            Ok(metadata) => metadata,
+            Err(error) => {
+                results.insert(
+                    path,
+                    LinkTargetProbe {
+                        exists: false,
+                        heading_lines: None,
+                        access_error: error.kind() != std::io::ErrorKind::NotFound,
+                    },
+                );
+                continue;
+            }
+        };
+        let (heading_lines, access_error) =
+            if include_headings && metadata.is_file() && is_markdown_path(target) {
+                match fs::read_to_string(target) {
+                    Ok(content) => (Some(markdown_heading_context(&content)), false),
+                    Err(_) => (None, true),
+                }
+            } else {
+                (None, false)
+            };
+        results.insert(
+            path,
+            LinkTargetProbe {
+                exists: true,
+                heading_lines,
+                access_error,
+            },
+        );
+    }
+    results
+}
+
+pub(crate) fn markdown_heading_context(markdown: &str) -> String {
+    let lines = markdown
+        .split_inclusive(['\r', '\n', '\u{2028}', '\u{2029}'])
+        .collect::<Vec<_>>();
+    let mut candidates = Vec::new();
+
+    for (index, line) in lines.iter().enumerate() {
+        let line_without_newline = strip_javascript_line_terminator(line);
+        let hashes = line_without_newline
+            .as_bytes()
+            .iter()
+            .take_while(|byte| **byte == b'#')
+            .count();
+        if !(1..=6).contains(&hashes) {
+            continue;
+        }
+
+        let suffix = &line_without_newline[hashes..];
+        let Some(first_suffix_char) = suffix.chars().next() else {
+            // The line ending itself is JavaScript `\\s`, so headings such as `#\\nTitle`
+            // need the next line as the captured title candidate.
+            if !ends_with_javascript_line_terminator(line) {
+                continue;
+            }
+            if let Some(title) = next_non_whitespace_line(&lines, index + 1) {
+                candidates.push(format!("# {title}"));
+            }
+            continue;
+        };
+        if !is_javascript_whitespace(first_suffix_char) {
+            continue;
+        }
+
+        let title = suffix.trim_start_matches(is_javascript_whitespace);
+        if !title.is_empty() {
+            candidates.push(format!("# {title}"));
+        } else if ends_with_javascript_line_terminator(line) {
+            if let Some(title) = next_non_whitespace_line(&lines, index + 1) {
+                candidates.push(format!("# {title}"));
+            }
+        }
+    }
+
+    candidates.join("\n")
+}
+
+fn next_non_whitespace_line<'a>(lines: &[&'a str], start: usize) -> Option<&'a str> {
+    lines.iter().skip(start).find_map(|line| {
+        let line = strip_javascript_line_terminator(line);
+        (!line.chars().all(is_javascript_whitespace))
+            .then_some(line.trim_start_matches(is_javascript_whitespace))
+    })
+}
+
+fn strip_javascript_line_terminator(line: &str) -> &str {
+    line.strip_suffix(['\r', '\n', '\u{2028}', '\u{2029}'])
+        .unwrap_or(line)
+}
+
+fn ends_with_javascript_line_terminator(line: &str) -> bool {
+    line.ends_with(['\r', '\n', '\u{2028}', '\u{2029}'])
+}
+
+/// JavaScript's `\\s` set, used by the shared TypeScript heading matcher.
+fn is_javascript_whitespace(character: char) -> bool {
+    matches!(
+        character,
+        '\u{0009}'..='\u{000D}'
+            | '\u{0020}'
+            | '\u{00A0}'
+            | '\u{1680}'
+            | '\u{2000}'..='\u{200A}'
+            | '\u{2028}'
+            | '\u{2029}'
+            | '\u{202F}'
+            | '\u{205F}'
+            | '\u{3000}'
+            | '\u{FEFF}'
+    )
 }
 
 /// 弹出系统对话框选取本地 CSS 主题文件。

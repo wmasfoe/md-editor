@@ -20,14 +20,38 @@ export interface LinkDiagnostic {
   readonly message: string;
 }
 
-export interface LinkValidationOptions {
+interface LinkValidationBaseOptions {
   /** 当前正在编辑的文档的绝对路径 */
   readonly documentPath: string;
-  /** 磁盘或存储层的文件存在性探针 */
-  readonly fileExists: (absolutePath: string) => Promise<boolean>;
   /** 可选：用于比对跨文档标题锚点的文件内容读取器 */
   readonly readFile?: (absolutePath: string) => Promise<string | null>;
 }
+
+export type LinkValidationOptions = LinkValidationBaseOptions &
+  (
+    | {
+        readonly probeTargets: (
+          targets: readonly { readonly path: string; readonly includeHeadings: boolean }[],
+        ) => Promise<
+          Readonly<
+            Record<
+              string,
+              {
+                readonly exists: boolean;
+                readonly headingLines: string | null;
+                readonly accessError?: boolean;
+              }
+            >
+          >
+        >;
+        readonly fileExists?: never;
+      }
+    | {
+        /** 磁盘或存储层的文件存在性探针 */
+        readonly fileExists: (absolutePath: string) => Promise<boolean>;
+        readonly probeTargets?: never;
+      }
+  );
 
 /** 外部协议或无需检查的 scheme 判定 */
 const EXTERNAL_URL_REGEX = /^(?:[a-z]+:|\/\/)/i;
@@ -72,7 +96,7 @@ export async function validateMarkdownRelativeLinks(
   markdown: string,
   options: LinkValidationOptions,
 ): Promise<readonly LinkDiagnostic[]> {
-  const { documentPath, fileExists, readFile } = options;
+  const { documentPath, readFile } = options;
   const docDir = dirname(documentPath);
   const extracted = extractMarkdownLinks(markdown);
 
@@ -89,7 +113,7 @@ export async function validateMarkdownRelativeLinks(
   }
 
   const candidates: Candidate[] = [];
-  const uniquePathsToProbe = new Set<string>();
+  const pathsToProbe = new Map<string, boolean>();
 
   for (const item of extracted) {
     const raw = item.rawUrl;
@@ -124,22 +148,49 @@ export async function validateMarkdownRelativeLinks(
       anchor,
       resolvedPath,
     });
-    uniquePathsToProbe.add(resolvedPath);
+    pathsToProbe.set(
+      resolvedPath,
+      pathsToProbe.get(resolvedPath) === true || (Boolean(anchor) && resolvedPath.endsWith(".md")),
+    );
   }
 
   // 2. 异步并行探针存在性（按解析后路径去重）
-  const existenceMap = new Map<string, { exists: boolean; accessError?: boolean }>();
-  await Promise.all(
-    Array.from(uniquePathsToProbe).map(async (absPath) => {
-      try {
-        const exists = await fileExists(absPath);
-        existenceMap.set(absPath, { exists });
-      } catch {
-        // Fail-open: 权限/沙箱异常标记 accessError
-        existenceMap.set(absPath, { exists: false, accessError: true });
+  const existenceMap = new Map<
+    string,
+    { exists: boolean; accessError?: boolean; headingLines?: string | null }
+  >();
+  if (options.probeTargets) {
+    try {
+      const result = await options.probeTargets(
+        [...pathsToProbe].map(([path, includeHeadings]) => ({ path, includeHeadings })),
+      );
+      for (const [path] of pathsToProbe) {
+        const probe = result[path];
+        existenceMap.set(path, probe ?? { exists: false });
       }
-    }),
-  );
+    } catch {
+      for (const [path] of pathsToProbe)
+        existenceMap.set(path, { exists: false, accessError: true });
+    }
+  } else {
+    const pending = [...pathsToProbe.keys()];
+    const workerCount = Math.min(8, pending.length);
+    await Promise.all(
+      Array.from({ length: workerCount }, async () => {
+        while (pending.length > 0) {
+          const absPath = pending.pop();
+          if (!absPath) break;
+          try {
+            const exists = await options.fileExists(absPath);
+            existenceMap.set(absPath, { exists });
+          } catch {
+            // Fail-open: 权限/沙箱异常标记 accessError
+            existenceMap.set(absPath, { exists: false, accessError: true });
+          }
+        }
+      }),
+    );
+  }
 
   // 3. 构建诊断列表
   const diagnostics: LinkDiagnostic[] = [];
@@ -175,10 +226,14 @@ export async function validateMarkdownRelativeLinks(
     }
 
     // 4. 若目标存在且带有锚点，且提供了 readFile，比对锚点有效性
-    if (candidate.anchor && readFile && candidate.resolvedPath.endsWith(".md")) {
+    if (
+      candidate.anchor &&
+      (readFile || probe?.headingLines !== undefined) &&
+      candidate.resolvedPath.endsWith(".md")
+    ) {
       try {
-        const targetContent = await readFile(candidate.resolvedPath);
-        if (targetContent !== null) {
+        const targetContent = probe?.headingLines ?? (await readFile?.(candidate.resolvedPath));
+        if (targetContent !== null && targetContent !== undefined) {
           const headingSlugFound = checkHeadingSlugExists(targetContent, candidate.anchor);
           if (!headingSlugFound) {
             diagnostics.push({

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -9,9 +9,10 @@ import semver from "semver";
 import { selectPublicationPackages, validatePublicationClosure } from "./publication.mjs";
 
 const workspacePackages = () =>
-  readdirSync(new URL("../../packages/", import.meta.url)).map((name) =>
-    JSON.parse(readFileSync(new URL(`../../packages/${name}/package.json`, import.meta.url))),
-  );
+  readdirSync(new URL("../../packages/", import.meta.url))
+    .map((name) => new URL(`../../packages/${name}/package.json`, import.meta.url))
+    .filter((manifest) => existsSync(manifest))
+    .map((manifest) => JSON.parse(readFileSync(manifest)));
 
 test("packed editor SDK consumers accept one shared compatible SDK patch", () => {
   const consumers = ["@md-editor/core", "@md-editor/editor", "@md-editor/plugin-host"];

@@ -13,6 +13,7 @@
  */
 
 import { useMemo, useState } from "react";
+import { calculateDocumentMetrics, type DocumentMetrics } from "@md-editor/editor";
 import { useTranslation } from "@md-editor/i18n";
 import {
   Menu,
@@ -31,11 +32,7 @@ import {
   RectangleGroupIcon,
   SparklesIcon,
 } from "@heroicons/react/24/outline";
-import {
-  calculateDocumentMetrics,
-  getDocumentMetricLabel,
-  type DocumentMetricKind,
-} from "../app/document-metrics";
+import { getDocumentMetricLabel, type DocumentMetricKind } from "../app/document-metrics";
 import { useDocumentSnapshot } from "../app/document-store";
 import { useAppSettings } from "../app/settings-context";
 import { useDocumentUiStore } from "../app/stores/document-ui-store";
@@ -60,7 +57,7 @@ export function EditorTitleBarControls() {
   const { t } = useTranslation();
   const { updateStatus, updatePromptState, openSettings } = useAppSettings();
   const { outline, activeOutlineId } = useEditorUiState();
-  const { jumpToTocItem } = useEditorUiActions();
+  const { getRendererPorts, jumpToTocItem } = useEditorUiActions();
   const { hasActiveDocument } = useDocumentUiStore();
   const { runEditorUpdateAction, dispatchCommand } = useDesktopEditorActions();
   const { isSidebarVisible, setIsSidebarVisible } = useSidebarStore();
@@ -70,8 +67,13 @@ export function EditorTitleBarControls() {
   const updateActionLabel = editorUpdateActionLabel(updateStatus);
 
   const [metricKind, setMetricKind] = useState<DocumentMetricKind>("words");
-  const { markdown } = useDocumentSnapshot();
-  const metrics = useMemo(() => calculateDocumentMetrics(markdown), [markdown]);
+  const snapshot = useDocumentSnapshot();
+  const metrics = useMemo(() => {
+    const access = getRendererPorts();
+    const cached =
+      access.status === "available" ? access.ports.getDocumentMetrics?.(snapshot) : null;
+    return cached ?? calculateDocumentMetrics(snapshot.markdown);
+  }, [getRendererPorts, snapshot]);
 
   return (
     <div className="group/titlebar-controls flex h-8 items-center gap-1 text-[var(--theme-control-text)] focus-within:[--titlebar-secondary-opacity:1] hover:[--titlebar-secondary-opacity:1]">
@@ -301,7 +303,7 @@ function DocumentMetricMenu({
   /** 当前选中的度量指标类别 */
   readonly metricKind: DocumentMetricKind;
   /** 文档实时度量数值集合 */
-  readonly metrics: ReturnType<typeof calculateDocumentMetrics>;
+  readonly metrics: DocumentMetrics;
   /** 指标切换回调 */
   readonly onMetricKindChange: (kind: DocumentMetricKind) => void;
 }) {
