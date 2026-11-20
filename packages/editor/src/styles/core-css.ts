@@ -506,8 +506,12 @@ export const coreEditorCss = String.raw`
 .cm-md-editor.cm-editor.cm-md-editor--wysiwyg .cm-md-table-widget {
   box-sizing: border-box;
   position: relative;
-  width: fit-content;
+  /* 表格默认撑满正文列：与段落同宽，视觉上不是一个“小块”。
+     宽度不足时由内层 viewport 承接横向滚动（见 table-css.ts）。 */
+  width: 100%;
   max-width: 100%;
+  /* 手柄与行操作菜单溢出到表格外侧，wrapper 本身绝不可成为滚动容器。 */
+  overflow: visible;
   margin: 0;
   border: 1px solid var(--theme-border, currentColor) !important;
   border-radius: 6px;

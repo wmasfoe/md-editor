@@ -16,13 +16,8 @@ import {
   insertTableColumn,
   setTableColumnAlignment,
 } from "../../editing/table-editing.ts";
-import {
-  createEditableCell,
-  createRowHandle,
-  createColumnHandle,
-  openTableMenu,
-  closeTableMenu,
-} from "./dom.ts";
+import { openTableMenu, closeTableMenu } from "./dom.ts";
+import { buildTableWidgetSkeleton } from "./dom-build.ts";
 import {
   editingCellByDom,
   addressFromCell,
@@ -31,6 +26,7 @@ import {
   hasUncommittedCellInput,
   sourceCellText,
 } from "./commit.ts";
+import { observeTableOverflow, refreshTableOverflow } from "./overflow.ts";
 import {
   lastEditingCellByRecordId,
   equalStringRows,
@@ -75,6 +71,10 @@ const listenersByDom = new WeakMap<HTMLElement, TableWidgetListeners>();
 // 通过 WeakMap 让监听器始终读取“当前”widget 值，避免提交命中旧记录。
 const currentTableGridValueByDom = new WeakMap<HTMLElement, TableGridValue>();
 
+// 溢出观测的停止函数按 widget 实例保存：CM6 复用 DOM 时会走 updateDOM 而不重建，
+// 但 destroy 必须能解绑，否则 ResizeObserver 随 widget 复用持续累积。
+const stopOverflowObservationByDom = new WeakMap<HTMLElement, () => void>();
+
 /**
  * 始终显示的可视化表格（类 Excel / Notion）：
  * - 单元格 contenteditable 就地编辑，blur/Enter/Tab 回写 GFM 源码；
@@ -117,64 +117,7 @@ export class TableGridWidget extends WidgetType {
 
   toDOM(view: EditorView): HTMLElement {
     const document = view.dom.ownerDocument;
-    const wrapper = document.createElement("div");
-    wrapper.className = "cm-md-table-widget";
-    wrapper.setAttribute("role", "group");
-    wrapper.setAttribute("aria-label", "Markdown table");
-    wrapper.setAttribute("tabindex", "-1");
-
-    const table = document.createElement("table");
-    table.className = "cm-md-table-widget__grid";
-    table.setAttribute("role", "grid");
-
-    const tableHead = document.createElement("thead");
-    const headerRow = document.createElement("tr");
-    this.value.headerCells.forEach((cellText, colIndex) => {
-      const cell = createEditableCell(document, "th", cellText, "header", 0, colIndex, this.value);
-      // 列块手柄：贴在第 colIndex 列右缘，点击弹出列操作菜单（插入左/右、删除本列）。
-      cell.append(createColumnHandle(document, colIndex));
-      headerRow.append(cell);
-    });
-    tableHead.append(headerRow);
-    table.append(tableHead);
-
-    const tableBody = document.createElement("tbody");
-    this.value.bodyRows.forEach((row, rowIndex) => {
-      const tr = document.createElement("tr");
-      const columnCount = Math.max(
-        this.value.headerCells.length,
-        row.length,
-        this.value.alignments.length,
-      );
-      for (let colIndex = 0; colIndex < columnCount; colIndex += 1) {
-        const cell = createEditableCell(
-          document,
-          "td",
-          row[colIndex] ?? "",
-          "body",
-          rowIndex,
-          colIndex,
-          this.value,
-        );
-        // 行块手柄：贴在本行第一列左侧，点击弹出行操作菜单（插入上/下、删除本行）。
-        if (colIndex === 0) {
-          cell.append(createRowHandle(document, rowIndex));
-        }
-        tr.append(cell);
-      }
-      tableBody.append(tr);
-    });
-    table.append(tableBody);
-
-    // 行/列操作浮层菜单：由行/列块手柄触发，点击菜单项执行增删。
-    const menu = document.createElement("div");
-    menu.className = "cm-md-table-widget__menu";
-    menu.setAttribute("role", "menu");
-    menu.setAttribute("aria-label", "Table actions");
-    menu.hidden = true;
-
-    wrapper.append(table);
-    wrapper.append(menu);
+    const { wrapper, menu } = buildTableWidgetSkeleton(document, this.value);
 
     // 事件监听闭包读取“当前”widget 值：CM6 就地复用 DOM 时（updateDOM 返回 true）
     // 闭包仍持有旧实例，必须经由 WeakMap 拿最新值，否则提交/取消命中旧 recordId。
@@ -715,6 +658,9 @@ export class TableGridWidget extends WidgetType {
     });
     currentTableGridValueByDom.set(wrapper, this.value);
     updateTableGridDom(wrapper, this.value);
+    // 溢出状态驱动滚动/裁切几何（见 overflow.ts 与 styles/table-css.ts）。
+    stopOverflowObservationByDom.get(wrapper)?.();
+    stopOverflowObservationByDom.set(wrapper, observeTableOverflow(wrapper));
     this.value.diagnostics?.recordWidgetLifecycle("table", "create");
     return wrapper;
   }
@@ -766,11 +712,14 @@ export class TableGridWidget extends WidgetType {
       });
     });
     updateTableGridDom(dom, this.value);
+    refreshTableOverflow(dom);
     this.value.diagnostics?.recordWidgetLifecycle("table", "update");
     return true;
   }
 
   destroy(dom: HTMLElement): void {
+    stopOverflowObservationByDom.get(dom)?.();
+    stopOverflowObservationByDom.delete(dom);
     const listeners = listenersByDom.get(dom);
     if (listeners) {
       dom.removeEventListener("pointerdown", listeners.pointerdown);
