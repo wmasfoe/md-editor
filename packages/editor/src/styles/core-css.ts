@@ -39,10 +39,19 @@ export const coreEditorCss = String.raw`
   box-sizing: border-box;
   width: 100%;
   min-height: 100%;
-  /* 右侧保持内容居中公式;左侧单独预留行首 toolbar gutter。
-      toolbar 自身统一槽位,正文起点不随块类型改变;负边距锚点仍保持在安全区。 */
-  padding: 3.25rem max(1.25rem, calc((100% - var(--theme-content-width, 860px)) / 2)) 30vh;
-  padding-left: max(5.5rem, calc((100% - var(--theme-content-width, 860px)) / 2));
+  /* 正文居中：两侧同时取居中公式；窗口窄到公式低于下限时退回对称下限。
+
+     为什么左右下限必须相等（曾经是 5.5rem / 1.25rem 的不对称对）：
+     不对称时正文会被系统性推右。实测 1000px 窗口下左留白 88px、右留白 20px，
+     正文整体偏右 34px 且右侧紧贴滚动条（用户报告的“编辑区整体向右偏”）。
+
+     下限取值依据（实测所有行首控件的负偏移）：
+     - 折叠按钮 marginInlineStart: -1.75rem = 28px（唯一超出正文起点的控件）；
+     - 表格行手柄 left: -1.35rem = 21.6px；
+     因此 2.5rem = 40px 足够容纳并留出 12px 余量。
+     历史上的 5.5rem 是为已删除的 -5.5rem 块工具栏预留的，早已多余。 */
+  padding: 3.25rem max(2.5rem, calc((100% - var(--theme-content-width, 860px)) / 2)) 30vh;
+  padding-left: max(2.5rem, calc((100% - var(--theme-content-width, 860px)) / 2));
   caret-color: var(--theme-text, currentColor);
   cursor: text;
 }
@@ -66,12 +75,13 @@ export const coreEditorCss = String.raw`
   z-index: 1 !important;
   /* 确保选区层绝不拦截任何鼠标与指针交互事件，点击与划选事件无损透传至内容层 */
   pointer-events: none !important;
-  /* 严格约束选区背景的水平范围与正文内容对齐，杜绝跨行选区向左击穿至 Gutter 或向右溢出 */
+  /* 严格约束选区背景的水平范围与正文内容对齐，杜绝跨行选区向左击穿至 Gutter 或向右溢出。
+     两侧表达式必须与 .cm-content 的 padding 保持 100% 同步（见上方同一对公式）。 */
   clip-path: polygon(
-    max(5.5rem, calc((100% - var(--theme-content-width, 860px)) / 2)) -99999px,
-    calc(100% - max(1.25rem, calc((100% - var(--theme-content-width, 860px)) / 2))) -99999px,
-    calc(100% - max(1.25rem, calc((100% - var(--theme-content-width, 860px)) / 2))) 999999px,
-    max(5.5rem, calc((100% - var(--theme-content-width, 860px)) / 2)) 999999px
+    max(2.5rem, calc((100% - var(--theme-content-width, 860px)) / 2)) -99999px,
+    calc(100% - max(2.5rem, calc((100% - var(--theme-content-width, 860px)) / 2))) -99999px,
+    calc(100% - max(2.5rem, calc((100% - var(--theme-content-width, 860px)) / 2))) 999999px,
+    max(2.5rem, calc((100% - var(--theme-content-width, 860px)) / 2)) 999999px
   );
 }
 /* 选区色不标 important，宿主的 important 规则可以覆盖。

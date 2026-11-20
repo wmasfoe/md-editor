@@ -26,14 +26,19 @@ let rightSide = contentRect.right - (lineStyle ? parseInt(lineStyle.paddingRight
 ```
 
 - **CM6 的假设前提**：CodeMirror 假定编辑器的水平留白和正文边距写在每行 `.cm-line` 上，而非 `.cm-content` 容器上。
-- **本项目的架构现实**：本项目为了支持正文居中、行首折叠按钮 Gutter（5.5rem+）以及块级投影组件（表格、代码块等），将正文内边距统一配置在 `.cm-content` 上：
+- **本项目的架构现实**：本项目为了支持正文居中、行首折叠按钮 Gutter 以及块级投影组件（表格、代码块等），将正文内边距统一配置在 `.cm-content` 上：
   ```css
-  padding: 3.25rem max(1.25rem, calc((100% - var(--theme-content-width, 860px)) / 2)) 30vh;
-  padding-left: max(5.5rem, calc((100% - var(--theme-content-width, 860px)) / 2));
+  padding: 3.25rem max(2.5rem, calc((100% - var(--theme-content-width, 860px)) / 2)) 30vh;
+  padding-left: max(2.5rem, calc((100% - var(--theme-content-width, 860px)) / 2));
   ```
+  **左右下限必须相等**（都是 `2.5rem`）。历史上是 `5.5rem` / `1.25rem` 的不对称对，导致窄窗口下正文被系统性推右：
+  实测 1000px 窗口时左留白 88px、右留白 20px，正文偏右 34px 且右侧紧贴滚动条。
+  `2.5rem`（40px）的下限依据是实测所有行首控件的负偏移：折叠按钮 `marginInlineStart: -1.75rem`（28px，最大者）
+  与表格行手柄 `left: -1.35rem`（21.6px），40px 足够容纳并留 12px 余量。
+  历史上的 `5.5rem` 是为已删除的 `-5.5rem` 块工具栏预留的。
   而 `.cm-line` 的 `padding-inline` 为 `0`。
 - **冲突与溢出**：
-  `contentRect.left` 是 `.cm-content` 的外部边界（$x = 0$）。由于 `.cm-line` 的 `paddingLeft` 为 0，CM6 算出的 `leftSide` 为 `0px`，直接铺满左侧 5.5rem 的 Gutter；同理，`rightSide` 直接取了视口全宽，忽略了右侧留白，导致右侧全部溢出。
+  `contentRect.left` 是 `.cm-content` 的外部边界（$x = 0$）。由于 `.cm-line` 的 `paddingLeft` 为 0，CM6 算出的 `leftSide` 为 `0px`，直接铺满整个左侧 Gutter；同理，`rightSide` 直接取了视口全宽，忽略了右侧留白，导致右侧全部溢出。
 
 ### 3. 被否决的方案及其教训 (Rejected Alternatives)
 1. **否决 `Decoration.mark` 方案**：
@@ -50,13 +55,13 @@ let rightSide = contentRect.right - (lineStyle ? parseInt(lineStyle.paddingRight
 1. **水平裁剪一致性**：
    `.cm-selectionLayer` 必须通过 `clip-path: polygon(...)` 严格约束在正文有效宽度内，计算公式必须与 `.cm-content` 的 `padding-left` 和 `padding-right` 保持 100% 同步：
    ```css
-   .code-mirror-editor-host .cm-selectionLayer {
+   .cm-md-editor.cm-editor .cm-selectionLayer {
      width: 100%;
      clip-path: polygon(
-       max(5.5rem, calc((100% - var(--theme-content-width, 860px)) / 2)) -99999px,
-       calc(100% - max(1.25rem, calc((100% - var(--theme-content-width, 860px)) / 2))) -99999px,
-       calc(100% - max(1.25rem, calc((100% - var(--theme-content-width, 860px)) / 2))) 999999px,
-       max(5.5rem, calc((100% - var(--theme-content-width, 860px)) / 2)) 999999px
+       max(2.5rem, calc((100% - var(--theme-content-width, 860px)) / 2)) -99999px,
+       calc(100% - max(2.5rem, calc((100% - var(--theme-content-width, 860px)) / 2))) -99999px,
+       calc(100% - max(2.5rem, calc((100% - var(--theme-content-width, 860px)) / 2))) 999999px,
+       max(2.5rem, calc((100% - var(--theme-content-width, 860px)) / 2)) 999999px
      );
    }
    ```
@@ -102,7 +107,7 @@ macOS 菜单的原生 `selectAll:` responder 会从 WebKit 的可编辑 DOM 建�
 1. **单行部分选择**：字符高亮边界与字符本身左右绝对吻合。
 2. **跨多行拖拽选择**：
    - 第一行：从起始字符向右高亮至行末；
-   - 中间行：左边界对齐正文起始线，右边界对齐正文结束线，**左侧 5.5rem Gutter 和右侧留白区域无任何蓝色背景溢出**；
+   - 中间行：左边界对齐正文起始线，右边界对齐正文结束线，**左侧 Gutter 和右侧留白区域无任何蓝色背景溢出**；
    - 最后一行：从正文起始线向右高亮至选区结束字符。
 3. **代码块内部全选 (Mod-a)**：
    - 光标在代码块中按一次 `Mod-a`，代码块内所有代码行均有可见的半透明蓝色选区高亮；
