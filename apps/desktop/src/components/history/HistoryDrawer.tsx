@@ -198,17 +198,25 @@ export function HistoryDrawer({ open, filePath, onClose, onShowToast }: HistoryD
     }
     setIsDiffLoading(true);
     setDiffError(null);
-    const getDiff = isTauri()
+    // 原生 Patience diff 与浏览器 LCS 回退的产出必须同构：两者都归约到
+    // `DiffResult`，UI 不区分来源。原生命令不可用（旧版本后端 / IPC 失败 /
+    // 超大请求被拒）时**退回浏览器 LCS**，而不是把「算不出差异」抛给用户 ——
+    // 历史上这里直接显示错误，导致历史面板在降级场景下完全不可用。
+    const computeInBrowser = (): DiffResult => computeLineDiff(currentContent, previewContent);
+    const getDiff: Promise<DiffResult> = isTauri()
       ? invoke<DiffRange[]>("diff_history_lines", {
           currentText: currentContent,
           snapshotText: previewContent,
-        }).then((ranges) => materializeLineDiff(currentContent, previewContent, ranges))
-      : Promise.resolve(computeLineDiff(currentContent, previewContent));
+        })
+          .then((ranges) => materializeLineDiff(currentContent, previewContent, ranges))
+          .catch(() => computeInBrowser())
+      : Promise.resolve(computeInBrowser());
     void getDiff
       .then((result) => {
         if (active) setDiffResult(result);
       })
       .catch(() => {
+        // 连浏览器回退也失败才报错（理论上只有内存不足会走到这里）。
         if (active) setDiffError("无法计算版本差异，请切换快照后重试");
       })
       .finally(() => {

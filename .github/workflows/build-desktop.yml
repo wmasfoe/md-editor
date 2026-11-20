@@ -145,6 +145,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # macOS 专属的发布脚本断言（llama dylib 闭包、sidecar 启动等）依赖 `otool`，
+      # 在 ubuntu 的 Unit Tests job 里会被 `skip: process.platform !== "darwin"` 跳过。
+      # 这里复用 macOS runner 补跑一次，否则 `tauri.macos.conf.json` 的裁剪改动
+      # 在 CI 中完全没有验证。
+      - name: Run release script tests (macOS-only bundle assertions)
+        run: pnpm test:release
+
       - name: Install Playwright Chromium
         run: pnpm --filter @md-editor/desktop exec playwright install chromium
 

@@ -240,7 +240,8 @@ export const markdownRangeIndexField = StateField.define<MarkdownRangeIndex>({
     diagnostics?.recordFullIndexBuild();
     const tree = ensureSyntaxTree(state, state.doc.length, 5_000) ?? syntaxTree(state);
     return buildMarkdownRangeIndex(state.doc.toString(), tree, {
-      coverage: readCoverageAfterParse(state),
+      // 覆盖度必须由**这棵** tree 推导（不能回头读 syntaxTree 快照，见下方注释）。
+      coverage: coverageOfTree(tree, state.doc.length),
       mdxMode: state.facet(mdxModeFacet),
       pluginRegistry: state.facet(syntaxPluginRegistryFacet),
     });
@@ -258,7 +259,7 @@ export const markdownRangeIndexField = StateField.define<MarkdownRangeIndex>({
         ensureSyntaxTree(transaction.state, transaction.state.doc.length, 5_000) ??
         syntaxTree(transaction.state);
       return buildMarkdownRangeIndex(transaction.newDoc.toString(), tree, {
-        coverage: readCoverageAfterParse(transaction.state),
+        coverage: coverageOfTree(tree, transaction.state.doc.length),
         version: previous.version + 1,
         mdxMode: transaction.state.facet(mdxModeFacet),
         pluginRegistry: transaction.state.facet(syntaxPluginRegistryFacet),
@@ -391,11 +392,10 @@ function requiresCompleteParse(transaction: Transaction, previous: MarkdownRange
   // absent. Recover complete coverage before applying structural edits to a partial index.
   if (!previous.coverage.complete) return true;
   let touchesTable = false;
-  transaction.changes.iterChangedRanges((fromA, toA, fromB, toB) => {
-    if (
-      previous.overlapping(fromA, toA).some((record) => record.kind === "table") ||
-      previous.overlapping(fromB, toB).some((record) => record.kind === "table")
-    ) {
+  // `previous` 是旧文档的索引，只能用旧坐标（`fromA`/`toA`）查。
+  // 用新坐标 `fromB`/`toB` 查旧索引会坐标系错配（漏判或误判）。
+  transaction.changes.iterChangedRanges((fromA, toA) => {
+    if (previous.overlapping(fromA, toA).some((record) => record.kind === "table")) {
       touchesTable = true;
     }
   });
@@ -409,10 +409,10 @@ function requiresCompleteParse(transaction: Transaction, previous: MarkdownRange
  * 而 `ensureSyntaxTree` 是**同步阻塞**的全文档解析 —— 实测 8000 行文档每次 20-77ms，
  * 直接把打字卡成幻灯片（远超 16ms 帧预算）。
  *
- * 增量编辑后 CM 复用未变动的子树，`syntaxTree(state)` 本身就已覆盖全文
- * （实测 treeLen == docLen，取用耗时 0.001ms）。真正需要「确保完整解析」的场景
- * （MDX 模式、结构编辑、覆盖度不足）统一由 `requiresCompleteParse` 在更新前显式调用
- * `ensureSyntaxTree`，职责分明：**解析决策归 `requiresCompleteParse`，覆盖度测量归本函数**。
+ * 增量编辑后 CM 复用未变动的子树，`syntaxTree(state)` 通常已覆盖全文
+ * （取用约 0.001ms）。需要「确保完整解析」的场景（MDX / 结构编辑 / 覆盖度不足）
+ * 由 `requiresCompleteParse` 在更新前显式调用 `ensureSyntaxTree`：
+ * **解析决策归 `requiresCompleteParse`，覆盖度测量归本函数**。
  */
 function readCoverage(state: EditorState): MarkdownParseCoverage {
   const tree = syntaxTree(state);
@@ -424,16 +424,27 @@ function readCoverage(state: EditorState): MarkdownParseCoverage {
 }
 
 /**
- * 初始化 / 覆盖度刷新路径专用的覆盖度读取：允许同步补解析。
+ * 由**权威语法树**推导覆盖度（纯函数，不做任何解析）。
  *
- * 与 {@link readCoverage} 的区别仅在于「是否允许花时间解析」：
- * - 创建 StateField、响应 `refreshMarkdownParseCoverageEffect` 属于低频事件，
- *   且语义上就是「把覆盖度补满」，因此必须 `ensureSyntaxTree`；
- * - 增量更新（每次按键）绝不能阻塞解析，只能用已有的树。
+ * `tree` 必须是调用方实际拿去 `buildMarkdownRangeIndex` 的那一棵 ——
+ * 通常是 `ensureSyntaxTree(...)` 的**返回值**。
+ *
+ * ## 绝不能在 `ensureSyntaxTree` 之后回头读 `syntaxTree(state)`
+ *
+ * 语法树有两个**不同步**的视图：`syntaxTree(state)` 是 `EditorState.update` 期间由
+ * `takeTree()` 截下的**快照**；`ensureSyntaxTree` 只推进会 `LanguageState.context`
+ * 并返回新树，**不更新**快照；`syntaxTreeAvailable` 读的则是已推进的 context。
+ *
+ * 混用两者的后果：`LanguageState` 初始化只解析 `Work.InitViewport`（约 3000 字符），
+ * 大文档首次建索引会得到 `{ to: ~3000, complete: true }`，其后记录全被误判为
+ * `parserCoverage: "partial"`，标题/表格/代码块/列表投影集体退化为源码
+ * （实测 6379 字符、200 标题 → `coverage.to = 3017`，102 个标题 partial）。
+ *
+ * 本函数只接受树本身，从签名上杜绝这种混用。
  */
-function readCoverageAfterParse(state: EditorState): MarkdownParseCoverage {
-  ensureSyntaxTree(state, state.doc.length, 5_000);
-  return readCoverage(state);
+function coverageOfTree(tree: Tree, documentLength: number): MarkdownParseCoverage {
+  const to = Math.min(tree.length, documentLength);
+  return Object.freeze({ to, complete: to >= documentLength });
 }
 
 /**

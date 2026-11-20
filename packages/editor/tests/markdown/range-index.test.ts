@@ -685,3 +685,44 @@ describe("增量更新不得阻塞解析（性能契约）", () => {
     expect(comparable(incremental)).toEqual(comparable(oracle));
   });
 });
+
+describe("首次建索引的覆盖度契约（大文档回归）", () => {
+  /**
+   * 回归锁：`readCoverageAfterParse` 曾在 `ensureSyntaxTree` 之后仍经
+   * `syntaxTree(state)` 读覆盖度。
+   *
+   * CodeMirror 的语法树有两个**不同步**的视图：`syntaxTree(state)` 是
+   * `EditorState.update` 期间由 `takeTree()` 截下的**快照**，而 `ensureSyntaxTree`
+   * 只推进会 `LanguageState.context` 并返回新树，**不更新**该快照；
+   * `syntaxTreeAvailable` 读的则是已推进的 context。
+   *
+   * `LanguageState` 初始化只解析 `Work.InitViewport`（约 3000 字符），因此
+   * 混用两者会让大文档首次建索引得到 `{ to: ~3000, complete: true }`：
+   * 其后的记录全被误判为 `parserCoverage: "partial"`，标题/表格/代码块/列表
+   * 投影在打开文档时集体退化为源码。
+   *
+   * 契约：覆盖度必须与**实际用于建索引的那棵树**同源（`coverageOfTree(tree, ...)`）。
+   */
+  it("大文档首次建索引后 coverage.to 覆盖全文，且全部标题记录为 complete", () => {
+    const parts: string[] = [];
+    for (let index = 0; index < 200; index += 1) {
+      parts.push(`## 标题 ${index}`, "", `这是第 ${index} 节正文，含**粗体**。`, "");
+    }
+    const doc = parts.join("\n");
+    // 前提自检：必须超过 LanguageState 的初始视口解析量，否则覆盖不到该路径。
+    expect(doc.length).toBeGreaterThan(3000);
+
+    const harness = createIndexHarness(doc);
+    const index = harness.index;
+
+    expect(index.coverage.complete).toBe(true);
+    expect(index.coverage.to).toBe(doc.length);
+    // 快照 `syntaxTree(state)` 仍可能停在初始视口 —— 这正是不能拿它当覆盖度依据的原因。
+    expect(syntaxTree(harness.state).length).toBeLessThan(doc.length);
+
+    const headings = index.byKind("heading-atx");
+    expect(headings).toHaveLength(200);
+    const partial = headings.filter((record) => record.parserCoverage !== "complete");
+    expect(partial.map((record) => record.fullRange.from)).toEqual([]);
+  });
+});
