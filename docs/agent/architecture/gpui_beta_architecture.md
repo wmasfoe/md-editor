@@ -73,4 +73,4 @@ mermaid 与 math fence 会被渲染成图片显示（`DiagramRenderer` → PNG `
 
 尚未迁移到桌面端的能力：外部插件运行、会话恢复、文档历史、AI 纠错与风格学习、PDF/HTML 导出、Quick Look、Sentry。
 
-mermaid 与数学公式在渲染失败时降级为源码展示，不阻塞编辑。桌面端系统输入法的组合输入仍需实机验收。
+mermaid 与数学公式在渲染失败时降级为源码展示，不阻塞编辑。macOS 简体拼音已在桌面端实机验证候选框定位、选词上屏及一次撤销。

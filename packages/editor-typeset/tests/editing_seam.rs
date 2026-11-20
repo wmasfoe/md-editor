@@ -379,3 +379,53 @@ fn a_list_and_a_code_block_report_geometry(cx: &mut gpui_kit::TestAppContext) {
         index.len()
     );
 }
+
+#[gpui_kit::test]
+fn clicking_a_heading_maps_inside_the_heading(cx: &mut gpui_kit::TestAppContext) {
+    // A heading's text lives in a nested paragraph whose own text is only the
+    // heading's content, not the `# ` prefix. If its leaf carries the block's
+    // whole range, `span.start + local` points before the text and a click lands
+    // in the wrong place — or in the previous block.
+    let markdown = "before\n\n## 中文标题\n\nafter\n";
+    let document = TypesetDocument::parse(markdown).expect("parses");
+    let key = document.leaf_key(1).expect("heading key");
+    let index = draw(cx, markdown);
+    let leaf = index.get(key).expect("heading geometry");
+    let span = document.span_of(key).expect("heading source span");
+    let bounds = leaf.bounds();
+    let caret = leaf.position_for_index("中文".len());
+    let inside = gpui_kit::point(caret.x, bounds.origin.y + bounds.size.height / 2.);
+    let offset = span.start + leaf.index_for_position(inside);
+    assert_eq!(offset, markdown.find("标题").expect("heading text"));
+}
+
+#[gpui_kit::test]
+fn clicking_a_second_list_item_maps_to_its_own_text(cx: &mut gpui_kit::TestAppContext) {
+    let markdown = "- 第一项\n- 第二项\n";
+    let document = TypesetDocument::parse(markdown).expect("parses");
+    let key = document.leaf_spans()[1].key();
+    let index = draw(cx, markdown);
+    let leaf = index.get(key).expect("second item geometry");
+    let span = document.span_of(key).expect("second item source span");
+    let bounds = leaf.bounds();
+    let caret = leaf.position_for_index("第".len());
+    let inside = gpui_kit::point(caret.x, bounds.origin.y + bounds.size.height / 2.);
+    let offset = span.start + leaf.index_for_position(inside);
+    assert_eq!(offset, markdown.find("二项").expect("second item text"));
+}
+
+#[gpui_kit::test]
+fn every_laid_out_leaf_has_a_source_span(cx: &mut gpui_kit::TestAppContext) {
+    // A leaf that lays out but has no span breaks two things: an offset inside it
+    // cannot resolve to a block, and vertical navigation cannot step past it.
+    let markdown =
+        "# Title\n\n- item\n\n```rust\nfn main() {}\n```\n\n> quote\n\n| a | b |\n| --- | --- |\n";
+    let document = inkpoint_editor_typeset::TypesetDocument::parse(markdown).expect("parses");
+    let index = draw(cx, markdown);
+    for (key, _) in index.entries() {
+        assert!(
+            document.span_of(key).is_some(),
+            "leaf {key} laid out but has no source span"
+        );
+    }
+}

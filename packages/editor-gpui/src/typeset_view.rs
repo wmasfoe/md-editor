@@ -622,6 +622,25 @@ impl TypesetView {
     }
 }
 
+impl TypesetView {
+    fn ime_replacement_range(&self, range: Option<Range<usize>>) -> Range<usize> {
+        // GPUI passes None when the platform omits an explicit replacement
+        // range. An update then targets the preedit even if its caret is at the end.
+        range
+            .map(|range| {
+                let source = self.editor.source();
+                byte_offset(source, range.start)..byte_offset(source, range.end)
+            })
+            .or_else(|| self.marked.clone())
+            .unwrap_or_else(|| self.editor.selection().range())
+    }
+
+    fn finish_composition(&mut self) {
+        self.marked = None;
+        self.editor.commit_composition();
+    }
+}
+
 impl EntityInputHandler for TypesetView {
     fn text_for_range(
         &mut self,
@@ -664,10 +683,7 @@ impl EntityInputHandler for TypesetView {
     }
 
     fn unmark_text(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
-        self.marked = None;
-        // The composition is committed, so the next keystroke starts a new undo
-        // step instead of joining the composed text.
-        self.editor.commit_composition();
+        self.finish_composition();
         cx.notify();
     }
 
@@ -678,15 +694,17 @@ impl EntityInputHandler for TypesetView {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let source = self.editor.source().to_string();
-        let target = match range {
-            Some(range) => byte_offset(&source, range.start)..byte_offset(&source, range.end),
-            None => self.editor.selection().range(),
-        };
+        let target = self.ime_replacement_range(range);
         self.editor.set_selection(target.start, target.end);
-        let result = self.editor.insert(text);
+        let result = if self.composing() {
+            // Candidate insertion is the last update of the same undo step.
+            let result = self.editor.insert_composing(text);
+            self.finish_composition();
+            result
+        } else {
+            self.editor.insert(text)
+        };
         self.apply(result, cx);
-        self.marked = None;
     }
 
     fn replace_and_mark_text_in_range(
@@ -697,11 +715,7 @@ impl EntityInputHandler for TypesetView {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let source = self.editor.source().to_string();
-        let target = match range {
-            Some(range) => byte_offset(&source, range.start)..byte_offset(&source, range.end),
-            None => self.editor.selection().range(),
-        };
+        let target = self.ime_replacement_range(range);
         self.editor.set_selection(target.start, target.end);
         let start = target.start;
         // Composition replaces the marked region on every keystroke; joining keeps
@@ -713,18 +727,17 @@ impl EntityInputHandler for TypesetView {
         // the insert actually landed: a read-only document would otherwise stay
         // "composing" forever, blocking every save and AI suggestion that waits
         // for composition to finish.
-        if inserted {
+        if inserted && !new_text.is_empty() {
             self.marked = Some(start..start + new_text.len());
         } else {
-            self.marked = None;
+            self.finish_composition();
         }
         // Only when the insert landed: the offsets were computed for a document
         // that did not change, so applying them after a rejection would move the
         // caret to a meaningless place.
         if let (true, Some(selected)) = (inserted, new_selected_range) {
-            let base = self.editor.source();
-            let from = byte_offset(base, selected.start + utf16_offset(base, start));
-            let to = byte_offset(base, selected.end + utf16_offset(base, start));
+            let from = start + byte_offset(new_text, selected.start);
+            let to = start + byte_offset(new_text, selected.end);
             self.editor.set_selection(from, to);
         }
         cx.notify();
@@ -747,10 +760,9 @@ impl EntityInputHandler for TypesetView {
         let local = offset.saturating_sub(span.start);
         let position = leaf.position_for_index(local.min(leaf.len()));
         let height = leaf.caret_height();
-        // The platform wants window coordinates for the composing rectangle.
-        let offset = self.scroll.offset();
+        // Prepaint geometry already includes the scroll offset.
         Some(Bounds {
-            origin: gpui_kit::point(position.x - offset.x, position.y - offset.y),
+            origin: position,
             size: gpui_kit::size(px(2.), height),
         })
     }
@@ -765,13 +777,6 @@ impl EntityInputHandler for TypesetView {
         // caret: clicking into another block while the caret sits here would
         // otherwise report an offset from the wrong block, and an IME composing
         // region would open in the wrong place.
-        // The point arrives in window space and geometry is in the document's
-        // own space, so it is translated first — the same conversion the click
-        // path does.
-        let point = Point {
-            x: point.x + self.scroll.offset().x,
-            y: point.y + self.scroll.offset().y,
-        };
         let (key, caret) = self.geometry.caret_and_key_for_point(point)?;
         let span = self.document.span_of(key)?;
         let document_offset = span.start + caret.index.min(span.len());
@@ -1014,11 +1019,8 @@ impl TypesetView {
 impl TypesetView {
     /// Places the caret where the user clicked.
     ///
-    /// The click lands in window coordinates and the leaf bounds are the ones
-    /// recorded at layout time. Inside a scrolled container those two differ by
-    /// the scroll offset, so the point is translated into the document's own
-    /// space first. The resolved index is leaf-local and is shifted by the
-    /// leaf's span before it becomes a document offset.
+    /// The click and prepaint geometry use window coordinates. The resolved
+    /// index is shifted by the leaf's source span to get a document offset.
     fn place_caret_from_click(
         &mut self,
         point: Point<Pixels>,
@@ -1026,7 +1028,6 @@ impl TypesetView {
         cx: &mut Context<Self>,
     ) {
         self.focus.focus(window, cx);
-        let point = self.document_point(point, window, cx);
         let Some(key) = self.caret_leaf_from_point(point) else {
             return;
         };
@@ -1050,35 +1051,11 @@ impl TypesetView {
         let leaf = self.geometry.get(key)?;
         let span = self.document.span_of(key)?;
         let local = self.editor.selection().head().saturating_sub(span.start);
-        // Leaf geometry is in the document's own space; every consumer needs
-        // window space, so the conversion happens here rather than at each call
-        // site. Doing it at only some call sites is what made the caret drift by
-        // the scroll offset while the IME rectangle stayed put.
         let position = leaf.position_for_index(local.min(leaf.len()));
-        let offset = self.scroll.offset();
         Some(Bounds {
-            origin: gpui_kit::point(position.x - offset.x, position.y - offset.y),
+            origin: position,
             size: gpui_kit::size(px(2.), leaf.caret_height()),
         })
-    }
-
-    /// Translates a window point into the scrolled document's own space.
-    ///
-    /// Leaf bounds come from layout, before the container's scroll offset is
-    /// applied. Adding that offset back makes a click land where the user sees
-    /// the text, not where it would be if the document were not scrolled.
-    fn document_point(
-        &self,
-        point: Point<Pixels>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Point<Pixels> {
-        let _ = (window, cx);
-        let offset = self.scroll.offset();
-        Point {
-            x: point.x + offset.x,
-            y: point.y + offset.y,
-        }
     }
 
     /// The leaf whose bounds contain `point`, else the vertically nearest one.
@@ -1612,6 +1589,46 @@ mod ime_tests {
         );
     }
 
+    #[gpui_kit::test]
+    fn implicit_ime_updates_and_commit_replace_the_marked_text(cx: &mut TestAppContext) {
+        let (view, vcx) = open(cx, "😀后");
+        vcx.update(|window, cx| {
+            view.update(cx, |view, cx| {
+                view.editor.set_caret("😀".len());
+                view.replace_and_mark_text_in_range(None, "z", Some(1..1), window, cx);
+                view.replace_and_mark_text_in_range(None, "zhong", Some(5..5), window, cx);
+                assert_eq!(view.markdown(), "😀zhong后");
+                assert_eq!(view.marked_text_range(window, cx), Some(2..7));
+
+                view.replace_text_in_range(None, "中", window, cx);
+                assert_eq!(view.markdown(), "😀中后");
+                assert!(!view.composing());
+                assert_eq!(view.editor.selection().range(), "😀中".len().."😀中".len());
+
+                view.replace_text_in_range(None, "!", window, cx);
+                assert_eq!(view.markdown(), "😀中!后");
+                view.undo(cx);
+                assert_eq!(view.markdown(), "😀中后");
+                view.undo(cx);
+                assert_eq!(view.markdown(), "😀后");
+            });
+        });
+    }
+
+    #[gpui_kit::test]
+    fn clearing_the_preedit_does_not_leave_a_marked_range(cx: &mut TestAppContext) {
+        let (view, vcx) = open(cx, "后");
+        vcx.update(|window, cx| {
+            view.update(cx, |view, cx| {
+                view.replace_and_mark_text_in_range(None, "zhong", Some(5..5), window, cx);
+                view.replace_and_mark_text_in_range(None, "", Some(0..0), window, cx);
+                assert_eq!(view.markdown(), "后");
+                assert_eq!(view.marked_text_range(window, cx), None);
+                assert!(!view.composing());
+            });
+        });
+    }
+
     /// The platform asks for text by UTF-16 range and gets the right slice.
     #[gpui_kit::test]
     fn text_for_a_utf16_range_returns_the_matching_slice(cx: &mut TestAppContext) {
@@ -1843,5 +1860,40 @@ mod ime_geometry_tests {
             index.is_some_and(|index| index > 0),
             "a click in the second block must resolve past the first, got {index:?}"
         );
+    }
+
+    #[gpui_kit::test]
+    fn ime_anchor_and_hit_test_follow_scrolled_text(cx: &mut TestAppContext) {
+        cx.update(gpui_kit::init);
+        let source: String = (0..60)
+            .map(|index| format!("第{index}段中文\n\n"))
+            .collect();
+        let target = source.find("第8段中文").expect("test paragraph");
+        let index = utf16_offset(&source, target);
+        let (view, vcx) = cx.add_window_view(|window, cx| TypesetView::new(window, cx, &source));
+        let range_bounds = |view: &mut TypesetView, window: &mut Window, cx: &mut Context<_>| {
+            view.bounds_for_range(index..index, Bounds::default(), window, cx)
+                .expect("IME anchor is laid out")
+        };
+        vcx.update(|window, cx| {
+            window.draw(cx).clear(cx);
+            let before = view.update(cx, |view, cx| {
+                let bounds = range_bounds(view, window, cx);
+                view.scroll.set_offset(gpui_kit::point(px(0.), px(-96.)));
+                cx.notify();
+                bounds
+            });
+            window.draw(cx).clear(cx);
+            view.update(cx, |view, cx| {
+                let after = range_bounds(view, window, cx);
+                assert_eq!(after.origin.y, before.origin.y - px(96.));
+                let point =
+                    gpui_kit::point(after.origin.x, after.origin.y + after.size.height / 2.);
+                assert_eq!(
+                    view.character_index_for_point(point, window, cx),
+                    Some(index)
+                );
+            });
+        });
     }
 }

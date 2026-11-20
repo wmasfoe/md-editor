@@ -186,6 +186,10 @@ impl History {
 
     /// Ends the composition, so the next edit starts a new step.
     fn end_composition(&mut self) {
+        if self.composing {
+            // Ordinary typing starts a fresh step even at the same byte offset.
+            self.joined_end = None;
+        }
         self.composing = false;
     }
 

@@ -33,11 +33,13 @@ pub use movement::{Vertical, move_down, move_left, move_right, move_up, move_ver
 pub use svg::{SvgError, SvgImageChannel, to_png_data_url};
 pub use text::{byte_offset, line_start, utf16_offset};
 
+use std::cell::OnceCell;
 use std::collections::HashMap;
 use std::ops::Range;
 
 use gpui_kit::base::text::editor_host::{BlockNode, FlowPosition, RenderContext, parse_markdown};
 use gpui_kit::{App, Pixels, SharedString, Window, div, prelude::*};
+use inkpoint_editor_core::{BlockKind, MarkdownDocument, SourceBlock};
 
 /// The leaf key assigned to the first text leaf of a document.
 ///
@@ -48,12 +50,10 @@ pub const FIRST_LEAF_KEY: u64 = 1;
 /// Ranges to paint behind a leaf's text, keyed by leaf key and in leaf-local bytes.
 pub type Decorations = HashMap<u64, Vec<(Range<usize>, gpui_kit::Hsla)>>;
 
-/// One block's place in the source and the leaf key it renders under.
+/// A text leaf's key and its document-wide source range.
 ///
-/// `span` is the block's byte range in the whole Markdown source, which is what
-/// lets a document-wide caret offset be resolved to the leaf that holds it. A
-/// leaf's own geometry only knows its local length, so comparing a global offset
-/// against it would pick the wrong block.
+/// Geometry reports leaf-local bytes. The source range anchors those positions
+/// to the Markdown buffer.
 #[derive(Clone, Debug)]
 pub struct LeafSpan {
     key: u64,
@@ -66,13 +66,12 @@ impl LeafSpan {
         self.key
     }
 
-    /// The block's byte range in the document source, when the parser reported
-    /// one. Blocks such as unknown constructs carry no span.
+    /// The leaf's byte range in the document source, when the parser reported one.
     pub fn span(&self) -> Option<Range<usize>> {
         self.span.clone()
     }
 
-    /// Whether `offset` falls inside this block.
+    /// Whether `offset` falls inside this leaf.
     pub fn contains(&self, offset: usize) -> bool {
         self.span
             .as_ref()
@@ -162,43 +161,26 @@ impl TypesetDocument {
         let mut block_keys = Vec::with_capacity(parsed.len());
         let mut spans = Vec::with_capacity(parsed.len());
         let mut blocks = Vec::with_capacity(parsed.len());
+        let source_blocks = OnceCell::new();
+        let parse_source_blocks = || {
+            source_blocks
+                .get_or_init(|| MarkdownDocument::new(&source).blocks().unwrap_or_default())
+                .as_slice()
+        };
         for (index, block) in parsed.into_iter().enumerate() {
-            let span = block
-                .span()
-                .map(|span| span.start..span.end)
-                .or_else(|| spans_before.get(index).cloned().flatten());
-            // How many leaves this block needs: a table needs one per cell.
-            let needed = leaf_count(&block);
             let first = next_key;
-            let owned_keys: Vec<u64> = (0..needed).map(|step| first + step as u64).collect();
-            next_key = first + needed as u64;
-            // A block that renders no text takes no key: recording one would give
-            // `leaf_at` a key with no geometry, so the caret would resolve to
-            // nothing while standing on it. `leaf_key` returns None for it.
-            if needed > 0 {
-                block_keys.push(Some(first));
-            } else {
-                block_keys.push(None);
-            }
-            // Each leaf gets its own range where one is known. A table's cells
-            // must not all carry the table's range: a click's offset is
-            // `span.start + local`, so sharing one range sends every cell's click
-            // to the same offset and the text lands in the first cell.
-            let cell_ranges = span
-                .as_ref()
-                .and_then(|span| cell_source_ranges(&source, &block, span));
-            for (index, key) in owned_keys.iter().enumerate() {
-                let leaf_span = cell_ranges
-                    .as_ref()
-                    .and_then(|ranges| ranges.get(index).cloned().flatten())
-                    .or_else(|| span.clone());
-                spans.push(LeafSpan {
-                    key: *key,
-                    span: leaf_span,
-                });
-            }
-            let mut iterator = owned_keys.into_iter();
-            blocks.push(with_leaf_keys(block, &mut iterator));
+            blocks.push(with_leaf_keys(
+                block,
+                spans_before[index].as_ref(),
+                &parse_source_blocks,
+                &mut |span| {
+                    let key = next_key;
+                    next_key += 1;
+                    spans.push(LeafSpan { key, span });
+                    key
+                },
+            ));
+            block_keys.push((next_key > first).then_some(first));
         }
         Ok(Self {
             blocks,
@@ -223,9 +205,8 @@ impl TypesetDocument {
 
     /// Every leaf key with its source span, in document order.
     ///
-    /// One entry per key, not per block: a table owns one key per cell, so it
-    /// contributes several entries that share the table's range. Use
-    /// [`Self::leaf_key`] when you need one key per block.
+    /// Tables and lists can contribute several entries. Use [`Self::leaf_key`]
+    /// for the first key of each top-level block.
     pub fn leaf_spans(&self) -> &[LeafSpan] {
         &self.spans
     }
@@ -426,46 +407,50 @@ impl TypesetDocument {
     }
 }
 
-/// Binds `keys` to the text leaves `block` actually renders, in document order.
-///
-/// A heading holds its text in a nested paragraph and a table holds one paragraph
-/// per cell, so the keys have to reach those inner leaves; attaching one only to
-/// the outer block would leave the geometry unreported and the caret unable to
-/// land there. `keys` is consumed in order and a block may need several.
-fn with_leaf_keys(block: BlockNode, keys: &mut impl Iterator<Item = u64>) -> BlockNode {
-    // A container passes the iterator down so its inner leaves take keys in
-    // document order. Missing a container here means every leaf inside it reports
-    // no geometry, which silently disables clicking and arrow navigation there.
-    fn next_key(keys: &mut impl Iterator<Item = u64>) -> u64 {
-        keys.next()
-            .expect("leaf_count must match the leaves a block renders")
-    }
+/// Assigns each rendered leaf a key and its own source range in document order.
+fn with_leaf_keys<'a>(
+    block: BlockNode,
+    fallback: Option<&Range<usize>>,
+    source_blocks: &impl Fn() -> &'a [SourceBlock],
+    register: &mut impl FnMut(Option<Range<usize>>) -> u64,
+) -> BlockNode {
+    let own_range = block.span().map(|span| span.start..span.end);
+    let range = own_range.as_ref().or(fallback);
+    let mut map_children = |children: Vec<BlockNode>| {
+        children
+            .into_iter()
+            .map(|child| with_leaf_keys(child, range, source_blocks, register))
+            .collect()
+    };
     match block {
         BlockNode::Paragraph(paragraph) => {
-            BlockNode::Paragraph(paragraph.with_leaf_key(next_key(keys)))
+            BlockNode::Paragraph(paragraph.with_leaf_key(register(range.cloned())))
         }
         BlockNode::Heading {
             level,
             children,
             span,
-        } => BlockNode::Heading {
-            level,
-            children: children.with_leaf_key(next_key(keys)),
-            span,
-        },
-        BlockNode::CodeBlock(code) => BlockNode::CodeBlock(code.with_leaf_key(next_key(keys))),
+        } => {
+            // The rendered paragraph starts after the Markdown heading marker.
+            let content = own_range.as_ref().and_then(|range| {
+                source_block(source_blocks(), range.start, &BlockKind::Heading { level })
+                    .map(|heading| heading.content_range.clone())
+            });
+            BlockNode::Heading {
+                level,
+                children: children.with_leaf_key(register(content.or_else(|| range.cloned()))),
+                span,
+            }
+        }
+        BlockNode::CodeBlock(code) => {
+            BlockNode::CodeBlock(code.with_leaf_key(register(range.cloned())))
+        }
         BlockNode::Root { children, span } => BlockNode::Root {
-            children: children
-                .into_iter()
-                .map(|child| with_leaf_keys(child, keys))
-                .collect(),
+            children: map_children(children),
             span,
         },
         BlockNode::Blockquote { children, span } => BlockNode::Blockquote {
-            children: children
-                .into_iter()
-                .map(|child| with_leaf_keys(child, keys))
-                .collect(),
+            children: map_children(children),
             span,
         },
         BlockNode::Surface {
@@ -474,10 +459,7 @@ fn with_leaf_keys(block: BlockNode, keys: &mut impl Iterator<Item = u64>) -> Blo
             span,
         } => BlockNode::Surface {
             name,
-            children: children
-                .into_iter()
-                .map(|child| with_leaf_keys(child, keys))
-                .collect(),
+            children: map_children(children),
             span,
         },
         BlockNode::List {
@@ -486,10 +468,7 @@ fn with_leaf_keys(block: BlockNode, keys: &mut impl Iterator<Item = u64>) -> Blo
             start,
             span,
         } => BlockNode::List {
-            children: children
-                .into_iter()
-                .map(|child| with_leaf_keys(child, keys))
-                .collect(),
+            children: map_children(children),
             ordered,
             start,
             span,
@@ -501,74 +480,41 @@ fn with_leaf_keys(block: BlockNode, keys: &mut impl Iterator<Item = u64>) -> Blo
             task_marker,
             span,
         } => BlockNode::ListItem {
-            children: children
-                .into_iter()
-                .map(|child| with_leaf_keys(child, keys))
-                .collect(),
+            children: map_children(children),
             spread,
             checked,
             task_marker,
             span,
         },
         BlockNode::Table(table) => {
-            // Rebuild the table with a key on every cell paragraph. `rows()` and
-            // `new()` are the public pair that makes this possible without
-            // reaching into the table's private fields.
+            // Match the source parser's cells to the renderer's row-major order.
+            let mut cells = Vec::new();
+            if let Some(table_source) = own_range
+                .as_ref()
+                .and_then(|range| source_block(source_blocks(), range.start, &BlockKind::Table))
+            {
+                gather_cells(&table_source.children, &mut cells);
+            }
+            let count: usize = table.rows().map(|row| row.count()).sum();
+            if cells.len() != count {
+                cells.clear();
+            }
+            let mut cells = cells.into_iter();
             let aligns = table.column_aligns().to_vec();
             let rows: Vec<Vec<gpui_kit::base::text::editor_host::Paragraph>> = table
                 .rows()
                 .map(|row| {
-                    row.map(|paragraph| paragraph.clone().with_leaf_key(next_key(keys)))
-                        .collect()
+                    row.map(|paragraph| {
+                        let cell = cells.next().or_else(|| range.cloned());
+                        paragraph.clone().with_leaf_key(register(cell))
+                    })
+                    .collect()
                 })
                 .collect();
             BlockNode::Table(gpui_kit::base::text::editor_host::Table::new(rows, aligns))
         }
-        // These carry no text leaf, so there is no key to bind.
-        BlockNode::Custom { .. }
-        | BlockNode::Break { .. }
-        | BlockNode::HorizontalRule { .. }
-        | BlockNode::Definition { .. }
-        | BlockNode::Unknown => block,
-        // See `leaf_count`: `#[non_exhaustive]` means this list is maintained by
-        // hand, and an unlisted container would drop its children's keys.
+        // Only register keys for nodes with a renderer leaf to receive them.
         other => other,
-    }
-}
-
-/// How many text leaves `block` renders.
-///
-/// A table renders one leaf per cell, which is why a block's key cannot be its
-/// index. Everything else renders exactly one.
-fn leaf_count(block: &BlockNode) -> usize {
-    // Exhaustive on purpose: a new `BlockNode` variant must decide how many
-    // leaves it renders, because guessing silently leaves its text with no
-    // geometry — the defect that made lists and code blocks unclickable.
-    match block {
-        // One leaf per cell.
-        BlockNode::Table(table) => table.rows().map(|row| row.count()).sum(),
-        // One leaf per leaf inside.
-        BlockNode::Root { children, .. }
-        | BlockNode::Blockquote { children, .. }
-        | BlockNode::Surface { children, .. }
-        | BlockNode::List { children, .. }
-        | BlockNode::ListItem { children, .. } => children.iter().map(leaf_count).sum(),
-        // One leaf of their own.
-        BlockNode::Paragraph(_) | BlockNode::Heading { .. } | BlockNode::CodeBlock(_) => 1,
-        // These render no text, so they take no key: allocating one would give
-        // `leaf_at` a key with no geometry, and the caret would resolve to
-        // nothing while standing on them.
-        BlockNode::Custom { .. }
-        | BlockNode::Break { .. }
-        | BlockNode::HorizontalRule { .. }
-        | BlockNode::Definition { .. }
-        | BlockNode::Unknown => 0,
-        // `BlockNode` is `#[non_exhaustive]`, so the compiler cannot force this
-        // list to stay complete. An unlisted variant is assumed to render one
-        // leaf; if a future variant is a container, its inner text reports no
-        // geometry — the defect that made lists and code blocks unclickable. Add
-        // a variant here when `gpui-base` adds one.
-        _ => 1,
     }
 }
 
@@ -579,7 +525,7 @@ mod tests {
     /// The parser reports document-wide spans, which is what lets a caret
     /// offset resolve to a leaf.
     #[test]
-    fn each_block_carries_its_source_span() {
+    fn each_leaf_carries_its_source_span() {
         let document = TypesetDocument::parse("# One\n\nTwo\n").expect("markdown parses");
         let spans: Vec<_> = document
             .leaf_spans()
@@ -588,7 +534,7 @@ mod tests {
             .collect();
         assert_eq!(spans.len(), 2, "a heading and a paragraph");
         let heading = spans[0].clone().expect("the heading has a span");
-        assert_eq!(heading.start, 0, "the heading starts the document");
+        assert_eq!(&document.source()[heading.clone()], "One");
         let paragraph = spans[1].clone().expect("the paragraph has a span");
         assert!(
             paragraph.start >= heading.end,
@@ -795,59 +741,26 @@ mod tests {
     }
 }
 
-/// The source range of each cell of `block`, in leaf order, when it is a table.
-///
-/// `editor-core` already knows every cell's content range; this maps it into the
-/// row-major order the renderer lays cells out in, so each cell's leaf can carry
-/// its own position instead of the whole table's.
-fn cell_source_ranges(
-    source: &str,
-    block: &BlockNode,
-    table_span: &Range<usize>,
-) -> Option<Vec<Option<Range<usize>>>> {
-    let BlockNode::Table(table) = block else {
-        return None;
-    };
-    // Only this table's cells. Collecting every table's cells and comparing
-    // against one table's count mismatches as soon as a document has two tables,
-    // which would silently send every cell back to the whole-table range.
-    let document = inkpoint_editor_core::MarkdownDocument::new(source);
-    let blocks = document.blocks().ok()?;
-    let mut cells = Vec::new();
-    collect_table_cells(&blocks, table_span, &mut cells);
-    let expected: usize = table.rows().map(|row| row.count()).sum();
-    if cells.len() != expected {
-        // The two parsers disagree about this table; fall back to the table's own
-        // range rather than pairing cells with the wrong positions.
-        return None;
-    }
-    Some(cells.into_iter().map(Some).collect())
-}
-
-/// Collects table-cell content ranges in document order.
-fn collect_table_cells(
-    blocks: &[inkpoint_editor_core::SourceBlock],
-    table: &Range<usize>,
-    out: &mut Vec<Range<usize>>,
-) {
-    for block in blocks {
-        if matches!(block.kind, inkpoint_editor_core::BlockKind::Table)
-            && block.range.start == table.start
-        {
-            // Found this table: take its cells and stop descending into it.
-            let mut cells = Vec::new();
-            gather_cells(&block.children, &mut cells);
-            out.extend(cells);
-            continue;
+fn source_block<'a>(
+    blocks: &'a [SourceBlock],
+    start: usize,
+    kind: &BlockKind,
+) -> Option<&'a SourceBlock> {
+    blocks.iter().find_map(|block| {
+        if block.range.start == start && block.kind == *kind {
+            Some(block)
+        } else if block.range.contains(&start) {
+            source_block(&block.children, start, kind)
+        } else {
+            None
         }
-        collect_table_cells(&block.children, table, out);
-    }
+    })
 }
 
 /// Gathers cell content ranges from inside one table.
-fn gather_cells(blocks: &[inkpoint_editor_core::SourceBlock], out: &mut Vec<Range<usize>>) {
+fn gather_cells(blocks: &[SourceBlock], out: &mut Vec<Range<usize>>) {
     for block in blocks {
-        if matches!(block.kind, inkpoint_editor_core::BlockKind::TableCell) {
+        if matches!(block.kind, BlockKind::TableCell) {
             out.push(block.content_range.clone());
         }
         gather_cells(&block.children, out);
