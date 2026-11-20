@@ -3676,6 +3676,7 @@ name = "inkpoint-editor-core"
 version = "0.23.4"
 dependencies = [
  "markdown",
+ "regex",
 ]
 
 [[package]]

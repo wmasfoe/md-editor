@@ -1,5 +1,6 @@
 mod chrome;
 
+pub(crate) use self::chrome::DocumentMetricKind;
 use self::chrome::OutlineEntry;
 use std::{collections::HashMap, ops::Range, path::PathBuf, sync::Arc};
 
@@ -12,7 +13,9 @@ use crate::{
     settings,
 };
 use gpui_kit::{component::tree::TreeState, *};
-use inkpoint_editor_gpui::{PasteTarget, TypesetView as DesktopEditor};
+use inkpoint_editor_gpui::{
+    ImagePaste, PasteTarget, TypesetTypography, TypesetView as DesktopEditor,
+};
 
 actions!(
     inkpoint,
@@ -51,6 +54,7 @@ pub(crate) struct Workspace {
     editor: Entity<DesktopEditor>,
     document: Arc<Document>,
     has_active_document: bool,
+    document_generation: u64,
     welcome_focus: FocusHandle,
     folder: Entity<TreeState>,
     folder_files: HashMap<SharedString, PathBuf>,
@@ -65,14 +69,38 @@ pub(crate) struct Workspace {
     ai: Option<Arc<LocalAiService>>,
     ai_busy: bool,
     suggestion: Option<Suggestion>,
+    pub(crate) pending_draft: Option<crate::session::PendingDraftInfo>,
+    pub(crate) draft_preview_open: bool,
+    pub(crate) metric_kind: DocumentMetricKind,
     _editor_observer: Subscription,
+    _image_paste_subscription: Subscription,
     _appearance_observer: Subscription,
+    _settings_observer: Subscription,
     _ai_shutdown: Subscription,
+    _session_quit: Subscription,
 }
 
 impl Workspace {
     pub(crate) fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let editor = cx.new(|cx| DesktopEditor::new(window, cx, ""));
+        let editor = cx.new(|cx| {
+            let mut editor = DesktopEditor::new(window, cx, "");
+            editor.set_image_paste_enabled(true);
+            editor
+        });
+        let apply_typography = |editor: &Entity<DesktopEditor>, cx: &mut App| {
+            let preferences = &settings::current(cx).read(cx).editor;
+            let typography = TypesetTypography {
+                body_font_size: f32::from(preferences.wysiwyg_font_size),
+                prose_font_family: preferences.prose_font_family.clone(),
+                code_font_family: preferences.code_font_family.clone(),
+            };
+            editor.update(cx, |editor, cx| editor.set_typography(typography, cx));
+        };
+        apply_typography(&editor, cx);
+        let settings_entity = settings::current(cx).clone();
+        let _settings_observer = cx.observe(&settings_entity, move |this, _, cx| {
+            apply_typography(&this.editor, cx);
+        });
         let _editor_observer =
             cx.observe_in(&editor, window, |this, _, window, cx| {
                 this.update_title(window, cx);
@@ -102,6 +130,15 @@ impl Workspace {
                 this.editor_error_shown = has_error;
                 cx.notify();
             });
+        let image_paste_subscription = cx.subscribe_in(
+            &editor,
+            window,
+            |this, _, event: &ImagePaste, window, cx| {
+                if this.has_active_document {
+                    this.paste_image(event.image.clone(), event.target.clone(), window, cx);
+                }
+            },
+        );
         let appearance_observer = window.observe_window_appearance(settings::sync_system_theme);
         let owner = cx.weak_entity();
         window.on_window_should_close(cx, move |window, cx| {
@@ -111,6 +148,7 @@ impl Workspace {
                         return false;
                     }
                     if this.dirty(cx) {
+                        this.save_hot_exit_session(cx);
                         this.file_action(FileAction::Close, window, cx);
                         return false;
                     }
@@ -118,6 +156,17 @@ impl Workspace {
                 });
             }
             true
+        });
+        let owner_quit = cx.weak_entity();
+        let session_quit = cx.on_app_quit(move |_, cx| {
+            if let Some(entity) = owner_quit.upgrade() {
+                entity.update(cx, |this, cx| {
+                    if this.dirty(cx) {
+                        this.save_hot_exit_session(cx);
+                    }
+                });
+            }
+            async move {}
         });
         let ai = local_ai_service().map(Arc::new);
         let ai_shutdown = cx.on_app_quit({
@@ -135,6 +184,7 @@ impl Workspace {
             editor,
             document: Arc::default(),
             has_active_document: false,
+            document_generation: 0,
             welcome_focus: cx.focus_handle(),
             folder: cx.new(|cx| TreeState::new(cx)),
             folder_files: HashMap::new(),
@@ -148,9 +198,15 @@ impl Workspace {
             ai,
             ai_busy: false,
             suggestion: None,
+            pending_draft: None,
+            draft_preview_open: false,
+            metric_kind: DocumentMetricKind::Words,
             _editor_observer,
+            _image_paste_subscription: image_paste_subscription,
             _appearance_observer: appearance_observer,
+            _settings_observer,
             _ai_shutdown: ai_shutdown,
+            _session_quit: session_quit,
         };
         view.welcome_focus.focus(window, cx);
         view.update_title(window, cx);
@@ -202,12 +258,18 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         self.has_active_document = true;
+        self.document_generation = self.document_generation.wrapping_add(1);
         self.editor.update(cx, |editor, cx| {
             editor.replace_markdown(&document.markdown, cx);
             editor.focus(window, cx);
         });
         self.document = Arc::new(document);
         self.suggestion = None;
+        self.draft_preview_open = false;
+        self.pending_draft = crate::session::check_pending_draft(
+            self.document.path.as_deref(),
+            &self.document.markdown,
+        );
         self.update_title(window, cx);
         // A file the parser cannot structure still opens, so the user keeps
         // their buffer, but saying so beats an unexplained empty page.
@@ -484,6 +546,10 @@ impl Workspace {
                     Ok(saved) => {
                         this.document = Arc::new(saved);
                         this.update_title(window, cx);
+                        if !this.dirty(cx) {
+                            let _ = crate::session::HotExitSession::clear();
+                            this.pending_draft = None;
+                        }
                         if let Some(next) = next {
                             this.after_editor_flush(window, cx, move |this, window, cx| {
                                 if this.dirty(cx) {
@@ -536,6 +602,8 @@ impl Workspace {
             return;
         };
 
+        let generation = self.document_generation;
+        let image_path = path.clone();
         let job = cx
             .background_executor()
             .spawn(async move { store_image(&path, &image) });
@@ -549,6 +617,16 @@ impl Workspace {
                         return;
                     }
                 };
+                // A newly opened document can have the same revision and selection.
+                if this.document_generation != generation
+                    || this.document.path.as_ref() != Some(&image_path)
+                {
+                    this.message(
+                        format!("Image saved at {reference}; the document changed."),
+                        cx,
+                    );
+                    return;
+                }
                 let inserted = this.editor.update(cx, |editor, cx| {
                     editor.insert_image_if_unchanged(&target, &reference, cx)
                 });
@@ -650,6 +728,54 @@ impl Workspace {
         match result {
             Err(error) => self.message(error, cx),
             Ok(_) => self.message("Suggestion inserted", cx),
+        }
+    }
+
+    pub(crate) fn restore_pending_draft(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(draft) = self.pending_draft.take() else {
+            return;
+        };
+        self.editor.update(cx, |editor, cx| {
+            editor.replace_markdown(&draft.draft_content, cx);
+            if let Some(cursor) = draft.cursor_offset {
+                editor.set_selected_range(cursor..cursor, cx);
+            }
+            editor.focus(window, cx);
+        });
+        self.draft_preview_open = false;
+        self.update_title(window, cx);
+        self.message("Draft restored", cx);
+    }
+
+    pub(crate) fn discard_pending_draft(&mut self, cx: &mut Context<Self>) {
+        self.pending_draft = None;
+        self.draft_preview_open = false;
+        let _ = crate::session::HotExitSession::clear();
+        self.message("Draft discarded", cx);
+    }
+
+    pub(crate) fn save_hot_exit_session(&self, cx: &App) {
+        if !self.has_active_document {
+            return;
+        }
+        let is_dirty = self.dirty(cx);
+        let markdown = self.editor.read(cx).markdown();
+        let cursor_offset = Some(self.editor.read(cx).selected_range().start);
+        let file_path = self.document.path.as_deref();
+        let _ = crate::session::HotExitSession::save(file_path, markdown, cursor_offset, is_dirty);
+    }
+
+    pub(crate) fn check_initial_session(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if let Ok(Some(session)) = crate::session::HotExitSession::load()
+            && let Some(active) = session.active_document
+        {
+            if let Some(path) = active.file_path {
+                if path.exists() {
+                    self.load_document(path, window, cx);
+                }
+            } else if active.is_untitled && !session.draft_markdown.is_empty() {
+                self.install_document(Document::default(), window, cx);
+            }
         }
     }
 }

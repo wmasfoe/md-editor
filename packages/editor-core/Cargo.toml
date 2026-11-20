@@ -9,3 +9,4 @@ description = "Shared Markdown document and editing contracts for Inkpoint"
 
 [dependencies]
 markdown = "1.0"
+regex = "1.10"

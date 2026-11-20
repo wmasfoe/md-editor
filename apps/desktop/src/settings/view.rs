@@ -9,7 +9,6 @@ use gpui_kit::{
         Icon, Selectable, Sizable,
         button::{Button, ButtonVariants},
         input::Input,
-        switch::Switch,
     },
     *,
 };
@@ -148,9 +147,6 @@ impl SettingsView {
 
     fn editor_panel(&mut self, palette: &Palette, cx: &mut Context<Self>) -> AnyElement {
         let font_size = self.draft.editor.wysiwyg_font_size;
-        let line_numbers = self.draft.editor.show_code_block_line_numbers;
-        let inline_markers = self.draft.editor.show_inline_style_markers;
-        let markdown_lint = self.draft.editor.enable_markdown_lint;
 
         div()
             .flex()
@@ -222,32 +218,20 @@ impl SettingsView {
                     .child(Input::new(&self.code_font).w_full()),
             )
             .child(section_title("Display", palette))
-            .child(toggle_row(
-                "code-line-numbers",
+            .child(field_title(
                 "Code block line numbers",
-                line_numbers,
-                cx.listener(|this, enabled: &bool, _, cx| {
-                    this.draft.editor.show_code_block_line_numbers = *enabled;
-                    cx.notify();
-                }),
+                "Unavailable in this editor",
+                palette,
             ))
-            .child(toggle_row(
-                "inline-style-markers",
+            .child(field_title(
                 "Inline Markdown style markers",
-                inline_markers,
-                cx.listener(|this, enabled: &bool, _, cx| {
-                    this.draft.editor.show_inline_style_markers = *enabled;
-                    cx.notify();
-                }),
+                "Unavailable in this editor",
+                palette,
             ))
-            .child(toggle_row(
-                "markdown-lint",
+            .child(field_title(
                 "Markdown lint",
-                markdown_lint,
-                cx.listener(|this, enabled: &bool, _, cx| {
-                    this.draft.editor.enable_markdown_lint = *enabled;
-                    cx.notify();
-                }),
+                "Unavailable in this editor",
+                palette,
             ))
             .text_color(palette.text)
             .into_any_element()
@@ -268,26 +252,34 @@ impl SettingsView {
             .into_any_element()
     }
 
-    fn shortcuts_panel(&self, palette: &Palette) -> AnyElement {
-        let shortcuts = [
-            ("New document", "⌘ N"),
-            ("Open document", "⌘ O"),
-            ("Open folder", "⌘ ⌥ O"),
-            ("Save", "⌘ S"),
-            ("Save as", "⇧ ⌘ S"),
-            ("Close window", "⌘ W"),
-            ("Switch editor mode", "⌘ /"),
-            ("Show outline", "⌘ ⇧ B"),
-            ("Bold", "⌘ B"),
-            ("Italic", "⌘ I"),
-            ("Settings", "⌘ ,"),
-        ];
+    fn shortcuts_panel(&self, palette: &Palette, cx: &App) -> AnyElement {
+        let shortcuts = crate::shortcuts::ALL
+            .into_iter()
+            .map(|shortcut| {
+                (
+                    shortcut.0,
+                    crate::shortcuts::display_key(crate::shortcuts::key(shortcut)),
+                )
+            })
+            .chain(
+                inkpoint_editor_gpui::format_shortcuts(cx.platform_info().os)
+                    .into_iter()
+                    .map(|(format, key)| {
+                        let label = match format {
+                            inkpoint_editor_gpui::InlineFormat::Bold => "Bold",
+                            inkpoint_editor_gpui::InlineFormat::Italic => "Italic",
+                            inkpoint_editor_gpui::InlineFormat::Code => "Inline code",
+                            inkpoint_editor_gpui::InlineFormat::Strikethrough => "Strikethrough",
+                        };
+                        (label, crate::shortcuts::display_key(&key))
+                    }),
+            );
         div()
             .flex()
             .flex_col()
             .gap_4()
             .child(section_title("Keyboard Shortcuts", palette))
-            .children(shortcuts.into_iter().map(|(label, shortcut)| {
+            .children(shortcuts.map(|(label, shortcut)| {
                 div()
                     .flex()
                     .items_center()
@@ -379,7 +371,7 @@ impl Render for SettingsView {
                             .child(match self.active_tab {
                                 SettingsTab::Editor => self.editor_panel(&palette, cx),
                                 SettingsTab::Appearance => self.appearance_panel(&palette, cx),
-                                SettingsTab::Shortcuts => self.shortcuts_panel(&palette),
+                                SettingsTab::Shortcuts => self.shortcuts_panel(&palette, cx),
                             }),
                     ),
             );
@@ -443,26 +435,6 @@ fn field_title(
         .gap_1()
         .child(div().text_sm().font_weight(FontWeight::MEDIUM).child(title))
         .child(div().text_xs().text_color(palette.muted).child(description))
-}
-
-fn toggle_row(
-    id: &'static str,
-    label: &'static str,
-    enabled: bool,
-    on_change: impl Fn(&bool, &mut Window, &mut App) + 'static,
-) -> impl IntoElement {
-    div()
-        .flex()
-        .items_center()
-        .justify_between()
-        .py_2()
-        .child(div().text_sm().child(label))
-        .child(
-            Switch::new(id)
-                .checked(enabled)
-                .accessibility_label(label)
-                .on_change(on_change),
-        )
 }
 
 fn theme_button(

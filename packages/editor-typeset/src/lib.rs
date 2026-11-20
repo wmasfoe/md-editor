@@ -1,4 +1,5 @@
 //! Editable Markdown typesetting surface built on gpui-kit text rendering.
+
 //!
 //! gpui-kit owns Markdown parsing, block layout and typography: a heading is
 //! larger than body text because the renderer shapes each block at its own
@@ -15,9 +16,16 @@
 //!   geometry the caret needs: bounds, line height, and the byte index at a
 //!   window point.
 
+mod table_navigation;
+pub use table_navigation::{
+    TableNavigation, exit_table, generate_empty_table, navigate_table, navigate_table_vertical,
+    soft_break_in_table,
+};
+
 mod diagram;
 mod edit;
 mod geometry;
+mod list_newline;
 mod math;
 mod mermaid;
 mod movement;
@@ -29,7 +37,10 @@ pub use edit::{EditorCommand, Selection, TypesetEditor, TypesetError};
 pub use geometry::{LeafIndex, caret_at};
 pub use math::{Formula, FormulaError, MATH_LANGUAGE, MathRenderer, is_math_fence};
 pub use mermaid::{Diagram, DiagramError, MERMAID_LANGUAGE, is_mermaid_fence, render_diagram};
-pub use movement::{Vertical, move_down, move_left, move_right, move_up, move_vertical};
+pub use movement::{
+    Vertical, line_range_at, move_down, move_left, move_right, move_up, move_vertical,
+    move_vertical_with_goal, move_word_left, move_word_right, word_range_at,
+};
 pub use svg::{SvgError, SvgImageChannel, to_png_data_url};
 pub use text::{byte_offset, line_start, utf16_offset};
 
@@ -89,6 +100,7 @@ pub struct TypesetDocument {
     block_keys: Vec<Option<u64>>,
     spans: Vec<LeafSpan>,
     source: String,
+    rendered_maps: HashMap<u64, Vec<usize>>,
 }
 
 impl TypesetDocument {
@@ -182,7 +194,47 @@ impl TypesetDocument {
             ));
             block_keys.push((next_key > first).then_some(first));
         }
+        let inline_marks = MarkdownDocument::new(&source)
+            .inline_marks()
+            .unwrap_or_default();
+        let rendered_maps = spans
+            .iter()
+            .filter_map(|leaf| {
+                let span = leaf.span.as_ref()?;
+                let marks: Vec<_> = inline_marks
+                    .iter()
+                    .filter(|mark| {
+                        mark.syntax_range.start < span.end && mark.syntax_range.end > span.start
+                    })
+                    .collect();
+                // Escapes, entities, and images can transform text rather
+                // than merely hide delimiters; do not guess their byte mapping.
+                if marks.is_empty()
+                    || source.get(span.clone())?.contains(['\\', '&'])
+                    || marks.iter().any(|mark| {
+                        matches!(
+                            mark.kind,
+                            inkpoint_editor_core::InlineMarkKind::Image { .. }
+                                | inkpoint_editor_core::InlineMarkKind::InlineMath
+                        )
+                    })
+                {
+                    return None;
+                }
+                let mut positions = Vec::new();
+                for offset in span.clone() {
+                    if !marks.iter().any(|mark| {
+                        mark.syntax_range.contains(&offset) && !mark.range.contains(&offset)
+                    }) {
+                        positions.push(offset);
+                    }
+                }
+                positions.push(positions.last().map_or(span.start, |offset| offset + 1));
+                Some((leaf.key, positions))
+            })
+            .collect();
         Ok(Self {
+            rendered_maps,
             blocks,
             block_keys,
             spans,
@@ -220,6 +272,37 @@ impl TypesetDocument {
             .iter()
             .find(|leaf| leaf.key == key)
             .and_then(|leaf| leaf.span())
+    }
+
+    /// Maps a rendered byte offset to the source, skipping known inline delimiters.
+    pub fn source_offset(&self, key: u64, rendered: usize) -> Option<usize> {
+        let span = self.span_of(key)?;
+        Some(match self.rendered_maps.get(&key) {
+            Some(positions) => positions[rendered.min(positions.len() - 1)],
+            None => span.start + rendered.min(span.len()),
+        })
+    }
+
+    /// Maps a trailing selection endpoint to the end of the preceding text.
+    pub fn source_offset_before(&self, key: u64, rendered: usize) -> Option<usize> {
+        if rendered == 0 {
+            return self.source_offset(key, 0);
+        }
+        match self.rendered_maps.get(&key) {
+            Some(positions) => Some(positions[(rendered - 1).min(positions.len() - 1)] + 1),
+            None => self.source_offset(key, rendered),
+        }
+    }
+
+    /// Maps a source byte offset into the rendered leaf.
+    pub fn rendered_offset(&self, key: u64, source: usize) -> Option<usize> {
+        let span = self.span_of(key)?;
+        Some(match self.rendered_maps.get(&key) {
+            Some(positions) => positions
+                .partition_point(|position| *position < source)
+                .min(positions.len() - 1),
+            None => source.saturating_sub(span.start).min(span.len()),
+        })
     }
 
     /// The leaf keys that reported geometry, ordered by document position.
@@ -398,10 +481,11 @@ impl TypesetDocument {
             if start >= end {
                 continue;
             }
-            decorations
-                .entry(leaf.key)
-                .or_default()
-                .push((start - span.start..end - span.start, color));
+            decorations.entry(leaf.key).or_default().push((
+                self.rendered_offset(leaf.key, start).unwrap_or(0)
+                    ..self.rendered_offset(leaf.key, end).unwrap_or(0),
+                color,
+            ));
         }
         decorations
     }
@@ -521,6 +605,36 @@ fn with_leaf_keys<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn inline_syntax_maps_rendered_offsets_to_source() {
+        let source = "**中文** [链接](https://example.com) 😀";
+        let document = TypesetDocument::parse(source).unwrap();
+        let key = document.leaf_key(0).unwrap();
+        let link = source.find("链接").unwrap();
+        let emoji = source.find('😀').unwrap();
+        assert_eq!(document.source_offset(key, 0), Some(2));
+        assert_eq!(document.source_offset(key, "中文 ".len()), Some(link));
+        assert_eq!(document.source_offset(key, "中文 链接 ".len()), Some(emoji));
+        assert_eq!(
+            document.rendered_offset(key, emoji),
+            Some("中文 链接 ".len())
+        );
+    }
+
+    #[test]
+    fn inline_syntax_maps_rendered_offsets_to_source_with_code_and_breaks() {
+        let source = "prefix `code` suffix\nsecond line";
+        let document = TypesetDocument::parse(source).unwrap();
+        let key = document.leaf_key(0).unwrap();
+        let code_pos = source.find("code").unwrap();
+        let suffix_pos = source.find("suffix").unwrap();
+        assert_eq!(document.source_offset(key, "prefix ".len()), Some(code_pos));
+        assert_eq!(
+            document.source_offset(key, "prefix code ".len()),
+            Some(suffix_pos)
+        );
+    }
 
     /// The parser reports document-wide spans, which is what lets a caret
     /// offset resolve to a leaf.

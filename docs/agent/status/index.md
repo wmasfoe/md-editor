@@ -4,6 +4,10 @@
 
 ## 文档
 
+- GPUI 对齐当前未提交工作、局部验证与后续交接：[gpui-tauri-editor-parity-handoff.md](./gpui-tauri-editor-parity-handoff.md)
+
+- GPUI 原生排版合并后的 Tauri 差距、旧补丁取舍、修改顺序与验收：[gpui-tauri-editor-parity.md](./gpui-tauri-editor-parity.md)
+
 - Mermaid 可视化编辑 P0 的固定依赖、浏览器原型、能力缺口与生产接入门槛：[mermaid-visual-editing-p0.md](./mermaid-visual-editing-p0.md)
 - Mermaid 默认布局的新一轮图形操作、渲染修补和编辑器事务进度（PR #261 已合入 `main`，随 v0.23.0 发布）：[mermaid-default-layout-editing.md](./mermaid-default-layout-editing.md)
 - CM6 单编辑器迁移实时状态（S1-M5 已验证，M6 收口进行中且被 S6 性能基线阻塞；v0.18.0 已交付 Hot Exit、文档历史、MarkdownLint 与 HTML/PDF 导出；v0.20.0 已交付智能粘贴、HTML 块就地编辑与文末虚拟空行）： [codemirror_renderer_migration_status.md](./codemirror_renderer_migration_status.md)

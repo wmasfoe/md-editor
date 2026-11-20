@@ -12,6 +12,9 @@
 
 use std::ops::Range;
 
+#[path = "find.rs"]
+mod find;
+
 use gpui_kit::base::text::editor_host::RenderContext;
 use gpui_kit::{
     AnyElement, App, Bounds, Context, Element, ElementId, ElementInputHandler, Entity,
@@ -20,35 +23,110 @@ use gpui_kit::{
     prelude::*, px,
 };
 use inkpoint_editor_typeset::{
-    LeafIndex, TypesetDocument, TypesetEditor, TypesetError, byte_offset, line_start, move_down,
-    move_left, move_right, move_up, utf16_offset,
+    LeafIndex, TypesetDocument, TypesetEditor, TypesetError, byte_offset, line_start, move_left,
+    move_right, utf16_offset,
 };
 
 actions!(
     inkpoint_typeset,
     [
+        OpenFind,
+        CloseFind,
+        FormatBold,
+        FormatItalic,
+        FormatCode,
+        FormatStrike,
+        Heading0,
+        Heading1,
+        Heading2,
+        Heading3,
+        Heading4,
+        Heading5,
+        Heading6,
+        ToggleQuote,
+        ToggleBulletList,
+        ToggleOrderedList,
+        ToggleTaskList,
+        TableNextCell,
+        TablePreviousCell,
+        Indent,
+        Outdent,
+        IndentListItem,
+        OutdentListItem,
         MoveLeft,
+        SelectLeft,
         MoveRight,
+        SelectRight,
         MoveUp,
+        SelectUp,
         MoveDown,
+        SelectDown,
+        MoveWordLeft,
+        SelectWordLeft,
+        MoveWordRight,
+        SelectWordRight,
         SelectAll,
         InsertNewline,
+        InsertPlainNewline,
         DeleteBackward,
         DeleteForward,
+        DeleteWordBackward,
+        DeleteWordForward,
+        DeleteToLineStart,
         Undo,
         Redo,
         Copy,
         Cut,
         Paste,
         MoveToLineStart,
+        SelectToLineStart,
         MoveToLineEnd,
+        SelectToLineEnd,
         MoveToDocumentStart,
+        SelectToDocumentStart,
         MoveToDocumentEnd,
+        SelectToDocumentEnd,
     ]
 );
 
 /// The body font size a document lays out at.
 const BODY_FONT_SIZE: f32 = 17.;
+
+/// Host-controlled typography, independent of the document and its selection.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TypesetTypography {
+    pub body_font_size: f32,
+    pub prose_font_family: String,
+    pub code_font_family: String,
+}
+
+impl Default for TypesetTypography {
+    fn default() -> Self {
+        Self {
+            body_font_size: BODY_FONT_SIZE,
+            prose_font_family: String::new(),
+            code_font_family: String::new(),
+        }
+    }
+}
+
+impl TypesetTypography {
+    fn render_context(&self, cx: &App) -> RenderContext {
+        let mut context = RenderContext::from_app(cx);
+        if !self.code_font_family.is_empty() {
+            let family: SharedString = self.code_font_family.clone().into();
+            let style = context.style().clone();
+            let code_block = style.code_block().clone().font_family(family.clone());
+            let inline_code = style.inline_code_style().clone().font_family(family);
+            context = context.with_style(
+                style
+                    .with_code_block(code_block)
+                    .with_inline_code_style(inline_code),
+            );
+        }
+        context
+    }
+}
 
 /// The key context the editor's bindings are scoped to.
 const KEY_CONTEXT: &str = "TypesetView";
@@ -61,12 +139,41 @@ const KEY_CONTEXT: &str = "TypesetView";
 /// for a Linux user. `KeyBinding::new` parses statically and cannot resolve
 /// `secondary-`, which is why the spelling is assembled here.
 struct CommandKeys {
+    find: String,
+    bold: String,
+    italic: String,
+    code: String,
+    strike: String,
     select_all: String,
     copy: String,
     cut: String,
     paste: String,
     document_start: String,
     document_end: String,
+    shift_document_start: String,
+    shift_document_end: String,
+    line_start: String,
+    line_end: String,
+    shift_line_start: String,
+    shift_line_end: String,
+    word_left: String,
+    word_right: String,
+    shift_word_left: String,
+    shift_word_right: String,
+    delete_word_backward: String,
+    delete_word_forward: String,
+    delete_line_start: String,
+    heading_0: String,
+    heading_1: String,
+    heading_2: String,
+    heading_3: String,
+    heading_4: String,
+    heading_5: String,
+    heading_6: String,
+    bullet_list: String,
+    ordered_list: String,
+    task_list: String,
+    quote: String,
     undo: String,
     redo: String,
     redo_alt: String,
@@ -75,18 +182,98 @@ struct CommandKeys {
 impl CommandKeys {
     /// The keys for `os`.
     fn for_os(os: gpui_kit::OperatingSystem) -> Self {
-        let modifier = if os == gpui_kit::OperatingSystem::Mac {
-            "cmd"
+        let is_mac = os == gpui_kit::OperatingSystem::Mac;
+        let modifier = if is_mac { "cmd" } else { "ctrl" };
+        let [(_, bold), (_, italic), (_, code), (_, strike)] = crate::format_shortcuts(os);
+        let (
+            line_start,
+            line_end,
+            shift_line_start,
+            shift_line_end,
+            word_left,
+            word_right,
+            shift_word_left,
+            shift_word_right,
+            delete_word_backward,
+            delete_word_forward,
+            delete_line_start,
+            document_start,
+            document_end,
+            shift_document_start,
+            shift_document_end,
+        ) = if is_mac {
+            (
+                "cmd-left".into(),
+                "cmd-right".into(),
+                "shift-cmd-left".into(),
+                "shift-cmd-right".into(),
+                "alt-left".into(),
+                "alt-right".into(),
+                "shift-alt-left".into(),
+                "shift-alt-right".into(),
+                "alt-backspace".into(),
+                "alt-delete".into(),
+                "cmd-backspace".into(),
+                "cmd-up".into(),
+                "cmd-down".into(),
+                "shift-cmd-up".into(),
+                "shift-cmd-down".into(),
+            )
         } else {
-            "ctrl"
+            (
+                "home".into(),
+                "end".into(),
+                "shift-home".into(),
+                "shift-end".into(),
+                "ctrl-left".into(),
+                "ctrl-right".into(),
+                "shift-ctrl-left".into(),
+                "shift-ctrl-right".into(),
+                "ctrl-backspace".into(),
+                "ctrl-delete".into(),
+                "ctrl-u".into(),
+                "ctrl-home".into(),
+                "ctrl-end".into(),
+                "shift-ctrl-home".into(),
+                "shift-ctrl-end".into(),
+            )
         };
         Self {
+            find: format!("{modifier}-f"),
+            bold,
+            italic,
+            code,
+            strike,
+            heading_0: format!("{modifier}-0"),
+            heading_1: format!("{modifier}-1"),
+            heading_2: format!("{modifier}-2"),
+            heading_3: format!("{modifier}-3"),
+            heading_4: format!("{modifier}-4"),
+            heading_5: format!("{modifier}-5"),
+            heading_6: format!("{modifier}-6"),
+            bullet_list: format!("{modifier}-shift-u"),
+            ordered_list: format!("{modifier}-shift-o"),
+            task_list: format!("{modifier}-shift-t"),
+            quote: format!("{modifier}-shift-q"),
             select_all: format!("{modifier}-a"),
             copy: format!("{modifier}-c"),
             cut: format!("{modifier}-x"),
             paste: format!("{modifier}-v"),
-            document_start: format!("{modifier}-up"),
-            document_end: format!("{modifier}-down"),
+            document_start,
+            document_end,
+            shift_document_start,
+            shift_document_end,
+            line_start,
+            line_end,
+            shift_line_start,
+            shift_line_end,
+            word_left,
+            word_right,
+            shift_word_left,
+            shift_word_right,
+            delete_word_backward,
+            delete_word_forward,
+            delete_line_start,
             undo: format!("{modifier}-z"),
             redo: format!("{modifier}-shift-z"),
             redo_alt: format!("{modifier}-y"),
@@ -94,8 +281,17 @@ impl CommandKeys {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum DragMode {
+    Char,
+    Word(Range<usize>),
+    Line(Range<usize>),
+}
+
 /// A GPUI element that renders and edits Markdown.
 pub struct TypesetView {
+    typography: TypesetTypography,
+    find: find::FindState,
     editor: TypesetEditor,
     document: TypesetDocument,
     geometry: LeafIndex,
@@ -104,6 +300,7 @@ pub struct TypesetView {
     caret_leaf: Option<u64>,
     /// Composing text range in UTF-8 bytes, while an IME is active.
     marked: Option<Range<usize>>,
+    image_paste_enabled: bool,
     /// Draws `mermaid` and `math` fences. Kept across re-parses because it owns
     /// a font database and a parsed math face.
     diagrams: inkpoint_editor_typeset::DiagramRenderer,
@@ -114,6 +311,10 @@ pub struct TypesetView {
     scroll: gpui_kit::ScrollHandle,
     /// Where a mouse drag started, while the button is held.
     drag_anchor: Option<usize>,
+    drag_mode: DragMode,
+    drag_start_point: Option<Point<Pixels>>,
+    /// Sticky horizontal column for vertical arrow navigation.
+    goal_x: Option<Pixels>,
     /// Why the last parse failed, when it did.
     ///
     /// Kept rather than swallowed: a document that will not parse still opens
@@ -142,18 +343,72 @@ impl TypesetView {
             };
         let focus = cx.focus_handle();
         focus.focus(window, cx);
+        let find = find::FindState::new(window, cx);
         Self {
+            find,
+            typography: TypesetTypography::default(),
             editor,
             document,
             geometry: LeafIndex::default(),
             focus,
             caret_leaf: None,
             marked: None,
+            image_paste_enabled: false,
             diagrams,
             last_error: None,
             scroll: gpui_kit::ScrollHandle::new(),
             drag_anchor: None,
+            drag_mode: DragMode::Char,
+            drag_start_point: None,
+            goal_x: None,
             parse_error,
+        }
+    }
+
+    /// Enables image paste events when the host can persist clipboard images.
+    pub fn set_image_paste_enabled(&mut self, enabled: bool) {
+        self.image_paste_enabled = enabled;
+    }
+
+    /// Applies typography without changing the document or editing state.
+    pub fn set_typography(&mut self, typography: TypesetTypography, cx: &mut Context<Self>) {
+        if self.typography != typography {
+            self.typography = typography;
+            cx.notify();
+        }
+    }
+
+    fn navigate_table(&mut self, backward: bool, cx: &mut Context<Self>) {
+        if self.marked.is_some() {
+            return;
+        }
+        let Some(target) = inkpoint_editor_typeset::navigate_table(
+            self.editor.source(),
+            self.editor.selection().range(),
+            backward,
+        ) else {
+            return;
+        };
+        match target {
+            inkpoint_editor_typeset::TableNavigation::Select(range) => {
+                self.editor.set_selection(range.start, range.end);
+                cx.notify();
+            }
+            inkpoint_editor_typeset::TableNavigation::AppendRow {
+                offset,
+                text,
+                caret,
+            } => {
+                if self.editor.is_readonly() {
+                    return;
+                }
+                self.editor.set_caret(offset);
+                let result = self.editor.insert(&text);
+                if result.is_ok() {
+                    self.editor.set_caret(caret);
+                }
+                self.apply(result, cx);
+            }
         }
     }
 
@@ -181,6 +436,7 @@ impl TypesetView {
 
     /// Replaces the document from disk.
     pub fn replace_markdown(&mut self, source: impl Into<String>, cx: &mut Context<Self>) {
+        self.goal_x = None;
         self.editor.replace_source(source);
         self.last_error = None;
         self.reparse();
@@ -196,6 +452,7 @@ impl TypesetView {
 
     /// Moves the caret to `offset`, clamped to the source.
     pub fn set_caret(&mut self, offset: usize, cx: &mut Context<Self>) {
+        self.goal_x = None;
         self.editor.set_caret(offset);
         cx.notify();
     }
@@ -241,10 +498,12 @@ impl TypesetView {
     /// document or past a boundary would otherwise do nothing with no
     /// explanation, which reads as a broken key.
     fn apply(&mut self, edit: Result<(), TypesetError>, cx: &mut Context<Self>) {
+        self.goal_x = None;
         match edit {
             Ok(()) => {
                 self.last_error = None;
                 self.reparse();
+                self.scroll_caret_into_view();
                 cx.notify();
             }
             Err(error) => {
@@ -256,6 +515,10 @@ impl TypesetView {
 
     /// Inserts `text` at the caret.
     fn insert(&mut self, text: &str, cx: &mut Context<Self>) {
+        if let Ok(true) = self.editor.try_wrap_pair(text) {
+            self.apply(Ok(()), cx);
+            return;
+        }
         let result = self.editor.insert(text);
         self.apply(result, cx);
     }
@@ -268,24 +531,34 @@ impl TypesetView {
 
     /// Moves the caret one line up, crossing into the previous leaf at the top.
     fn caret_up(&mut self, cx: &mut Context<Self>) {
-        self.move_vertical(true, cx);
+        self.move_vertical(true, false, cx);
     }
 
     /// Moves the caret one visual line down, crossing into the next leaf at the
     /// bottom of this one.
     fn caret_down(&mut self, cx: &mut Context<Self>) {
-        self.move_vertical(false, cx);
+        self.move_vertical(false, false, cx);
     }
 
     /// One vertical step, staying inside the leaf or crossing into a neighbour.
     ///
-    /// Leaf geometry counts bytes from the leaf's own start; a caret is a
-    /// document-wide offset. Every geometry call therefore works in leaf-local
-    /// space and the result is shifted back by the leaf's span before it reaches
-    /// the editor.
-    fn move_vertical(&mut self, up: bool, cx: &mut Context<Self>) {
-        let Some(key) = self.caret_leaf else {
-            return;
+    /// Preserves `goal_x` across vertical movements so navigation through short
+    /// or empty lines does not discard the user's intended column.
+    fn move_vertical(&mut self, up: bool, shift: bool, cx: &mut Context<Self>) {
+        if !shift && !self.editor.selection().is_collapsed() {
+            let target = if up {
+                self.editor.selection().range().start
+            } else {
+                self.editor.selection().range().end
+            };
+            self.editor.set_caret(target);
+        }
+        let key = match self.caret_leaf.or_else(|| {
+            let offset = self.editor.selection().head();
+            self.document.leaf_at(offset)
+        }) {
+            Some(k) => k,
+            None => return,
         };
         let Some(leaf) = self.geometry.get(key) else {
             return;
@@ -293,25 +566,37 @@ impl TypesetView {
         let Some(span) = self.document.span_of(key) else {
             return;
         };
-        let local = self.editor.selection().head().saturating_sub(span.start);
+        let local = self
+            .document
+            .rendered_offset(key, self.editor.selection().head())
+            .unwrap_or(0);
         let caret = gpui_kit::base::text::editor_host::Caret::new(local.min(leaf.len()));
+        let origin = leaf.position_for_caret(caret);
+        let goal_x = *self.goal_x.get_or_insert(origin.x);
 
         // Stay inside this leaf when it has another visual line.
-        let inside = if up {
-            move_up(leaf, caret)
-        } else {
-            move_down(leaf, caret)
-        };
+        let inside = inkpoint_editor_typeset::move_vertical_with_goal(
+            leaf,
+            caret,
+            if up {
+                inkpoint_editor_typeset::Vertical::Up
+            } else {
+                inkpoint_editor_typeset::Vertical::Down
+            },
+            Some(goal_x),
+        );
         if let Some(moved) = inside {
-            self.editor
-                .set_caret(span.start + moved.index.min(leaf.len()));
+            self.editor.set_caret(
+                self.document
+                    .source_offset(key, moved.index.min(leaf.len()))
+                    .unwrap_or(span.start),
+            );
+            self.scroll_caret_into_view();
             cx.notify();
             return;
         }
 
-        // Otherwise cross into the nearest laid-out neighbour. Which leaf that is
-        // is document topology, so the document answers it; the geometry below
-        // only decides where inside that leaf the caret lands.
+        // Otherwise cross into the nearest laid-out neighbour.
         let laid_out: Vec<u64> = self.geometry.entries().map(|(key, _)| key).collect();
         let Some((neighbour_key, neighbour_span)) =
             self.document.vertical_neighbour(key, up, &laid_out)
@@ -321,20 +606,22 @@ impl TypesetView {
         let Some(neighbour) = self.geometry.get(neighbour_key) else {
             return;
         };
-        // Enter at the edge we came from: the end of the previous leaf when
-        // moving up, the start of the next when moving down. `position_for_index`
-        // already returns the caret's own line, so the offset is used as-is
-        // rather than nudged into the middle of a line — nudging would land on
-        // the line below and be clamped back, which happens to work but says
-        // nothing about intent.
-        let edge = if up { neighbour.len() } else { 0 };
-        let position = neighbour.position_for_index(edge);
-        let target = neighbour.caret_for_position(position);
-        // `render` resolves the caret's leaf from the document after every edit,
-        // so this does not assign `caret_leaf`: doing so would suggest the field
-        // is authoritative when the next frame overwrites it.
-        self.editor
-            .set_caret(neighbour_span.start + target.index.min(neighbour.len()));
+        let bounds = neighbour.bounds();
+        let target_y = if up {
+            bounds.origin.y + (bounds.size.height - px(2.0)).max(px(0.0))
+        } else {
+            bounds.origin.y + px(2.0)
+        };
+        let target = neighbour.caret_for_position(Point {
+            x: goal_x,
+            y: target_y,
+        });
+        self.editor.set_caret(
+            self.document
+                .source_offset(neighbour_key, target.index.min(neighbour.len()))
+                .unwrap_or(neighbour_span.start),
+        );
+        self.scroll_caret_into_view();
         cx.notify();
     }
 
@@ -347,6 +634,7 @@ impl TypesetView {
         if let Some(anchor) = anchor {
             let head = self.editor.selection().head();
             self.editor.set_selection(anchor, head);
+            self.scroll_caret_into_view();
             cx.notify();
         }
     }
@@ -355,7 +643,8 @@ impl TypesetView {
     ///
     /// `within_line` picks the line around the caret; otherwise the whole
     /// document. `to_end` picks which end.
-    fn move_to(&mut self, within_line: bool, to_end: bool, cx: &mut Context<Self>) {
+    fn move_to(&mut self, within_line: bool, to_end: bool, shift: bool, cx: &mut Context<Self>) {
+        self.goal_x = None;
         let source = self.editor.source().to_string();
         let head = self.editor.selection().head();
         let target = if within_line {
@@ -372,12 +661,19 @@ impl TypesetView {
         } else {
             0
         };
-        self.editor.set_caret(target);
+        let anchor = if shift {
+            self.editor.selection().anchor()
+        } else {
+            target
+        };
+        self.editor.set_selection(anchor, target);
+        self.scroll_caret_into_view();
         cx.notify();
     }
 
     /// Writes the selection to the clipboard.
     fn copy(&mut self, cx: &mut Context<Self>) {
+        self.goal_x = None;
         let text = self.editor.selected_text().to_string();
         if text.is_empty() {
             return;
@@ -405,19 +701,51 @@ impl TypesetView {
         }
     }
 
-    /// Inserts the clipboard's text at the caret.
+    /// Gives images to capable hosts; otherwise inserts available text.
     fn paste(&mut self, cx: &mut Context<Self>) {
         let Some(item) = cx.read_from_clipboard() else {
             return;
         };
-        let Some(text) = item.text() else {
-            return;
-        };
-        self.insert(&text, cx);
+        let image = self
+            .image_paste_enabled
+            .then(|| {
+                item.entries().iter().find_map(|entry| match entry {
+                    gpui_kit::ClipboardEntry::Image(image) => Some(image.clone()),
+                    _ => None,
+                })
+            })
+            .flatten();
+        if let Some(image) = image {
+            if self.editor.is_readonly() {
+                self.last_error = Some("The document is read-only.".into());
+                cx.notify();
+                return;
+            }
+            if self.marked.is_some() {
+                self.last_error =
+                    Some("Finish the current text composition before inserting.".into());
+                cx.notify();
+                return;
+            }
+            cx.emit(ImagePaste {
+                image,
+                target: PasteTarget {
+                    revision: self.editor.revision(),
+                    selection: self.editor.selection().range(),
+                },
+            });
+        } else if let Some(text) = item.text() {
+            if let Ok(true) = self.editor.paste_smart_link(&text) {
+                self.apply(Ok(()), cx);
+                return;
+            }
+            self.insert(&text, cx);
+        }
     }
 
     /// Reverts the last edit.
     fn undo(&mut self, cx: &mut Context<Self>) {
+        self.goal_x = None;
         if self.editor.is_readonly() {
             self.last_error = Some("The document is read-only.".into());
             cx.notify();
@@ -432,6 +760,7 @@ impl TypesetView {
 
     /// Reapplies the last undone edit.
     fn redo(&mut self, cx: &mut Context<Self>) {
+        self.goal_x = None;
         if self.editor.is_readonly() {
             self.last_error = Some("The document is read-only.".into());
             cx.notify();
@@ -456,6 +785,7 @@ impl TypesetView {
 
     /// Selects the whole document.
     fn select_all(&mut self, cx: &mut Context<Self>) {
+        self.goal_x = None;
         let len = self.editor.source().len();
         self.editor.set_selection(0, len);
         cx.notify();
@@ -463,6 +793,14 @@ impl TypesetView {
 
     /// Moves the caret left, extending the selection when `shift` is held.
     fn do_move_left(&mut self, shift: bool, cx: &mut Context<Self>) {
+        self.goal_x = None;
+        if !shift && !self.editor.selection().is_collapsed() {
+            let start = self.editor.selection().range().start;
+            self.editor.set_caret(start);
+            self.scroll_caret_into_view();
+            cx.notify();
+            return;
+        }
         let head = self.editor.selection().head();
         let caret = gpui_kit::base::text::editor_host::Caret::new(head);
         let moved = move_left(self.editor.source(), caret).index;
@@ -472,11 +810,20 @@ impl TypesetView {
             moved
         };
         self.editor.set_selection(anchor, moved);
+        self.scroll_caret_into_view();
         cx.notify();
     }
 
     /// Moves the caret right, extending the selection when `shift` is held.
     fn do_move_right(&mut self, shift: bool, cx: &mut Context<Self>) {
+        self.goal_x = None;
+        if !shift && !self.editor.selection().is_collapsed() {
+            let end = self.editor.selection().range().end;
+            self.editor.set_caret(end);
+            self.scroll_caret_into_view();
+            cx.notify();
+            return;
+        }
         let head = self.editor.selection().head();
         let caret = gpui_kit::base::text::editor_host::Caret::new(head);
         let moved = move_right(self.editor.source(), caret).index;
@@ -486,7 +833,81 @@ impl TypesetView {
             moved
         };
         self.editor.set_selection(anchor, moved);
+        self.scroll_caret_into_view();
         cx.notify();
+    }
+
+    /// Moves the caret by word left or right, extending the selection when `shift` is held.
+    fn do_move_word(&mut self, forward: bool, shift: bool, cx: &mut Context<Self>) {
+        self.goal_x = None;
+        let head = self.editor.selection().head();
+        let caret = gpui_kit::base::text::editor_host::Caret::new(head);
+        let moved = if forward {
+            inkpoint_editor_typeset::move_word_right(self.editor.source(), caret).index
+        } else {
+            inkpoint_editor_typeset::move_word_left(self.editor.source(), caret).index
+        };
+        let anchor = if shift {
+            self.editor.selection().anchor()
+        } else {
+            moved
+        };
+        self.editor.set_selection(anchor, moved);
+        self.scroll_caret_into_view();
+        cx.notify();
+    }
+
+    fn delete_word_backward(&mut self, cx: &mut Context<Self>) {
+        self.goal_x = None;
+        let result = self.editor.delete_word_backward();
+        self.apply(result, cx);
+    }
+
+    fn delete_to_line_start(&mut self, cx: &mut Context<Self>) {
+        self.goal_x = None;
+        let result = self.editor.delete_to_line_start();
+        self.apply(result, cx);
+    }
+
+    /// Scrolls the container so the caret is inside the visible viewport with a padding margin.
+    pub(crate) fn scroll_caret_into_view(&mut self) {
+        let head = self.editor.selection().head();
+        self.scroll_offset_into_view(head);
+    }
+
+    /// Scrolls the container so `offset` is inside the visible viewport.
+    pub(crate) fn scroll_offset_into_view(&mut self, offset: usize) {
+        let viewport = self.scroll.bounds();
+        if viewport.size.height <= px(0.) {
+            return;
+        }
+        let Some((leaf, local)) = self.document.leaf_at(offset).and_then(|key| {
+            Some((
+                self.geometry.get(key)?,
+                self.document.rendered_offset(key, offset)?,
+            ))
+        }) else {
+            return;
+        };
+        let y = leaf.position_for_index(local.min(leaf.len())).y;
+        let caret_h = leaf.caret_height();
+        let scroll_offset = self.scroll.offset();
+        let margin = px(20.);
+        let top_limit = viewport.top() + margin;
+        let bottom_limit = viewport.bottom() - margin;
+        let adjustment = if y < top_limit {
+            top_limit - y
+        } else if y + caret_h > bottom_limit {
+            bottom_limit - (y + caret_h)
+        } else {
+            px(0.)
+        };
+        if adjustment != px(0.) {
+            self.scroll.set_offset(gpui_kit::point(
+                scroll_offset.x,
+                scroll_offset.y + adjustment,
+            ));
+        }
     }
 
     /// Binds the movement keys.
@@ -497,128 +918,107 @@ impl TypesetView {
     /// silently lose them.
     pub fn bind_keys(cx: &mut App) {
         let keys = CommandKeys::for_os(cx.platform_info().os);
-        cx.bind_keys([
+        let load = |key: &str, action: Box<dyn gpui_kit::Action>, cx: &mut App| {
+            KeyBinding::load(
+                key,
+                action,
+                Some(std::rc::Rc::new(
+                    gpui_kit::KeyBindingContextPredicate::parse(KEY_CONTEXT)
+                        .expect("editor context"),
+                )),
+                false,
+                None,
+                cx,
+            )
+            .expect("key binding")
+        };
+        let bindings = vec![
+            KeyBinding::new("escape", find::CloseFind, Some("TypesetFind")),
+            KeyBinding::new("escape", CloseFind, Some(KEY_CONTEXT)),
+            KeyBinding::new("cmd-h", find::ToggleReplace, Some("TypesetFind")),
+            KeyBinding::new("ctrl-h", find::ToggleReplace, Some("TypesetFind")),
+            KeyBinding::new("alt-cmd-f", find::ToggleReplace, Some("TypesetFind")),
+            KeyBinding::new("alt-ctrl-f", find::ToggleReplace, Some("TypesetFind")),
+            KeyBinding::new("alt-cmd-c", find::ToggleCaseSensitive, Some("TypesetFind")),
+            KeyBinding::new("alt-ctrl-c", find::ToggleCaseSensitive, Some("TypesetFind")),
+            KeyBinding::new("alt-cmd-w", find::ToggleWholeWord, Some("TypesetFind")),
+            KeyBinding::new("alt-ctrl-w", find::ToggleWholeWord, Some("TypesetFind")),
+            KeyBinding::new("alt-cmd-r", find::ToggleRegex, Some("TypesetFind")),
+            KeyBinding::new("alt-ctrl-r", find::ToggleRegex, Some("TypesetFind")),
+            KeyBinding::new("tab", TableNextCell, Some("TypesetView && table_cell")),
+            KeyBinding::new(
+                "shift-tab",
+                TablePreviousCell,
+                Some("TypesetView && table_cell"),
+            ),
+            KeyBinding::new("tab", IndentListItem, Some("TypesetView && list_item")),
+            KeyBinding::new(
+                "shift-tab",
+                OutdentListItem,
+                Some("TypesetView && list_item"),
+            ),
+            KeyBinding::new("tab", Indent, Some("TypesetView && has_selection")),
+            KeyBinding::new("shift-tab", Outdent, Some(KEY_CONTEXT)),
+            KeyBinding::new("shift-enter", InsertPlainNewline, Some(KEY_CONTEXT)),
             KeyBinding::new("left", MoveLeft, Some(KEY_CONTEXT)),
+            KeyBinding::new("shift-left", SelectLeft, Some(KEY_CONTEXT)),
             KeyBinding::new("right", MoveRight, Some(KEY_CONTEXT)),
+            KeyBinding::new("shift-right", SelectRight, Some(KEY_CONTEXT)),
             KeyBinding::new("up", MoveUp, Some(KEY_CONTEXT)),
+            KeyBinding::new("shift-up", SelectUp, Some(KEY_CONTEXT)),
             KeyBinding::new("down", MoveDown, Some(KEY_CONTEXT)),
+            KeyBinding::new("shift-down", SelectDown, Some(KEY_CONTEXT)),
+            KeyBinding::new("home", MoveToLineStart, Some(KEY_CONTEXT)),
+            KeyBinding::new("shift-home", SelectToLineStart, Some(KEY_CONTEXT)),
+            KeyBinding::new("end", MoveToLineEnd, Some(KEY_CONTEXT)),
+            KeyBinding::new("shift-end", SelectToLineEnd, Some(KEY_CONTEXT)),
             KeyBinding::new("enter", InsertNewline, Some(KEY_CONTEXT)),
             KeyBinding::new("backspace", DeleteBackward, Some(KEY_CONTEXT)),
             KeyBinding::new("delete", DeleteForward, Some(KEY_CONTEXT)),
-            KeyBinding::new("home", MoveToLineStart, Some(KEY_CONTEXT)),
-            KeyBinding::new("end", MoveToLineEnd, Some(KEY_CONTEXT)),
-            KeyBinding::load(
-                &keys.document_start,
-                Box::new(MoveToDocumentStart),
-                Some(std::rc::Rc::new(
-                    gpui_kit::KeyBindingContextPredicate::parse(KEY_CONTEXT)
-                        .expect("the editor key context parses"),
-                )),
-                false,
-                None,
+            load(&keys.find, Box::new(OpenFind), cx),
+            load(&keys.bold, Box::new(FormatBold), cx),
+            load(&keys.italic, Box::new(FormatItalic), cx),
+            load(&keys.code, Box::new(FormatCode), cx),
+            load(&keys.strike, Box::new(FormatStrike), cx),
+            load(&keys.heading_0, Box::new(Heading0), cx),
+            load(&keys.heading_1, Box::new(Heading1), cx),
+            load(&keys.heading_2, Box::new(Heading2), cx),
+            load(&keys.heading_3, Box::new(Heading3), cx),
+            load(&keys.heading_4, Box::new(Heading4), cx),
+            load(&keys.heading_5, Box::new(Heading5), cx),
+            load(&keys.heading_6, Box::new(Heading6), cx),
+            load(&keys.bullet_list, Box::new(ToggleBulletList), cx),
+            load(&keys.ordered_list, Box::new(ToggleOrderedList), cx),
+            load(&keys.task_list, Box::new(ToggleTaskList), cx),
+            load(&keys.quote, Box::new(ToggleQuote), cx),
+            load(&keys.copy, Box::new(Copy), cx),
+            load(&keys.cut, Box::new(Cut), cx),
+            load(&keys.paste, Box::new(Paste), cx),
+            load(&keys.select_all, Box::new(SelectAll), cx),
+            load(&keys.undo, Box::new(Undo), cx),
+            load(&keys.redo, Box::new(Redo), cx),
+            load(&keys.redo_alt, Box::new(Redo), cx),
+            load(&keys.line_start, Box::new(MoveToLineStart), cx),
+            load(&keys.line_end, Box::new(MoveToLineEnd), cx),
+            load(&keys.shift_line_start, Box::new(SelectToLineStart), cx),
+            load(&keys.shift_line_end, Box::new(SelectToLineEnd), cx),
+            load(&keys.word_left, Box::new(MoveWordLeft), cx),
+            load(&keys.word_right, Box::new(MoveWordRight), cx),
+            load(&keys.shift_word_left, Box::new(SelectWordLeft), cx),
+            load(&keys.shift_word_right, Box::new(SelectWordRight), cx),
+            load(&keys.document_start, Box::new(MoveToDocumentStart), cx),
+            load(&keys.document_end, Box::new(MoveToDocumentEnd), cx),
+            load(
+                &keys.shift_document_start,
+                Box::new(SelectToDocumentStart),
                 cx,
-            )
-            .expect("document-start binding"),
-            KeyBinding::load(
-                &keys.document_end,
-                Box::new(MoveToDocumentEnd),
-                Some(std::rc::Rc::new(
-                    gpui_kit::KeyBindingContextPredicate::parse(KEY_CONTEXT)
-                        .expect("the editor key context parses"),
-                )),
-                false,
-                None,
-                cx,
-            )
-            .expect("document-end binding"),
-            KeyBinding::load(
-                &keys.copy,
-                Box::new(Copy),
-                Some(std::rc::Rc::new(
-                    gpui_kit::KeyBindingContextPredicate::parse(KEY_CONTEXT)
-                        .expect("the editor key context parses"),
-                )),
-                false,
-                None,
-                cx,
-            )
-            .expect("copy binding"),
-            KeyBinding::load(
-                &keys.cut,
-                Box::new(Cut),
-                Some(std::rc::Rc::new(
-                    gpui_kit::KeyBindingContextPredicate::parse(KEY_CONTEXT)
-                        .expect("the editor key context parses"),
-                )),
-                false,
-                None,
-                cx,
-            )
-            .expect("cut binding"),
-            KeyBinding::load(
-                &keys.paste,
-                Box::new(Paste),
-                Some(std::rc::Rc::new(
-                    gpui_kit::KeyBindingContextPredicate::parse(KEY_CONTEXT)
-                        .expect("the editor key context parses"),
-                )),
-                false,
-                None,
-                cx,
-            )
-            .expect("paste binding"),
-            // Resolved at runtime so the Playground build picks the right
-            // modifier for the browser it lands in, not the machine it was
-            // compiled on.
-            KeyBinding::load(
-                &keys.select_all,
-                Box::new(SelectAll),
-                Some(std::rc::Rc::new(
-                    gpui_kit::KeyBindingContextPredicate::parse(KEY_CONTEXT)
-                        .expect("the editor key context parses"),
-                )),
-                false,
-                None,
-                cx,
-            )
-            .expect("select-all binding"),
-            KeyBinding::load(
-                &keys.undo,
-                Box::new(Undo),
-                Some(std::rc::Rc::new(
-                    gpui_kit::KeyBindingContextPredicate::parse(KEY_CONTEXT)
-                        .expect("the editor key context parses"),
-                )),
-                false,
-                None,
-                cx,
-            )
-            .expect("undo binding"),
-            KeyBinding::load(
-                &keys.redo,
-                Box::new(Redo),
-                Some(std::rc::Rc::new(
-                    gpui_kit::KeyBindingContextPredicate::parse(KEY_CONTEXT)
-                        .expect("the editor key context parses"),
-                )),
-                false,
-                None,
-                cx,
-            )
-            .expect("redo binding"),
-            KeyBinding::load(
-                &keys.redo_alt,
-                Box::new(Redo),
-                Some(std::rc::Rc::new(
-                    gpui_kit::KeyBindingContextPredicate::parse(KEY_CONTEXT)
-                        .expect("the editor key context parses"),
-                )),
-                false,
-                None,
-                cx,
-            )
-            .expect("alternate redo binding"),
-        ]);
+            ),
+            load(&keys.shift_document_end, Box::new(SelectToDocumentEnd), cx),
+            load(&keys.delete_word_backward, Box::new(DeleteWordBackward), cx),
+            load(&keys.delete_word_forward, Box::new(DeleteWordForward), cx),
+            load(&keys.delete_line_start, Box::new(DeleteToLineStart), cx),
+        ];
+        cx.bind_keys(bindings);
     }
 }
 
@@ -696,15 +1096,14 @@ impl EntityInputHandler for TypesetView {
     ) {
         let target = self.ime_replacement_range(range);
         self.editor.set_selection(target.start, target.end);
-        let result = if self.composing() {
+        if self.composing() {
             // Candidate insertion is the last update of the same undo step.
             let result = self.editor.insert_composing(text);
             self.finish_composition();
-            result
+            self.apply(result, cx);
         } else {
-            self.editor.insert(text)
-        };
-        self.apply(result, cx);
+            self.insert(text, cx);
+        }
     }
 
     fn replace_and_mark_text_in_range(
@@ -756,8 +1155,7 @@ impl EntityInputHandler for TypesetView {
         // asks for the rectangle of text it is composing.
         let key = self.document.leaf_at(offset)?;
         let leaf = self.geometry.get(key)?;
-        let span = self.document.span_of(key)?;
-        let local = offset.saturating_sub(span.start);
+        let local = self.document.rendered_offset(key, offset).unwrap_or(0);
         let position = leaf.position_for_index(local.min(leaf.len()));
         let height = leaf.caret_height();
         // Prepaint geometry already includes the scroll offset.
@@ -779,7 +1177,10 @@ impl EntityInputHandler for TypesetView {
         // region would open in the wrong place.
         let (key, caret) = self.geometry.caret_and_key_for_point(point)?;
         let span = self.document.span_of(key)?;
-        let document_offset = span.start + caret.index.min(span.len());
+        let document_offset = self
+            .document
+            .source_offset(key, caret.index)
+            .unwrap_or(span.start);
         let source = self.editor.source();
         Some(utf16_offset(source, document_offset))
     }
@@ -790,6 +1191,7 @@ impl EntityInputHandler for TypesetView {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.goal_x = None;
         let source = self.editor.source().to_string();
         let start = byte_offset(&source, range.start);
         let end = byte_offset(&source, range.end);
@@ -810,28 +1212,232 @@ impl Render for TypesetView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         // Build the listeners before rendering: the rendered element borrows
         // `cx` mutably, so every `cx.listener` call has to happen first.
-        let on_left = cx.listener(|this, _: &MoveLeft, window, cx| {
-            this.do_move_left(window.modifiers().shift, cx);
+        let on_table_next =
+            cx.listener(|this, _: &TableNextCell, _, cx| this.navigate_table(false, cx));
+        let on_table_previous =
+            cx.listener(|this, _: &TablePreviousCell, _, cx| this.navigate_table(true, cx));
+        let on_find = cx.listener(|this, _: &OpenFind, window, cx| this.open_find(window, cx));
+        let on_left = cx.listener(|this, _: &MoveLeft, _, cx| {
+            this.do_move_left(false, cx);
         });
-        let on_right = cx.listener(|this, _: &MoveRight, window, cx| {
-            this.do_move_right(window.modifiers().shift, cx);
+        let on_select_left = cx.listener(|this, _: &SelectLeft, _, cx| {
+            this.do_move_left(true, cx);
         });
-        // Shift extends the selection vertically, matching what shift+left/right
-        // already do horizontally.
-        let on_up = cx.listener(|this, _: &MoveUp, window, cx| {
-            let shift = window.modifiers().shift;
-            let anchor = shift.then(|| this.editor.selection().anchor());
+        let on_right = cx.listener(|this, _: &MoveRight, _, cx| {
+            this.do_move_right(false, cx);
+        });
+        let on_select_right = cx.listener(|this, _: &SelectRight, _, cx| {
+            this.do_move_right(true, cx);
+        });
+        let on_up = cx.listener(|this, _: &MoveUp, _, cx| {
             this.caret_up(cx);
-            this.extend_to(anchor, cx);
         });
-        let on_down = cx.listener(|this, _: &MoveDown, window, cx| {
-            let shift = window.modifiers().shift;
-            let anchor = shift.then(|| this.editor.selection().anchor());
+        let on_select_up = cx.listener(|this, _: &SelectUp, _, cx| {
+            let anchor = this.editor.selection().anchor();
+            this.move_vertical(true, true, cx);
+            this.extend_to(Some(anchor), cx);
+        });
+        let on_down = cx.listener(|this, _: &MoveDown, _, cx| {
             this.caret_down(cx);
-            this.extend_to(anchor, cx);
+        });
+        let on_select_down = cx.listener(|this, _: &SelectDown, _, cx| {
+            let anchor = this.editor.selection().anchor();
+            this.move_vertical(false, true, cx);
+            this.extend_to(Some(anchor), cx);
+        });
+        let on_format_bold = cx.listener(|this, _: &FormatBold, window, cx| {
+            this.execute_command(
+                inkpoint_editor_typeset::EditorCommand::ToggleBold,
+                window,
+                cx,
+            )
+        });
+        let on_format_italic = cx.listener(|this, _: &FormatItalic, window, cx| {
+            this.execute_command(
+                inkpoint_editor_typeset::EditorCommand::ToggleItalic,
+                window,
+                cx,
+            )
+        });
+        let on_format_code = cx.listener(|this, _: &FormatCode, window, cx| {
+            this.execute_command(
+                inkpoint_editor_typeset::EditorCommand::ToggleInlineCode,
+                window,
+                cx,
+            )
+        });
+        let on_format_strike = cx.listener(|this, _: &FormatStrike, window, cx| {
+            this.execute_command(
+                inkpoint_editor_typeset::EditorCommand::ToggleStrikethrough,
+                window,
+                cx,
+            )
+        });
+        let on_indent = cx.listener(|this, _: &IndentListItem, _, cx| {
+            if let Ok(true) = this.editor.indent_list(true) {
+                this.apply(Ok(()), cx);
+            } else {
+                this.insert("  ", cx);
+            }
+        });
+        let on_outdent = cx.listener(|this, _: &OutdentListItem, _, cx| {
+            if let Ok(true) = this.editor.outdent_current() {
+                this.apply(Ok(()), cx);
+            }
+        });
+        let on_indent_general = cx.listener(|this, _: &Indent, _, cx| {
+            if this.marked.is_some() {
+                return;
+            }
+            if inkpoint_editor_typeset::navigate_table(
+                this.editor.source(),
+                this.editor.selection().range(),
+                false,
+            )
+            .is_some()
+            {
+                this.navigate_table(false, cx);
+                return;
+            }
+            if let Ok(true) = this.editor.indent_selection(true) {
+                this.apply(Ok(()), cx);
+            } else {
+                this.insert("  ", cx);
+            }
+        });
+        let on_outdent_general = cx.listener(|this, _: &Outdent, _, cx| {
+            if this.marked.is_some() {
+                return;
+            }
+            if inkpoint_editor_typeset::navigate_table(
+                this.editor.source(),
+                this.editor.selection().range(),
+                true,
+            )
+            .is_some()
+            {
+                this.navigate_table(true, cx);
+                return;
+            }
+            if let Ok(true) = this.editor.indent_selection(false) {
+                this.apply(Ok(()), cx);
+            } else if let Ok(true) = this.editor.outdent_current() {
+                this.apply(Ok(()), cx);
+            }
+        });
+        let on_soft_break = cx.listener(|this, _: &InsertPlainNewline, _, cx| {
+            let result = this.editor.insert_soft_break();
+            this.apply(result, cx);
+        });
+        let on_heading_0 = cx.listener(|this, _: &Heading0, window, cx| {
+            this.execute_command(
+                inkpoint_editor_typeset::EditorCommand::Heading(0),
+                window,
+                cx,
+            );
+        });
+        let on_heading_1 = cx.listener(|this, _: &Heading1, window, cx| {
+            this.execute_command(
+                inkpoint_editor_typeset::EditorCommand::Heading(1),
+                window,
+                cx,
+            );
+        });
+        let on_heading_2 = cx.listener(|this, _: &Heading2, window, cx| {
+            this.execute_command(
+                inkpoint_editor_typeset::EditorCommand::Heading(2),
+                window,
+                cx,
+            );
+        });
+        let on_heading_3 = cx.listener(|this, _: &Heading3, window, cx| {
+            this.execute_command(
+                inkpoint_editor_typeset::EditorCommand::Heading(3),
+                window,
+                cx,
+            );
+        });
+        let on_heading_4 = cx.listener(|this, _: &Heading4, window, cx| {
+            this.execute_command(
+                inkpoint_editor_typeset::EditorCommand::Heading(4),
+                window,
+                cx,
+            );
+        });
+        let on_heading_5 = cx.listener(|this, _: &Heading5, window, cx| {
+            this.execute_command(
+                inkpoint_editor_typeset::EditorCommand::Heading(5),
+                window,
+                cx,
+            );
+        });
+        let on_heading_6 = cx.listener(|this, _: &Heading6, window, cx| {
+            this.execute_command(
+                inkpoint_editor_typeset::EditorCommand::Heading(6),
+                window,
+                cx,
+            );
+        });
+        let on_toggle_quote = cx.listener(|this, _: &ToggleQuote, window, cx| {
+            this.execute_command(
+                inkpoint_editor_typeset::EditorCommand::ToggleQuote,
+                window,
+                cx,
+            );
+        });
+        let on_toggle_bullet = cx.listener(|this, _: &ToggleBulletList, window, cx| {
+            this.execute_command(
+                inkpoint_editor_typeset::EditorCommand::ToggleBulletList,
+                window,
+                cx,
+            );
+        });
+        let on_toggle_ordered = cx.listener(|this, _: &ToggleOrderedList, window, cx| {
+            this.execute_command(
+                inkpoint_editor_typeset::EditorCommand::ToggleOrderedList,
+                window,
+                cx,
+            );
+        });
+        let on_toggle_task = cx.listener(|this, _: &ToggleTaskList, window, cx| {
+            this.execute_command(
+                inkpoint_editor_typeset::EditorCommand::ToggleTaskList,
+                window,
+                cx,
+            );
+        });
+        let on_close_find = cx.listener(|this, _: &CloseFind, window, cx| {
+            if this.find.open {
+                this.close_find(window, cx);
+            }
+        });
+        let on_word_left = cx.listener(|this, _: &MoveWordLeft, _, cx| {
+            this.do_move_word(false, false, cx);
+        });
+        let on_select_word_left = cx.listener(|this, _: &SelectWordLeft, _, cx| {
+            this.do_move_word(false, true, cx);
+        });
+        let on_word_right = cx.listener(|this, _: &MoveWordRight, _, cx| {
+            this.do_move_word(true, false, cx);
+        });
+        let on_select_word_right = cx.listener(|this, _: &SelectWordRight, _, cx| {
+            this.do_move_word(true, true, cx);
+        });
+        let on_delete_word_backward = cx.listener(|this, _: &DeleteWordBackward, _, cx| {
+            this.delete_word_backward(cx);
+        });
+        let on_delete_word_forward = cx.listener(|this, _: &DeleteWordForward, _, cx| {
+            let result = this.editor.delete_word_forward();
+            this.apply(result, cx);
+        });
+        let on_delete_line_start = cx.listener(|this, _: &DeleteToLineStart, _, cx| {
+            this.delete_to_line_start(cx);
         });
         let on_select_all = cx.listener(|this, _: &SelectAll, _, cx| this.select_all(cx));
-        let on_newline = cx.listener(|this, _: &InsertNewline, _, cx| this.insert("\n", cx));
+        let on_newline = cx.listener(|this, _: &InsertNewline, _, cx| {
+            let result = this.editor.insert_newline();
+            this.apply(result, cx);
+        });
         let on_backspace = cx.listener(|this, _: &DeleteBackward, _, cx| this.delete_backward(cx));
         let on_delete = cx.listener(|this, _: &DeleteForward, _, cx| {
             let result = this.editor.delete_forward();
@@ -843,20 +1449,29 @@ impl Render for TypesetView {
         let on_cut = cx.listener(|this, _: &Cut, _, cx| this.cut(cx));
         let on_paste = cx.listener(|this, _: &Paste, _, cx| this.paste(cx));
         let on_line_start =
-            cx.listener(|this, _: &MoveToLineStart, _, cx| this.move_to(true, false, cx));
+            cx.listener(|this, _: &MoveToLineStart, _, cx| this.move_to(true, false, false, cx));
+        let on_select_line_start =
+            cx.listener(|this, _: &SelectToLineStart, _, cx| this.move_to(true, false, true, cx));
         let on_line_end =
-            cx.listener(|this, _: &MoveToLineEnd, _, cx| this.move_to(true, true, cx));
-        let on_doc_start =
-            cx.listener(|this, _: &MoveToDocumentStart, _, cx| this.move_to(false, false, cx));
+            cx.listener(|this, _: &MoveToLineEnd, _, cx| this.move_to(true, true, false, cx));
+        let on_select_line_end =
+            cx.listener(|this, _: &SelectToLineEnd, _, cx| this.move_to(true, true, true, cx));
+        let on_doc_start = cx
+            .listener(|this, _: &MoveToDocumentStart, _, cx| this.move_to(false, false, false, cx));
+        let on_select_doc_start = cx.listener(|this, _: &SelectToDocumentStart, _, cx| {
+            this.move_to(false, false, true, cx)
+        });
         let on_doc_end =
-            cx.listener(|this, _: &MoveToDocumentEnd, _, cx| this.move_to(false, true, cx));
+            cx.listener(|this, _: &MoveToDocumentEnd, _, cx| this.move_to(false, true, false, cx));
+        let on_select_doc_end =
+            cx.listener(|this, _: &SelectToDocumentEnd, _, cx| this.move_to(false, true, true, cx));
 
-        let context = RenderContext::from_app(cx);
+        let context = self.typography.render_context(cx);
         // Pass the selection through so the selected text is visibly highlighted:
         // without it, cmd-a and shift-arrow change state the user cannot see.
         let selection = self.editor.selection().range();
         let (element, decorations) = self.document.render_with_selection(
-            px(BODY_FONT_SIZE),
+            px(self.typography.body_font_size),
             context,
             window,
             cx,
@@ -867,20 +1482,81 @@ impl Render for TypesetView {
         let scrollable = div()
             .id("typeset-scroll")
             .size_full()
+            .cursor_text()
             .overflow_y_scroll()
             .track_scroll(&self.scroll)
+            .text_size(px(self.typography.body_font_size))
+            .when(!self.typography.prose_font_family.is_empty(), |div| {
+                div.font_family(SharedString::from(
+                    self.typography.prose_font_family.clone(),
+                ))
+            })
             .child(element);
         // The action handlers live on this wrapper: `InputSurface` is a plain
         // element and only registers input, it does not dispatch actions.
         let surface = div()
             .id("typeset-view")
+            .cursor_text()
             .track_focus(&self.focus)
-            .key_context(KEY_CONTEXT)
-            .size_full()
+            .key_context(
+                if inkpoint_editor_typeset::navigate_table(
+                    self.editor.source(),
+                    self.editor.selection().range(),
+                    false,
+                )
+                .is_some()
+                {
+                    "TypesetView table_cell"
+                } else if self.editor.is_in_list() {
+                    "TypesetView list_item"
+                } else if !self.editor.selection().is_collapsed() {
+                    "TypesetView has_selection"
+                } else {
+                    KEY_CONTEXT
+                },
+            )
+            .w_full()
+            .flex_1()
+            .min_h_0()
+            .on_action(on_table_next)
+            .on_action(on_table_previous)
+            .on_action(on_indent)
+            .on_action(on_outdent)
+            .on_action(on_indent_general)
+            .on_action(on_outdent_general)
+            .on_action(on_soft_break)
+            .on_action(on_heading_0)
+            .on_action(on_heading_1)
+            .on_action(on_heading_2)
+            .on_action(on_heading_3)
+            .on_action(on_heading_4)
+            .on_action(on_heading_5)
+            .on_action(on_heading_6)
+            .on_action(on_toggle_quote)
+            .on_action(on_toggle_bullet)
+            .on_action(on_toggle_ordered)
+            .on_action(on_toggle_task)
+            .on_action(on_close_find)
+            .on_action(on_find)
+            .on_action(on_format_bold)
+            .on_action(on_format_italic)
+            .on_action(on_format_code)
+            .on_action(on_format_strike)
             .on_action(on_left)
+            .on_action(on_select_left)
             .on_action(on_right)
+            .on_action(on_select_right)
             .on_action(on_up)
+            .on_action(on_select_up)
             .on_action(on_down)
+            .on_action(on_select_down)
+            .on_action(on_word_left)
+            .on_action(on_select_word_left)
+            .on_action(on_word_right)
+            .on_action(on_select_word_right)
+            .on_action(on_delete_word_backward)
+            .on_action(on_delete_word_forward)
+            .on_action(on_delete_line_start)
             .on_action(on_select_all)
             .on_action(on_newline)
             .on_action(on_backspace)
@@ -891,45 +1567,53 @@ impl Render for TypesetView {
             .on_action(on_cut)
             .on_action(on_paste)
             .on_action(on_line_start)
+            .on_action(on_select_line_start)
             .on_action(on_line_end)
+            .on_action(on_select_line_end)
             .on_action(on_doc_start)
+            .on_action(on_select_doc_start)
             .on_action(on_doc_end)
+            .on_action(on_select_doc_end)
             .on_mouse_down(
                 gpui_kit::MouseButton::Left,
                 cx.listener(|this, event: &gpui_kit::MouseDownEvent, window, cx| {
-                    this.place_caret_from_click(event.position, window, cx);
-                    // Anchor the drag at the click, so moving the mouse extends
-                    // the selection from here instead of moving the caret.
-                    this.drag_anchor = Some(this.editor.selection().head());
+                    this.handle_mouse_down(event, window, cx);
                 }),
             )
             .on_mouse_move(
-                cx.listener(|this, event: &gpui_kit::MouseMoveEvent, window, cx| {
+                cx.listener(|this, event: &gpui_kit::MouseMoveEvent, _, cx| {
                     // Only while a button is held: a bare hover must not move the
                     // caret.
                     if event.pressed_button != Some(gpui_kit::MouseButton::Left) {
                         return;
                     }
-                    this.extend_to(this.drag_anchor, cx);
-                    this.place_caret_from_click(event.position, window, cx);
+                    this.extend_drag_to(event.position, cx);
                 }),
             )
             .on_mouse_up(
                 gpui_kit::MouseButton::Left,
                 cx.listener(|this, _: &gpui_kit::MouseUpEvent, _, cx| {
                     this.drag_anchor = None;
+                    this.drag_start_point = None;
+                    this.drag_mode = DragMode::Char;
                     cx.notify();
                 }),
             )
             .child(scrollable)
             .into_any_element();
-        InputSurface {
+        let input_surface = InputSurface {
             view: cx.entity(),
             focus: self.focus.clone(),
             child: surface,
             caret_color: gpui_kit::component::theme::Theme::global(cx).foreground,
             decorations,
-        }
+        };
+        div()
+            .size_full()
+            .flex()
+            .flex_col()
+            .when(self.find.open, |div| div.child(self.find_bar(cx)))
+            .child(input_surface)
     }
 }
 
@@ -939,11 +1623,30 @@ impl TypesetView {
         self.editor.selection().range()
     }
 
+    /// Sets the selection range in byte offsets.
+    pub fn set_selected_range(&mut self, range: Range<usize>, cx: &mut Context<Self>) {
+        self.goal_x = None;
+        let len = self.markdown().len();
+        let start = range.start.min(len);
+        let end = range.end.min(len);
+        self.editor.set_selection(start, end);
+        cx.notify();
+    }
+
     /// The leaf key the caret is in, when the last frame laid it out.
     pub fn caret_leaf(&self) -> Option<u64> {
         self.caret_leaf
     }
 }
+
+/// An image clipboard payload for the host to persist and insert.
+#[derive(Clone, Debug)]
+pub struct ImagePaste {
+    pub image: gpui_kit::Image,
+    pub target: PasteTarget,
+}
+
+impl gpui_kit::EventEmitter<ImagePaste> for TypesetView {}
 
 /// What a paste target remembers, so an async image insert can verify the
 /// document has not moved on before it lands.
@@ -1017,26 +1720,167 @@ impl TypesetView {
 }
 
 impl TypesetView {
-    /// Places the caret where the user clicked.
-    ///
-    /// The click and prepaint geometry use window coordinates. The resolved
-    /// index is shifted by the leaf's source span to get a document offset.
-    fn place_caret_from_click(
+    /// Handles mouse-down events, supporting single click, double-click (word),
+    /// triple-click (line), shift-click (range extension), and task checkbox toggle.
+    fn handle_mouse_down(
+        &mut self,
+        event: &gpui_kit::MouseDownEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.focus.focus(window, cx);
+        self.goal_x = None;
+        self.drag_start_point = Some(event.position);
+        let max_bottom = self
+            .geometry
+            .leaves()
+            .map(|l| l.bounds().origin.y + l.bounds().size.height)
+            .reduce(Pixels::max);
+        let offset = if let Some(bottom) = max_bottom {
+            if event.position.y > bottom + px(8.0) {
+                Some(self.markdown().len())
+            } else {
+                self.source_offset_for_point(event.position)
+            }
+        } else {
+            self.source_offset_for_point(event.position)
+        };
+        let Some(offset) = offset.or_else(|| {
+            Some(if self.markdown().is_empty() {
+                0
+            } else {
+                self.markdown().len()
+            })
+        }) else {
+            return;
+        };
+
+        if let Ok(true) = self.editor.toggle_task_checkbox(offset) {
+            self.apply(Ok(()), cx);
+            return;
+        }
+
+        if event.modifiers.shift {
+            let anchor = self.editor.selection().anchor();
+            self.editor.set_selection(anchor, offset);
+            self.drag_anchor = Some(anchor);
+            self.drag_mode = DragMode::Char;
+        } else if event.click_count == 2 {
+            let range = inkpoint_editor_typeset::word_range_at(self.markdown(), offset);
+            self.editor.set_selection(range.start, range.end);
+            self.drag_anchor = Some(range.start);
+            self.drag_mode = DragMode::Word(range);
+        } else if event.click_count >= 3 {
+            let range = inkpoint_editor_typeset::line_range_at(self.markdown(), offset);
+            self.editor.set_selection(range.start, range.end);
+            self.drag_anchor = Some(range.start);
+            self.drag_mode = DragMode::Line(range);
+        } else {
+            self.editor.set_caret(offset);
+            self.drag_anchor = Some(offset);
+            self.drag_mode = DragMode::Char;
+        }
+        self.scroll_caret_into_view();
+        cx.notify();
+    }
+
+    /// Places the caret where the user clicked, used directly by tests.
+    #[cfg(test)]
+    pub(crate) fn place_caret_from_click(
         &mut self,
         point: Point<Pixels>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         self.focus.focus(window, cx);
+        self.goal_x = None;
+        let Some(offset) = self.source_offset_for_point(point) else {
+            return;
+        };
+        if let Ok(true) = self.editor.toggle_task_checkbox(offset) {
+            self.apply(Ok(()), cx);
+            return;
+        }
+        self.editor.set_caret(offset);
+        self.scroll_caret_into_view();
+        cx.notify();
+    }
+
+    /// Extend from the original mouse-down anchor without collapsing the range.
+    fn extend_drag_to(&mut self, point: Point<Pixels>, cx: &mut Context<Self>) {
+        self.goal_x = None;
+        let Some(anchor) = self.drag_anchor else {
+            return;
+        };
+        if let Some(start_point) = self.drag_start_point {
+            let dx = (point.x - start_point.x).as_f32();
+            let dy = (point.y - start_point.y).as_f32();
+            if (dx * dx + dy * dy).sqrt() < 3.0 {
+                return;
+            }
+        }
         let Some(key) = self.caret_leaf_from_point(point) else {
             return;
         };
-        let (Some(leaf), Some(span)) = (self.geometry.get(key), self.document.span_of(key)) else {
+        let Some(leaf) = self.geometry.get(key) else {
             return;
         };
         let local = leaf.index_for_position(point).min(leaf.len());
-        self.editor.set_caret(span.start + local);
+        let Some(head) = self.document.source_offset(key, local) else {
+            return;
+        };
+        match self.drag_mode {
+            DragMode::Word(ref initial_word) => {
+                let cur_word = inkpoint_editor_typeset::word_range_at(self.markdown(), head);
+                let (sel_anchor, sel_head) = if head >= initial_word.start {
+                    (initial_word.start, cur_word.end)
+                } else {
+                    (initial_word.end, cur_word.start)
+                };
+                self.editor.set_selection(sel_anchor, sel_head);
+            }
+            DragMode::Line(ref initial_line) => {
+                let cur_line = inkpoint_editor_typeset::line_range_at(self.markdown(), head);
+                let (sel_anchor, sel_head) = if head >= initial_line.start {
+                    (initial_line.start, cur_line.end)
+                } else {
+                    (initial_line.end, cur_line.start)
+                };
+                self.editor.set_selection(sel_anchor, sel_head);
+            }
+            DragMode::Char => {
+                let (sel_anchor, sel_head) = if head > anchor {
+                    (
+                        anchor,
+                        self.document
+                            .source_offset_before(key, local)
+                            .unwrap_or(head),
+                    )
+                } else if head < anchor {
+                    let trailing = self
+                        .document
+                        .leaf_at(anchor)
+                        .and_then(|key| {
+                            let local = self.document.rendered_offset(key, anchor)?;
+                            self.document.source_offset_before(key, local)
+                        })
+                        .unwrap_or(anchor);
+                    (trailing, head)
+                } else {
+                    (anchor, head)
+                };
+                self.editor.set_selection(sel_anchor, sel_head);
+            }
+        }
+        self.scroll_offset_into_view(head);
         cx.notify();
+    }
+
+    fn source_offset_for_point(&self, point: Point<Pixels>) -> Option<usize> {
+        let key = self.caret_leaf_from_point(point)?;
+        let leaf = self.geometry.get(key)?;
+        self.document
+            .source_offset(key, leaf.index_for_position(point).min(leaf.len()))
     }
 
     /// The rectangle to draw the insertion caret in, when it can be located.
@@ -1049,8 +1893,10 @@ impl TypesetView {
         }
         let key = self.caret_leaf?;
         let leaf = self.geometry.get(key)?;
-        let span = self.document.span_of(key)?;
-        let local = self.editor.selection().head().saturating_sub(span.start);
+        let local = self
+            .document
+            .rendered_offset(key, self.editor.selection().head())
+            .unwrap_or(0);
         let position = leaf.position_for_index(local.min(leaf.len()));
         Some(Bounds {
             origin: position,
@@ -1058,28 +1904,11 @@ impl TypesetView {
         })
     }
 
-    /// The leaf whose bounds contain `point`, else the vertically nearest one.
+    /// The leaf whose bounds contain `point`, else the nearest one.
     fn caret_leaf_from_point(&self, point: Point<Pixels>) -> Option<u64> {
-        let mut fallback: Option<(u64, Pixels)> = None;
-        for (key, leaf) in self.geometry.entries() {
-            let bounds = leaf.bounds();
-            if bounds.contains(&point) {
-                return Some(key);
-            }
-            // A click in the margin should still place a caret rather than do
-            // nothing, so track the nearest leaf by vertical distance.
-            let vertical = if point.y < bounds.origin.y {
-                bounds.origin.y - point.y
-            } else if point.y > bounds.origin.y + bounds.size.height {
-                point.y - (bounds.origin.y + bounds.size.height)
-            } else {
-                Pixels::ZERO
-            };
-            if fallback.is_none_or(|(_, best)| vertical < best) {
-                fallback = Some((key, vertical));
-            }
-        }
-        fallback.map(|(key, _)| key)
+        self.geometry
+            .caret_and_key_for_point(point)
+            .map(|(key, _)| key)
     }
 
     /// Moves the caret to the start of `line`, counting from one.
@@ -1100,19 +1929,24 @@ impl TypesetView {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.marked.is_some() {
+            self.last_error = Some("Finish the current text composition before formatting.".into());
+            cx.notify();
+            return;
+        }
         let result = match command {
-            inkpoint_editor_typeset::EditorCommand::ToggleBold => {
-                self.editor.wrap_selection("**", "**")
-            }
-            inkpoint_editor_typeset::EditorCommand::ToggleItalic => {
-                self.editor.wrap_selection("*", "*")
-            }
-            inkpoint_editor_typeset::EditorCommand::ToggleInlineCode => {
-                self.editor.wrap_selection("`", "`")
-            }
-            inkpoint_editor_typeset::EditorCommand::ToggleStrikethrough => {
-                self.editor.wrap_selection("~~", "~~")
-            }
+            inkpoint_editor_typeset::EditorCommand::ToggleBold => self
+                .editor
+                .toggle_inline_mark(inkpoint_editor_core::InlineFormat::Bold),
+            inkpoint_editor_typeset::EditorCommand::ToggleItalic => self
+                .editor
+                .toggle_inline_mark(inkpoint_editor_core::InlineFormat::Italic),
+            inkpoint_editor_typeset::EditorCommand::ToggleInlineCode => self
+                .editor
+                .toggle_inline_mark(inkpoint_editor_core::InlineFormat::Code),
+            inkpoint_editor_typeset::EditorCommand::ToggleStrikethrough => self
+                .editor
+                .toggle_inline_mark(inkpoint_editor_core::InlineFormat::Strikethrough),
             inkpoint_editor_typeset::EditorCommand::ToggleQuote => {
                 self.editor.toggle_line_prefix("> ")
             }
@@ -1413,6 +2247,27 @@ mod input_tests {
         );
     }
 
+    #[gpui_kit::test]
+    fn format_shortcuts_toggle_selected_text(cx: &mut TestAppContext) {
+        let os = cx.update(|cx| cx.platform_info().os);
+        let (view, vcx) = open(cx, "中文");
+        for (format, key) in crate::format_shortcuts(os) {
+            vcx.update(|_, cx| {
+                view.update(cx, |view, _| view.editor.set_selection(0, "中文".len()))
+            });
+            vcx.simulate_keystrokes(&key);
+            let delimiter = match format {
+                crate::InlineFormat::Bold => "**",
+                crate::InlineFormat::Italic => "*",
+                crate::InlineFormat::Code => "`",
+                crate::InlineFormat::Strikethrough => "~~",
+            };
+            assert_eq!(markdown(&view, vcx), format!("{delimiter}中文{delimiter}"));
+            vcx.simulate_keystrokes(&key);
+            assert_eq!(markdown(&view, vcx), "中文");
+        }
+    }
+
     /// Left and right move the caret by whole characters, including across a
     /// multi-byte one.
     #[gpui_kit::test]
@@ -1442,6 +2297,60 @@ mod input_tests {
             1,
             "and then before it, never inside it"
         );
+    }
+
+    #[gpui_kit::test]
+    fn shift_arrows_extend_selection(cx: &mut TestAppContext) {
+        cx.update(gpui_kit::init);
+        cx.update(TypesetView::bind_keys);
+        let (view, vcx) =
+            cx.add_window_view(|window, cx| TypesetView::new(window, cx, "hello world"));
+        for _ in 0..2 {
+            vcx.update(|window, cx| {
+                view.update(cx, |view, cx| {
+                    view.focus(window, cx);
+                    view.set_caret(0, cx);
+                });
+                window.draw(cx).clear(cx);
+            });
+            vcx.run_until_parked();
+        }
+        vcx.simulate_keystrokes("shift-right");
+        assert_eq!(
+            view.read_with(&*vcx, |view, _| view.selected_range()),
+            0..1,
+            "shift-right selects one char"
+        );
+        vcx.simulate_keystrokes("shift-right");
+        assert_eq!(
+            view.read_with(&*vcx, |view, _| view.selected_range()),
+            0..2,
+            "shift-right extends selection"
+        );
+    }
+
+    #[gpui_kit::test]
+    fn word_navigation_and_deletion(cx: &mut TestAppContext) {
+        cx.update(gpui_kit::init);
+        cx.update(TypesetView::bind_keys);
+        let (view, vcx) =
+            cx.add_window_view(|window, cx| TypesetView::new(window, cx, "hello world"));
+        for _ in 0..2 {
+            vcx.update(|window, cx| {
+                view.update(cx, |view, cx| {
+                    view.focus(window, cx);
+                    view.set_caret(11, cx);
+                });
+                window.draw(cx).clear(cx);
+            });
+            vcx.run_until_parked();
+        }
+        vcx.update(|_, cx| {
+            view.update(cx, |view, cx| {
+                view.delete_word_backward(cx);
+            });
+        });
+        assert_eq!(markdown(&view, vcx), "hello ");
     }
 }
 
@@ -1554,6 +2463,30 @@ mod ime_tests {
             vcx.run_until_parked();
         }
         (view, vcx)
+    }
+
+    #[gpui_kit::test]
+    fn formatting_waits_for_composition_to_finish(cx: &mut TestAppContext) {
+        let (view, vcx) = open(cx, "");
+        vcx.update(|window, cx| {
+            view.update(cx, |view, cx| {
+                view.replace_and_mark_text_in_range(None, "中", None, window, cx);
+                view.execute_command(
+                    inkpoint_editor_typeset::EditorCommand::ToggleBold,
+                    window,
+                    cx,
+                );
+                assert_eq!(view.editor.source(), "中");
+                assert!(view.marked.is_some());
+                view.finish_composition();
+                view.execute_command(
+                    inkpoint_editor_typeset::EditorCommand::ToggleBold,
+                    window,
+                    cx,
+                );
+                assert_eq!(view.editor.source(), "中****");
+            });
+        });
     }
 
     /// Composing text must be insertable, reportable and clearable.
@@ -1791,6 +2724,72 @@ mod ime_geometry_tests {
     use super::*;
     use gpui_kit::TestAppContext;
 
+    #[gpui_kit::test]
+    fn dragging_preserves_anchor_and_replaces_the_selected_text(cx: &mut TestAppContext) {
+        cx.update(gpui_kit::init);
+        let (view, vcx) =
+            cx.add_window_view(|window, cx| TypesetView::new(window, cx, "first\n\nsecond\n"));
+        vcx.update(|window, cx| {
+            window.draw(cx).clear(cx);
+            view.update(cx, |view, cx| {
+                let first = view.document.leaf_key(0).unwrap();
+                let second = view.document.leaf_key(1).unwrap();
+                let point = |key, index| {
+                    let leaf = view.geometry.get(key).unwrap();
+                    let position = leaf.position_for_index(index);
+                    gpui_kit::point(position.x, position.y + leaf.caret_height() / 2.)
+                };
+                let start = point(first, 1);
+                let end = point(second, 3);
+                view.place_caret_from_click(start, window, cx);
+                let anchor = view.editor.selection().head();
+                view.drag_anchor = Some(anchor);
+                view.extend_drag_to(end, cx);
+                let head = view.editor.selection().head();
+                assert!(head > anchor);
+                assert_eq!(view.editor.selection().anchor(), anchor);
+                view.editor.insert("X").unwrap();
+                view.editor.undo();
+                assert_eq!(view.editor.source(), "first\n\nsecond\n");
+                assert_eq!(view.editor.selection().anchor(), anchor);
+                assert_eq!(view.editor.selection().head(), head);
+                view.drag_anchor = Some(head);
+                view.extend_drag_to(start, cx);
+                assert_eq!(view.editor.selection().anchor(), head);
+                assert_eq!(view.editor.selection().head(), anchor);
+            });
+        });
+    }
+
+    #[gpui_kit::test]
+    fn dragging_formatted_text_preserves_delimiters_in_both_directions(cx: &mut TestAppContext) {
+        cx.update(gpui_kit::init);
+        let (view, vcx) =
+            cx.add_window_view(|window, cx| TypesetView::new(window, cx, "**中文** tail"));
+        vcx.update(|window, cx| {
+            window.draw(cx).clear(cx);
+            view.update(cx, |view, cx| {
+                let key = view.document.leaf_key(0).unwrap();
+                let leaf = view.geometry.get(key).unwrap();
+                let point = |index| {
+                    let position = leaf.position_for_index(index);
+                    gpui_kit::point(position.x, position.y + leaf.caret_height() / 2.)
+                };
+                let start = point(0);
+                let end = point("中文".len());
+                for (from, to) in [(start, end), (end, start)] {
+                    view.place_caret_from_click(from, window, cx);
+                    view.drag_anchor = Some(view.editor.selection().head());
+                    view.extend_drag_to(to, cx);
+                    assert_eq!(view.editor.selection().range(), 2..8);
+                    view.editor.insert("X").unwrap();
+                    assert_eq!(view.editor.source(), "**X** tail");
+                    view.editor.undo();
+                }
+            });
+        });
+    }
+
     /// The IME needs a rectangle to anchor its candidate window.
     ///
     /// `bounds_for_range` returns None without geometry, which leaves the
@@ -1897,3 +2896,7 @@ mod ime_geometry_tests {
         });
     }
 }
+
+#[cfg(test)]
+#[path = "../tests/support/typography_view.rs"]
+mod typography_view_tests;

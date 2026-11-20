@@ -57,3 +57,38 @@ test("GPUI browser playground imports, edits, and downloads Markdown", async ({ 
 
   expect(pageErrors).toEqual([]);
 });
+
+for (const [name, key, delimiter] of [
+  ["bold", "b", "**"],
+  ["italic", "i", "*"],
+  ["code", "e", "`"],
+  ["strikethrough", "Shift+x", "~~"],
+]) {
+  for (const presses of [1, 2]) {
+    test(`GPUI ${name} shortcut toggles a Chinese selection after ${presses} press(es)`, async ({
+      page,
+    }) => {
+      await page.goto(process.env.VITE_BASE_PATH || "/playground/");
+      const canvas = page.locator("canvas").first();
+      await expect(canvas).toBeVisible({ timeout: 30_000 });
+      const modifier = (await page.evaluate(() => navigator.platform)).startsWith("Mac")
+        ? "Meta"
+        : "Control";
+      await page.locator("#markdown-file").setInputFiles({
+        name: "format.md",
+        mimeType: "text/markdown",
+        buffer: Buffer.from("中文格式"),
+      });
+      await expect(page.locator("#playground-status")).toHaveText("Opened format.md");
+      await canvas.click();
+      await page.keyboard.press(`${modifier}+a`);
+      for (let i = 0; i < presses; i++) {
+        await page.keyboard.press(`${modifier}+${key}`);
+      }
+      const download = page.waitForEvent("download");
+      await page.getByRole("button", { name: "Download" }).click();
+      const saved = await readFile((await (await download).path())!, "utf8");
+      expect(saved).toBe(presses === 1 ? `${delimiter}中文格式${delimiter}` : "中文格式");
+    });
+  }
+}

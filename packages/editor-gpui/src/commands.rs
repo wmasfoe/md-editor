@@ -16,6 +16,21 @@ pub enum InlineFormat {
     Code,
 }
 
+/// Platform-specific formatting shortcuts shared by the editor and settings.
+pub fn format_shortcuts(os: gpui_kit::OperatingSystem) -> [(InlineFormat, String); 4] {
+    let modifier = if os == gpui_kit::OperatingSystem::Mac {
+        "cmd"
+    } else {
+        "ctrl"
+    };
+    [
+        (InlineFormat::Bold, format!("{modifier}-b")),
+        (InlineFormat::Italic, format!("{modifier}-i")),
+        (InlineFormat::Code, format!("{modifier}-e")),
+        (InlineFormat::Strikethrough, format!("{modifier}-shift-x")),
+    ]
+}
+
 /// Block formats a menu can ask for.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BlockFormat {
@@ -27,16 +42,9 @@ pub enum BlockFormat {
 }
 
 /// Commands the host's menus and shortcuts dispatch.
-///
-/// The view-mode entries are kept because the menu still names them; a host that
-/// renders and edits at once maps them to nothing.
 #[derive(Action, Clone, Copy, Debug, PartialEq, Eq)]
 #[action(namespace = inkpoint_editor, no_json)]
 pub enum HostCommand {
-    ShowSource,
-    ShowBlockEditor,
-    ShowSplitPreview,
-    ToggleSourceMode,
     ToggleOutline,
     FormatInline(InlineFormat),
     FormatBlock(BlockFormat),
