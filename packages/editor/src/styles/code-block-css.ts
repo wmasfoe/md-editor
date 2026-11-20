@@ -159,7 +159,8 @@ export const codeBlockCss = String.raw`
   display: flex;
   align-items: center;
   gap: 2px;
-  z-index: 2;
+  /* 手柄层级必须高于列宽调整手柄 .cm-md-table-widget__resize-grip (z-index: 4)，避免手柄点击热区被拦截 */
+  z-index: 5;
   opacity: 0;
   transition: opacity var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1));
   line-height: 1;
@@ -211,7 +212,8 @@ export const codeBlockCss = String.raw`
 /* 行/列操作浮层菜单。 */
 .cm-md-editor.cm-editor.cm-md-editor--wysiwyg .cm-md-table-widget__menu {
   position: absolute;
-  z-index: 4;
+  /* 浮层菜单必须高于手柄 (z-index: 5) 与调整列宽把手 (z-index: 4) */
+  z-index: 6;
   display: flex;
   flex-direction: column;
   min-width: 8.5rem;
