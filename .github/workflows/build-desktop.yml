@@ -124,8 +124,11 @@ jobs:
       - name: Validate release version files
         run: node scripts/release/validate-release-version.mjs
 
-  test-e2e:
-    name: Browser E2E
+  # 发布脚本断言（llama dylib 闭包、sidecar 启动等）依赖 `otool`，在 ubuntu 的
+  # Unit Tests job 里会被 `skip: process.platform !== "darwin"` 跳过。单独用 macOS
+  # runner 跑，否则 `tauri.macos.conf.json` 的裁剪改动在 CI 中完全没有验证。
+  test-release-scripts:
+    name: Release Script Tests (macOS)
     runs-on: macos-latest
     steps:
       - name: Checkout
@@ -145,18 +148,83 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # macOS 专属的发布脚本断言（llama dylib 闭包、sidecar 启动等）依赖 `otool`，
-      # 在 ubuntu 的 Unit Tests job 里会被 `skip: process.platform !== "darwin"` 跳过。
-      # 这里复用 macOS runner 补跑一次，否则 `tauri.macos.conf.json` 的裁剪改动
-      # 在 CI 中完全没有验证。
       - name: Run release script tests (macOS-only bundle assertions)
         run: pnpm test:release
+
+  # 桌面端浏览器 E2E 是 PR CI 的最长链路（曾占 12m 里的 9m30s），因此按 Playwright
+  # 的 `--shard` 切片并行跑：每个 shard 是独立 runner，互不干扰，setup 开销固定。
+  # 增减分片只需改下面的 `matrix.shard` 列表，`strategy.job-total` 会自动跟上。
+  test-e2e-desktop:
+    name: Browser E2E (${{ matrix.shard }}/${{ strategy.job-total }})
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard:
+          - 1
+          - 2
+          - 3
+          - 4
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.6.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Install Playwright Chromium
         run: pnpm --filter @md-editor/desktop exec playwright install chromium
 
+      # 直接调用 playwright 而不是 `test:browser` 脚本，避免 pnpm 参数透传歧义。
       - name: Run E2E tests
-        run: pnpm --filter @md-editor/desktop test:browser
+        run: >-
+          pnpm --filter @md-editor/desktop exec playwright test
+          --config playwright.config.ts
+          --shard=${{ matrix.shard }}/${{ strategy.job-total }}
+
+      # 失败时要能拿到 HTML report 与 trace，否则分片后定位失败点只能靠日志。
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-shard-${{ matrix.shard }}
+          path: |
+            apps/desktop/playwright-report
+            apps/desktop/test-results/playwright
+          if-no-files-found: ignore
+          retention-days: 7
+
+  test-e2e-web-diagram:
+    name: Web Diagram E2E
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.6.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Install Chromium for web diagram tests
         run: pnpm --filter @md-editor/web exec playwright install chromium
@@ -282,32 +350,50 @@ jobs:
   ci-status:
     name: All Checks Passed
     if: always()
+    # 新增上游 job 只需加到这个列表：状态判断在下面的脚本里遍历 `needs` 完成，
+    # 不需要再手写一遍表达式（旧实现漏加 job 就会静默放行）。
     needs:
       - lint
       - typecheck
       - test-unit
-      - test-e2e
+      - test-release-scripts
+      - test-e2e-desktop
+      - test-e2e-web-diagram
       - test-rust
       - build-linux-appimage
     runs-on: ubuntu-latest
     steps:
       - name: Evaluate status
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
-          results="${{ needs.lint.result }} ${{ needs.typecheck.result }} ${{ needs.test-unit.result }} ${{ needs.test-e2e.result }} ${{ needs.test-rust.result }}"
-          linux="${{ needs.build-linux-appimage.result }}"
-          echo "Job results: $results"
-          echo "Linux AppImage: $linux"
-          # Manual dispatch does not run this job. A pull request must.
-          if [[ "${{ github.event_name }}" == "pull_request" || "$linux" != "skipped" ]]; then
-            results="$results $linux"
-          fi
-          for res in $results; do
-            if [[ "$res" != "success" ]]; then
-              echo "❌ One or more CI jobs failed (status: $res)."
-              exit 1
-            fi
-          done
-          echo "✅ All CI jobs succeeded!"
+          node <<'NODE'
+          const results = JSON.parse(process.env.NEEDS_JSON);
+
+          // build-linux-appimage 只在 pull_request 上运行；手动 dispatch 时它必然 skipped。
+          // 其余任何 skipped / cancelled / failure 都属于真实问题。
+          const maySkipOutsidePullRequest = new Set(["build-linux-appimage"]);
+
+          let failed = false;
+          for (const [job, { result }] of Object.entries(results)) {
+            const toleratedSkip =
+              result === "skipped" &&
+              process.env.EVENT_NAME !== "pull_request" &&
+              maySkipOutsidePullRequest.has(job);
+            const ok = result === "success" || toleratedSkip;
+            console.log(`${ok ? "✅" : "❌"} ${job}: ${result}`);
+            if (!ok) {
+              failed = true;
+            }
+          }
+
+          if (failed) {
+            console.error("❌ One or more CI jobs did not succeed.");
+            process.exit(1);
+          }
+          console.log("✅ All CI jobs succeeded!");
+          NODE
 
   build-desktop:
     name: Build Desktop (${{ matrix.platform.name }})

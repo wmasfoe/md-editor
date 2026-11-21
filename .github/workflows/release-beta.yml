@@ -16,6 +16,45 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # 与 release-desktop.yml 的 `verify` 同构：beta 分支上每次 push 都会产生新的
+  # 发版提交（版本号由脚本派生），它同样没有被 PR CI 验证过，
+  # 因此把 JS 侧全量门禁与平台构建并行跑，而不是串在 macOS job 里拖长反馈时间。
+  verify:
+    name: Verify beta commit
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.6.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: |
+          pnpm lint:oxlint
+          pnpm format:prettier:check
+          pnpm lint:structure
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Tests
+        run: pnpm test
+
   build-macos:
     name: Build Beta macOS (Apple Silicon)
     runs-on: macos-latest
@@ -58,13 +97,6 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Lint & Tests
-        run: |
-          pnpm lint
-          pnpm typecheck
-          pnpm test
-          pnpm test:rust
 
       - name: Build macOS app
         env:
@@ -205,7 +237,7 @@ jobs:
 
   publish-beta-release:
     name: Publish multi-platform beta release
-    needs: [build-macos, build-linux-x64, build-windows-x64]
+    needs: [verify, build-macos, build-linux-x64, build-windows-x64]
     runs-on: macos-latest
     permissions:
       contents: write
