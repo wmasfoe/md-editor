@@ -932,3 +932,100 @@ describe("覆盖度不变量（解析预算截断防护）", () => {
     }
   });
 });
+
+/**
+ * 覆盖度与记录状态的一致性不变量（廉价防护锁）。
+ *
+ * ## 为什么需要它
+ *
+ * `parserCoverage` 是投影的硬开关：`projections/*.ts` 里普遍写
+ * `if (record.parserCoverage !== "complete") return []` —— 表格、代码块、HTML、
+ * MDX、列表、标题、frontmatter、链接都会因此退回**源码显示**。
+ *
+ * 记录只有在「建它的那棵树没解析到它末尾」（`fullRange.to > coverage.to`）时才会
+ * 被标成 `partial`。于是存在一种自相矛盾且**不会自愈**的状态：
+ *
+ * > 索引声称 `coverage.complete === true`（整篇都读完了），
+ * > 却仍留着 `partial` 记录（那些块永远显示源码）。
+ *
+ * 一旦这种状态出现，`parse-progress` 的两个刷新条件
+ * （`tree.length > coverage.to` 与 `!coverage.complete`）都不成立，
+ * 后台解析补齐后也不会触发全量重建，那些块就永久停在源码形态，
+ * 直到用户正好编辑到那里。
+ *
+ * ## 现状
+ *
+ * 修复「覆盖度双视图混用」之后，实测在 142KB / 708KB / 1.8MB 三档文档 +
+ * 各类结构破坏编辑下都**未能**产生 partial 记录，因此这不是当前已知可复现缺陷，
+ * 而是防御性约束。加这条锁的成本很低，价值在于：若将来某次改动让该状态变得可达，
+ * 这里会立刻失败，而不是等用户发现「表格变成源码」。
+ *
+ * 相关阅读：`src/markdown/coverage.ts` 的文件头（双视图陷阱）。
+ */
+describe("不变量：coverage.complete 时不得残留 partial 记录", () => {
+  it("首次建索引与多类编辑后均无矛盾状态", () => {
+    // 尺寸刻意跨过 LanguageState 的初始视口（约 3000 字符），并留出一档更大的文档
+    // 以提高「解析预算耗尽」的概率；不做暖机，首建即检查。
+    for (const blockCount of [300, 1200]) {
+      const parts: string[] = [];
+      for (let index = 0; index < blockCount; index += 1) {
+        parts.push(
+          `## 标题 ${index}`,
+          "",
+          `正文 ${index}，含**粗体**与 \`代码\`。`,
+          "",
+          "| A | B |",
+          "| --- | --- |",
+          `| ${index} | x |`,
+          "",
+        );
+      }
+      let state = EditorState.create({
+        doc: parts.join("\n"),
+        extensions: [markdown({ extensions: M1_MARKDOWN_EXTENSIONS }), markdownRangeIndexField],
+      });
+
+      const violations: string[] = [];
+      const check = (label: string) => {
+        const index = state.field(markdownRangeIndexField);
+        if (!index.coverage.complete) {
+          return;
+        }
+        const partial = index.records.filter((record) => record.parserCoverage !== "complete");
+        if (partial.length > 0) {
+          violations.push(
+            `${label}: ${partial.length}/${index.records.length} 条 partial` +
+              `（${partial
+                .slice(0, 3)
+                .map((record) => `${record.kind}@${record.fullRange.from}`)
+                .join(", ")}）`,
+          );
+        }
+      };
+
+      check(`${blockCount} 块 · 首次建索引`);
+
+      // 覆盖各类编辑：普通打字、结构性插入、会让后文整体失效的破坏性插入。
+      const edits: readonly {
+        readonly label: string;
+        readonly from: number;
+        readonly insert: string;
+      }[] = [
+        { label: "中部打字", from: Math.floor(state.doc.length / 2), insert: "a" },
+        { label: "插入标题", from: 0, insert: "## 新标题\n" },
+        { label: "插入未闭合围栏", from: 0, insert: "```\n" },
+        { label: "插入未闭合注释", from: 0, insert: "<!--" },
+        { label: "尾部打字", from: state.doc.length, insert: "z" },
+      ];
+      for (const edit of edits) {
+        state = state.update({
+          changes: { from: edit.from, insert: edit.insert },
+          selection: EditorSelection.cursor(edit.from + edit.insert.length),
+        }).state;
+        check(`${blockCount} 块 · ${edit.label}`);
+      }
+
+      expect(violations).toEqual([]);
+    }
+  });
+});
