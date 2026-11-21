@@ -297,6 +297,13 @@ jobs:
   # to build the real x86_64 AppImage: validate-appimage.mjs runs inside
   # `pnpm build:linux`, and unit tests cannot see a missing .upd_info section
   # or a runtime that ignores --appimage-updateinformation.
+  #
+  # 不要为了 PR 时长把它删掉或按 `paths:` 收窄（2026-11-21 明确决定）：稳定性优先于速度。
+  # 它是唯一能在 PR 阶段拦住 AppImage 打包契约的检查（.upd_info / .zsync /
+  # AppRun 权限 / 相对符号链接 / appstreamcli / 不打包 libwayland-client /
+  # headless 启动），而这些历史上连续出过 5 个 fix（#190–#196），其中 v0.16.4
+  # 就是发版时才炸的。`test:bundle` 只验前端产物与 gzip 预算，E2E 跑的是 dev server，
+  # 都不是打包产物。它也是 PR 当前的临界路径（~5–7m），这是有意付费的。
   build-linux-appimage:
     name: Build Linux AppImage
     if: github.event_name == 'pull_request'
