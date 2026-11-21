@@ -181,6 +181,7 @@ renderer
   - 浮层挂在 `document.body`，而宿主样式表规则统一带 `.code-mirror-editor-host` 前缀（只挂在 React 宿主 div 上）⇒ 带前缀的规则**永不匹配**（这是仓库历史上的真实缺陷，曾导致图片浮层长期“全裸”）；
   - `EditorView.baseTheme` 同样不行：它把不含 `&` 的选择器编译为 `.<baseThemeID> <sel>`（要求目标是 `.cm-editor` 的**后代**）；
   - 因此样式常量放在 `media-viewer/styles.ts` 并在打开时幂等注入 `document.head`，选择器**一律无祖先前缀**（`.cm-md-media-viewer*`）；`app-ui` 不得再放带前缀的浮层规则，`tests/media-viewer/styles.test.ts` 会把它钉成可失败断言。
+  - **SVG 必须有实心主题底色**：Mermaid 的 `<svg>` 根节点本身没有背景；只给浮层加遮罩时，遮罩下的文档文字会从图表内部透出来（深色遮罩下与图表标签互相干扰）。`.cm-md-media-viewer__media--svg` 用 `var(--theme-surface)` 卡片化（圆角 + 阴影），深浅主题各自继承，测试钉住该声明。
 - **键盘归属**：`Escape` **只关浮层**（document 捕获相 + `preventDefault`）；`Mod+K` **互斥**——先关浮层且不消费事件，让桌面命令面板（window 冒泡相、不检查 `defaultPrevented`）照常打开（命令面板 `z-[70]` 低于浮层 `1000`，因此“面板盖在浮层上”不可能成立）。
   - **防腐约束（除文件隐式契约）**：桌面命令面板的 `Mod+K` 处理器**不得新增 `defaultPrevented` 早退**，否则互斥语义在非本平台键上会出现“面板不开、浮层也关了”的噪声。
   - **已知偏差（已登记）**：浮层不做平台判定，同时接受 Meta 与 Ctrl——非本平台键会“关浮层但不打开面板”，属无害噪声；宁可保持跨平台宽松，也不引入平台检测这一新的注入面。
