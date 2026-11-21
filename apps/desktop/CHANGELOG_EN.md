@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.24.0 - 2026-11-21 (#283)
+
+- Faster typing on large documents and broader table interactions. Tables now support dragging to select cells and copying them as TSV, plus transient column resizing. Fixed tables overflowing the editor with a horizontal scrollbar, the text column sitting off-centre, blocked column resizing, and headings and code blocks rendering as source on large documents.
+
 ## 0.23.4 - 2026-11-19 (#275)
 
 - Fix missing selection highlighting on the first Select All after opening a WYSIWYG document with YAML frontmatter.
