@@ -438,6 +438,7 @@ class MockDOMElement {
 
 class MockDocument {
   activeElement: MockDOMElement | null = null;
+  #listeners: Record<string, EventListener[]> = {};
   createElement(tag: string): MockDOMElement {
     return new MockDOMElement(tag, this);
   }
@@ -452,8 +453,18 @@ class MockDocument {
       addRange: () => {},
     }),
   };
-  addEventListener() {}
-  removeEventListener() {}
+  addEventListener(type: string, listener: EventListener) {
+    this.#listeners[type] = this.#listeners[type] || [];
+    this.#listeners[type].push(listener);
+  }
+  removeEventListener(type: string, listener: EventListener) {
+    this.#listeners[type] = (this.#listeners[type] ?? []).filter(
+      (candidate) => candidate !== listener,
+    );
+  }
+  dispatch(type: string, event: Record<string, unknown>) {
+    for (const listener of this.#listeners[type] ?? []) listener({ type, ...event } as Event);
+  }
 }
 
 describe("TableGridWidget DOM structure and pending edits flush", () => {
@@ -513,6 +524,7 @@ describe("TableGridWidget DOM structure and pending edits flush", () => {
       expect(handle).not.toBeNull();
       // Handle is sibling to editor, NOT inside editor
       expect(editor?.contains(handle)).toBe(false);
+      expect(th.querySelector(".cm-md-table-widget__resize-grip")).not.toBeNull();
     }
 
     // Check body cells: col 0 has row handle, which is NOT inside cell-editor
@@ -524,6 +536,55 @@ describe("TableGridWidget DOM structure and pending edits flush", () => {
     const bodyEditor = col0Cell.querySelector(".cm-md-table-widget__cell-editor");
     expect(bodyEditor).not.toBeNull();
     expect(bodyEditor?.contains(rowHandle)).toBe(false);
+  });
+
+  it("keeps resize controls outside editable text and keeps selection/resizing presentation local to the widget", () => {
+    const doc = "| A | B |\n| --- | --- |\n| 1 | 2 |";
+    const { view } = createDomView(doc);
+    const table = view.state.field(markdownRangeIndexField).byKind("table")[0];
+    const widget = new TableGridWidget({
+      recordId: table.id,
+      selected: false,
+      headerCells: ["A", "B"],
+      bodyRows: [["1", "2"]],
+      alignments: ["none", "none"],
+      diagnostics: new WysiwygDiagnostics(),
+    });
+    const dom = widget.toDOM(view) as unknown as MockDOMElement;
+    const headers = dom.querySelectorAll("th.cm-md-table-widget__cell");
+    expect(
+      headers.map((header) => header.querySelector(".cm-md-table-widget__resize-grip") !== null),
+    ).toEqual([true, true]);
+    expect(
+      headers[0]
+        .querySelector(".cm-md-table-widget__cell-editor")
+        ?.contains(headers[0].querySelector(".cm-md-table-widget__resize-grip")),
+    ).toBe(false);
+    // Rendering interactions add classes and widths to DOM cells only; they never serialize layout state.
+    expect(view.state.doc.toString()).toBe(doc);
+  });
+
+  it("selects a rectangular range of cells by dragging without editing the Markdown source", () => {
+    const doc = "| A | B |\n| --- | --- |\n| 1 | 2 |";
+    const { view, mockDoc } = createDomView(doc);
+    const table = view.state.field(markdownRangeIndexField).byKind("table")[0];
+    const widget = new TableGridWidget({
+      recordId: table.id,
+      selected: false,
+      headerCells: ["A", "B"],
+      bodyRows: [["1", "2"]],
+      alignments: ["none", "none"],
+      diagnostics: new WysiwygDiagnostics(),
+    });
+    const dom = widget.toDOM(view) as unknown as MockDOMElement;
+    const cells = dom.querySelectorAll(".cm-md-table-widget__cell");
+    dom.dispatchEvent({ type: "pointerdown", target: cells[0] });
+    mockDoc.dispatch("pointermove", { target: cells[3] });
+    expect(
+      cells.map((cell) => cell.classList.contains("cm-md-table-widget__cell--range-selected")),
+    ).toEqual([true, true, true, true]);
+    mockDoc.dispatch("pointerup", { target: cells[3] });
+    expect(view.state.doc.toString()).toBe(doc);
   });
 
   it("commits cell edits on intra-table focusout between different cells", () => {

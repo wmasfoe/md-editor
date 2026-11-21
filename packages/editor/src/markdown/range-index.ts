@@ -12,13 +12,12 @@
  * 各语法类型的深度提取逻辑已拆分至 `extractors/` 子模块（代码块、表格、警示块、Frontmatter、MDX 等）。
  */
 
-import { ensureSyntaxTree, syntaxTree, syntaxTreeAvailable } from "@codemirror/language";
+import { ensureSyntaxTree, syntaxTree } from "@codemirror/language";
 import {
   Facet,
   StateEffect,
   StateField,
   type ChangeDesc,
-  type EditorState,
   type Text,
   type Transaction,
 } from "@codemirror/state";
@@ -60,6 +59,8 @@ import {
   unionRanges,
 } from "./extractors/common.ts";
 import { resolveAlertMetadata } from "./extractors/alert.ts";
+import { coverageOfTree, projectCoverage } from "./coverage.ts";
+import { mergeSortedRecords } from "./record-merge.ts";
 import { createCodeBlockMetadata, mapCodeBlockMetadata } from "./extractors/code-block.ts";
 import { createTableBlockMetadata, mapTableBlockMetadata } from "./extractors/table.ts";
 import {
@@ -240,7 +241,8 @@ export const markdownRangeIndexField = StateField.define<MarkdownRangeIndex>({
     diagnostics?.recordFullIndexBuild();
     const tree = ensureSyntaxTree(state, state.doc.length, 5_000) ?? syntaxTree(state);
     return buildMarkdownRangeIndex(state.doc.toString(), tree, {
-      coverage: readCoverage(state),
+      // 覆盖度必须由**这棵** tree 推导（不能回头读 syntaxTree 快照）。
+      coverage: coverageOfTree(tree, state.doc.length),
       mdxMode: state.facet(mdxModeFacet),
       pluginRegistry: state.facet(syntaxPluginRegistryFacet),
     });
@@ -258,7 +260,7 @@ export const markdownRangeIndexField = StateField.define<MarkdownRangeIndex>({
         ensureSyntaxTree(transaction.state, transaction.state.doc.length, 5_000) ??
         syntaxTree(transaction.state);
       return buildMarkdownRangeIndex(transaction.newDoc.toString(), tree, {
-        coverage: readCoverage(transaction.state),
+        coverage: coverageOfTree(tree, transaction.state.doc.length),
         version: previous.version + 1,
         mdxMode: transaction.state.facet(mdxModeFacet),
         pluginRegistry: transaction.state.facet(syntaxPluginRegistryFacet),
@@ -326,10 +328,19 @@ function updateMarkdownRangeIndex(
 ): MarkdownRangeIndex {
   const oldSource = transaction.startState.doc.toString();
   const newSource = transaction.newDoc.toString();
-  // 结构化编辑（如表格增删行）后必须拿到完整语法树，否则 dirty rebuild
-  // 无法识别顶层 Table 节点，导致 range-index 短暂丢表。
-  ensureSyntaxTree(transaction.state, transaction.state.doc.length, 5_000);
-  const tree = syntaxTree(transaction.state);
+  // Keep ordinary typing incremental. CodeMirror parses the changed viewport as needed,
+  // while table and MDX edits need the complete tree to preserve structural boundaries.
+  //
+  // 判定结果复用到下方的覆盖度选择：一旦在这里做了全量解析，覆盖度就必须重新
+  // **测量**（树已是完整的），不能再走投影分支（投影会保留旧的 `complete: false`）。
+  const parsedCompletely = requiresCompleteParse(transaction, previous);
+  // 全量解析时**必须拿 ensureSyntaxTree 的返回值**建索引：
+  // `syntaxTree(transaction.state)` 是 update 期 takeTree() 截下的快照，
+  // 不会随 ensureSyntaxTree 推进（见 coverage.ts 文件头）。
+  const parsedTree = parsedCompletely
+    ? ensureSyntaxTree(transaction.state, transaction.state.doc.length, 5_000)
+    : null;
+  const tree = parsedTree ?? syntaxTree(transaction.state);
   const changedRanges = collectChangedRanges(transaction);
   const oldDirty = mergeRanges(
     changedRanges.map(({ oldRange }) =>
@@ -356,6 +367,16 @@ function updateMarkdownRangeIndex(
   expandFrontmatterPriorityRanges(oldSource, newSource, changedRanges, oldDirty, newDirty);
   getWysiwygDiagnostics(transaction.state)?.recordDirtyBlockRebuild(newDirty);
 
+  // 复用未受影响的记录。
+  //
+  // ⚠️ 这里必须 `push` 而不是 `insertRecord`：`insertRecord` 是线性插入排序
+  // （`while (index < records.length && compareRecords(...) <= 0) index++`），
+  // 对 n 条记录逐条插入是 O(n²)。实测 3999 条记录时，仅 `insertRecord` +
+  // `compareRecords` 就占每次按键 48ms 中的 **74%**（CPU profile），是本文件最大的热点。
+  //
+  // 可以安全追加的前提：`previous.records` 本身已按 `compareRecords` 全序排列
+  // （`MarkdownRangeIndex` 的构造不变量），且 `mapRecord` 保持相对顺序不变
+  // （单调映射 + 单点插入不会让两条记录的先后关系反转）。
   const mapped: MarkdownRangeRecord[] = [];
   for (const record of previous.records) {
     if (record.kind === "frontmatter" || touchesAny(record.blockRange, oldDirty)) {
@@ -363,11 +384,15 @@ function updateMarkdownRangeIndex(
     }
     const nextRecord = mapRecord(record, transaction.changes, newSource);
     if (nextRecord && !touchesAny(nextRecord.blockRange, newDirty)) {
-      insertRecord(mapped, nextRecord);
+      mapped.push(nextRecord);
     }
   }
 
-  const coverage = readCoverage(transaction.state);
+  // 已全量解析 ⇒ 直接测量；否则投影，但投影内部会核对语法树是否真覆盖全文
+  // （`LanguageState.apply` 的 20ms 预算可能截断树，见 coverage.ts）。
+  const coverage = parsedCompletely
+    ? coverageOfTree(tree, newSource.length)
+    : projectCoverage(previous.coverage, transaction.state);
   const rebuilt = buildMarkdownRangeIndex(newSource, tree, {
     coverage,
     version: previous.version + 1,
@@ -375,24 +400,26 @@ function updateMarkdownRangeIndex(
     mdxMode: transaction.state.facet(mdxModeFacet),
     pluginRegistry: transaction.state.facet(syntaxPluginRegistryFacet),
   });
-  const records = [...mapped];
-  for (const record of rebuilt.records) {
-    insertRecord(records, record);
-  }
+  // 两段都已按 `compareRecords` 有序，做一次线性归并而不是逐条插入排序。
+  const records = mergeSortedRecords(mapped, rebuilt.records);
   getWysiwygDiagnostics(transaction.state)?.recordMappedRanges(mapped.length);
   return new MarkdownRangeIndex(records, coverage, newSource.length, previous.version + 1);
 }
 
-/**
- * 计算语法树的解析覆盖深度与完成状态。
- */
-function readCoverage(state: EditorState): MarkdownParseCoverage {
-  const tree = ensureSyntaxTree(state, state.doc.length, 5_000) ?? syntaxTree(state);
-  const to = Math.min(tree.length, state.doc.length);
-  return Object.freeze({
-    to,
-    complete: to >= state.doc.length || syntaxTreeAvailable(state, state.doc.length),
+function requiresCompleteParse(transaction: Transaction, previous: MarkdownRangeIndex): boolean {
+  if (transaction.state.facet(mdxModeFacet)) return true;
+  // The partial index cannot prove that a newly created block outside parser coverage is
+  // absent. Recover complete coverage before applying structural edits to a partial index.
+  if (!previous.coverage.complete) return true;
+  let touchesTable = false;
+  // `previous` 是旧文档的索引，只能用旧坐标（`fromA`/`toA`）查。
+  // 用新坐标 `fromB`/`toB` 查旧索引会坐标系错配（漏判或误判）。
+  transaction.changes.iterChangedRanges((fromA, toA) => {
+    if (previous.overlapping(fromA, toA).some((record) => record.kind === "table")) {
+      touchesTable = true;
+    }
   });
+  return touchesTable;
 }
 
 /**
@@ -623,6 +650,34 @@ function collectChangedRanges(
 
 /**
  * 结合旧文档及旧记录边界扩展旧脏区间。
+ *
+ * ## 为什么必须二分而不是线性扫描
+ *
+ * 本函数在**每次按键**的增量更新路径上被调用（见 `updateMarkdownRangeIndex`）。
+ * 历史实现遍历全部 `records` 并对每个记录做 `rangesTouch` —— 4000 条记录时单次
+ * 按键即 ~55ms（实测），打字直接掉帧。
+ *
+ * 但“扩展”会**迭代放大**查询区间：某个记录被并入后 `expanded` 变宽，可能再触及
+ * 邻居记录。因此不能只查一次：每轮用二分定位首个候选，向后扫描到
+ * `blockRange.from > expanded.to` 即停，直到区间不再增长。
+ *
+ * ## 依赖的排序不变量（不得想当然）
+ *
+ * `compareRecords` 排序依据是 **`fullRange.from`**，不是 `blockRange.from`。
+ * 这里能按 `blockRange.from` 单调向后扫描并 `break`，依赖的是更强的结构性事实：
+ *
+ * 1. `visitParserNode` 从 `Document` 的直接子节点开始递归，且只有当父节点是
+ *    `Document` 时才把 `blockRange` 设为该子节点自身的范围；其余层级一律继承
+ *    父级的 `blockRange`（见 `visitParserNode` 的 `childBlockRange` 计算）。
+ *    因此**同一个顶层块内所有记录的 `blockRange` 完全相同**。
+ * 2. `frontmatter` / `mdx-jsx` 记录的 `blockRange` 就是自身范围
+ *    （`createFrontmatterRecord`、`createMdxRecord`）。
+ * 3. 由 1、2 可得：`records` 按 `fullRange.from` 升序时，`blockRange.from` 必然
+ *    **非递减**（同一顶层块的记录挤在一起，块与块按起点递增）。
+ *
+ * ⚠️ `blockRange.from` 是**非严格**递增（同块内重复），所以这里不能用
+ * “相等即 break”之类的判断；只比较 `>`。该不变量由
+ * `range-index.test.ts` 的「records 的 blockRange.from 非递减」用例锁定。
  */
 function expandOldDirtyRange(
   document: Text,
@@ -630,16 +685,48 @@ function expandOldDirtyRange(
   records: readonly MarkdownRangeRecord[],
 ): SourceRange {
   let expanded = lineRangeForDocument(document, changed);
-  for (const record of records) {
-    if (rangesTouch(record.blockRange, expanded)) {
-      expanded = unionRanges(expanded, record.blockRange);
-    }
+  if (records.length === 0) {
+    return expanded;
   }
-  return expanded;
+  // 记录数组按 blockRange.from 升序；用其终点前缀最大值做二分候选定位。
+  const prefixMaximumEnds: number[] = [];
+  let maximumEnd = -1;
+  for (const record of records) {
+    maximumEnd = Math.max(maximumEnd, record.blockRange.to);
+    prefixMaximumEnds.push(maximumEnd);
+  }
+
+  let previousFrom = expanded.from;
+  let previousTo = expanded.to;
+  for (;;) {
+    const firstCandidate = findFirstCandidate(prefixMaximumEnds, expanded.from);
+    for (let index = firstCandidate; index < records.length; index += 1) {
+      const blockRange = records[index].blockRange;
+      // 起点已越过当前区间终点：后续记录的起点只会更大，不可能再触及。
+      if (blockRange.from > expanded.to) {
+        break;
+      }
+      if (rangesTouch(blockRange, expanded)) {
+        expanded = unionRanges(expanded, blockRange);
+      }
+    }
+    if (expanded.from === previousFrom && expanded.to === previousTo) {
+      return expanded;
+    }
+    previousFrom = expanded.from;
+    previousTo = expanded.to;
+  }
 }
 
 /**
  * 结合新文档及顶层语法块边界扩展新脏区间。
+ *
+ * 与 {@link expandOldDirtyRange} 同构：顶层节点数量可达数千（每个段落/列表各一个），
+ * 线性扫描同样是每次按键的 O(n) 成本。
+ *
+ * `getTopLevelRanges` 按 `Document` 子节点的树序遍历产出，`nodeRange` 的 `from`
+ * 天然严格递增，因此这里可以直接用二分定位候选（排序依据就是 `from` 本身，
+ * 不涉及 `expandOldDirtyRange` 那条 `blockRange` 间接不变量）。
  */
 function expandNewDirtyRange(
   document: Text,
@@ -647,12 +734,35 @@ function expandNewDirtyRange(
   topLevelRanges: readonly SourceRange[],
 ): SourceRange {
   let expanded = lineRangeForDocument(document, changed);
-  for (const topLevel of topLevelRanges) {
-    if (rangesTouch(topLevel, expanded)) {
-      expanded = unionRanges(expanded, topLevel);
-    }
+  if (topLevelRanges.length === 0) {
+    return expanded;
   }
-  return expanded;
+  const prefixMaximumEnds: number[] = [];
+  let maximumEnd = -1;
+  for (const topLevel of topLevelRanges) {
+    maximumEnd = Math.max(maximumEnd, topLevel.to);
+    prefixMaximumEnds.push(maximumEnd);
+  }
+
+  let previousFrom = expanded.from;
+  let previousTo = expanded.to;
+  for (;;) {
+    const firstCandidate = findFirstCandidate(prefixMaximumEnds, expanded.from);
+    for (let index = firstCandidate; index < topLevelRanges.length; index += 1) {
+      const topLevel = topLevelRanges[index];
+      if (topLevel.from > expanded.to) {
+        break;
+      }
+      if (rangesTouch(topLevel, expanded)) {
+        expanded = unionRanges(expanded, topLevel);
+      }
+    }
+    if (expanded.from === previousFrom && expanded.to === previousTo) {
+      return expanded;
+    }
+    previousFrom = expanded.from;
+    previousTo = expanded.to;
+  }
 }
 
 /**

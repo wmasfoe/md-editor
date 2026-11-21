@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, relative, resolve } from "node:path";
 import { build } from "vite";
-import { buildBaseline, evaluateBundleBudget } from "./bundle-budget.mjs";
+import { buildBaseline, collectBootChunkFiles, evaluateBundleBudget } from "./bundle-budget.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const appRoot = resolve(scriptDirectory, "..");
@@ -42,22 +42,8 @@ const outputs = (Array.isArray(buildResult) ? buildResult : [buildResult]).flatM
   ({ output }) => output,
 );
 const chunks = outputs.filter((output) => output.type === "chunk");
+const bootFiles = collectBootChunkFiles(chunks);
 const chunksByFileName = new Map(chunks.map((chunk) => [chunk.fileName, chunk]));
-const bootSeeds = chunks.filter(
-  (chunk) => chunk.isEntry || chunk.facadeModuleId?.endsWith("/src/app/App.tsx"),
-);
-const bootFiles = new Set();
-
-function includeStaticImports(chunk) {
-  if (bootFiles.has(chunk.fileName)) return;
-  bootFiles.add(chunk.fileName);
-  for (const importedFile of chunk.imports) {
-    const importedChunk = chunksByFileName.get(importedFile);
-    if (importedChunk) includeStaticImports(importedChunk);
-  }
-}
-
-for (const seed of bootSeeds) includeStaticImports(seed);
 
 const excludedModules = [];
 const parserChunks = [];

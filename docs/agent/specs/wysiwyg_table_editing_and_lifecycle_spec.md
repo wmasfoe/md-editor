@@ -45,3 +45,30 @@
 
 - 单元格修改必须通过 `commitTableCell` 函数派发带有安全授权标记（`wysiwygChangeProtection`）的 CM6 Transaction，禁止通过未授权的底层 Transaction 直接窜改受保护表格区间。
 - 单元格内容中输入的竖线字符 `|` 必须被自动转义为 `\|`，防止用户输入破坏 GFM 表格的行列定界。
+
+### 5. 宽度与横向溢出不变量
+
+表格是唯一能突破正文列宽的块级 widget，其宽度策略必须满足三条同时成立：
+
+1. **编辑区（`.cm-scroller`）永不出页面级横向滚动条**。
+   表格溢出只能由表格自身承接。历史缺陷：`.cm-md-table-widget__grid` 使用 `width: max-content`
+   按最宽单元格撑开表格，而 `.cm-md-table-widget` 的 `max-width: 100%` 只约束 wrapper
+   自身盒模型、**不约束 table 子元素的溢出**，溢出直接穿透到 `.cm-scroller`（`overflow: auto`）。
+2. **宽度策略是混合式**：默认 `width: 100%` + `table-layout: auto`，列宽按内容比例分配、
+   长文本单元格内换行（常规表格零滚动）；单元格有可读下限，当「列数 × 下限」超出可用宽度时，
+   表格 min-content 撑破容器，由内层 `.cm-md-table-widget__viewport` 承接横向滚动。
+3. **行/列手柄与列宽拖动手柄在任何状态下都可点**：
+   - 滚动层必须是内层 `__viewport` 而非 wrapper —— 手柄与行操作菜单故意溢出到表格外侧
+     （`left: -1.35rem` / `right: -0.65rem`），wrapper 一旦成为滚动容器就会把它们裁掉；
+   - `overflow-x: auto` 即使内容不溢出也会建立裁剪盒，因此溢出与否由
+     `overflow.ts` 的 ResizeObserver 写入 `data-table-overflow` 属性，按状态切换两套几何；
+   - 列手柄不得骑在列右边界上（曾用 `right: -0.65rem`），否则会盖住 `right: -3px` 的
+     列宽拖动手柄（z-index 更低），使列宽拖动完全失效。
+
+判定溢出时必须比较**表格自身布局宽度**与视口内容宽度，禁止用 `viewport.scrollWidth`：
+列宽拖动手柄（`right: -3px`）永远溢出表格 2px，会让每张表（含 2 列小表）都被误判为溢出。
+
+回归锁：
+- 单测 `packages/editor/tests/wysiwyg/widgets/table-overflow.test.ts`（判定口径与状态同步）；
+- e2e `apps/desktop/e2e/codemirror-m3-table-overflow.spec.ts`（编辑区无横向滚动、手柄可点、
+  列宽拖拽生效且不写源码、窗口变窄后状态切换）。

@@ -159,7 +159,8 @@ export const codeBlockCss = String.raw`
   display: flex;
   align-items: center;
   gap: 2px;
-  z-index: 2;
+  /* 手柄层级必须高于列宽调整手柄 .cm-md-table-widget__resize-grip (z-index: 4)，避免手柄点击热区被拦截 */
+  z-index: 5;
   opacity: 0;
   transition: opacity var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1));
   line-height: 1;
@@ -172,10 +173,26 @@ export const codeBlockCss = String.raw`
   top: 0.15rem;
   left: -1.35rem;
 }
-/* 列手柄：贴在表头右缘。 */
+/* 列手柄：贴在表头右缘。
+   刻意内移（right: 0.15rem）而不是骑在右边界上：列宽拖动手柄
+   .cm-md-table-widget__resize-grip 占据右边界（right: -3px）且 z-index 更低，
+   两者重叠时列手柄会把拖拽热区整个盖住 —— 列宽拖动直接失效（实测 mouse.down 命中
+   __btn--handle，单元格 width 一丝不变）。内移后两者热区不再重叠。 */
 .cm-md-editor.cm-editor.cm-md-editor--wysiwyg .cm-md-table-widget__handle--col {
   top: 0.15rem;
-  right: -0.65rem;
+  right: 0.15rem;
+}
+/*
+ * 横向溢出（本地滚动）态：手柄必须移回单元格内缘。
+ * 滚动盒（overflow-x: auto）会裁掉溢出到表格外侧的手柄 —— 停在 left: -1.35rem /
+ * right: -0.65rem 时手柄不可见、不可点（实测 elementFromPoint 落到 .cm-content）。
+ * 手柄热区比按钮本身大，内移 0.15rem 仍能盖住首列/末列文字区的左/右边缘，不遮挡正文。
+ */
+.cm-md-editor.cm-editor.cm-md-editor--wysiwyg .cm-md-table-widget[data-table-overflow="true"] .cm-md-table-widget__handle--row {
+  left: 0.15rem;
+}
+.cm-md-editor.cm-editor.cm-md-editor--wysiwyg .cm-md-table-widget[data-table-overflow="true"] .cm-md-table-widget__handle--col {
+  right: 0.15rem;
 }
 .cm-md-editor.cm-editor.cm-md-editor--wysiwyg .cm-md-table-widget__btn {
   box-sizing: border-box;
@@ -211,7 +228,8 @@ export const codeBlockCss = String.raw`
 /* 行/列操作浮层菜单。 */
 .cm-md-editor.cm-editor.cm-md-editor--wysiwyg .cm-md-table-widget__menu {
   position: absolute;
-  z-index: 4;
+  /* 浮层菜单必须高于手柄 (z-index: 5) 与调整列宽把手 (z-index: 4) */
+  z-index: 6;
   display: flex;
   flex-direction: column;
   min-width: 8.5rem;

@@ -5,6 +5,7 @@ mod app_menu;
 mod file_commands;
 mod file_open;
 mod folder_watcher;
+mod history_diff;
 mod local_ai_completion;
 mod local_ai_model;
 mod local_ai_runtime;
@@ -36,10 +37,11 @@ use app_menu::{MENU_ACTION_EVENT, SELECT_ALL_MENU_EVENT, SELECT_ALL_MENU_ITEM};
 use file_commands::{
     allow_asset_path, attach_save_runtime, check_path_exists, copy_file_tree_path,
     create_markdown_tree_item, delete_markdown_tree_item, export_html_to_pdf, inspect_linked_file,
-    open_external_target, open_markdown_document, open_markdown_document_at_path,
-    open_markdown_folder, pick_theme_css_file, read_theme_css_file, refresh_markdown_folder,
-    rename_markdown_tree_item, reveal_file_tree_item_in_finder, save_markdown_document_ordered,
-    save_pasted_image, show_file_tree_context_menu, write_exported_files,
+    inspect_markdown_link_targets, open_external_target, open_markdown_document,
+    open_markdown_document_at_path, open_markdown_folder, pick_theme_css_file, read_theme_css_file,
+    refresh_markdown_folder, rename_markdown_tree_item, reveal_file_tree_item_in_finder,
+    save_markdown_document_ordered, save_pasted_image, show_file_tree_context_menu,
+    write_exported_files,
 };
 use folder_watcher::{unwatch_folder, watch_folder, FolderWatcherState};
 use local_ai_completion::{cancel_local_ai_request, request_local_ai_continuation};
@@ -147,6 +149,7 @@ pub fn run() {
             window_chrome::refresh_main_window_traffic_lights_after_layout_event(_window, _event);
         })
         .invoke_handler(tauri::generate_handler![
+            history_diff::diff_history_lines,
             open_markdown_document,
             open_markdown_document_at_path,
             file_open::take_pending_file_open,
@@ -167,6 +170,7 @@ pub fn run() {
             attach_save_runtime,
             save_markdown_document_ordered,
             save_pasted_image,
+            inspect_markdown_link_targets,
             check_path_exists,
             save_recent_files,
             update_recent_files_menu,

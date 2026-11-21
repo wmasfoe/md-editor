@@ -49,10 +49,12 @@ Bundled sidecar + downloaded models
 
 ### macOS runtime 打包契约
 
-- `llama-server` 的 `LC_RPATH` 为 `@loader_path`；所有随附 `.dylib` 通过 `tauri.macos.conf.json` 的 `bundle.macOS.files` 放到 `Contents/MacOS/`，与 sidecar 同级。许可证保留在 `Contents/Resources/`，不能把包含许可证的整个目录映射到 `MacOS/`，否则 codesign 会把非代码文件当成待校验的嵌套代码。
+- `llama-server` 的 `LC_RPATH` 为 `@loader_path`；sidecar 及其依赖实际链接的 10 个 `.dylib` 通过 `tauri.macos.conf.json` 的 `bundle.macOS.files` 放到 `Contents/MacOS/`，与 sidecar 同级。许可证保留在 `Contents/Resources/`，不能把包含许可证的整个目录映射到 `MacOS/`，否则 codesign 会把非代码文件当成待校验的嵌套代码。
 - 不在运行时向 `.app` 内复制依赖；安装目录可能只读，且复制会改变已签名的 bundle。`DYLD_LIBRARY_PATH` 只辅助开发环境，不承担发行包加载依赖的职责。
 - 当前使用 ad-hoc 签名（`signingIdentity: "-"`），没有 Team ID。`entitlements.plist` 中的 `com.apple.security.cs.disable-library-validation` 允许 hardened sidecar 加载随附的 llama.cpp 动态库；Tauri 将此 entitlement 同时应用于主程序和 sidecar，其余 hardened runtime 保护保持启用。未来切换 Developer ID 时，应使用同一身份签署全部 dylib 并移除此例外。
-- 更新 vendored runtime 时，同步更新 `bundle.macOS.files` 中的 dylib 清单。`scripts/release/llama-runtime-bundle.test.mjs` 校验完整依赖，并在 macOS arm64 上签名、移除 DYLD 环境变量后从只读目录执行 `llama-server --version`；实际发包仍需验证 Tauri 生成的 `.app`。
+- 更新 vendored runtime 时，根据新 sidecar 的递归 Mach-O 依赖同步更新 `bundle.macOS.files`；保留对应 install name，并用已安装模型验证实际推理。`scripts/release/llama-runtime-bundle.test.mjs` 校验完整依赖，并在 macOS arm64 上签名、移除 DYLD 环境变量后从只读目录执行 `llama-server --version`；实际发包仍需验证 Tauri 生成的 `.app`。
+
+2026-11-20 在 macOS arm64 上以同一份 v0.23.4 应用对比，仅调整随包动态库集合。两份应用使用相同 ad-hoc 签名参数和 UDZO 压缩。应用文件总字节由 76,578,980 降至 46,311,658，测试 DMG 由 33,399,870 降至 21,993,566。精简副本通过 `codesign --verify --deep --strict`。另外从精简清单暂存并签名的 sidecar 加载了已安装的 Standard GGUF，使用本地回环接口实际生成 3 个 token。磁盘映像体积随压缩参数和应用版本变化。
 
 依据：[Tauri macOS 配置](https://v2.tauri.app/reference/config/#macconfig)、[Apple Library Validation entitlement](https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.security.cs.disable-library-validation)。
 

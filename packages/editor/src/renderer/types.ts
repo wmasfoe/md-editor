@@ -36,6 +36,7 @@ import type {
   AiSuggestionAcceptedEvent,
 } from "../wysiwyg/view/suggestion-model.ts";
 import type { DocumentLinterOptions } from "../lint/types.ts";
+import type { DocumentMetrics } from "../markdown/document-metrics.ts";
 export type { DocumentLinterOptions };
 
 export interface CodeMirrorRendererOptions {
@@ -166,6 +167,10 @@ export interface CodeMirrorRenderer {
   acceptSuggestion(): boolean;
   dismissSuggestion(): boolean;
   getSuggestion(): AiSuggestionValue | null;
+  /** Read cached counters only when the renderer represents this exact snapshot. */
+  getDocumentMetrics?(
+    snapshot: Pick<DocumentSnapshot, "documentGeneration" | "contentRevision">,
+  ): DocumentMetrics | null;
   moveBlockUp(): boolean;
   moveBlockDown(): boolean;
   duplicateBlock(): boolean;

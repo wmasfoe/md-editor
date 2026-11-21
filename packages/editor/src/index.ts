@@ -6,6 +6,7 @@
  * 语法扩展插件机制与范围索引核心。
  */
 
+export { calculateDocumentMetrics, type DocumentMetrics } from "./markdown/document-metrics.ts";
 export {
   createCodeMirrorEditorBridge,
   getRendererForTesting,

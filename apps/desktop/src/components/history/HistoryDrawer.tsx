@@ -5,11 +5,12 @@
  * 遵循极简主义（Simplicity is architecture），去除冗余图例与厚重卡片，提供纯粹的时间轴与 Visual Diff。
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { invoke, isTauri } from "@tauri-apps/api/core";
 import type { DocumentHistoryEntry } from "@md-editor/file-system";
 import { runtime } from "../../app/runtime/editor-runtime";
 import { historyStore, revertToHistorySnapshot } from "../../app/controller/session-controller";
-import { computeLineDiff, type DiffResult } from "./line-diff";
+import { computeLineDiff, materializeLineDiff, type DiffRange, type DiffResult } from "./line-diff";
 import { cx } from "../../lib/cx";
 
 export interface HistoryDrawerProps {
@@ -42,19 +43,42 @@ export function HistoryDrawer({ open, filePath, onClose, onShowToast }: HistoryD
   const [isLoading, setIsLoading] = useState(false);
   const [viewMode, setViewMode] = useState<"diff" | "preview">("diff");
   const [isCopied, setIsCopied] = useState(false);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isDiffLoading, setIsDiffLoading] = useState(false);
+  const [diffError, setDiffError] = useState<string | null>(null);
+  const previewRequest = useRef(0);
+  const [diffResult, setDiffResult] = useState<DiffResult>({
+    lines: [],
+    additions: 0,
+    deletions: 0,
+    charDelta: 0,
+    hasChanges: false,
+  });
 
   // 小屏幕模式下的 Tab 切换 (列表 vs 详情)
   const [mobileTab, setMobileTab] = useState<"list" | "detail">("detail");
 
   // 加载快照列表与当前编辑器内容
   useEffect(() => {
+    let active = true;
+    const requestId = ++previewRequest.current;
     if (!open || !filePath) {
       setSnapshots([]);
       setSelectedSnapshotId(null);
       setPreviewContent(null);
       setCurrentContent("");
+      setErrorMessage(null);
+      setIsLoading(false);
+      setIsPreviewLoading(false);
       return;
     }
+
+    setSnapshots([]);
+    setSelectedSnapshotId(null);
+    setPreviewContent(null);
+    setErrorMessage(null);
+    setIsPreviewLoading(true);
 
     try {
       const activeSnapshot = runtime.document.getSnapshot();
@@ -67,6 +91,7 @@ export function HistoryDrawer({ open, filePath, onClose, onShowToast }: HistoryD
     historyStore
       .listSnapshots(filePath)
       .then(async (list) => {
+        if (!active || requestId !== previewRequest.current) return;
         const sorted = list.toReversed(); // 最新在前
         setSnapshots(sorted);
 
@@ -74,21 +99,43 @@ export function HistoryDrawer({ open, filePath, onClose, onShowToast }: HistoryD
           const first = sorted[0];
           setSelectedSnapshotId(first.id);
           const content = await historyStore.loadSnapshotContent(filePath, first.id);
-          setPreviewContent(content);
+          if (active && requestId === previewRequest.current) setPreviewContent(content);
         }
       })
+      .catch(() => {
+        if (active && requestId === previewRequest.current)
+          setErrorMessage("无法加载历史版本，请稍后重试");
+      })
       .finally(() => {
-        setIsLoading(false);
+        if (active && requestId === previewRequest.current) {
+          setIsLoading(false);
+          setIsPreviewLoading(false);
+        }
       });
+    return () => {
+      active = false;
+    };
   }, [open, filePath]);
 
   const handleSelectSnapshot = useCallback(
     async (snapshotId: string) => {
       if (!filePath) return;
+      const requestId = ++previewRequest.current;
       setSelectedSnapshotId(snapshotId);
-      const content = await historyStore.loadSnapshotContent(filePath, snapshotId);
-      setPreviewContent(content);
-      setMobileTab("detail");
+      setPreviewContent(null);
+      setErrorMessage(null);
+      setIsLoading(false);
+      setIsPreviewLoading(true);
+      try {
+        const content = await historyStore.loadSnapshotContent(filePath, snapshotId);
+        if (requestId !== previewRequest.current) return;
+        setPreviewContent(content);
+        setMobileTab("detail");
+      } catch {
+        if (requestId === previewRequest.current) setErrorMessage("无法读取该历史版本，请重新选择");
+      } finally {
+        if (requestId === previewRequest.current) setIsPreviewLoading(false);
+      }
     },
     [filePath],
   );
@@ -138,12 +185,46 @@ export function HistoryDrawer({ open, filePath, onClose, onShowToast }: HistoryD
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [open, onClose, snapshots, selectedSnapshotId, handleSelectSnapshot]);
 
-  // 计算行级 Visual Diff
-  const diffResult: DiffResult = useMemo(() => {
+  // Diff runs in Rust off the UI thread; ignore late results after selection/content changes.
+  useEffect(() => {
+    let active = true;
     if (previewContent === null) {
-      return { lines: [], additions: 0, deletions: 0, charDelta: 0, hasChanges: false };
+      setDiffResult({ lines: [], additions: 0, deletions: 0, charDelta: 0, hasChanges: false });
+      setIsDiffLoading(false);
+      setDiffError(null);
+      return () => {
+        active = false;
+      };
     }
-    return computeLineDiff(currentContent, previewContent);
+    setIsDiffLoading(true);
+    setDiffError(null);
+    // 原生 Patience diff 与浏览器 LCS 回退的产出必须同构：两者都归约到
+    // `DiffResult`，UI 不区分来源。原生命令不可用（旧版本后端 / IPC 失败 /
+    // 超大请求被拒）时**退回浏览器 LCS**，而不是把「算不出差异」抛给用户 ——
+    // 历史上这里直接显示错误，导致历史面板在降级场景下完全不可用。
+    const computeInBrowser = (): DiffResult => computeLineDiff(currentContent, previewContent);
+    const getDiff: Promise<DiffResult> = isTauri()
+      ? invoke<DiffRange[]>("diff_history_lines", {
+          currentText: currentContent,
+          snapshotText: previewContent,
+        })
+          .then((ranges) => materializeLineDiff(currentContent, previewContent, ranges))
+          .catch(() => computeInBrowser())
+      : Promise.resolve(computeInBrowser());
+    void getDiff
+      .then((result) => {
+        if (active) setDiffResult(result);
+      })
+      .catch(() => {
+        // 连浏览器回退也失败才报错（理论上只有内存不足会走到这里）。
+        if (active) setDiffError("无法计算版本差异，请切换快照后重试");
+      })
+      .finally(() => {
+        if (active) setIsDiffLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, [currentContent, previewContent]);
 
   const activeSnapshot = snapshots.find((s) => s.id === selectedSnapshotId);
@@ -357,13 +438,41 @@ export function HistoryDrawer({ open, filePath, onClose, onShowToast }: HistoryD
               mobileTab === "list" ? "hidden sm:flex" : "flex",
             )}
           >
-            {previewContent === null ? (
+            {errorMessage ? (
+              <div
+                role="alert"
+                className="flex-1 flex items-center justify-center text-xs text-[var(--theme-muted)]"
+              >
+                {errorMessage}
+              </div>
+            ) : isPreviewLoading && previewContent === null ? (
+              <div
+                role="status"
+                className="flex-1 flex items-center justify-center text-xs text-[var(--theme-muted)]"
+              >
+                正在加载历史版本…
+              </div>
+            ) : previewContent === null ? (
               <div className="flex-1 flex items-center justify-center text-xs text-[var(--theme-muted)]">
                 请在左侧选择版本快照
               </div>
             ) : viewMode === "diff" ? (
               <div className="flex-1 overflow-auto font-mono text-[11.5px] leading-relaxed">
-                {!diffResult.hasChanges ? (
+                {isDiffLoading ? (
+                  <div
+                    role="status"
+                    className="h-full flex items-center justify-center text-xs text-[var(--theme-muted)]"
+                  >
+                    正在比较版本…
+                  </div>
+                ) : diffError ? (
+                  <div
+                    role="alert"
+                    className="h-full flex items-center justify-center text-xs text-[var(--theme-muted)]"
+                  >
+                    {diffError}
+                  </div>
+                ) : !diffResult.hasChanges ? (
                   <div className="h-full flex flex-col items-center justify-center gap-1.5 p-8 text-center text-[var(--theme-muted)]">
                     <svg
                       className="h-6 w-6 text-emerald-500/70"

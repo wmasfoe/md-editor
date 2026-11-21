@@ -1,3 +1,4 @@
+import { measureEditorText } from "../markdown/document-metrics.ts";
 import { lintLanguageField } from "../lint/markdown-lint-i18n.ts";
 /**
  * @file controller.ts
@@ -424,35 +425,40 @@ export class CodeMirrorRendererController {
   openFind(): boolean {
     return !this.#destroyed && openViewFind(this.#view);
   }
-
   openReplace(): boolean {
     return !this.#destroyed && openViewReplace(this.#view);
   }
-
   setFormattingKeymaps(customKeymaps: ReadonlyMap<string, string>): void {
     if (!this.#destroyed) {
       setFormattingViewKeymaps(this.#view, this.#formattingKeymapCompartment, customKeymaps);
     }
   }
-
   dismissSuggestion(): boolean {
     return !this.#destroyed && dismissViewAiSuggestion(this.#view);
   }
-
   getSuggestion(): AiSuggestionValue | null {
     return this.#destroyed ? null : readViewAiSuggestion(this.#view);
   }
-
+  getDocumentMetrics(snapshot: Pick<DocumentSnapshot, "documentGeneration" | "contentRevision">) {
+    if (
+      this.#destroyed ||
+      this.#lastSyncStatus === "reconcile-required" ||
+      this.#pendingExternalEdit !== null ||
+      this.isComposing ||
+      this.#documentGeneration !== snapshot.documentGeneration ||
+      this.#contentRevision !== snapshot.contentRevision
+    )
+      return null;
+    return measureEditorText(this.#view.state.doc);
+  }
   getSelectionSnapshot() {
     return this.#destroyed
       ? { from: 0, to: 0, text: "", head: 0, anchor: 0 }
       : readSelectionSnapshot(this.#view);
   }
-
   undo(): boolean {
     return !this.#destroyed && !this.isComposing && undoViewEdit(this.#view);
   }
-
   focus(): void {
     if (!this.#destroyed) this.#view.focus();
   }

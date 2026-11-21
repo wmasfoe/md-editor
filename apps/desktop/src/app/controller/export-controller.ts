@@ -319,23 +319,26 @@ function triggerPrintFallback(html: string): Promise<boolean> {
   });
 }
 
-async function probeFileExists(path: string): Promise<boolean> {
+async function probeLinkTargets(
+  targets: readonly { readonly path: string; readonly includeHeadings: boolean }[],
+): Promise<
+  Readonly<
+    Record<
+      string,
+      {
+        readonly exists: boolean;
+        readonly headingLines: string | null;
+        readonly accessError?: boolean;
+      }
+    >
+  >
+> {
   if (isTauri()) {
-    return invoke<boolean>("check_path_exists", { path });
+    return invoke("inspect_markdown_link_targets", { targets });
   }
-  return true;
-}
-
-async function probeReadFileContent(path: string): Promise<string | null> {
-  if (isTauri()) {
-    try {
-      const doc = await invoke<{ markdown: string }>("open_markdown_document_at_path", { path });
-      return doc.markdown;
-    } catch {
-      return null;
-    }
-  }
-  return null;
+  return Object.fromEntries(
+    targets.map(({ path }) => [path, { exists: true, headingLines: null }]),
+  );
 }
 
 /**
@@ -356,8 +359,7 @@ export async function checkDocumentLinksAndLint(
     if (!documentPath) return [];
     const items = await validateMarkdownRelativeLinks(text, {
       documentPath,
-      fileExists: probeFileExists,
-      readFile: probeReadFileContent,
+      probeTargets: probeLinkTargets,
     });
     return items.map((d) => ({
       from: d.from,

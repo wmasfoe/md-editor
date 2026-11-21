@@ -120,6 +120,119 @@ test.describe("CodeMirror M3 table interaction surface", () => {
     await expect(bodyCell(page, 1, 0)).not.toHaveClass(/cm-md-table-widget__cell--editing/u);
   });
 
+  test("drag selects cells, copies TSV, clears outside, and resizes columns without source edits", async ({
+    page,
+  }) => {
+    await loadTable(page, TABLE_MARKDOWN);
+    const rangeCells = page.locator(".cm-md-table-widget__cell--range-selected");
+    const textEditor = page.locator(
+      'thead th[data-col-index="0"] .cm-md-table-widget__cell-editor',
+    );
+    const textBox = await textEditor.evaluate((element) => {
+      const node = element.firstChild!;
+      const range = document.createRange();
+      range.setStart(node, 0);
+      range.setEnd(node, node.textContent!.length);
+      const rect = range.getBoundingClientRect();
+      return { left: rect.left, right: rect.right, y: rect.top + rect.height / 2 };
+    });
+    await page.mouse.move(textBox.left + 1, textBox.y);
+    await page.mouse.down();
+    await page.mouse.move(textBox.right - 1, textBox.y, { steps: 4 });
+    await page.mouse.up();
+    await expect
+      .poll(() => page.evaluate(() => window.getSelection()?.toString() ?? ""))
+      .toBe("Header A");
+    await expect(rangeCells).toHaveCount(0);
+    await page.evaluate(() => window.getSelection()?.removeAllRanges());
+
+    const outside = await lineWithText(page, "Before table.").boundingBox();
+    const start = await page
+      .locator('th[data-row-kind="header"][data-col-index="0"]')
+      .boundingBox();
+    const end = await bodyCell(page, 1, 1).boundingBox();
+    expect(start).not.toBeNull();
+    expect(end).not.toBeNull();
+    await page.mouse.move(start!.x + start!.width / 2, start!.y + start!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(end!.x + end!.width / 2, end!.y + end!.height / 2, { steps: 8 });
+    await page.mouse.move(outside!.x + 10, outside!.y + outside!.height / 2, { steps: 3 });
+    await page.mouse.up();
+    await expect
+      .poll(() =>
+        widget(page).evaluate(
+          (element) => (element as HTMLElement).dataset.selectionAnchor ?? null,
+        ),
+      )
+      .toBeNull();
+    // A fresh drag ending in the grid selects a complete range for TSV copy.
+    await page.mouse.move(start!.x + start!.width / 2, start!.y + start!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(end!.x + end!.width / 2, end!.y + end!.height / 2, { steps: 8 });
+    await page.mouse.up();
+    await expect(rangeCells).toHaveCount(6);
+
+    await page.keyboard.press(process.platform === "darwin" ? "Meta+c" : "Control+c");
+    await expect
+      .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+      .toBe("Header A\tHeader B\n1\t2\n3\t4");
+    await expect
+      .poll(async () => (await diagnostics(page)).renderer!.markdown)
+      .toBe(TABLE_MARKDOWN);
+
+    await page.mouse.move(outside!.x + 10, outside!.y + outside!.height / 2);
+    await page.mouse.down();
+    await page.mouse.up();
+    await expect(rangeCells).toHaveCount(0);
+
+    await page.mouse.move(start!.x + start!.width / 2, start!.y + start!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(end!.x + end!.width / 2, end!.y + end!.height / 2, { steps: 4 });
+    await page.evaluate(() =>
+      document.dispatchEvent(new PointerEvent("pointercancel", { bubbles: true })),
+    );
+    await page.mouse.up();
+    await expect(rangeCells).toHaveCount(0);
+
+    const header = page.locator('th[data-row-kind="header"][data-col-index="0"]');
+    const grip = header.locator(".cm-md-table-widget__resize-grip");
+    const beforeWidth = (await header.boundingBox())!.width;
+    const gripBox = (await grip.boundingBox())!;
+    await page.mouse.move(gripBox.x + gripBox.width / 2, gripBox.y + gripBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(gripBox.x + gripBox.width / 2 + 36, gripBox.y + gripBox.height / 2, {
+      steps: 6,
+    });
+    await page.mouse.up();
+    await expect
+      .poll(async () => (await header.boundingBox())!.width)
+      .toBeGreaterThan(beforeWidth + 20);
+    await expect
+      .poll(async () => (await diagnostics(page)).renderer!.markdown)
+      .toBe(TABLE_MARKDOWN);
+
+    // A normal cell edit preserves the rendered column width.
+    await bodyCell(page, 0, 0).click();
+    await page.keyboard.press("End");
+    await page.keyboard.type("x");
+    await page.keyboard.press("Tab");
+    await expect
+      .poll(async () => (await diagnostics(page)).renderer!.markdown)
+      .toContain("| 1x | 2 |");
+    await expect(rangeCells).toHaveCount(0);
+    await expect(header).toHaveAttribute("style", /width/u);
+
+    // A structural edit rebuilds widget DOM and does not retain stale selection.
+    await page
+      .locator(".cm-md-table-widget__handle--row [data-table-toggle='row']")
+      .first()
+      .click();
+    await page.getByRole("menuitem", { name: "在下方插入行" }).click();
+    await expect(page.locator("tbody tr")).toHaveCount(3);
+    await expect(rangeCells).toHaveCount(0);
+    await expect(header).not.toHaveAttribute("style", /width/u);
+  });
+
   test("cell editors retain a visible native caret while the main editor uses a drawn caret", async ({
     page,
   }) => {

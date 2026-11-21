@@ -21,7 +21,7 @@ const PARAGRAPH = "前文\n\nfoo()\n\n后文\n";
 async function openHarness(page: Page): Promise<void> {
   await page.goto("/?surface=codemirror-editor&mdx=1");
   await page.addStyleTag({
-    content: ".cm-content { padding-left: 88px !important; }",
+    content: ".cm-content { padding-left: 40px !important; }",
   });
   await expect
     .poll(() => page.evaluate(() => window.__CODEMIRROR_EDITOR_E2E__?.isReady() ?? false))

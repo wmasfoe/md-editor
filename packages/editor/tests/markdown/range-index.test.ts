@@ -1,5 +1,5 @@
 import { markdown } from "@codemirror/lang-markdown";
-import { syntaxTree } from "@codemirror/language";
+import { syntaxTree, syntaxTreeAvailable } from "@codemirror/language";
 import { EditorSelection, EditorState } from "@codemirror/state";
 import { findFrontmatterSourceRange } from "@md-editor/markdown-fidelity";
 import { describe, expect, it } from "vitest";
@@ -25,6 +25,7 @@ import {
   refreshMarkdownParseCoverageEffect,
   type MarkdownRangeIndex,
 } from "../../src/markdown/range-index.ts";
+import { compareRecords } from "../../src/markdown/extractors/common.ts";
 
 interface IndexHarness {
   readonly state: EditorState;
@@ -446,6 +447,22 @@ describe("M2 code-block parser range index", () => {
 });
 
 describe("M3 table parser range index", () => {
+  it("indexes a newly inserted table and shifts following records after insertion", () => {
+    const source = `${"Paragraph text.\n\n".repeat(80)}Tail **bold**.\n`;
+    const harness = createIndexHarness(source);
+    const insertAt = source.indexOf("Tail");
+    const insertion = "| A | B |\n| --- | --- |\n| x | y |\n\n";
+    const nextState = harness.state.update({
+      changes: { from: insertAt, insert: insertion },
+    }).state;
+    const next = nextState.field(markdownRangeIndexField);
+    const oracle = buildMarkdownRangeIndex(nextState.doc.toString(), syntaxTree(nextState));
+
+    expect(next.byKind("table")).toHaveLength(1);
+    expect(next.byKind("bold")[0]?.fullRange.from).toBe(insertAt + insertion.length + 5);
+    expect(comparable(next)).toEqual(comparable(oracle));
+  });
+
   it("M3T-U01 builds exact header, delimiter, and body row ranges for an aligned table", () => {
     const fixture = getM3TableFixture("M3T-F01");
     const { index } = createIndexHarness(fixture.markdown);
@@ -613,5 +630,305 @@ describe("renderer-owned Frontmatter YAML diagnostics", () => {
     expect(
       diagnostics.every((item) => invalidSource.slice(item.from, item.to).trim().length > 0),
     ).toBe(true);
+  });
+});
+
+describe("增量更新不得阻塞解析（性能契约）", () => {
+  /**
+   * 回归锁：`updateMarkdownRangeIndex` 在**每次按键**被调用。
+   *
+   * 历史缺陷：该路径末尾的 `readCoverage()` 内部无条件调用
+   * `ensureSyntaxTree(state, doc.length)` —— 同步全文档解析。实测 800 块文档
+   * 每次按键 ~52ms，打字严重掉帧。修复后 `readCoverage` 只读已有语法树
+   * （CM 复用未变动子树，`syntaxTree()` 已覆盖全文，取用 ~0.001ms），
+   * 「需要补解析」的判断统一收敛到 `requiresCompleteParse`。
+   *
+   * 断言口径：普通打字（不触碰表格/MDX、覆盖度完整）时，
+   * 语法树覆盖度**不应**因为一次按键而扩张 —— 若发生扩张，说明又走了全量解析。
+   */
+  it("普通打字不降级覆盖度，也不让既有记录退化为 partial", () => {
+    // ⚠️ 本用例刻意**不做暖机**：历史版本先插一次做暖机，恰好把「首次建索引
+    // 覆盖度停在初始视口（约 3000 字符）」的缺陷掩盖掉了（review 指出）。
+    // 首次建索引的覆盖度契约由 coverage.test.ts 的「大文档首次建索引」用例锁定。
+    const blocks: string[] = [];
+    for (let index = 0; index < 300; index += 1) {
+      blocks.push(`## 第 ${index} 节`, "", `正文段落 ${index}。`, "");
+    }
+    const harness = createIndexHarness(blocks.join("\n"));
+    expect(harness.state.doc.length).toBeGreaterThan(3000);
+
+    const initial = harness.index;
+    expect(initial.coverage).toEqual({ to: harness.state.doc.length, complete: true });
+    const initialPartial = initial.records.filter((r) => r.parserCoverage !== "complete");
+    expect(initialPartial).toEqual([]);
+
+    // 在文档中部插入一个字符（普通打字路径，不触及表格/MDX）。
+    const middle = Math.floor(harness.state.doc.length / 2);
+    const next = harness.state.update({
+      changes: { from: middle, insert: "a" },
+      selection: EditorSelection.cursor(middle + 1),
+    }).state;
+    const index = next.field(markdownRangeIndexField);
+
+    // 契约：打字既不得把覆盖度降级，也不得让既有记录退化成 partial
+    //（后者会把标题/表格/代码块投影整体打回源码显示）。
+    expect(index.coverage).toEqual({ to: next.doc.length, complete: true });
+    const partial = index.records.filter((r) => r.parserCoverage !== "complete");
+    expect(partial.map((r) => `${r.kind}@${r.fullRange.from}`)).toEqual([]);
+    expect(index.byKind("heading-atx")).toHaveLength(300);
+  });
+
+  it("索引在增量更新后仍与全量重建等价（正确性锁）", () => {
+    const source = Array.from({ length: 40 }, (_, i) => `## S${i}\n\nBody ${i}.\n`).join("\n");
+    const harness = createIndexHarness(source);
+    const insertAt = source.indexOf("Body 20");
+    const nextState = harness.state.update({
+      changes: { from: insertAt, insert: "| A | B |\n| --- | --- |\n| 1 | 2 |\n\n" },
+    }).state;
+    const incremental = nextState.field(markdownRangeIndexField);
+    const oracle = buildMarkdownRangeIndex(nextState.doc.toString(), syntaxTree(nextState));
+    expect(comparable(incremental)).toEqual(comparable(oracle));
+  });
+});
+
+describe("首次建索引的覆盖度契约（大文档回归）", () => {
+  /**
+   * 回归锁：`readCoverageAfterParse` 曾在 `ensureSyntaxTree` 之后仍经
+   * `syntaxTree(state)` 读覆盖度。
+   *
+   * CodeMirror 的语法树有两个**不同步**的视图：`syntaxTree(state)` 是
+   * `EditorState.update` 期间由 `takeTree()` 截下的**快照**，而 `ensureSyntaxTree`
+   * 只推进会 `LanguageState.context` 并返回新树，**不更新**该快照；
+   * `syntaxTreeAvailable` 读的则是已推进的 context。
+   *
+   * `LanguageState` 初始化只解析 `Work.InitViewport`（约 3000 字符），因此
+   * 混用两者会让大文档首次建索引得到 `{ to: ~3000, complete: true }`：
+   * 其后的记录全被误判为 `parserCoverage: "partial"`，标题/表格/代码块/列表
+   * 投影在打开文档时集体退化为源码。
+   *
+   * 契约：覆盖度必须与**实际用于建索引的那棵树**同源（`coverageOfTree(tree, ...)`）。
+   */
+  it("大文档首次建索引后 coverage.to 覆盖全文，且全部标题记录为 complete", () => {
+    const parts: string[] = [];
+    for (let index = 0; index < 200; index += 1) {
+      parts.push(`## 标题 ${index}`, "", `这是第 ${index} 节正文，含**粗体**。`, "");
+    }
+    const doc = parts.join("\n");
+    // 前提自检：必须超过 LanguageState 的初始视口解析量，否则覆盖不到该路径。
+    expect(doc.length).toBeGreaterThan(3000);
+
+    const harness = createIndexHarness(doc);
+    const index = harness.index;
+
+    expect(index.coverage.complete).toBe(true);
+    expect(index.coverage.to).toBe(doc.length);
+    // 快照 `syntaxTree(state)` 仍可能停在初始视口 —— 这正是不能拿它当覆盖度依据的原因。
+    expect(syntaxTree(harness.state).length).toBeLessThan(doc.length);
+
+    const headings = index.byKind("heading-atx");
+    expect(headings).toHaveLength(200);
+    const partial = headings.filter((record) => record.parserCoverage !== "complete");
+    expect(partial.map((record) => record.fullRange.from)).toEqual([]);
+  });
+});
+
+/** 抽取与增量复用相关的结构字段（不含 parserCoverage，理由见用例内注释）。 */
+function indexStructure(index: MarkdownRangeIndex) {
+  return index.records.map((record) => ({
+    kind: record.kind,
+    from: record.fullRange.from,
+    to: record.fullRange.to,
+    fingerprint: record.sourceFingerprint,
+  }));
+}
+
+describe("增量复用：有序归并与覆盖度投影", () => {
+  /**
+   * 回归锁：`updateMarkdownRangeIndex` 曾用 `insertRecord`（线性插入排序）把
+   * 数千条复用记录逐条插入新数组 —— O(n²)。CPU profile 显示 `insertRecord` +
+   * `compareRecords` 占每次按键 48ms 中的 74%。改为「复用段 + 重建段」线性归并后
+   * 降到 ~8.7ms/键。
+   *
+   * 该优化依赖两条不变量，必须由测试长期看守：
+   * 1. 归并后 records 仍严格按 `compareRecords` 排序；
+   * 2. 增量结果与全量重建在「结构」上等价（kind / 区间 / 源码指纹）。
+   */
+  it("records 在多次编辑后仍严格有序", () => {
+    const blocks = Array.from({ length: 80 }, (_, i) => `## S${i}\n\nBody **${i}**.\n`);
+    let state = EditorState.create({
+      doc: blocks.join("\n"),
+      extensions: [markdown({ extensions: M1_MARKDOWN_EXTENSIONS }), markdownRangeIndexField],
+    });
+    let seed = 987654321;
+    const nextRandom = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff);
+
+    for (let step = 0; step < 25; step += 1) {
+      const pos = nextRandom() % state.doc.length;
+      const insert = ["a", "\n", "## 新增\n", "**x**", "| A | B |\n| --- | --- |\n| 1 | 2 |\n"][
+        nextRandom() % 5
+      ];
+      state = state.update({
+        changes: { from: pos, insert },
+        selection: EditorSelection.cursor(pos + insert.length),
+      }).state;
+
+      const records = state.field(markdownRangeIndexField).records;
+      for (let index = 1; index < records.length; index += 1) {
+        expect(compareRecords(records[index - 1], records[index])).toBeLessThanOrEqual(0);
+      }
+    }
+  });
+
+  it("增量结果与全量重建结构等价（随机编辑序列）", () => {
+    const blocks = Array.from(
+      { length: 60 },
+      (_, i) => `## S${i}\n\nBody **${i}** 与 \`c${i}\`。\n`,
+    );
+    let state = EditorState.create({
+      doc: blocks.join("\n"),
+      extensions: [markdown({ extensions: M1_MARKDOWN_EXTENSIONS }), markdownRangeIndexField],
+    });
+    let seed = 123456789;
+    const nextRandom = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff);
+    for (let step = 0; step < 30; step += 1) {
+      const pos = nextRandom() % state.doc.length;
+      const insert = ["a", "\n", "## 新增\n", "**x**", ""][nextRandom() % 5];
+      const deleteLength = nextRandom() % 4 === 0 ? Math.min(3, state.doc.length - pos) : 0;
+      state = state.update({
+        changes: { from: pos, to: pos + deleteLength, insert },
+        selection: EditorSelection.cursor(pos + insert.length),
+      }).state;
+
+      const incremental = state.field(markdownRangeIndexField);
+      const oracle = buildMarkdownRangeIndex(state.doc.toString(), syntaxTree(state));
+      // 不比较 `parserCoverage`：增量路径复用旧记录，旧记录若在上一轮就是 partial
+      // 会原样保留，而全量重建按当前完整树重新判定。该差异在本优化之前即存在。
+      expect(indexStructure(incremental)).toEqual(indexStructure(oracle));
+    }
+  });
+});
+
+describe("覆盖度不变量（解析预算截断防护）", () => {
+  /**
+   * 回归锁：`projectCoverage` 曾无条件沿用上一轮的 `complete`，声称
+   * `{ to: doc.length, complete: true }`。
+   *
+   * 缺陷路径（审查指出，本机难以复现但逻辑必然）：`LanguageState.apply` 对每次
+   * 编辑只给 20ms 预算（`Work.Apply`），超时即 `takeTree()` 在 `parsedPos` 处截断。
+   * 此时 `tree.length < doc.length`，`newDirty` 无法扩到截断点之后，截断点之后的
+   * 旧记录被原样保留 —— 而那段源码的结构可能已经整体失效（如在文首输入 `<!--`）。
+   *
+   * 若仍声明 complete，`parse-progress.ts` 的 `parseCoverageAdvanced()` 两个条件
+   * 都不成立，后台解析完成后**永不**派发 refresh ⇒ 过期记录永久残留。
+   *
+   * 因此锁定核心不变量：**`coverage.complete === true` 时，语法树必须真的覆盖全文**。
+   */
+  it("coverage.complete 为 true 时语法树必须覆盖全文", () => {
+    const blocks = Array.from({ length: 60 }, (_, i) => `## S${i}\n\nBody **${i}**.\n`);
+    let state = EditorState.create({
+      doc: blocks.join("\n"),
+      extensions: [markdown({ extensions: M1_MARKDOWN_EXTENSIONS }), markdownRangeIndexField],
+    });
+
+    // 收集所有「声称 complete 但树未覆盖全文」的违例，最后统一断言（避免条件 expect）。
+    const violations: string[] = [];
+    const assertInvariant = (label: string) => {
+      const index = state.field(markdownRangeIndexField);
+      if (index.coverage.complete && !syntaxTreeAvailable(state, state.doc.length)) {
+        violations.push(label);
+      }
+    };
+
+    assertInvariant("initial");
+    // 多种会让后文失效的编辑：未闭合注释、未闭合围栏、普通插入、结构性删除。
+    const edits = [
+      { from: 0, insert: "<!--" },
+      { from: 0, insert: "```\n" },
+      { from: 100, insert: "a" },
+      { from: 200, to: 210, insert: "" },
+      { from: 0, insert: "## 新标题\n" },
+    ];
+    for (const [index, edit] of edits.entries()) {
+      state = state.update({
+        changes: edit,
+        selection: EditorSelection.cursor(edit.from + (edit.insert?.length ?? 0)),
+      }).state;
+      assertInvariant(`edit ${index}`);
+    }
+    expect(violations).toEqual([]);
+  });
+
+  it("records 的 blockRange.from 非递减（二分扩展依赖的不变量）", () => {
+    // `expandOldDirtyRange` 用 `blockRange.from` 单调向后扫描并 break。
+    // 但 `compareRecords` 排序依据是 `fullRange.from` —— 二者不等价。
+    // 该扫描能成立完全依赖「同一顶层块内 records 的 blockRange 相同」这一结构事实。
+    // 这里用覆盖 top-level / 嵌套 / frontmatter / MDX 的文档锁定它。
+    const marks = [
+      "---",
+      "title: demo",
+      "---",
+      "",
+      "## 标题一",
+      "",
+      "段落含**粗体**与 `代码` 以及[链接](x.md)。",
+      "",
+      "> 引用块",
+      "",
+      "- 列表 1",
+      "- 列表 2",
+      "",
+      "| A | B |",
+      "| --- | --- |",
+      "| 1 | 2 |",
+      "",
+      "```js",
+      "const a = 1;",
+      "```",
+      "",
+      "## 标题二",
+      "",
+      "结尾段落。",
+      "",
+    ].join("\n");
+    const harness = createIndexHarness(marks);
+    const { records } = harness.index;
+    expect(records.length).toBeGreaterThan(10);
+    for (let index = 1; index < records.length; index += 1) {
+      expect({
+        index,
+        previousKind: records[index - 1].kind,
+        kind: records[index].kind,
+        decreasing: records[index].blockRange.from < records[index - 1].blockRange.from,
+      }).toEqual({
+        index,
+        previousKind: records[index - 1].kind,
+        kind: records[index].kind,
+        decreasing: false,
+      });
+    }
+  });
+
+  it("增量更新后 blockRange.from 仍非递减（排序不变量在归并后保持）", () => {
+    const blocks = Array.from({ length: 40 }, (_, i) => `## S${i}\n\nBody **${i}**.\n`);
+    let state = EditorState.create({
+      doc: blocks.join("\n"),
+      extensions: [markdown({ extensions: M1_MARKDOWN_EXTENSIONS }), markdownRangeIndexField],
+    });
+    let seed = 55555;
+    const nextRandom = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff);
+    for (let step = 0; step < 12; step += 1) {
+      const pos = nextRandom() % state.doc.length;
+      const insert = ["a", "\n", "**x**", "## T\n", ""][nextRandom() % 5];
+      state = state.update({
+        changes: { from: pos, insert },
+        selection: EditorSelection.cursor(pos + insert.length),
+      }).state;
+      const { records } = state.field(markdownRangeIndexField);
+      for (let index = 1; index < records.length; index += 1) {
+        expect(records[index].blockRange.from).toBeGreaterThanOrEqual(
+          records[index - 1].blockRange.from,
+        );
+      }
+    }
   });
 });

@@ -11,6 +11,7 @@ import {
   wysiwygProjectionField,
 } from "../../../src/wysiwyg/state/projection-field.ts";
 import { wysiwygChangeProtection } from "../../../src/wysiwyg/state/change-protection.ts";
+import { aiSuggestionField } from "../../../src/wysiwyg/view/suggestion.ts";
 import { DefaultAtomWidget } from "../../../src/wysiwyg/widgets/default-atom-widget.ts";
 import { FrontmatterHeaderWidget } from "../../../src/wysiwyg/widgets/frontmatter-header-widget.ts";
 import { ImageWidget } from "../../../src/wysiwyg/widgets/image-widget.ts";
@@ -907,7 +908,8 @@ describe("table widget DOM lifecycle", () => {
 
   it("releases every listener on destroy", () => {
     const { dom, document, widget, diagnostics } = createTableWidget();
-    expect(dom.listenerCount()).toBe(5);
+    // pointerdown + focusin/out + keydown + click + copy.
+    expect(dom.listenerCount()).toBe(6);
 
     // 打开菜单（注册文档级点击监听）后再销毁：所有监听都要释放。
     const rowToggle = dom.querySelector<HTMLElement>(
@@ -943,6 +945,7 @@ describe("table widget select-all inside a cell", () => {
         configureWysiwygProjectionFeatures(["tables"]),
         wysiwygProjectionField,
         wysiwygChangeProtection,
+        aiSuggestionField,
       ],
     });
     const document = new FakeDocument();
@@ -1010,5 +1013,43 @@ describe("table widget select-all inside a cell", () => {
     dom.dispatch("keydown", { key: "a", target: cell, preventDefault } as unknown as KeyboardEvent);
 
     expect(preventDefault).not.toHaveBeenCalled();
+  });
+
+  it("moves Tab from one table cell to the next without changing source when cells are unchanged", () => {
+    const doc = "| a | b |\n| - | - |\n| 1 | 2 |";
+    const { view, getState } = createRealView(doc);
+    const table = getState().field(markdownRangeIndexField).byKind("table")[0];
+    const widget = new TableGridWidget({
+      recordId: table.id,
+      headerCells: ["a", "b"],
+      bodyRows: [["1", "2"]],
+      alignments: ["none", "none"],
+      selected: false,
+      diagnostics: null,
+    });
+    const dom = widget.toDOM(view) as unknown as FakeElement;
+    const cells = dom.querySelectorAll<HTMLElement>(
+      ".cm-md-table-widget__cell",
+    ) as unknown as FakeElement[];
+    const nextEditor = cells[1].querySelector<HTMLElement>(
+      ".cm-md-table-widget__cell-editor",
+    ) as unknown as FakeElement;
+    const focus = vi.spyOn(nextEditor, "focus");
+    const preventDefault = vi.fn();
+    const stopPropagation = vi.fn();
+
+    dom.dispatch("keydown", {
+      key: "Tab",
+      target: cells[0],
+      shiftKey: false,
+      isComposing: false,
+      preventDefault,
+      stopPropagation,
+    } as unknown as KeyboardEvent);
+
+    expect(focus).toHaveBeenCalledOnce();
+    expect(preventDefault).toHaveBeenCalledOnce();
+    expect(stopPropagation).toHaveBeenCalledOnce();
+    expect(getState().doc.toString()).toBe(doc);
   });
 });
