@@ -81,6 +81,15 @@ describe("VIEWER_CSS 载体结构", () => {
     expect(VIEWER_CSS).toContain(".cm-md-media-viewer__stage");
     expect(VIEWER_CSS).toContain(".cm-md-media-viewer__media");
   });
+
+  it("给 SVG 图表一层实心主题底色，避免背后文档从图表内部透出", () => {
+    // Mermaid 的 SVG 根节点没有背景。缺了这层底色，浮层遮罩下的文档文字会与图表标签
+    // 叠在一起（深色遮罩下尤其明显）；卡片化也让浮层不再像“半透明幽灵图”。
+    expect(VIEWER_CSS).toMatch(
+      /\.cm-md-media-viewer__media--svg\s*\{[^}]*background:\s*var\(--theme-surface/,
+    );
+    expect(VIEWER_CSS).toMatch(/\.cm-md-media-viewer__media--svg\s*\{[^}]*border-radius:/);
+  });
 });
 
 describe("ensureViewerStyleElement", () => {
