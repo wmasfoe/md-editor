@@ -1,5 +1,11 @@
 # @md-editor/editor
 
+## 0.4.1
+
+### Patch Changes
+
+- a2876e6: Give diagram viewer SVGs an opaque themed surface so the document no longer shows through the diagram, and supply the missing Visimer chrome tokens so diagram menus stay readable in light and dark themes.
+
 ## 0.4.0
 
 ### Minor Changes
