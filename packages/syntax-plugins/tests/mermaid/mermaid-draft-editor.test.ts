@@ -90,8 +90,31 @@ describe("sequence block conditions", () => {
       validate: async () => null,
     });
 
-    editor.setBlockCondition(4, "message line");
+    expect(editor.setBlockCondition(4, "message line")).toBe(false);
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(editor.code).toBe(SEQUENCE_WITH_BLOCK);
+  });
+
+  it("refuses lexer-unsafe conditions and stale keywords, and reports whether it wrote", async () => {
+    const editor = createMermaidDraftEditor(MermaidWysiwygEditor, {
+      source: SEQUENCE_WITH_BLOCK,
+      onError: vi.fn(),
+      onBusy: vi.fn(),
+      isClosed: () => false,
+      validateOperation: () => null,
+      validate: async () => null,
+    });
+
+    // `#` would be silently truncated as a comment; `;` would split a new statement.
+    expect(editor.setBlockCondition(5, "retry #3")).toBe(false);
+    expect(editor.setBlockCondition(5, "ok; A->>B: hi")).toBe(false);
+    // The line is still `alt`; a snapshot claiming `else` must not write elsewhere.
+    expect(editor.setBlockCondition(5, "stale", "else")).toBe(false);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(editor.code).toBe(SEQUENCE_WITH_BLOCK);
+    expect(editor.canUndo).toBe(false);
+
+    expect(editor.setBlockCondition(5, "fresh", "alt")).toBe(true);
+    await vi.waitFor(() => expect(editor.code).toContain("  alt fresh\n"));
   });
 });

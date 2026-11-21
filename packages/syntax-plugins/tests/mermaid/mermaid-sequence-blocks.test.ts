@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   listSequenceBlockBranches,
   sequenceBlockConditionEdit,
+  sequenceConditionError,
   SEQUENCE_BLOCK_KEYWORDS,
 } from "../../src/mermaid/mermaid-sequence-blocks.ts";
 
@@ -100,6 +101,27 @@ describe("sequence block condition edit", () => {
     const result = parse(BLOCK_SOURCE);
     const next = apply(BLOCK_SOURCE, sequenceBlockConditionEdit(result, 5, "x > 0 && [重试]")!);
     expect(next.split("\n")[5]).toBe("    alt x > 0 && [重试]");
+  });
+
+  it("reports why a condition cannot be written", () => {
+    // Mermaid's sequence lexer parses a block condition as restOfLine `[^#\n;]*`:
+    // `#` starts a comment and `;` acts as a newline, and both still pass whole-diagram parsing.
+    expect(sequenceConditionError("retry #3")).toBe("comment");
+    expect(sequenceConditionError("ok; A->>B: hi")).toBe("separator");
+    expect(sequenceConditionError("a\nb")).toBe("multi-line");
+    expect(sequenceConditionError("x > 0 && [重试]")).toBeNull();
+  });
+
+  it("refuses conditions the sequence lexer would truncate or split", () => {
+    const result = parse(BLOCK_SOURCE);
+    expect(sequenceBlockConditionEdit(result, 5, "retry #3")).toBeNull();
+    expect(sequenceBlockConditionEdit(result, 5, "ok; A->>B: hi")).toBeNull();
+  });
+
+  it("refuses a stale line whose keyword no longer matches the snapshot", () => {
+    const result = parse(BLOCK_SOURCE);
+    expect(sequenceBlockConditionEdit(result, 5, "new", "else")).toBeNull();
+    expect(sequenceBlockConditionEdit(result, 5, "new", "alt")).not.toBeNull();
   });
 
   it("refuses lines that are not editable branches", () => {

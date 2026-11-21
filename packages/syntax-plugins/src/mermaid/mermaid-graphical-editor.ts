@@ -15,7 +15,11 @@ import {
   isMermaidLabel,
   type MermaidDraftEditor,
 } from "./mermaid-draft-editor.ts";
-import { listSequenceBlockBranches, type SequenceBlockBranch } from "./mermaid-sequence-blocks.ts";
+import {
+  listSequenceBlockBranches,
+  sequenceConditionError,
+  type SequenceBlockBranch,
+} from "./mermaid-sequence-blocks.ts";
 import { mermaidGraphicalEditorCss } from "./mermaid-graphical-editor-css.ts";
 
 /**
@@ -594,28 +598,57 @@ function appendToolbar(
       async () => {
         const branches = listSequenceBlockBranches(editor.result);
         if (branches.length === 0) return;
-        const values = await askFields([
-          {
-            label: text("editor.mermaid.block", "块"),
-            initial: String(branches[0]!.lineIndex),
-            choices: branches.map((branch) => ({
-              value: String(branch.lineIndex),
-              label: sequenceBlockLabel(branch),
-            })),
-            // 切换块时回填该块当前条件，避免把 A 的条件写到 B 的行上。
-            sync: (value, fields) => {
-              const branch = branches.find((item) => String(item.lineIndex) === value);
-              if (branch) fields[1]!.value = branch.condition;
+        const values = await askFields(
+          [
+            {
+              label: text("editor.mermaid.block", "块"),
+              initial: String(branches[0]!.lineIndex),
+              choices: branches.map((branch) => ({
+                value: String(branch.lineIndex),
+                label: sequenceBlockLabel(branch),
+              })),
+              // 切换块时回填该块当前条件，避免把 A 的条件写到 B 的行上。
+              sync: (value, fields) => {
+                const branch = branches.find((item) => String(item.lineIndex) === value);
+                if (branch) fields[1]!.value = branch.condition;
+              },
             },
+            {
+              label: text("editor.mermaid.blockCondition", "块条件"),
+              initial: branches[0]!.condition,
+              // 条件可含 `>` `[` 等标签字符表之外的符号；但 `#` / `;` 会被
+              // mermaid 的 restOfLine lexer 截断或拆语句，必须在表单层就拒绝。
+              freeText: true,
+            },
+          ],
+          ([, condition]) => {
+            switch (sequenceConditionError(condition)) {
+              case "comment":
+                return text(
+                  "editor.mermaid.conditionComment",
+                  "块条件不能包含 #：Mermaid 会把它后面的内容当作注释截断。",
+                );
+              case "separator":
+                return text(
+                  "editor.mermaid.conditionSeparator",
+                  "块条件不能包含 ;：Mermaid 会把它当作换行，拆出新的语句。",
+                );
+              case "multi-line":
+                return text("editor.mermaid.conditionSingleLine", "块条件必须是单行文字。");
+              default:
+                return null;
+            }
           },
-          {
-            label: text("editor.mermaid.blockCondition", "块条件"),
-            initial: branches[0]!.condition,
-            // 条件可含 `>` `[` `]` 等标签字符表之外的符号；合法性交给 mermaid 校验。
-            freeText: true,
-          },
-        ]);
-        if (values) editor.setBlockCondition(Number(values[0]), values[1]!);
+        );
+        if (!values) return;
+        const branch = branches.find((item) => String(item.lineIndex) === values[0]);
+        if (!branch) return;
+        const next = values[1]!.trim();
+        if (next === branch.condition) return;
+        // 行号是打开表单时的快照；提交时用关键字再校验一次，避免写到别的分支。
+        if (!editor.setBlockCondition(branch.lineIndex, next, branch.keyword)) {
+          status.textContent = text("editor.mermaid.blockStale", "图表已变化，块条件未写入。");
+        }
       },
       undefined,
       undefined,

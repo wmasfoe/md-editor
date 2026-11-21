@@ -656,6 +656,12 @@ export const ja: TranslationSchema = {
       editBlock: "ブロック条件を編集",
       block: "ブロック",
       blockCondition: "ブロック条件",
+      blockStale: "図が変更されたため、ブロック条件は書き込まれていません。",
+      conditionComment:
+        "ブロック条件に # は使えません。Mermaid は以降をコメントとして切り捨てます。",
+      conditionSeparator:
+        "ブロック条件に ; は使えません。Mermaid は改行として扱い、新しい文を追加します。",
+      conditionSingleLine: "ブロック条件は 1 行で入力してください。",
       selectParticipant: "参加者を選択してください",
       unsupported: "この図はビジュアル編集に対応していません。",
       view: "表示",

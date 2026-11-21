@@ -453,6 +453,20 @@ describe("Mermaid graphical editor capability", () => {
     expect(updates[0]).toContain(" alt x > 0 && [重试]");
     expect(updates[0]).toContain(" else other condition");
     expect(updates[0]).toContain(" autonumber");
+
+    // `#` would be silently truncated by Mermaid's restOfLine lexer: reject it in the form
+    // and keep the panel open with a reason instead of writing a half-rendered condition.
+    blockButton!.click();
+    const rejectedPanel = container.querySelector<HTMLElement>(".cm-md-mermaid-graphical-input")!;
+    rejectedPanel.querySelector<HTMLInputElement>("input")!.value = "retry #3";
+    rejectedPanel.querySelector<HTMLButtonElement>("button")!.click();
+    await vi.waitFor(() =>
+      expect(
+        container.querySelector(".cm-md-mermaid-graphical-toolbar output")?.textContent,
+      ).toContain("#"),
+    );
+    expect(container.querySelector(".cm-md-mermaid-graphical-input")).not.toBeNull();
+    expect(updates).toHaveLength(1);
     handle.destroy();
     container.remove();
   });

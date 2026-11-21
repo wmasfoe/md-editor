@@ -652,6 +652,12 @@ export const en: TranslationSchema = {
       editBlock: "Edit block condition",
       block: "Block",
       blockCondition: "Block condition",
+      blockStale: "The diagram changed, so the block condition was not written.",
+      conditionComment:
+        "Block conditions cannot contain #: Mermaid treats the rest of the line as a comment.",
+      conditionSeparator:
+        "Block conditions cannot contain ;: Mermaid reads it as a newline and starts a new statement.",
+      conditionSingleLine: "Block conditions must stay on one line.",
       selectParticipant: "Select a participant first",
       unsupported: "Graphical editing is unavailable for this diagram.",
       view: "View",
