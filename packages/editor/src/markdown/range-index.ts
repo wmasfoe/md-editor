@@ -12,13 +12,12 @@
  * 各语法类型的深度提取逻辑已拆分至 `extractors/` 子模块（代码块、表格、警示块、Frontmatter、MDX 等）。
  */
 
-import { ensureSyntaxTree, syntaxTree, syntaxTreeAvailable } from "@codemirror/language";
+import { ensureSyntaxTree, syntaxTree } from "@codemirror/language";
 import {
   Facet,
   StateEffect,
   StateField,
   type ChangeDesc,
-  type EditorState,
   type Text,
   type Transaction,
 } from "@codemirror/state";
@@ -60,6 +59,8 @@ import {
   unionRanges,
 } from "./extractors/common.ts";
 import { resolveAlertMetadata } from "./extractors/alert.ts";
+import { coverageOfTree, projectCoverage } from "./coverage.ts";
+import { mergeSortedRecords } from "./record-merge.ts";
 import { createCodeBlockMetadata, mapCodeBlockMetadata } from "./extractors/code-block.ts";
 import { createTableBlockMetadata, mapTableBlockMetadata } from "./extractors/table.ts";
 import {
@@ -240,7 +241,7 @@ export const markdownRangeIndexField = StateField.define<MarkdownRangeIndex>({
     diagnostics?.recordFullIndexBuild();
     const tree = ensureSyntaxTree(state, state.doc.length, 5_000) ?? syntaxTree(state);
     return buildMarkdownRangeIndex(state.doc.toString(), tree, {
-      // 覆盖度必须由**这棵** tree 推导（不能回头读 syntaxTree 快照，见下方注释）。
+      // 覆盖度必须由**这棵** tree 推导（不能回头读 syntaxTree 快照）。
       coverage: coverageOfTree(tree, state.doc.length),
       mdxMode: state.facet(mdxModeFacet),
       pluginRegistry: state.facet(syntaxPluginRegistryFacet),
@@ -329,10 +330,17 @@ function updateMarkdownRangeIndex(
   const newSource = transaction.newDoc.toString();
   // Keep ordinary typing incremental. CodeMirror parses the changed viewport as needed,
   // while table and MDX edits need the complete tree to preserve structural boundaries.
-  if (requiresCompleteParse(transaction, previous)) {
-    ensureSyntaxTree(transaction.state, transaction.state.doc.length, 5_000);
-  }
-  const tree = syntaxTree(transaction.state);
+  //
+  // 判定结果复用到下方的覆盖度选择：一旦在这里做了全量解析，覆盖度就必须重新
+  // **测量**（树已是完整的），不能再走投影分支（投影会保留旧的 `complete: false`）。
+  const parsedCompletely = requiresCompleteParse(transaction, previous);
+  // 全量解析时**必须拿 ensureSyntaxTree 的返回值**建索引：
+  // `syntaxTree(transaction.state)` 是 update 期 takeTree() 截下的快照，
+  // 不会随 ensureSyntaxTree 推进（见 coverage.ts 文件头）。
+  const parsedTree = parsedCompletely
+    ? ensureSyntaxTree(transaction.state, transaction.state.doc.length, 5_000)
+    : null;
+  const tree = parsedTree ?? syntaxTree(transaction.state);
   const changedRanges = collectChangedRanges(transaction);
   const oldDirty = mergeRanges(
     changedRanges.map(({ oldRange }) =>
@@ -359,6 +367,16 @@ function updateMarkdownRangeIndex(
   expandFrontmatterPriorityRanges(oldSource, newSource, changedRanges, oldDirty, newDirty);
   getWysiwygDiagnostics(transaction.state)?.recordDirtyBlockRebuild(newDirty);
 
+  // 复用未受影响的记录。
+  //
+  // ⚠️ 这里必须 `push` 而不是 `insertRecord`：`insertRecord` 是线性插入排序
+  // （`while (index < records.length && compareRecords(...) <= 0) index++`），
+  // 对 n 条记录逐条插入是 O(n²)。实测 3999 条记录时，仅 `insertRecord` +
+  // `compareRecords` 就占每次按键 48ms 中的 **74%**（CPU profile），是本文件最大的热点。
+  //
+  // 可以安全追加的前提：`previous.records` 本身已按 `compareRecords` 全序排列
+  // （`MarkdownRangeIndex` 的构造不变量），且 `mapRecord` 保持相对顺序不变
+  // （单调映射 + 单点插入不会让两条记录的先后关系反转）。
   const mapped: MarkdownRangeRecord[] = [];
   for (const record of previous.records) {
     if (record.kind === "frontmatter" || touchesAny(record.blockRange, oldDirty)) {
@@ -366,11 +384,15 @@ function updateMarkdownRangeIndex(
     }
     const nextRecord = mapRecord(record, transaction.changes, newSource);
     if (nextRecord && !touchesAny(nextRecord.blockRange, newDirty)) {
-      insertRecord(mapped, nextRecord);
+      mapped.push(nextRecord);
     }
   }
 
-  const coverage = readCoverage(transaction.state);
+  // 已全量解析 ⇒ 直接测量；否则投影，但投影内部会核对语法树是否真覆盖全文
+  // （`LanguageState.apply` 的 20ms 预算可能截断树，见 coverage.ts）。
+  const coverage = parsedCompletely
+    ? coverageOfTree(tree, newSource.length)
+    : projectCoverage(previous.coverage, transaction.state);
   const rebuilt = buildMarkdownRangeIndex(newSource, tree, {
     coverage,
     version: previous.version + 1,
@@ -378,10 +400,8 @@ function updateMarkdownRangeIndex(
     mdxMode: transaction.state.facet(mdxModeFacet),
     pluginRegistry: transaction.state.facet(syntaxPluginRegistryFacet),
   });
-  const records = [...mapped];
-  for (const record of rebuilt.records) {
-    insertRecord(records, record);
-  }
+  // 两段都已按 `compareRecords` 有序，做一次线性归并而不是逐条插入排序。
+  const records = mergeSortedRecords(mapped, rebuilt.records);
   getWysiwygDiagnostics(transaction.state)?.recordMappedRanges(mapped.length);
   return new MarkdownRangeIndex(records, coverage, newSource.length, previous.version + 1);
 }
@@ -400,51 +420,6 @@ function requiresCompleteParse(transaction: Transaction, previous: MarkdownRange
     }
   });
   return touchesTable;
-}
-
-/**
- * 从**已存在**的语法树读取解析覆盖深度（不做任何解析工作）。
- *
- * 为什么不在这里 `ensureSyntaxTree`：该函数会被增量更新路径（每次按键）调用，
- * 而 `ensureSyntaxTree` 是**同步阻塞**的全文档解析 —— 实测 8000 行文档每次 20-77ms，
- * 直接把打字卡成幻灯片（远超 16ms 帧预算）。
- *
- * 增量编辑后 CM 复用未变动的子树，`syntaxTree(state)` 通常已覆盖全文
- * （取用约 0.001ms）。需要「确保完整解析」的场景（MDX / 结构编辑 / 覆盖度不足）
- * 由 `requiresCompleteParse` 在更新前显式调用 `ensureSyntaxTree`：
- * **解析决策归 `requiresCompleteParse`，覆盖度测量归本函数**。
- */
-function readCoverage(state: EditorState): MarkdownParseCoverage {
-  const tree = syntaxTree(state);
-  const to = Math.min(tree.length, state.doc.length);
-  return Object.freeze({
-    to,
-    complete: to >= state.doc.length || syntaxTreeAvailable(state, state.doc.length),
-  });
-}
-
-/**
- * 由**权威语法树**推导覆盖度（纯函数，不做任何解析）。
- *
- * `tree` 必须是调用方实际拿去 `buildMarkdownRangeIndex` 的那一棵 ——
- * 通常是 `ensureSyntaxTree(...)` 的**返回值**。
- *
- * ## 绝不能在 `ensureSyntaxTree` 之后回头读 `syntaxTree(state)`
- *
- * 语法树有两个**不同步**的视图：`syntaxTree(state)` 是 `EditorState.update` 期间由
- * `takeTree()` 截下的**快照**；`ensureSyntaxTree` 只推进会 `LanguageState.context`
- * 并返回新树，**不更新**快照；`syntaxTreeAvailable` 读的则是已推进的 context。
- *
- * 混用两者的后果：`LanguageState` 初始化只解析 `Work.InitViewport`（约 3000 字符），
- * 大文档首次建索引会得到 `{ to: ~3000, complete: true }`，其后记录全被误判为
- * `parserCoverage: "partial"`，标题/表格/代码块/列表投影集体退化为源码
- * （实测 6379 字符、200 标题 → `coverage.to = 3017`，102 个标题 partial）。
- *
- * 本函数只接受树本身，从签名上杜绝这种混用。
- */
-function coverageOfTree(tree: Tree, documentLength: number): MarkdownParseCoverage {
-  const to = Math.min(tree.length, documentLength);
-  return Object.freeze({ to, complete: to >= documentLength });
 }
 
 /**
@@ -683,11 +658,26 @@ function collectChangedRanges(
  * 按键即 ~55ms（实测），打字直接掉帧。
  *
  * 但“扩展”会**迭代放大**查询区间：某个记录被并入后 `expanded` 变宽，可能再触及
- * 邻居记录。因此不能只查一次：每轮用二分定位首个候选（`blockRange.from` 有序），
- * 向后扫描到 `blockRange.from > expanded.to` 即停，直到区间不再增长。
+ * 邻居记录。因此不能只查一次：每轮用二分定位首个候选，向后扫描到
+ * `blockRange.from > expanded.to` 即停，直到区间不再增长。
  *
- * 记录按 `blockRange.from` 升序排列（`insertRecord` 保证），故用
- * `findFirstCandidate` 对前缀最大值数组做 O(log N) 定位。
+ * ## 依赖的排序不变量（不得想当然）
+ *
+ * `compareRecords` 排序依据是 **`fullRange.from`**，不是 `blockRange.from`。
+ * 这里能按 `blockRange.from` 单调向后扫描并 `break`，依赖的是更强的结构性事实：
+ *
+ * 1. `visitParserNode` 从 `Document` 的直接子节点开始递归，且只有当父节点是
+ *    `Document` 时才把 `blockRange` 设为该子节点自身的范围；其余层级一律继承
+ *    父级的 `blockRange`（见 `visitParserNode` 的 `childBlockRange` 计算）。
+ *    因此**同一个顶层块内所有记录的 `blockRange` 完全相同**。
+ * 2. `frontmatter` / `mdx-jsx` 记录的 `blockRange` 就是自身范围
+ *    （`createFrontmatterRecord`、`createMdxRecord`）。
+ * 3. 由 1、2 可得：`records` 按 `fullRange.from` 升序时，`blockRange.from` 必然
+ *    **非递减**（同一顶层块的记录挤在一起，块与块按起点递增）。
+ *
+ * ⚠️ `blockRange.from` 是**非严格**递增（同块内重复），所以这里不能用
+ * “相等即 break”之类的判断；只比较 `>`。该不变量由
+ * `range-index.test.ts` 的「records 的 blockRange.from 非递减」用例锁定。
  */
 function expandOldDirtyRange(
   document: Text,
@@ -732,7 +722,11 @@ function expandOldDirtyRange(
  * 结合新文档及顶层语法块边界扩展新脏区间。
  *
  * 与 {@link expandOldDirtyRange} 同构：顶层节点数量可达数千（每个段落/列表各一个），
- * 线性扫描同样是每次按键的 O(n) 成本。顶层范围天然按起点升序，同样用二分定位候选。
+ * 线性扫描同样是每次按键的 O(n) 成本。
+ *
+ * `getTopLevelRanges` 按 `Document` 子节点的树序遍历产出，`nodeRange` 的 `from`
+ * 天然严格递增，因此这里可以直接用二分定位候选（排序依据就是 `from` 本身，
+ * 不涉及 `expandOldDirtyRange` 那条 `blockRange` 间接不变量）。
  */
 function expandNewDirtyRange(
   document: Text,
