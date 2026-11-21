@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.25.0 - 2026-11-21 (#288)
+
+- Edit Mermaid sequence diagrams with alt/else/loop fragments, including block conditions, plus autonumber, notes and activations. Fix low-contrast diagram menus in light themes and the transparent viewer background that let document text show through.
+
 ## 0.24.0 - 2026-11-21 (#283)
 
 - Faster typing on large documents and broader table interactions. Tables now support dragging to select cells and copying them as TSV, plus transient column resizing. Fixed tables overflowing the editor with a horizontal scrollbar, the text column sitting off-centre, blocked column resizing, and headings and code blocks rendering as source on large documents.
