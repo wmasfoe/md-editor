@@ -1,4 +1,5 @@
 import type { EditorOp, MermaidWysiwygEditor, OpResult, Origin } from "@visimer/core";
+import { sequenceBlockConditionEdit } from "./mermaid-sequence-blocks.ts";
 
 // Preserve the existing ASCII label alphabet and accept Unicode punctuation as literal text.
 // Mermaid's ASCII delimiters and control characters are still excluded.
@@ -7,6 +8,18 @@ export function isMermaidLabel(value: string): boolean {
     value,
   );
 }
+
+/**
+ * 宿主侧的草稿编辑器：在 Visimer 之上补上「非实体」的源码行编辑能力。
+ *
+ * 块关键字（alt/else/loop…）在 Visimer 里没有实体 id，也没有对应 operation，
+ * 所以只能走源码补丁；但补丁必须和 dispatch 一样先落到一次性草稿上校验，
+ * 否则一次非法输入就会污染画布历史。
+ */
+export type MermaidDraftEditor = MermaidWysiwygEditor & {
+  /** 重写某个块分支关键字之后的条件文案；`lineIndex` 不是块行时不做任何事。 */
+  setBlockCondition(lineIndex: number, condition: string): void;
+};
 
 interface DraftEditorOptions {
   readonly source: string;
@@ -21,7 +34,7 @@ interface DraftEditorOptions {
 export function createMermaidDraftEditor(
   Editor: typeof MermaidWysiwygEditor,
   options: DraftEditorOptions,
-): MermaidWysiwygEditor {
+): MermaidDraftEditor {
   let validating = false;
 
   return new (class extends Editor {
@@ -66,6 +79,13 @@ export function createMermaidDraftEditor(
 
     override deleteEntities(entities: string[], origin: Origin = "canvas"): void {
       this.#stage((draft) => draft.deleteEntities(entities, origin), origin);
+    }
+
+    setBlockCondition(lineIndex: number, condition: string): void {
+      this.#stage((draft) => {
+        const edit = sequenceBlockConditionEdit(draft.result, lineIndex, condition);
+        if (edit) draft.applyEdits([edit], "canvas");
+      }, "canvas");
     }
 
     override undo(): boolean {
