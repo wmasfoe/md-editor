@@ -10,7 +10,16 @@ import type {
 import { parseMermaid, runMermaidOperation } from "./mermaid-loader.ts";
 import { installConnectHandles } from "./mermaid-connect-handles.ts";
 import { installInlineNodeCreation } from "./mermaid-inline-node-creation.ts";
-import { createMermaidDraftEditor, isMermaidLabel } from "./mermaid-draft-editor.ts";
+import {
+  createMermaidDraftEditor,
+  isMermaidLabel,
+  type MermaidDraftEditor,
+} from "./mermaid-draft-editor.ts";
+import {
+  listSequenceBlockBranches,
+  sequenceConditionError,
+  type SequenceBlockBranch,
+} from "./mermaid-sequence-blocks.ts";
 import { mermaidGraphicalEditorCss } from "./mermaid-graphical-editor-css.ts";
 
 /**
@@ -95,13 +104,33 @@ function isSimpleFlowchart(graph: FlowGraph, text: EditorMessageTranslator): str
   return null;
 }
 
+/**
+ * 时序图语句种类白名单。只放行「文本补丁不会与之产生新实体」的语句：
+ * - 块关键字（alt/else/loop/…）只影响渲染分组，Visimer 的行级补丁不会触碰它们；
+ * - autonumber / note / activate / deactivate 都有对应的引擎能力（note 本身是事件实体）。
+ *
+ * 仍拒绝 `other`（title / create / destroy / links / properties）：create/destroy 携带
+ * 参与者生命周期，而 renameParticipant 不会同步这些行，改 ID 会留下悬空引用。
+ */
+const SUPPORTED_SEQUENCE_KINDS: ReadonlySet<string> = Object.freeze(
+  new Set([
+    "participant",
+    "message",
+    "note",
+    "end",
+    "autonumber",
+    "activation",
+    "blockOpen",
+    "blockMid",
+  ]),
+);
+
 function isSimpleSequence(graph: SequenceGraph, text: EditorMessageTranslator): string | null {
-  const supportedKinds = new Set(["participant", "message", "end"]);
   for (const statement of graph.statements.values()) {
-    if (!supportedKinds.has(statement.kind))
+    if (!SUPPORTED_SEQUENCE_KINDS.has(statement.kind))
       return text(
         "editor.mermaid.unsupportedSequence",
-        "循环、注释块或其他复杂时序语法尚不支持图形编辑",
+        "该时序图包含创建/销毁参与者或其他暂不支持的语法",
       );
   }
   const aliases = graph.participants.flatMap((participant) =>
@@ -113,7 +142,6 @@ function isSimpleSequence(graph: SequenceGraph, text: EditorMessageTranslator): 
 }
 
 const fallbackText: EditorMessageTranslator = (_key, fallback) => fallback;
-
 async function inspectSource(
   source: string,
   translate?: EditorMessageTranslator,
@@ -153,6 +181,13 @@ function safeIdentifier(value: string): boolean {
   return /^[\p{L}\p{N}_.-]+$/u.test(value);
 }
 
+/** Dropdown label for a block branch; nesting is shown with `· ` prefixes. */
+function sequenceBlockLabel(branch: SequenceBlockBranch): string {
+  return `${"· ".repeat(branch.depth - 1)}${branch.keyword}${
+    branch.condition ? ` ${branch.condition}` : ""
+  }`;
+}
+
 function selected(editor: MermaidWysiwygEditor, kind: string): string | null {
   return editor.selection.find((id) => id.startsWith(`${kind}:`)) ?? null;
 }
@@ -165,7 +200,7 @@ interface ToolbarHandle {
 
 function appendToolbar(
   parent: HTMLElement,
-  editor: MermaidWysiwygEditor,
+  editor: MermaidDraftEditor,
   sourceKind: "flowchart" | "sequence",
   text: EditorMessageTranslator,
   reportError: (message: string) => void,
@@ -190,6 +225,9 @@ function appendToolbar(
   status.setAttribute("aria-live", "polite");
   toolbar.append(status);
   const controls = new Map<HTMLButtonElement, () => string | null>();
+  // Global actions (e.g. block conditions) have no selection context to key on;
+  // they disappear when the diagram has nothing for them to edit.
+  const visibility = new Map<HTMLButtonElement, () => boolean>();
   let cancelPendingInput: (() => void) | undefined;
   let pendingInputCount = 0;
   let mutationBusy = false;
@@ -199,6 +237,7 @@ function appendToolbar(
     action: () => void | Promise<void>,
     disabledReason?: () => string | null,
     context?: string,
+    visibleWhen?: () => boolean,
   ): HTMLButtonElement => {
     const button = doc.createElement("button");
     button.type = "button";
@@ -206,6 +245,7 @@ function appendToolbar(
     button.addEventListener("click", action);
     if (context) button.dataset.context = context;
     if (disabledReason) controls.set(button, disabledReason);
+    if (visibleWhen) visibility.set(button, visibleWhen);
     actions.append(button);
     return button;
   };
@@ -214,6 +254,13 @@ function appendToolbar(
       readonly label: string;
       readonly initial?: string;
       readonly choices?: readonly { readonly value: string; readonly label: string }[];
+      /** Free-form diagram text (e.g. block conditions): skip the label alphabet check. */
+      readonly freeText?: boolean;
+      /** Keep a dependent field in sync with this field's value. */
+      readonly sync?: (
+        value: string,
+        fields: readonly (HTMLInputElement | HTMLSelectElement)[],
+      ) => void;
     }[],
     validate?: (values: readonly string[]) => string | null,
   ): Promise<string[] | null> =>
@@ -222,7 +269,7 @@ function appendToolbar(
       onInputBusyChange(true);
       const panel = doc.createElement("div");
       panel.className = "cm-md-mermaid-graphical-input";
-      const fields = specs.map(({ label, initial = "", choices }) => {
+      const fields = specs.map(({ label, initial = "", choices, sync }) => {
         const inputId = `mermaid-graphical-input-${Math.random().toString(36).slice(2)}`;
         const inputLabel = doc.createElement("label");
         inputLabel.htmlFor = inputId;
@@ -246,6 +293,8 @@ function appendToolbar(
         fieldGroup.className = "cm-md-mermaid-graphical-input__field";
         fieldGroup.append(inputLabel, field);
         panel.append(fieldGroup);
+        // `fields` is only read when the event fires, after the map completes.
+        if (sync) field.addEventListener("change", () => sync(field.value, fields));
         return field;
       });
       const confirm = doc.createElement("button");
@@ -281,7 +330,8 @@ function appendToolbar(
           return;
         }
         const invalidField = fields.find(
-          (field, index) => !specs[index]?.choices && !isMermaidLabel(field.value),
+          (field, index) =>
+            !specs[index]?.choices && !specs[index]?.freeText && !isMermaidLabel(field.value),
         );
         if (invalidField) {
           status.textContent = text(
@@ -541,6 +591,69 @@ function appendToolbar(
       },
       "participant",
     );
+    // 块条件不是 Visimer 实体（画布上选不中块框），只能按源码行编辑；
+    // 按钮仅在有块时出现，嵌套块用 `· ` 前缀表达层级。
+    add(
+      text("editor.mermaid.editBlock", "修改块条件"),
+      async () => {
+        const branches = listSequenceBlockBranches(editor.result);
+        if (branches.length === 0) return;
+        const values = await askFields(
+          [
+            {
+              label: text("editor.mermaid.block", "块"),
+              initial: String(branches[0]!.lineIndex),
+              choices: branches.map((branch) => ({
+                value: String(branch.lineIndex),
+                label: sequenceBlockLabel(branch),
+              })),
+              // 切换块时回填该块当前条件，避免把 A 的条件写到 B 的行上。
+              sync: (value, fields) => {
+                const branch = branches.find((item) => String(item.lineIndex) === value);
+                if (branch) fields[1]!.value = branch.condition;
+              },
+            },
+            {
+              label: text("editor.mermaid.blockCondition", "块条件"),
+              initial: branches[0]!.condition,
+              // 条件可含 `>` `[` 等标签字符表之外的符号；但 `#` / `;` 会被
+              // mermaid 的 restOfLine lexer 截断或拆语句，必须在表单层就拒绝。
+              freeText: true,
+            },
+          ],
+          ([, condition]) => {
+            switch (sequenceConditionError(condition)) {
+              case "comment":
+                return text(
+                  "editor.mermaid.conditionComment",
+                  "块条件不能包含 #：Mermaid 会把它后面的内容当作注释截断。",
+                );
+              case "separator":
+                return text(
+                  "editor.mermaid.conditionSeparator",
+                  "块条件不能包含 ;：Mermaid 会把它当作换行，拆出新的语句。",
+                );
+              case "multi-line":
+                return text("editor.mermaid.conditionSingleLine", "块条件必须是单行文字。");
+              default:
+                return null;
+            }
+          },
+        );
+        if (!values) return;
+        const branch = branches.find((item) => String(item.lineIndex) === values[0]);
+        if (!branch) return;
+        const next = values[1]!.trim();
+        if (next === branch.condition) return;
+        // 行号是打开表单时的快照；提交时用关键字再校验一次，避免写到别的分支。
+        if (!editor.setBlockCondition(branch.lineIndex, next, branch.keyword)) {
+          status.textContent = text("editor.mermaid.blockStale", "图表已变化，块条件未写入。");
+        }
+      },
+      undefined,
+      undefined,
+      () => listSequenceBlockBranches(editor.result).length > 0,
+    );
   }
   const refresh = (): void => {
     // Selection can change while a form is open; it must not unlock a second operation.
@@ -549,6 +662,7 @@ function appendToolbar(
     for (const button of actions.querySelectorAll<HTMLButtonElement>("button[data-context]")) {
       button.hidden = !selected(editor, button.dataset.context!);
     }
+    for (const [button, visible] of visibility) button.hidden = !visible();
     hint.hidden = editor.selection.length > 0;
     for (const [button, reasonFor] of controls) {
       const reason = reasonFor();

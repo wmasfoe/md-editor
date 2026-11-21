@@ -8,6 +8,15 @@ export const mermaidGraphicalEditorCss = `
   --mw-chrome-bg: var(--theme-surface, #fff);
   --mw-chrome-fg: var(--theme-text, #24292f);
   --mw-chrome-border: var(--theme-border, #d8dee4);
+  /*
+   * Visimer 的弹层/菜单还会读 --mw-chrome-dim（次级文字）与 --mw-chrome-hover（悬停底色）。
+   * 不声明时它们回退到深色默认值（#a1a1a1 / #1f1f1f），在浅色主题下就是
+   * 「浅灰文字 + 深底深字」的低对比组合。
+   */
+  --mw-chrome-dim: var(--theme-muted, #57606a);
+  --mw-chrome-hover: var(--theme-primary-soft, #f0f3f6);
+  /* 行内标签编辑框的底色混合基准（深色主题下不能回退到白色）。 */
+  --mw-editor-bg: var(--theme-surface, #fff);
 }
 .cm-md-mermaid-graphical-editor .mw-canvas { flex: 1; min-height: 10rem; }
 .cm-md-mermaid-graphical-toolbar {
@@ -114,6 +123,13 @@ export const mermaidGraphicalEditorCss = `
 }
 .cm-md-mermaid-graphical-editor .mw-canvas .mw-new-node__input:empty::before {
   content: attr(data-placeholder); color: var(--theme-muted, #57606a);
+}
+/*
+ * Visimer 的浮层/菜单按钮没有自带焦点样式。图形编辑弹窗里的控件必须键盘可达，
+ * 这里补一个与工具栏一致的焦点环（菜单项、加号按钮、主工具栏按钮都覆盖）。
+ */
+.cm-md-mermaid-graphical-editor :is(.mw-popover-btn, .mw-popover-cell, .mw-plus-menu button, .mw-lifeline-plus):focus-visible {
+  outline: 2px solid var(--theme-primary, #0969da); outline-offset: 2px;
 }
 @media (max-width: 600px) {
   .cm-md-mermaid-graphical-toolbar { padding: 8px; }

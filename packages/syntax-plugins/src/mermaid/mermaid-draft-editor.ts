@@ -1,4 +1,5 @@
 import type { EditorOp, MermaidWysiwygEditor, OpResult, Origin } from "@visimer/core";
+import { sequenceBlockConditionEdit } from "./mermaid-sequence-blocks.ts";
 
 // Preserve the existing ASCII label alphabet and accept Unicode punctuation as literal text.
 // Mermaid's ASCII delimiters and control characters are still excluded.
@@ -7,6 +8,24 @@ export function isMermaidLabel(value: string): boolean {
     value,
   );
 }
+
+/**
+ * 宿主侧的草稿编辑器：在 Visimer 之上补上「非实体」的源码行编辑能力。
+ *
+ * 块关键字（alt/else/loop…）在 Visimer 里没有实体 id，也没有对应 operation，
+ * 所以只能走源码补丁；但补丁必须和 dispatch 一样先落到一次性草稿上校验，
+ * 否则一次非法输入就会污染画布历史。
+ */
+export type MermaidDraftEditor = MermaidWysiwygEditor & {
+  /**
+   * 重写某个块分支关键字之后的条件文案。
+   *
+   * 返回 `false` 表示没有写入：行号已不是该分支（`expectedKeyword` 对不上）、
+   * 条件违反 mermaid 的 lexer，或文本本来就没变。调用方据此给出反馈，
+   * 而不是让用户以为改了却没生效。
+   */
+  setBlockCondition(lineIndex: number, condition: string, expectedKeyword?: string): boolean;
+};
 
 interface DraftEditorOptions {
   readonly source: string;
@@ -21,7 +40,7 @@ interface DraftEditorOptions {
 export function createMermaidDraftEditor(
   Editor: typeof MermaidWysiwygEditor,
   options: DraftEditorOptions,
-): MermaidWysiwygEditor {
+): MermaidDraftEditor {
   let validating = false;
 
   return new (class extends Editor {
@@ -66,6 +85,21 @@ export function createMermaidDraftEditor(
 
     override deleteEntities(entities: string[], origin: Origin = "canvas"): void {
       this.#stage((draft) => draft.deleteEntities(entities, origin), origin);
+    }
+
+    setBlockCondition(lineIndex: number, condition: string, expectedKeyword?: string): boolean {
+      const staged = this.#stage((draft) => {
+        const edit = sequenceBlockConditionEdit(
+          draft.result,
+          lineIndex,
+          condition,
+          expectedKeyword,
+        );
+        if (!edit) return false;
+        draft.applyEdits([edit], "canvas");
+        return draft.code !== this.code;
+      }, "canvas");
+      return staged === true;
     }
 
     override undo(): boolean {

@@ -615,7 +615,8 @@ export const ja: TranslationSchema = {
       subgraphUnsupported: "サブグラフはソースで編集してください。",
       duplicateNode: "同じノードが複数回宣言されています。",
       unsupportedFlowchart: "ソースでの編集が必要なフローチャート構文があります。",
-      unsupportedSequence: "ループや注記などの構文はソースで編集してください。",
+      unsupportedSequence:
+        "参加者の作成/破棄など、グラフィカル編集に対応していない構文が含まれています。",
       duplicateAlias: "ビジュアル編集には参加者ごとに異なる別名が必要です。",
       unrecognizedSource: "Mermaid ソースを認識できません。",
       unsupportedType: "フローチャートとシーケンス図をビジュアル編集できます。",
@@ -652,6 +653,15 @@ export const ja: TranslationSchema = {
       deleteMessage: "メッセージを削除",
       selectMessage: "メッセージを選択してください",
       deleteParticipant: "参加者を削除",
+      editBlock: "ブロック条件を編集",
+      block: "ブロック",
+      blockCondition: "ブロック条件",
+      blockStale: "図が変更されたため、ブロック条件は書き込まれていません。",
+      conditionComment:
+        "ブロック条件に # は使えません。Mermaid は以降をコメントとして切り捨てます。",
+      conditionSeparator:
+        "ブロック条件に ; は使えません。Mermaid は改行として扱い、新しい文を追加します。",
+      conditionSingleLine: "ブロック条件は 1 行で入力してください。",
       selectParticipant: "参加者を選択してください",
       unsupported: "この図はビジュアル編集に対応していません。",
       view: "表示",

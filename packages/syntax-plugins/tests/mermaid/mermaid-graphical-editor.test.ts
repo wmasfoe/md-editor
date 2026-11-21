@@ -107,12 +107,36 @@ describe("Mermaid graphical editor capability", () => {
     });
   });
 
+  it("supports sequence fragments, autonumber, notes and activations", async () => {
+    // 回归：带 alt/else + autonumber 的真实时序图曾被整类拒绝，工具栏只剩「编辑源码」。
+    const source = `sequenceDiagram
+    autonumber
+    actor User as 用户
+    participant CM as CodeMirror 编辑器
+    participant Loader as Dynamic Loader
+    User->>CM: 打开包含 Mermaid 的文档
+    CM->>Loader: loadMermaid()
+    alt 首次加载 (未缓存)
+        Loader->>Loader: 注册主题与初始化
+    else 已加载
+        Loader-->>CM: 直接命中单例
+    end
+    note right of CM: 缓存命中
+    activate CM
+    CM-->>User: 渲染图表
+    deactivate CM`;
+    await expect(mermaidGraphicalEditor.inspect(source)).resolves.toEqual({
+      supported: true,
+    });
+  });
+
   it("keeps unsupported syntax on the source editing path", async () => {
     await expect(
       mermaidGraphicalEditor.inspect("flowchart TD\nsubgraph group\n A-->B\nend"),
     ).resolves.toMatchObject({ supported: false, reason: expect.any(String) });
+    // create/destroy 携带参与者生命周期，renameParticipant 不会同步这些行。
     await expect(
-      mermaidGraphicalEditor.inspect("sequenceDiagram\nloop repeat\n A->>B: hi\nend"),
+      mermaidGraphicalEditor.inspect("sequenceDiagram\n create participant B\n A->>B: hi"),
     ).resolves.toMatchObject({ supported: false, reason: expect.any(String) });
     await expect(
       mermaidGraphicalEditor.inspect("pie\n title Other diagram"),
@@ -371,6 +395,78 @@ describe("Mermaid graphical editor capability", () => {
     expect(updates).toEqual([
       "sequenceDiagram\n participant A\n participant B\n A->>B: same\n A->>B: second only",
     ]);
+    handle.destroy();
+    container.remove();
+  });
+
+  it("edits a sequence block condition through the production toolbar", async () => {
+    const svgPrototype = window.SVGElement.prototype as SVGElement & {
+      getBBox?: () => DOMRect;
+      getComputedTextLength?: () => number;
+    };
+    svgPrototype.getBBox ??= () => ({ x: 0, y: 0, width: 80, height: 24 }) as DOMRect;
+    svgPrototype.getComputedTextLength ??= () => 64;
+    const container = document.createElement("div");
+    document.body.append(container);
+    const updates: string[] = [];
+    const source = [
+      "sequenceDiagram",
+      " autonumber",
+      " participant A",
+      " participant B",
+      " A->>B: hi",
+      " alt old condition",
+      "   B-->>A: yes",
+      " else other condition",
+      "   B-->>A: no",
+      " end",
+    ].join("\n");
+    const handle = await mermaidGraphicalEditor.mount({
+      container,
+      source,
+      isDark: false,
+      onChange: (next) => updates.push(next),
+    });
+    const toolbar = container.querySelector(".cm-md-mermaid-graphical-toolbar")!;
+    const blockButton = [...toolbar.querySelectorAll("button")].find(
+      (button) => button.textContent === "修改块条件",
+    );
+    // Blocks are not canvas entities, so the only entry point is this toolbar action.
+    expect(blockButton).not.toBeUndefined();
+    expect(blockButton!.hidden).toBe(false);
+    blockButton!.click();
+    const panel = container.querySelector<HTMLElement>(".cm-md-mermaid-graphical-input")!;
+    const select = panel.querySelector("select")!;
+    const input = panel.querySelector("input")!;
+    expect(select.value).toBe("5");
+    expect(input.value).toBe("old condition");
+    // Switching the branch refills the condition field with that branch's text.
+    select.value = "7";
+    select.dispatchEvent(new Event("change"));
+    expect(input.value).toBe("other condition");
+    select.value = "5";
+    select.dispatchEvent(new Event("change"));
+    expect(input.value).toBe("old condition");
+    input.value = "x > 0 && [重试]";
+    panel.querySelector<HTMLButtonElement>("button")!.click();
+    await vi.waitFor(() => expect(updates).toHaveLength(1));
+    expect(updates[0]).toContain(" alt x > 0 && [重试]");
+    expect(updates[0]).toContain(" else other condition");
+    expect(updates[0]).toContain(" autonumber");
+
+    // `#` would be silently truncated by Mermaid's restOfLine lexer: reject it in the form
+    // and keep the panel open with a reason instead of writing a half-rendered condition.
+    blockButton!.click();
+    const rejectedPanel = container.querySelector<HTMLElement>(".cm-md-mermaid-graphical-input")!;
+    rejectedPanel.querySelector<HTMLInputElement>("input")!.value = "retry #3";
+    rejectedPanel.querySelector<HTMLButtonElement>("button")!.click();
+    await vi.waitFor(() =>
+      expect(
+        container.querySelector(".cm-md-mermaid-graphical-toolbar output")?.textContent,
+      ).toContain("#"),
+    );
+    expect(container.querySelector(".cm-md-mermaid-graphical-input")).not.toBeNull();
+    expect(updates).toHaveLength(1);
     handle.destroy();
     container.remove();
   });

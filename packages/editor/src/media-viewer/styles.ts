@@ -90,6 +90,11 @@ export const VIEWER_CSS = [
   "}",
   ".cm-md-media-viewer__media--svg {",
   "  cursor: inherit;",
+  // Mermaid 的 SVG 根节点没有背景；不加实心底色时，浮层后面的文档会从图表内部透出来
+  // （深色遮罩下变成"幽灵文字"，与图表标签互相干扰）。卡片化也让浮层看起来是有意设计的。
+  "  background: var(--theme-surface, #fff);",
+  "  border-radius: 10px;",
+  "  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);",
   "}",
   ".cm-md-media-viewer__close,",
   ".cm-md-media-viewer__edit {",
