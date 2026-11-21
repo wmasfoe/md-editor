@@ -932,3 +932,118 @@ describe("覆盖度不变量（解析预算截断防护）", () => {
     }
   });
 });
+
+/**
+ * 覆盖度与记录状态的一致性不变量（廉价防护锁）。
+ *
+ * ## 为什么需要它
+ *
+ * `parserCoverage` 是投影的硬开关：`projections/*.ts` 里普遍写
+ * `if (record.parserCoverage !== "complete") return []` —— 表格、代码块、HTML、
+ * MDX、列表、标题、frontmatter、链接都会因此退回**源码显示**。
+ *
+ * 记录只有在「建它的那棵树没解析到它末尾」（`fullRange.to > coverage.to`）时才会
+ * 被标成 `partial`。于是存在一种自相矛盾且**不会自愈**的状态：
+ *
+ * > 索引声称 `coverage.complete === true`（整篇都读完了），
+ * > 却仍留着 `partial` 记录（那些块永远显示源码）。
+ *
+ * 一旦这种状态出现，`parse-progress` 的两个刷新条件
+ * （`tree.length > coverage.to` 与 `!coverage.complete`）都不成立，
+ * 后台解析补齐后也不会触发全量重建，那些块就永久停在源码形态，
+ * 直到用户正好编辑到那里。
+ *
+ * ## 现状
+ *
+ * 修复「覆盖度双视图混用」之后，实测在 142KB / 708KB / 1.8MB 三档文档 +
+ * 各类结构破坏编辑下都**未能**产生 partial 记录，因此这不是当前已知可复现缺陷，
+ * 而是防御性约束。加这条锁的成本很低，价值在于：若将来某次改动让该状态变得可达，
+ * 这里会立刻失败，而不是等用户发现「表格变成源码」。
+ *
+ * ## 防止本用例自身空转
+ *
+ * `check` 在 `coverage.complete === false` 时会跳过断言。若某天解析视口策略变化
+ * 导致每次检查时 coverage 都不完整，用例会静默通过——什么都没测到。
+ * 因此额外锁定两条：首建索引必须是 `complete`，且循环结束后「实际断言过的次数」
+ * 必须大于零。
+ *
+ * 相关阅读：`src/markdown/coverage.ts` 的文件头（双视图陷阱）。
+ */
+describe("不变量：coverage.complete 时不得残留 partial 记录", () => {
+  it("首次建索引与各类编辑后均无矛盾状态", () => {
+    // 尺寸刻意跨过 LanguageState 的初始视口（约 3000 字符），并留出一档更大的文档
+    // 以提高「解析预算耗尽」的概率；不做暖机，首建即检查。
+    for (const blockCount of [300, 1200]) {
+      const parts: string[] = [];
+      for (let index = 0; index < blockCount; index += 1) {
+        parts.push(
+          `## 标题 ${index}`,
+          "",
+          `正文 ${index}，含**粗体**与 \`代码\`。`,
+          "",
+          "| A | B |",
+          "| --- | --- |",
+          `| ${index} | x |`,
+          "",
+        );
+      }
+      // 基线只建一次，每类编辑都从**同一个**基线出发：
+      // 否则插入「未闭合围栏」之后的编辑都发生在「整篇变成代码块」的文档上，
+      // 各类型的覆盖会互相污染（review 指出）。
+      const baseline = EditorState.create({
+        doc: parts.join("\n"),
+        extensions: [markdown({ extensions: M1_MARKDOWN_EXTENSIONS }), markdownRangeIndexField],
+      });
+
+      const violations: string[] = [];
+      let checked = 0;
+      const check = (label: string, state: EditorState) => {
+        const index = state.field(markdownRangeIndexField);
+        if (!index.coverage.complete) {
+          return;
+        }
+        checked += 1;
+        const partial = index.records.filter((record) => record.parserCoverage !== "complete");
+        if (partial.length > 0) {
+          violations.push(
+            `${label}: ${partial.length}/${index.records.length} 条 partial` +
+              `（${partial
+                .slice(0, 3)
+                .map((record) => `${record.kind}@${record.fullRange.from}`)
+                .join(", ")}）`,
+          );
+        }
+      };
+
+      // 首建必须是完整覆盖，否则下面的 check 会全部跳过、用例空转。
+      expect(baseline.field(markdownRangeIndexField).coverage.complete).toBe(true);
+      check(`${blockCount} 块 · 首次建索引`, baseline);
+
+      // `from` 用当前 state 惰性求值：数组在循环前构造，若写成 `state.doc.length`
+      // 会被求值成**当时的**长度，插入后就不再是真正的尾部（review 指出）。
+      const edits: readonly {
+        readonly label: string;
+        readonly from: (current: EditorState) => number;
+        readonly insert: string;
+      }[] = [
+        { label: "中部打字", from: (current) => Math.floor(current.doc.length / 2), insert: "a" },
+        { label: "插入标题", from: () => 0, insert: "## 新标题\n" },
+        { label: "插入未闭合围栏", from: () => 0, insert: "```\n" },
+        { label: "插入未闭合注释", from: () => 0, insert: "<!--" },
+        { label: "尾部打字", from: (current) => current.doc.length, insert: "z" },
+      ];
+      for (const edit of edits) {
+        const from = edit.from(baseline);
+        const next = baseline.update({
+          changes: { from, insert: edit.insert },
+          selection: EditorSelection.cursor(from + edit.insert.length),
+        }).state;
+        check(`${blockCount} 块 · ${edit.label}`, next);
+      }
+
+      // 防空转：至少要有一条检查真的执行过断言。
+      expect(checked).toBeGreaterThan(0);
+      expect(violations).toEqual([]);
+    }
+  });
+});
