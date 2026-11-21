@@ -1,5 +1,18 @@
 # @md-editor/editor
 
+## 0.4.0
+
+### Minor Changes
+
+- ffc27d9: Add table range selection, adjustable column widths, and incremental document statistics. Reduce Markdown parsing work during ordinary edits.
+
+### Patch Changes
+
+- ffc27d9: Fix the editor content being shifted right on narrower windows. The content padding floors are now symmetric (`2.5rem` on both sides) instead of `5.5rem` left / `1.25rem` right, so the text column stays centered and no longer hugs the scrollbar; the left floor still covers the fold toggle gutter.
+- ffc27d9: Make incremental Markdown index updates linear instead of quadratic. Reused records and rebuilt ranges are now merged in one pass rather than inserted one by one into a sorted array, and coverage is projected from the previous index instead of re-measured. On an 800-block document this drops the per-keystroke cost from ~51ms to ~9ms.
+- ffc27d9: Avoid a synchronous full-document parse on every keystroke. `readCoverage` no longer calls `ensureSyntaxTree` on the incremental update path; parse decisions stay in `requiresCompleteParse`, and dirty-range expansion now locates candidates with binary search instead of scanning every record. Also re-measure table overflow when fonts load after mount, not just once via `document.fonts.ready`.
+- ffc27d9: Fix tables overflowing the editor with a page-level horizontal scrollbar. Tables now adapt to the content column, wrap long cells, and fall back to scrolling inside the table itself when columns cannot shrink further; row/column handles and column resizing stay usable in both states.
+
 ## 0.3.3
 
 ### Patch Changes
