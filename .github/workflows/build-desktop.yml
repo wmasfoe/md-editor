@@ -153,6 +153,11 @@ jobs:
 
   # 桌面端浏览器 E2E 是 PR CI 的最长链路（曾占 12m 里的 9m30s），因此按 Playwright
   # 的 `--shard` 切片并行跑：每个 shard 是独立 runner，互不干扰，setup 开销固定。
+  #
+  # 为什么停在 3 片而不更多：macOS runner 的并发上限是 5（Free/Pro）。同一 run 里
+  # 还有 Release Script Tests 和 Rust Validation (macOS) 各占 1 个槽位（2 + 3 = 5）。
+  # 实测 4 片时 `Browser E2E (4/4)` 和 `Rust Validation (macOS)` 确实在排队，
+  # 要开第 4 片必须先把 Web Diagram E2E 这类不依赖 macOS 的 job 迁到 ubuntu。
   # 增减分片只需改下面的 `matrix.shard` 列表，`strategy.job-total` 会自动跟上。
   test-e2e-desktop:
     name: Browser E2E (${{ matrix.shard }}/${{ strategy.job-total }})
@@ -164,7 +169,6 @@ jobs:
           - 1
           - 2
           - 3
-          - 4
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -205,9 +209,14 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  # 桌面端 E2E 留在 macOS 是有意义的：应用里有 `isMac` 分支（如
+  # `packages/app-ui/src/keyboard.ts`），E2E 里的 `MOD_KEY` 会在 darwin 上跑 Meta 路径。
+  # 而这个 web 图表套件只测 `apps/web` 的 Playwright Chromium，自己就按
+  # `navigator.platform` 选修饰键，也没有像素级基准图（截图只做产物），
+  # 且它已经不在 macOS 瓶颈上——放到 ubuntu 既快又能腾出 macOS 并发槽位。
   test-e2e-web-diagram:
     name: Web Diagram E2E
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -227,7 +236,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install Chromium for web diagram tests
-        run: pnpm --filter @md-editor/web exec playwright install chromium
+        run: pnpm --filter @md-editor/web exec playwright install --with-deps chromium
 
       - name: Run web Mermaid diagram tests
         run: pnpm --filter @md-editor/web exec playwright test --config playwright.diagram.config.ts

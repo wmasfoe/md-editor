@@ -317,6 +317,11 @@ jobs:
     # 可能还没上传，download-artifact 只能拿到已完成 job 的产物 →
     # Linux ARM64 安装包会被静默漏发（R2 / GitHub Release / tap 都缺），
     # 而且补跑也追不回来（发布 job 已经跑完）。
+    #
+    # 两种“异常结束”的语义差异（有意为之，不要改成 always()）：
+    # - arm64 失败：continue-on-error 把它报成 success，发布照常，只是本次无 ARM64 产物；
+    # - arm64 被取消：result 是 cancelled，发布被 skip。取消意味着不知道该平台上产物的
+    #   状态，比“不发布”更安全——不完整的全平台发布比一次延后可糟。
     needs:
       - verify
       - build-macos
