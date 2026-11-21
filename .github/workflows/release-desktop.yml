@@ -13,9 +13,58 @@ concurrency:
 env:
   # 应用内更新清单的必备平台：缺产物或签名时发版失败，避免某个平台静默收不到更新。
   # Linux aarch64 构建允许失败（build-linux-arm64 设了 continue-on-error），因此不列入。
+  # 注意：continue-on-error 只决定“失败是否让整个 workflow 变红”，不决定时序——
+  # publish-release 仍然 needs 它，所以 arm64 跑完（成功或失败）才会开始发布。
   REQUIRED_UPDATER_PLATFORMS: darwin-aarch64,windows-x86_64,linux-x86_64-appimage,linux-x86_64-deb
 
 jobs:
+  # 这个 tag 指向的是发版脚本自己生成的 `chore(release): release x.y.z` 提交，
+  # PR CI 从未验证过它（版本号、CHANGELOG、lockfile 都是发版时才改的）。
+  # 所以发版仍然要跑一遍 JS 侧全量门禁，但必须与平台构建并行——
+  # 以前它塞在 build-macos 里串行执行，占掉了 macOS job 15m49s 中的 9m22s，
+  # 而 macOS 通常是最长链路，等于把已经验证过的东西再阻塞一次发布。
+  # Rust 侧的 lint/test 不在这里重复：PR CI 的 test-rust 三平台 matrix 已覆盖，
+  # 而下面各平台的 release 构建本身就会真正编译、链接、打包 Rust 代码。
+  verify:
+    name: Verify release commit
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.6.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # 与 PR CI 的 lint / typecheck / test-unit 使用同一组命令（ubuntu 上这些 lane
+      # 与 PR 完全一致）。macOS 专属的 `test:release` 断言在这里会被
+      # `process.platform !== "darwin"` 跳过：它们已由 PR CI 的
+      # `Release Script Tests (macOS)` job 验证，且 macOS 构建本身会真的生成 DMG。
+      - name: Lint
+        run: |
+          pnpm lint:oxlint
+          pnpm format:prettier:check
+          pnpm lint:structure
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Tests
+        run: pnpm test
+
   build-macos:
     name: Build macOS (Apple Silicon)
     runs-on: macos-latest
@@ -39,8 +88,6 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy, rustfmt
 
       - name: Cache Rust build
         uses: actions/cache@v4
@@ -56,13 +103,6 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Lint & Tests
-        run: |
-          pnpm lint
-          pnpm typecheck
-          pnpm test
-          pnpm test:rust
 
       - name: Build macOS app
         env:
@@ -272,7 +312,22 @@ jobs:
 
   publish-release:
     name: Publish tagged release & update tap
-    needs: [build-macos, build-linux-x64, build-windows-x64]
+    # build-linux-arm64 必须列在这里：它的 continue-on-error 只保证“失败不红”。
+    # 不放进 needs 时它是独立节点，三个构建一完就发布，此时 arm64 的 artifact
+    # 可能还没上传，download-artifact 只能拿到已完成 job 的产物 →
+    # Linux ARM64 安装包会被静默漏发（R2 / GitHub Release / tap 都缺），
+    # 而且补跑也追不回来（发布 job 已经跑完）。
+    #
+    # 两种“异常结束”的语义差异（有意为之，不要改成 always()）：
+    # - arm64 失败：continue-on-error 把它报成 success，发布照常，只是本次无 ARM64 产物；
+    # - arm64 被取消：result 是 cancelled，发布被 skip。取消意味着不知道该平台上产物的
+    #   状态，比“不发布”更安全——不完整的全平台发布比一次延后可糟。
+    needs:
+      - verify
+      - build-macos
+      - build-linux-x64
+      - build-linux-arm64
+      - build-windows-x64
     runs-on: macos-latest
     permissions:
       contents: write

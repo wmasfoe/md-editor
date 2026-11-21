@@ -118,6 +118,48 @@ curl -s https://download.jiaqi.im/api/inkpoint/releases | head -c 400
 - 事故记录（2026-10-17）：旧查找只匹配 `*x64*.nsis.zip|*.zip` → Windows 自 0.12.x 起收不到应用内更新；
   （2026-11-08）Linux 签名早已生成但从未上传、也从未写入清单 → Linux 从未收到过应用内更新。
 
+## CI 拓扑与并行策略
+
+两个入口 workflow 的分工与并行约束（改这里之前先读这一节，否则容易把已验证的工作重新串到关键路径上，
+或者把尚未上传产物的构建 job 漏在发布门禁之外）。
+
+### PR：`build-desktop.yml`
+
+- 独立并行 job：`Lint & Format`、`Typecheck`、`Unit Tests`、`Rust Validation (macOS|Linux|Windows)`、`Release Script Tests (macOS)`、`Web Diagram E2E`、`Build Linux AppImage`。
+- 桌面端浏览器 E2E 是 PR CI 的最长链路（曾占单 job 12m27s 中的 9m29s），因此拆成 `Browser E2E (1..N/N)` 的 Playwright `--shard` 分片并行 job；
+  分片由 `matrix.shard` 列表决定，`--shard=<n>/${{ strategy.job-total }}` 自动跟随，失败时上传 `playwright-report-shard-<n>`（含 trace）。
+- **分片数受 macOS 并发上限约束**：Free/Pro 账号同时只能跑 5 个 macOS job，而同一 run 里
+  `Release Script Tests (macOS)` 与 `Rust Validation (macOS)` 各占 1 个，所以桌面 E2E 停在 **3 片**（2 + 3 = 5）。
+  实测 4 片时 `Browser E2E (4/4)` 与 `Rust Validation (macOS)` 会在队列里等前一个 macOS job 腾出槽位。
+  要加片必须先把不依赖 macOS 的套件迁走（`Web Diagram E2E` 已迁到 `ubuntu-latest`）；
+  桌面端 E2E 本身建议保留在 macOS，因为应用里有 `isMac` 分支（如 `packages/app-ui/src/keyboard.ts`），
+  只有 darwin 上才会真正走到 Meta/⌘ 路径。
+- `All Checks Passed` 是唯一的汇总门禁：它遍历 `needs` 里所有上游 job 的 `result`，
+  **新增 job 只加到 `needs` 列表即可**，不需要再手写判断表达式（旧实现每加一个 job 就要改一次 shell 字符串，漏改会静默放行）。
+  唯一允许 `skipped` 的是 `build-linux-appimage`（仅 `pull_request` 运行），且该容忍在 PR 事件上无效。
+
+### 发版：`release-desktop.yml` / `release-beta.yml`
+
+- 顺序：`verify` 与四个平台构建**并行** → `publish-*` 发布。
+- `verify`（ubuntu）跑 JS 侧全量门禁（oxlint / prettier / structure / typecheck / `pnpm test`）。
+  它存在的原因：tag 指向的 `chore(release): release x.y.z` 提交由发版脚本生成，**从未经过 PR CI**。
+  **这个前提是这个取舍成立的基础**：如果有人直接在任意提交上打 `v*` tag（手糊 tag、cherry-pick 分支），
+  `verify` 覆盖不到 darwin-only 的 `test:release` 断言（在 ubuntu 上按 `process.platform` 跳过），
+  也不跑 `lint:rust` / `test:rust`（靠 PR CI 的三平台 `test-rust` matrix 与各平台真实构建）。
+  那种情况下应该走完整本地门禁再打 tag。
+  以前这段校验串在 `build-macos` 里跑（占该 job 24m27s 中的 9m22s，而 macOS 通常是最长链路），
+  等于用已重复的校验阻塞不可逆的发布；抽成并行 job 后它的耗时被平台构建完全吸收。
+- `publish-release` 必须 `needs` **全部**构建 job，包括 `build-linux-arm64`。
+  `continue-on-error: true` 只表示「失败了不把 workflow 染红」，**不表示时序可以省**；
+  job 级 `continue-on-error` 的失败对下游仍然报告 `needs.<job>.result == success` 且下游照常运行，
+  所以 arm64 构建失败不会阻塞发布，但 arm64 未跑完就一定不会被发布。
+  反过来，若把它从 `needs` 摘掉，它就成了独立节点：另外三个构建一完成就发布，
+  `actions/download-artifact` 只能拿到已完成 job 的产物，Linux ARM64 安装包会被静默漏发（R2 / GitHub Release / tap 同时缺失），
+  且发布 job 已结束、补跑也追不回来。
+- **arm64 被取消（cancelled）时发布会被 skip**，这是有意的：`continue-on-error` 只吞 failure，不吞 cancelled。
+  取消意味着该平台产物状态未知，宁可本次不发也不发一个不完整的全平台版本。
+  代价是 arm64 runner 排队时也会把发布往后推（可接受：发版是人触发的，不是高频路径）。
+
 ## 合并 PR 后的线上部署决策矩阵
 
 当一个 PR 合并入 `main` 分支后，维护者或 Agent 应先执行 `git checkout main && git pull`，并根据本次 PR 涉及的修改范围决定执行哪项上线命令：

@@ -124,8 +124,11 @@ jobs:
       - name: Validate release version files
         run: node scripts/release/validate-release-version.mjs
 
-  test-e2e:
-    name: Browser E2E
+  # 发布脚本断言（llama dylib 闭包、sidecar 启动等）依赖 `otool`，在 ubuntu 的
+  # Unit Tests job 里会被 `skip: process.platform !== "darwin"` 跳过。单独用 macOS
+  # runner 跑，否则 `tauri.macos.conf.json` 的裁剪改动在 CI 中完全没有验证。
+  test-release-scripts:
+    name: Release Script Tests (macOS)
     runs-on: macos-latest
     steps:
       - name: Checkout
@@ -145,21 +148,95 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # macOS 专属的发布脚本断言（llama dylib 闭包、sidecar 启动等）依赖 `otool`，
-      # 在 ubuntu 的 Unit Tests job 里会被 `skip: process.platform !== "darwin"` 跳过。
-      # 这里复用 macOS runner 补跑一次，否则 `tauri.macos.conf.json` 的裁剪改动
-      # 在 CI 中完全没有验证。
       - name: Run release script tests (macOS-only bundle assertions)
         run: pnpm test:release
+
+  # 桌面端浏览器 E2E 是 PR CI 的最长链路（曾占 12m 里的 9m30s），因此按 Playwright
+  # 的 `--shard` 切片并行跑：每个 shard 是独立 runner，互不干扰，setup 开销固定。
+  #
+  # 为什么停在 3 片而不更多：macOS runner 的并发上限是 5（Free/Pro）。同一 run 里
+  # 还有 Release Script Tests 和 Rust Validation (macOS) 各占 1 个槽位（2 + 3 = 5）。
+  # 实测 4 片时 `Browser E2E (4/4)` 和 `Rust Validation (macOS)` 确实在排队，
+  # 要开第 4 片必须先把 Web Diagram E2E 这类不依赖 macOS 的 job 迁到 ubuntu。
+  # 增减分片只需改下面的 `matrix.shard` 列表，`strategy.job-total` 会自动跟上。
+  test-e2e-desktop:
+    name: Browser E2E (${{ matrix.shard }}/${{ strategy.job-total }})
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard:
+          - 1
+          - 2
+          - 3
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.6.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Install Playwright Chromium
         run: pnpm --filter @md-editor/desktop exec playwright install chromium
 
+      # 直接调用 playwright 而不是 `test:browser` 脚本，避免 pnpm 参数透传歧义。
       - name: Run E2E tests
-        run: pnpm --filter @md-editor/desktop test:browser
+        run: >-
+          pnpm --filter @md-editor/desktop exec playwright test
+          --config playwright.config.ts
+          --shard=${{ matrix.shard }}/${{ strategy.job-total }}
+
+      # 失败时要能拿到 HTML report 与 trace，否则分片后定位失败点只能靠日志。
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-shard-${{ matrix.shard }}
+          path: |
+            apps/desktop/playwright-report
+            apps/desktop/test-results/playwright
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # 桌面端 E2E 留在 macOS 是有意义的：应用里有 `isMac` 分支（如
+  # `packages/app-ui/src/keyboard.ts`），E2E 里的 `MOD_KEY` 会在 darwin 上跑 Meta 路径。
+  # 而这个 web 图表套件只测 `apps/web` 的 Playwright Chromium，自己就按
+  # `navigator.platform` 选修饰键，也没有像素级基准图（截图只做产物），
+  # 且它已经不在 macOS 瓶颈上——放到 ubuntu 既快又能腾出 macOS 并发槽位。
+  test-e2e-web-diagram:
+    name: Web Diagram E2E
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.6.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Install Chromium for web diagram tests
-        run: pnpm --filter @md-editor/web exec playwright install chromium
+        run: pnpm --filter @md-editor/web exec playwright install --with-deps chromium
 
       - name: Run web Mermaid diagram tests
         run: pnpm --filter @md-editor/web exec playwright test --config playwright.diagram.config.ts
@@ -220,6 +297,13 @@ jobs:
   # to build the real x86_64 AppImage: validate-appimage.mjs runs inside
   # `pnpm build:linux`, and unit tests cannot see a missing .upd_info section
   # or a runtime that ignores --appimage-updateinformation.
+  #
+  # 不要为了 PR 时长把它删掉或按 `paths:` 收窄（2026-11-21 明确决定）：稳定性优先于速度。
+  # 它是唯一能在 PR 阶段拦住 AppImage 打包契约的检查（.upd_info / .zsync /
+  # AppRun 权限 / 相对符号链接 / appstreamcli / 不打包 libwayland-client /
+  # headless 启动），而这些历史上连续出过 5 个 fix（#190–#196），其中 v0.16.4
+  # 就是发版时才炸的。`test:bundle` 只验前端产物与 gzip 预算，E2E 跑的是 dev server，
+  # 都不是打包产物。它也是 PR 当前的临界路径（~5–7m），这是有意付费的。
   build-linux-appimage:
     name: Build Linux AppImage
     if: github.event_name == 'pull_request'
@@ -282,32 +366,50 @@ jobs:
   ci-status:
     name: All Checks Passed
     if: always()
+    # 新增上游 job 只需加到这个列表：状态判断在下面的脚本里遍历 `needs` 完成，
+    # 不需要再手写一遍表达式（旧实现漏加 job 就会静默放行）。
     needs:
       - lint
       - typecheck
       - test-unit
-      - test-e2e
+      - test-release-scripts
+      - test-e2e-desktop
+      - test-e2e-web-diagram
       - test-rust
       - build-linux-appimage
     runs-on: ubuntu-latest
     steps:
       - name: Evaluate status
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
-          results="${{ needs.lint.result }} ${{ needs.typecheck.result }} ${{ needs.test-unit.result }} ${{ needs.test-e2e.result }} ${{ needs.test-rust.result }}"
-          linux="${{ needs.build-linux-appimage.result }}"
-          echo "Job results: $results"
-          echo "Linux AppImage: $linux"
-          # Manual dispatch does not run this job. A pull request must.
-          if [[ "${{ github.event_name }}" == "pull_request" || "$linux" != "skipped" ]]; then
-            results="$results $linux"
-          fi
-          for res in $results; do
-            if [[ "$res" != "success" ]]; then
-              echo "❌ One or more CI jobs failed (status: $res)."
-              exit 1
-            fi
-          done
-          echo "✅ All CI jobs succeeded!"
+          node <<'NODE'
+          const results = JSON.parse(process.env.NEEDS_JSON);
+
+          // build-linux-appimage 只在 pull_request 上运行；手动 dispatch 时它必然 skipped。
+          // 其余任何 skipped / cancelled / failure 都属于真实问题。
+          const maySkipOutsidePullRequest = new Set(["build-linux-appimage"]);
+
+          let failed = false;
+          for (const [job, { result }] of Object.entries(results)) {
+            const toleratedSkip =
+              result === "skipped" &&
+              process.env.EVENT_NAME !== "pull_request" &&
+              maySkipOutsidePullRequest.has(job);
+            const ok = result === "success" || toleratedSkip;
+            console.log(`${ok ? "✅" : "❌"} ${job}: ${result}`);
+            if (!ok) {
+              failed = true;
+            }
+          }
+
+          if (failed) {
+            console.error("❌ One or more CI jobs did not succeed.");
+            process.exit(1);
+          }
+          console.log("✅ All CI jobs succeeded!");
+          NODE
 
   build-desktop:
     name: Build Desktop (${{ matrix.platform.name }})
