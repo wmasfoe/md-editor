@@ -18,6 +18,8 @@ const rendererMock = vi.hoisted(() => {
         setCodeBlockLineNumbers: vi.fn(() => ({ status: "noop" as const })),
         setMarkdownLint: vi.fn(() => ({ status: "noop" as const })),
         setMarkdownLintEngine: vi.fn(),
+        configureMarkdownLint: vi.fn(),
+        getMarkdownLintState: () => ({ enabled: false, hasEngine: false }),
         recomputeMarkdownLint: vi.fn(() => ({ status: "noop" as const })),
         setHostVisibility: vi.fn(),
         focus: vi.fn(),

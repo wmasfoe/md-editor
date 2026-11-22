@@ -38,9 +38,15 @@ describe("editor/react public editor entrypoints", () => {
     expect(codeMirrorEditorSource).toContain("ports.setInlineStyleMarkers(showInlineStyleMarkers)");
   });
 
-  it("forwards markdown lint toggle to renderer ports", () => {
+  it("提交 markdown lint 的引擎与开关为一次原子配置", () => {
     expect(codeMirrorEditorSource).toContain("enableMarkdownLint?: boolean");
-    expect(codeMirrorEditorSource).toContain("ports.setMarkdownLint(enableMarkdownLint)");
+    // 必须一次提交 `{ engine, enabled }`：分两次会留下「开关 true + 无引擎」的非法中间态。
+    expect(codeMirrorEditorSource).toContain("ports.configureMarkdownLint({");
+    expect(codeMirrorEditorSource).toContain("engine: markdownlint,");
+    expect(codeMirrorEditorSource).toContain("enabled: enableMarkdownLint,");
+    // 不得退回两步提交。
+    expect(codeMirrorEditorSource).not.toContain("ports.setMarkdownLint(enableMarkdownLint)");
+    expect(codeMirrorEditorSource).not.toContain("ports.setMarkdownLintEngine(markdownlint)");
   });
 
   it("mounts the raw CodeMirror bridge without a controlled Markdown value", () => {

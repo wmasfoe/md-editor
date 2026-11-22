@@ -5,11 +5,13 @@
  * 引擎可以在**运行时late-arrive**（宿主把 markdownlint 改成动态 import 后，引擎会比视图晚到），
  * 因此引擎单独占一个 compartment：到达后只需 reconfigure 一次 facet，不必重建视图。
  */
-import { Compartment } from "@codemirror/state";
+import { Compartment, Transaction, type StateEffect } from "@codemirror/state";
 
 import { markdownLintEngineFacet, type MarkdownLintEngine } from "../../lint/engine.ts";
-import type { MarkdownLintPortResult, RendererViewAdapter } from "../types.ts";
-import { configureViewMarkdownLint, recomputeViewMarkdownLint } from "./view-operations.ts";
+import { createRealtimeMarkdownLintExtension } from "../../lint/index.ts";
+import { rendererTransactionOrigin } from "../../origin.ts";
+import type { MarkdownLintPortResult, MarkdownLintTarget, RendererViewAdapter } from "../types.ts";
+import { createMarkdownLintClearEffects, recomputeViewMarkdownLint } from "./view-operations.ts";
 
 export interface MarkdownLintControllerOptions {
   readonly enabled: boolean;
@@ -58,34 +60,79 @@ export class MarkdownLintController {
     return this.#engine;
   }
 
+  /** 当前配置快照（测试与宿主自检用）。 */
+  get state(): MarkdownLintTarget {
+    return { engine: this.#engine, enabled: this.#enabled };
+  }
+
   setEnabled(enabled: boolean): MarkdownLintPortResult {
-    if (this.#isDestroyed()) return { status: "destroyed" };
-    if (enabled === this.#enabled) return { status: "noop" };
-    // 先执行（可能抛错的）配置，成功后才落状态：否则抛错后会停在
-    // "已开启但未配置"，下次再传 true 直接 noop，lint 永远不会真的生效。
-    configureViewMarkdownLint(this.#getView(), this.compartment, enabled);
-    this.#enabled = enabled;
-    return { status: "applied" };
+    return this.configure({ engine: this.#engine, enabled });
   }
 
   /**
    * 运行期注入/替换引擎（宿主动态 import 完成后调用）。
    *
-   * 同一性判断取引擎上各**函数**的身份，而不是引擎对象：README 推荐的
-   * `markdownlint={{ lint }}` 每次渲染都是新对象，用对象身份会让每次渲染都
-   * reconfigure 一次 compartment（开关开着时还会重跑整份 lint）。
-   * 这条兜底与 React 层的依赖数组互为双保险（非 React 宿主也能受益）。
+   * 委托给 {@link configure}：引擎与开关永远一起校验、一起提交。
    */
   setEngine(engine: MarkdownLintEngine | undefined): MarkdownLintPortResult {
+    return this.configure({ engine, enabled: this.#enabled });
+  }
+
+  /**
+   * 原子提交 `{ engine, enabled }`。
+   *
+   * 为什么必须原子：宿主的两个 effect 先后到达时（先撤引擎、再按旧开关启用），
+   * 中间态是「开关 true + 无引擎」——既非法又会让校验抛错。把目标组合一次性
+   * 交进来，就不存在这个中间态。
+   *
+   * 顺序契约：
+   * 1. **先校验目标组合**（开启但无引擎 → 抛错），此时尚未产生任何副作用；
+   * 2. 校验通过后才派发**单个事务**（引擎 facet + 实时 lint 扩展一起 reconfigure）；
+   * 3. 事务成功后才更新控制器字段，保证"状态 === 已应用配置"。
+   *
+   * 任一环节失败，控制器与视图都保持调用前的配置（无半提交）。
+   */
+  configure(target: MarkdownLintTarget): MarkdownLintPortResult {
     if (this.#isDestroyed()) return { status: "destroyed" };
-    if (isSameEngine(engine, this.#engine)) return { status: "noop" };
-    this.#engine = engine;
+
+    const engineChanged = !isSameEngine(target.engine, this.#engine);
+    const enabledChanged = target.enabled !== this.#enabled;
+    if (!engineChanged && !enabledChanged) return { status: "noop" };
+
+    // 1) 先校验：非法组合在产生任何副作用之前就失败。
+    if (target.enabled && !target.engine) {
+      throw new Error(
+        "Cannot enable markdown lint: no `markdownlint` engine was injected when the editor was created.",
+      );
+    }
+
+    // 2) 单事务提交：引擎 facet 与实时 lint 扩展一起生效。
     const view = this.#getView();
-    view.dispatch({
-      effects: this.engineCompartment.reconfigure(markdownLintEngineFacet.of(engine)),
-    });
-    // 引擎到位时若开关已打开，立即补一次，避免"开关开着但没结果"的静默空窗。
-    if (this.#enabled) configureViewMarkdownLint(view, this.compartment, true);
+    const effects: StateEffect<unknown>[] = [];
+    if (engineChanged) {
+      effects.push(this.engineCompartment.reconfigure(markdownLintEngineFacet.of(target.engine)));
+    }
+    if (enabledChanged || engineChanged) {
+      effects.push(
+        this.compartment.reconfigure(createRealtimeMarkdownLintExtension(target.enabled)),
+      );
+    }
+    if (!target.enabled) {
+      effects.push(...createMarkdownLintClearEffects(view.state));
+    }
+    if (effects.length > 0) {
+      view.dispatch({
+        effects,
+        annotations: [
+          Transaction.addToHistory.of(false),
+          rendererTransactionOrigin.of({ kind: "markdown-lint" }),
+        ],
+      });
+    }
+
+    // 3) 事务成功后才落状态。
+    this.#engine = target.engine;
+    this.#enabled = target.enabled;
     return { status: "applied" };
   }
 

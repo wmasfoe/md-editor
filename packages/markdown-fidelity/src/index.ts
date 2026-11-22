@@ -232,8 +232,35 @@ export function extractHeadingOutline(markdown: string): readonly HeadingOutline
   const outline: HeadingOutlineItem[] = [];
   const lines = normalizeLineEndings(markdown).split("\n");
 
+  /**
+   * 代码围栏状态：**必须跳过围栏内的行**。
+   *
+   * 导出走 Markdown token，围栏里的 `# xxx` 从来不是标题；大纲若用裸正则逐行扫，
+   * 围栏内的假标题会先占掉 id，导致围栏外真正的同名标题被推到 `-1`，
+   * 大纲里的链接于是指向导出 HTML 里不存在（或指向别处）的 id。
+   *
+   * 复用本文件已有的 `matchOpeningCodeFence` / `isClosingCodeFence`，
+   * 与 `replaceManagedRawBlocks` 用同一套 CommonMark 围栏判定。
+   */
+  let openFence: { readonly marker: "`" | "~"; readonly length: number } | null = null;
+
   for (let index = 0; index < lines.length; index += 1) {
-    const match = /^(#{1,6})\s+(.+?)\s*#*$/.exec(lines[index]);
+    const line = lines[index];
+
+    if (openFence) {
+      if (isClosingCodeFence(line, openFence)) {
+        openFence = null;
+      }
+      continue;
+    }
+
+    const fence = matchOpeningCodeFence(line);
+    if (fence) {
+      openFence = fence;
+      continue;
+    }
+
+    const match = /^(#{1,6})\s+(.+?)\s*#*$/.exec(line);
     if (!match) {
       continue;
     }

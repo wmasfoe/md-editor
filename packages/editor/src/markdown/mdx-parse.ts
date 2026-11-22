@@ -3,7 +3,7 @@ import type { mdxJsxFromMarkdown as MdxJsxFromMarkdownFn } from "mdast-util-mdx-
 import type { mdxMd as MdxMdFn } from "micromark-extension-mdx-md";
 import type { mdxJsx as MdxJsxMicromarkFn } from "micromark-extension-mdx-jsx";
 
-import { getOptionalModule, noteOptionalModuleDegraded } from "../module-loader.ts";
+import { getOptionalModule } from "../module-loader.ts";
 
 /**
  * MDX 文法解析所需的重依赖。它们不在首屏静态图内：未就绪时
@@ -78,17 +78,10 @@ function isWholeExpressionText(text: string): boolean {
 }
 
 /** 源码中的 JSX 组件元素列表(深度优先,块级 + 行内)。解析失败返回空数组。 */
-export function parseMdxJsxElements(
-  source: string,
-  /** 降级记账 scope（通常是当前 `EditorState`）。 */
-  scope?: object,
-): readonly MdxJsxElement[] {
+export function parseMdxJsxElements(source: string): readonly MdxJsxElement[] {
   const parser = getOptionalModule<MdxParserBundle>(MDX_PARSER_KEY);
-  if (!parser) {
-    // 解析器按需加载中：该块保持 partial（源码可见），就绪后重解析。
-    noteOptionalModuleDegraded(scope);
-    return [];
-  }
+  // 解析器按需加载中：该块保持 partial（源码可见），就绪后重解析。
+  if (!parser) return [];
   let root: MdxAstNode;
   try {
     root = parser.fromMarkdown(source, {

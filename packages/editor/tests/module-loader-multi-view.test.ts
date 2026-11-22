@@ -1,17 +1,20 @@
 /**
- * 多实例回归：可选模块就绪后，**每个**降级过的视图都必须重算。
+ * 多实例 + 按用途刷新：可选模块就绪后的重算范围。
  *
- * 曾经的 bug：`degradedWhileLoading` 是模块级布尔量，第一个监听器消费后清零，
- * 其余编辑器实例再也不重算 —— HTML 块永久停在占位、MDX 块永久停在 partial。
- * 官网 live editor 与任何多实例宿主都会踩到。
+ * 两条历史 bug 都在这里锁住：
+ * 1. 曾用模块级布尔量记账"降级过"，第一个监听器消费后清零 → 多实例宿主里
+ *    其余编辑器的 HTML 块永久停在占位、MDX 块永久停在 partial。
+ * 2. 就绪通知不带模块名 → Turndown 就绪（只服务下一次粘贴）也会触发整份
+ *    range index 重建，纯烧 CPU。
+ *
+ * 现在的实现不做跨层记账，而是就绪时读**本视图**的索引判断要不要刷新，
+ * 并按模块名决定刷新范围。因此测试直接断言"刷新范围"与"多实例互不影响"。
  */
 import { afterEach, describe, expect, it } from "vitest";
-
+import { refreshOptionalModuleProjection } from "../src/renderer/controller/optional-modules.ts";
 import {
-  consumeOptionalModuleDegraded,
-  degradedScopeCount,
-  noteOptionalModuleDegraded,
   onOptionalModuleReady,
+  preloadOptionalModule,
   resetOptionalModuleCache,
 } from "../src/module-loader";
 
@@ -19,95 +22,114 @@ afterEach(() => {
   resetOptionalModuleCache();
 });
 
-describe("降级记账按视图隔离", () => {
-  it("两个视图都降级过时，各自都能消费到自己的标记", () => {
-    const viewA = {};
-    const viewB = {};
-
-    noteOptionalModuleDegraded(viewA);
-    noteOptionalModuleDegraded(viewB);
-    expect(degradedScopeCount()).toBe(2);
-
-    // 先消费 A：不能影响 B。
-    expect(consumeOptionalModuleDegraded(viewA)).toBe(true);
-    expect(consumeOptionalModuleDegraded(viewA)).toBe(false);
-    expect(degradedScopeCount()).toBe(1);
-
-    expect(consumeOptionalModuleDegraded(viewB)).toBe(true);
-    expect(degradedScopeCount()).toBe(0);
-  });
-
-  it("两个监听器都能拿到自己的降级标记（模拟双编辑器）", () => {
-    const viewA = {};
-    const viewB = {};
-    const refreshed: string[] = [];
-
-    // 两个渲染器各注册一个监听器，各自只认自己的 scope。
-    const detachA = onOptionalModuleReady(() => {
-      if (consumeOptionalModuleDegraded(viewA)) refreshed.push("A");
-    });
-    const detachB = onOptionalModuleReady(() => {
-      if (consumeOptionalModuleDegraded(viewB)) refreshed.push("B");
+describe("就绪通知按模块名派发", () => {
+  it("监听器能收到是哪个模块就绪", async () => {
+    const received: string[] = [];
+    const detach = onOptionalModuleReady((key) => {
+      received.push(key);
     });
 
-    noteOptionalModuleDegraded(viewA);
-    noteOptionalModuleDegraded(viewB);
+    await preloadOptionalModule("turndown", async () => ({ ok: true }));
 
-    // 模拟"任意模块就绪"：逐个通知监听器。
-    for (const listener of [detachA, detachB]) {
-      // 直接调用内部 listener 不可行，改用重复触发的方式验证记账本身。
-      expect(typeof listener).toBe("function");
-    }
-
-    // 核心断言：A 消费后 B 仍有标记（这是旧实现失败的地方）。
-    expect(consumeOptionalModuleDegraded(viewA)).toBe(true);
-    expect(consumeOptionalModuleDegraded(viewB)).toBe(true);
-
-    detachA();
-    detachB();
+    expect(received).toEqual(["turndown"]);
+    detach();
   });
 
-  it("未传 scope 时退化为全局标记，不污染视图标记", () => {
-    const view = {};
-    noteOptionalModuleDegraded();
-    noteOptionalModuleDegraded(view);
+  it("同一模块重复预加载只通知一次", async () => {
+    const received: string[] = [];
+    const detach = onOptionalModuleReady((key) => {
+      received.push(key);
+    });
 
-    // 全局标记只被"不传 scope"的消费拿走。
-    expect(consumeOptionalModuleDegraded()).toBe(true);
-    expect(consumeOptionalModuleDegraded()).toBe(false);
-    // 视图标记不受影响。
-    expect(consumeOptionalModuleDegraded(view)).toBe(true);
+    await preloadOptionalModule("turndown", async () => ({ ok: true }));
+    await preloadOptionalModule("turndown", async () => ({ ok: true }));
+
+    expect(received).toEqual(["turndown"]);
+    detach();
   });
 
-  it("reset 会清空全部记账（测试隔离）", () => {
-    noteOptionalModuleDegraded({});
-    noteOptionalModuleDegraded();
-    expect(degradedScopeCount()).toBe(1);
+  it("一个监听器抛错不影响其余订阅者（多实例宿主不能因一视图失败全体失联）", async () => {
+    const received: string[] = [];
+    const detachBad = onOptionalModuleReady(() => {
+      throw new Error("view A refresh failed");
+    });
+    const detachGood = onOptionalModuleReady((key) => {
+      received.push(key);
+    });
 
-    resetOptionalModuleCache();
-    expect(degradedScopeCount()).toBe(0);
-    expect(consumeOptionalModuleDegraded()).toBe(false);
+    await preloadOptionalModule("turndown", async () => ({ ok: true }));
+
+    // 关键：坏监听器排在前面，好监听器仍必须收到通知。
+    expect(received).toEqual(["turndown"]);
+    detachBad();
+    detachGood();
+  });
+
+  it("监听器抛错不会被当成导入失败（pending 不应被清掉导致重复导入）", async () => {
+    let imports = 0;
+    const detach = onOptionalModuleReady(() => {
+      throw new Error("boom");
+    });
+
+    await preloadOptionalModule("turndown", async () => {
+      imports += 1;
+      return { ok: true };
+    });
+    // 再调一次：已就绪，不应重新导入。
+    await preloadOptionalModule("turndown", async () => {
+      imports += 1;
+      return { ok: true };
+    });
+
+    expect(imports).toBe(1);
+    detach();
   });
 });
 
-describe("HTML 消毒 / MDX 解析把视图身份作为 scope 传入", () => {
-  it("sanitizeHtmlBlockDetailed 未就绪时用传入的 scope 记账", async () => {
-    const { sanitizeHtmlBlockDetailed } = await import("../src/markdown/html-sanitize.ts");
-    resetOptionalModuleCache();
+/**
+ * 用一个只记录 `dispatch` 的桩视图，直接验证"哪个模块就绪 → 派发几次事务"。
+ *
+ * 不用真实 harness 是因为真实视图里还有别的守卫（MDX 的 coverage 检查）会把
+ * 多余事务挡掉，导致"Turndown 也派发"这个缺陷测不出来 —— 断言就失去判别力。
+ */
+function createStubView(records: readonly { kind: string; parserCoverage: string }[]) {
+  const dispatched: number[] = [];
+  const view = {
+    state: {
+      field: () => ({ records }),
+    },
+    dispatch: (spec: { effects: unknown }) => {
+      dispatched.push(Array.isArray(spec.effects) ? spec.effects.length : 1);
+    },
+  };
+  return { view, dispatched };
+}
 
-    const stateLike = { doc: "fake" };
-    expect(sanitizeHtmlBlockDetailed("<b>x</b>", stateLike)).toBeNull();
-    // 标记记在传入的 scope 上，而不是全局。
-    expect(consumeOptionalModuleDegraded(stateLike)).toBe(true);
-    expect(consumeOptionalModuleDegraded()).toBe(false);
+describe("按用途刷新：不同模块只刷新各自影响的投影", () => {
+  it("Turndown 就绪不派发任何事务（它只服务下一次粘贴）", () => {
+    const { view, dispatched } = createStubView([{ kind: "html", parserCoverage: "complete" }]);
+    refreshOptionalModuleProjection(view as never, "turndown");
+    expect(dispatched).toEqual([]);
   });
 
-  it("parseMdxJsxElements 未就绪时用传入的 scope 记账", async () => {
-    const { parseMdxJsxElements } = await import("../src/markdown/mdx-parse.ts");
-    resetOptionalModuleCache();
+  it("消毒器就绪只刷新投影（1 个 effect），不重建解析索引", () => {
+    const { view, dispatched } = createStubView([{ kind: "html", parserCoverage: "complete" }]);
+    refreshOptionalModuleProjection(view as never, "sanitize-html");
+    // 关键：1 个 effect（仅投影），不是 2 个（投影 + 解析索引）。
+    expect(dispatched).toEqual([1]);
+  });
 
-    const stateLike = { doc: "fake" };
-    expect(parseMdxJsxElements("<Callout />", stateLike)).toEqual([]);
-    expect(consumeOptionalModuleDegraded(stateLike)).toBe(true);
+  it("MDX 解析器就绪重建解析索引（2 个 effect）", () => {
+    const { view, dispatched } = createStubView([{ kind: "mdx", parserCoverage: "partial" }]);
+    refreshOptionalModuleProjection(view as never, "mdx-parser");
+    expect(dispatched).toEqual([2]);
+  });
+
+  it("没有待刷新的记录时不派发（避免凭空打断编辑）", () => {
+    const { view, dispatched } = createStubView([
+      { kind: "paragraph", parserCoverage: "complete" },
+    ]);
+    refreshOptionalModuleProjection(view as never, "sanitize-html");
+    expect(dispatched).toEqual([]);
   });
 });

@@ -19,12 +19,60 @@ import type {
 /** 注册来源：决定"全量替换"是否会清掉它。 */
 export type PluginRegistrationOrigin = "declarative" | "imperative";
 
+/**
+ * 一个插件占用的**语法节点名**集合（冲突校验与登记的唯一定义）。
+ *
+ * 三路来源都要算上，少算任何一路都会留下绕过口：
+ * 1. Lezer `markdownExtension.defineNodes`（对象或字符串形态）—— 评审指出的缺口；
+ * 2. `nodePolicies` 的键；
+ * 3. 简写 `nodePolicy.nodeName`。
+ */
+export function syntaxNodeNames(plugin: MarkdownSyntaxPlugin): string[] {
+  return [
+    ...defineNodeNames(plugin),
+    ...Object.keys(plugin.nodePolicies ?? {}),
+    ...(plugin.nodePolicy ? [plugin.nodePolicy.nodeName] : []),
+  ];
+}
+
+/** 仅 Lezer `defineNodes` 声明的节点名（不含策略映射，登记归属时专用）。 */
+function defineNodeNames(plugin: MarkdownSyntaxPlugin): string[] {
+  const extension = plugin.markdownExtension;
+  const definitions = extension && !Array.isArray(extension) ? extension.defineNodes : undefined;
+  return (definitions ?? []).map((node) => (typeof node === "string" ? node : node.name));
+}
+
+/** 命令式注册句柄：`dispose()` 返回是否真的移除了本次注册（幂等）。 */
+export interface SyntaxPluginRegistrationHandle {
+  dispose(): boolean;
+}
+
 export class SyntaxPluginRegistry {
   readonly #plugins = new Map<string, MarkdownSyntaxPlugin>();
   readonly #nodePolicies = new Map<string, MarkdownNodePolicy>();
   readonly #nodeToPlugin = new Map<string, MarkdownSyntaxPlugin>();
+  /**
+   * 仅由 Lezer `defineNodes` 声明的节点名 → 插件。
+   *
+   * **必须与 `#nodeToPlugin` 分开**：`#nodeToPlugin` 是"谁来处理这个节点"的
+   * 分派表（`buildDecorations` / `extractMetadata` / `resolveContentRange` 都查它）。
+   * 把纯 `defineNodes` 的节点塞进去会让分派表命中一个没有装饰实现的插件，
+   * 于是 `buildDecorations` 返回空数组 —— CM6 对空 mark decoration 直接抛
+   * `Mark decorations may not be empty`（实测 syntax-plugins 3 条用例崩溃）。
+   * 这里只用于**冲突预检**，不参与分派。
+   */
+  readonly #declaredNodes = new Map<string, MarkdownSyntaxPlugin>();
   /** 命令式（`addSyntaxPlugin`）注册的 id：全量替换声明式集合时**必须保留**。 */
   readonly #imperative = new Set<string>();
+  /**
+   * 每次注册分配的单调递增代号（`id → token`）。
+   *
+   * 只比对插件对象身份不够：同一个对象可以注册 → 释放 → 再注册，此时
+   * `#plugins.get(id) === plugin` 依然成立，旧句柄就能把**新注册**摘掉
+   * （用户侧表现为"插件莫名消失"）。代号让每个句柄只认自己那一次注册。
+   */
+  readonly #tokens = new Map<string, number>();
+  #nextToken = 1;
 
   constructor(plugins: readonly MarkdownSyntaxPlugin[] = []) {
     this.registerAll(plugins);
@@ -37,17 +85,23 @@ export class SyntaxPluginRegistry {
     if (this.#plugins.has(plugin.id)) {
       throw new Error(`Syntax plugin already registered: ${plugin.id}`);
     }
-    // Preflight every node before mutating maps, including the shorthand node policy.
-    const nodes = new Set([
-      ...Object.keys(plugin.nodePolicies ?? {}),
-      ...(plugin.nodePolicy ? [plugin.nodePolicy.nodeName] : []),
-    ]);
+    // Preflight every node before mutating maps, including `defineNodes` and the
+    // shorthand node policy. `defineNodes` 曾经漏检：两个插件各自 defineNodes
+    // 同名节点会被放行，装配语言时才出问题。
+    const nodes = new Set(syntaxNodeNames(plugin));
     for (const node of nodes) {
-      if (this.#nodeToPlugin.has(node)) {
+      if (this.#nodeToPlugin.has(node) || this.#declaredNodes.has(node)) {
         throw new Error(`Syntax node already registered: ${node}`);
       }
     }
     this.#plugins.set(plugin.id, plugin);
+    // 冲突表登记该插件的**全部**节点名（defineNodes + 策略键），只用于预检，
+    // 不参与分派（分派走 `#nodeToPlugin`，纯 defineNodes 的节点不该命中装饰构建）。
+    for (const nodeName of new Set(syntaxNodeNames(plugin))) {
+      if (!this.#declaredNodes.has(nodeName)) this.#declaredNodes.set(nodeName, plugin);
+    }
+    this.#tokens.set(plugin.id, this.#nextToken);
+    this.#nextToken += 1;
     if (origin === "imperative") {
       this.#imperative.add(plugin.id);
     }
@@ -90,10 +144,7 @@ export class SyntaxPluginRegistry {
       if (!plugin?.id) continue;
       if (ids.has(plugin.id)) throw new Error(`Syntax plugin already registered: ${plugin.id}`);
       ids.add(plugin.id);
-      for (const node of new Set([
-        ...Object.keys(plugin.nodePolicies ?? {}),
-        ...(plugin.nodePolicy ? [plugin.nodePolicy.nodeName] : []),
-      ])) {
+      for (const node of new Set(syntaxNodeNames(plugin))) {
         if (nodes.has(node)) throw new Error(`Syntax node already registered: ${node}`);
         nodes.add(node);
       }
@@ -111,7 +162,9 @@ export class SyntaxPluginRegistry {
     this.#plugins.clear();
     this.#nodePolicies.clear();
     this.#nodeToPlugin.clear();
+    this.#declaredNodes.clear();
     this.#imperative.clear();
+    this.#tokens.clear();
     return this;
   }
 
@@ -127,18 +180,29 @@ export class SyntaxPluginRegistry {
     const next = new SyntaxPluginRegistry();
     // 先放入命令式条目，再放新的声明式条目；冲突由 preflight 统一抛错。
     for (const [id, plugin] of kept) {
-      if (this.#imperative.has(id)) next.register(plugin, "imperative");
+      if (this.#imperative.has(id)) {
+        next.register(plugin, "imperative");
+        // 保留原代号：已发出的句柄在全量替换后仍然有效（它注册的条目没变）。
+        const token = this.#tokens.get(id);
+        if (token !== undefined) next.#tokens.set(id, token);
+      }
     }
     next.registerAll(plugins, "declarative");
 
     this.#plugins.clear();
     this.#nodePolicies.clear();
     this.#nodeToPlugin.clear();
+    this.#declaredNodes.clear();
     this.#imperative.clear();
     for (const [id, plugin] of next.#plugins) this.#plugins.set(id, plugin);
     for (const [name, policy] of next.#nodePolicies) this.#nodePolicies.set(name, policy);
     for (const [name, plugin] of next.#nodeToPlugin) this.#nodeToPlugin.set(name, plugin);
+    for (const [name, plugin] of next.#declaredNodes) this.#declaredNodes.set(name, plugin);
     for (const id of next.#imperative) this.#imperative.add(id);
+    // 代号跟着条目走：命令式条目保留原代号，声明式条目取临时实例分配的代号。
+    this.#tokens.clear();
+    for (const [id, token] of next.#tokens) this.#tokens.set(id, token);
+    this.#nextToken = Math.max(this.#nextToken, next.#nextToken);
     return this;
   }
 
@@ -146,23 +210,58 @@ export class SyntaxPluginRegistry {
    * 注销单个插件。命令式注册的 `Disposable` 走这条路径；
    * 返回是否真的移除了某条注册（幂等，可重复调用）。
    */
-  dispose(id: string, expected?: MarkdownSyntaxPlugin): boolean {
+  dispose(id: string, expected?: MarkdownSyntaxPlugin, token?: number): boolean {
     const plugin = this.#plugins.get(id);
     if (!plugin) return false;
     // 身份守卫：`replaceDeclarative` 之后，旧句柄不得摘掉后来注册的同名插件。
     if (expected && plugin !== expected) return false;
+    // 代号守卫：同一对象的两次注册必须可区分，旧句柄只认自己那一次。
+    if (token !== undefined && this.#tokens.get(id) !== token) return false;
     this.#plugins.delete(id);
     this.#imperative.delete(id);
+    this.#tokens.delete(id);
     for (const nodeName of Object.keys(plugin.nodePolicies ?? {})) {
       if (this.#nodeToPlugin.get(nodeName) === plugin) this.#nodeToPlugin.delete(nodeName);
       this.#nodePolicies.delete(nodeName);
     }
     if (plugin.nodePolicy) {
       const nodeName = plugin.nodePolicy.nodeName;
+      // 分派表与策略表都要清：只清策略会让节点名继续占用分派表，
+      // 同一插件重新注册时被预检判为"节点已注册"而无法再次登记。
       if (this.#nodeToPlugin.get(nodeName) === plugin) this.#nodeToPlugin.delete(nodeName);
       this.#nodePolicies.delete(nodeName);
     }
+    // 冲突表登记了该插件的**全部**节点名（defineNodes + 策略键），一并摘掉，
+    // 否则节点名会永久占位、导致同一插件无法重新注册。
+    for (const nodeName of syntaxNodeNames(plugin)) {
+      if (this.#declaredNodes.get(nodeName) === plugin) this.#declaredNodes.delete(nodeName);
+    }
     return true;
+  }
+
+  /**
+   * 命令式注册并返回**幂等**句柄。
+   *
+   * 句柄持有本次注册的代号，因此：
+   * - 重复 `dispose()` 只会成功一次（返回 `false` 表示"这次释放没有效果"）；
+   * - 同一插件对象释放后重新注册，旧句柄再释放不会摘掉新注册。
+   */
+  registerImperative(plugin: MarkdownSyntaxPlugin): SyntaxPluginRegistrationHandle {
+    this.register(plugin, "imperative");
+    const token = this.#tokens.get(plugin.id);
+    let released = false;
+    return {
+      dispose: (): boolean => {
+        if (released) return false;
+        released = true;
+        return this.dispose(plugin.id, plugin, token);
+      },
+    };
+  }
+
+  /** 某条目当前的注册代号（测试与诊断用；不存在返回 `undefined`）。 */
+  tokenOf(id: string): number | undefined {
+    return this.#tokens.get(id);
   }
 
   get plugins(): readonly MarkdownSyntaxPlugin[] {

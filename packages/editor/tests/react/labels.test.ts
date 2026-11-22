@@ -19,6 +19,8 @@ vi.mock("../../src/bridge.ts", () => ({
       setInlineStyleMarkers: vi.fn(),
       setMarkdownLint: vi.fn(),
       setMarkdownLintEngine: vi.fn(),
+      configureMarkdownLint: vi.fn(),
+      getMarkdownLintState: () => ({ enabled: false, hasEngine: false }),
       recomputeMarkdownLint: vi.fn(),
       setLanguage: vi.fn(),
       setAiSuggestionLabels: vi.fn(),

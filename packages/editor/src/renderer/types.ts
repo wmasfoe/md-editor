@@ -148,6 +148,18 @@ export type CodeBlockLineNumberPortResult =
 export type InlineStyleMarkerPortResult =
   { readonly status: "applied" } | { readonly status: "noop" } | { readonly status: "destroyed" };
 
+/** lint 的目标配置：引擎与开关一起提交，不存在中间态。 */
+export interface MarkdownLintTarget {
+  readonly engine: MarkdownLintEngine | undefined;
+  readonly enabled: boolean;
+}
+
+/** lint 配置的可观察快照（不暴露引擎本身，避免宿主误用）。 */
+export interface MarkdownLintTargetState {
+  readonly enabled: boolean;
+  readonly hasEngine: boolean;
+}
+
 export type MarkdownLintPortResult =
   { readonly status: "applied" } | { readonly status: "noop" } | { readonly status: "destroyed" };
 
@@ -163,6 +175,16 @@ export interface CodeMirrorRenderer {
   setMarkdownLint(enabled: boolean): MarkdownLintPortResult;
   /** 运行期注入/替换 lint 引擎（引擎晚于视图到达时不重建视图）。 */
   setMarkdownLintEngine(engine: MarkdownLintEngine | undefined): MarkdownLintPortResult;
+  /**
+   * **原子**提交 `{ engine, enabled }`：先校验目标组合，再单事务应用。
+   *
+   * 宿主用两个独立 effect 分别改引擎和开关时，中间会出现「开关 true + 无引擎」
+   * 的非法态（撤引擎那一步之后、关开关那一步之前）。一次提交目标组合即可消除。
+   * 开启但无引擎时抛错；失败不产生任何副作用（保持调用前配置）。
+   */
+  configureMarkdownLint(target: MarkdownLintTarget): MarkdownLintPortResult;
+  /** 当前 lint 配置快照（测试与宿主自检用）。 */
+  getMarkdownLintState(): MarkdownLintTargetState;
   recomputeMarkdownLint(): MarkdownLintPortResult;
   setLanguage(language: string | undefined): MarkdownLintPortResult;
   setHostVisibility(hidden: boolean): void;

@@ -497,8 +497,6 @@ function getSanitizedHtml(
 
   const result = sanitizeHtmlBlockDetailed(
     state.sliceDoc(record.fullRange.from, record.fullRange.to),
-    // 用 state 身份记账：多实例时每个视图各自决定是否需要在就绪后重算。
-    state,
   );
   if (!result) return null;
   sanitizeCache.set(key, result);

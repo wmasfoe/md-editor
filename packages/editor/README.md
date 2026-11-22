@@ -30,8 +30,13 @@ Markdown lint is **not** bundled. `enableMarkdownLint` only works if the host in
 engine at creation time; otherwise the editor throws immediately instead of silently
 producing no diagnostics:
 
+<!-- readme-check -->
 ```tsx
+import { createDocumentState } from "@md-editor/core";
+import { CodeMirrorEditor } from "@md-editor/editor/react";
 import { lint } from "markdownlint/sync";
+
+const state = createDocumentState({ markdown: "# Hello Inkpoint" });
 
 <CodeMirrorEditor document={state} enableMarkdownLint markdownlint={{ lint }} />;
 ```

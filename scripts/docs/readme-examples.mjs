@@ -11,6 +11,7 @@
 
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -61,6 +62,26 @@ export function extractCheckedBlocks(readmePath, source = readFileSync(readmePat
   return blocks;
 }
 
+/**
+ * 第三方包的类型入口（按需解析，不硬编码路径）。
+ *
+ * 示例代码会被写到系统临时目录，`node_modules` 不在其祖先链上，所以除了
+ * workspace 源码别名，还要显式给出第三方包的查找路径 —— 否则
+ * `import { lint } from "markdownlint/sync"` 这类**文档推荐写法**会被
+ * "找不到模块"误判为错误，逼得我们把示例标记去掉（正是这次踩到的坑）。
+ *
+ * pnpm 下第三方包不是根级软链，真实路径在 `.pnpm/<pkg>@<ver>/node_modules/...`，
+ * 因此用 `require.resolve` 从**实际安装它的 workspace 包**解析，而不是拼路径。
+ */
+function resolveThirdParty(packageId, fromDir) {
+  try {
+    const entry = createRequire(join(REPO_ROOT, fromDir, "package.json")).resolve(packageId);
+    return entry;
+  } catch {
+    return null;
+  }
+}
+
 const PATHS = {
   "@md-editor/core": ["packages/core/src/index.ts"],
   "@md-editor/editor": ["packages/editor/src/index.ts"],
@@ -75,6 +96,25 @@ const PATHS = {
   "@md-editor/markdown-fidelity": ["packages/markdown-fidelity/src/index.ts"],
   "@md-editor/shared": ["packages/shared/src/index.ts"],
 };
+
+/**
+ * README 示例里出现的第三方包 → 类型入口映射。
+ *
+ * 只登记"文档里推荐宿主直接用"的包。新增时在这里加一行，
+ * 对应 README 片段才有编译保障。
+ */
+function thirdPartyPaths() {
+  const paths = {};
+  // markdownlint 由 app-ui 安装（编辑器只声明可选 peer）。
+  // 指向 `.d.mts` 类型声明而不是 `.mjs` 实现：临时目录下 TS 的 Bundler 解析
+  // 不会为 paths 目标反查同名声明文件。
+  const markdownlint = resolveThirdParty("markdownlint/sync", "packages/app-ui");
+  const declaration = markdownlint?.replace(/\.mjs$/u, ".d.mts");
+  if (declaration) {
+    paths["markdownlint/sync"] = [declaration];
+  }
+  return paths;
+}
 
 /** 编译全部被标记的示例；返回 tsc 输出（成功时为空串）。 */
 export function checkReadmeExamples() {
@@ -107,7 +147,10 @@ export function checkReadmeExamples() {
             skipLibCheck: true,
             typeRoots: [join(REPO_ROOT, "node_modules/@types")],
             baseUrl: REPO_ROOT,
-            paths: PATHS,
+            paths: {
+              ...PATHS,
+              ...thirdPartyPaths(),
+            },
           },
           include: files,
         },
@@ -115,6 +158,9 @@ export function checkReadmeExamples() {
         2,
       ),
     );
+    if (process.env.DEBUG_README_TS) {
+      console.log(readFileSync(join(dir, "tsconfig.json"), "utf8"));
+    }
     try {
       execFileSync(
         process.execPath,

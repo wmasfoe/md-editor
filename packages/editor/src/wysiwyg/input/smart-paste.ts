@@ -24,7 +24,7 @@ import { EditorView } from "@codemirror/view";
 import type { SyntaxNode } from "@lezer/common";
 import type TurndownService from "turndown";
 
-import { getOptionalModule, noteOptionalModuleDegraded } from "../../module-loader.ts";
+import { getOptionalModule } from "../../module-loader.ts";
 import { isAllowedImageSrc, isAllowedLinkProtocol } from "../../markdown/html-whitelist.ts";
 import { markdownRangeIndexField } from "../../markdown/range-index.ts";
 import { authorizeWysiwygProtectedChange } from "../state/change-authorization.ts";
@@ -461,7 +461,6 @@ export function convertHtmlToMarkdown(html: string): string {
   }
   const bundle = getOptionalModule<TurndownBundle>(TURNDOWN_KEY);
   if (!bundle) {
-    noteOptionalModuleDegraded();
     return "";
   }
   const service = getTurndownService(bundle);
@@ -492,7 +491,6 @@ export function handleSmartPaste(event: SmartPasteEvent, view: SmartPasteView): 
 
   // 转换链按需加载中：交回浏览器默认粘贴（纯文本），不吞内容也不阻塞输入。
   if (rawHtml && !getOptionalModule<TurndownBundle>(TURNDOWN_KEY)) {
-    noteOptionalModuleDegraded();
     return false;
   }
 
