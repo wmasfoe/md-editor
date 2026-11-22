@@ -105,6 +105,75 @@ describe("MDX 冷启动：被跳过的候选必须可识别", () => {
     expect(dispatched).toBe(0);
   });
 
+  /**
+   * 冷启动时 `<Foo ü="test" />` **不产生任何记录** —— lang-markdown 的 HTML
+   * 节点规则不认带非 ASCII 属性名的标签。只看记录会漏掉整类输入（实测刷新
+   * 返回 false，手动重建同一状态却立刻得到 `mdx-jsx`）。
+   * 因此候选必须从源码辨认。
+   */
+  it('冷启动无任何记录的 <Foo ü="test" /> 也必须触发刷新', async () => {
+    resetOptionalModuleCache();
+    const probe = EditorState.create({
+      doc: '<Foo ü="test" />\n',
+      extensions: [
+        markdown({ extensions: M1_MARKDOWN_EXTENSIONS }),
+        mdxModeFacet.of(true),
+        markdownRangeIndexField,
+      ],
+    });
+    // 前提：冷启动完全没有记录，所以"遍历记录找候选"必然为空。
+    expect(kinds(probe)).toEqual([]);
+
+    let state = probe;
+    let dispatched = 0;
+    const view = {
+      get state() {
+        return state;
+      },
+      dispatch() {
+        dispatched += 1;
+        state = EditorState.create({
+          doc: state.doc.toString(),
+          extensions: [
+            markdown({ extensions: M1_MARKDOWN_EXTENSIONS }),
+            mdxModeFacet.of(true),
+            markdownRangeIndexField,
+          ],
+        });
+      },
+    };
+
+    await preloadOptionalModules();
+    expect(refreshOptionalModuleProjection(view as never, "mdx-parser")).toBe(true);
+    expect(dispatched).toBe(1);
+    // 真实刷新事务后，同内容得到 mdx-jsx 记录。
+    expect(kinds(state)).toContain("mdx-jsx");
+  });
+
+  it("行内代码里的 <Foo 不算候选", async () => {
+    resetOptionalModuleCache();
+    const state = EditorState.create({
+      doc: "text `<Foo />` more\n",
+      extensions: [
+        markdown({ extensions: M1_MARKDOWN_EXTENSIONS }),
+        mdxModeFacet.of(true),
+        markdownRangeIndexField,
+      ],
+    });
+    expect(kinds(state)).toContain("inline-code");
+    let dispatched = 0;
+    const view = {
+      state,
+      dispatch() {
+        dispatched += 1;
+      },
+    };
+
+    await preloadOptionalModules();
+    expect(refreshOptionalModuleProjection(view as never, "mdx-parser")).toBe(false);
+    expect(dispatched).toBe(0);
+  });
+
   it("围栏代码里的 <Foo 不算 MDX 候选（不触发无谓重建）", async () => {
     resetOptionalModuleCache();
     const state = EditorState.create({

@@ -42,7 +42,10 @@ function hasPendingHtmlBlocks(view: RendererViewAdapter): boolean {
 }
 
 /** MDX 组件候选（大写开头的 JSX 标签），与 `extractors/mdx.ts` 的判定保持一致。 */
-const MDX_CANDIDATE = /<\/?[A-Z]/u;
+const MDX_CANDIDATE = /<\/?[A-Z]/gu;
+
+/** 代码区域记录类别：这些位置上的 `<Foo` 只是源码文本，不是 MDX 候选。 */
+const CODE_KINDS: ReadonlySet<string> = new Set(["deferred-code", "inline-code"]);
 
 /**
  * 本视图是否还有 MDX 内容需要重新解析。
@@ -60,9 +63,14 @@ const MDX_CANDIDATE = /<\/?[A-Z]/u;
  * 而"MDX 模式下还有非 mdx-jsx 的 `<Uppercase` 记录"这个判断在任何时刻都成立，
  * 且解析器就绪后重解析一次自然会消失（记录变成 `mdx-jsx`）。
  *
- * 匹配范围**限定在 `html` / `deferred-html`** 两类记录：它们是 MDX 候选在冷启动时
- * 实际落到的类别（块级与行内都落这里）。放宽到所有记录会让围栏代码里的
- * `<Foo` 也命中（`deferred-code`），在模块就绪时白白触发一次索引重建。
+ * 候选从**文档源码**里找，而不是遍历记录：冷启动时 `<Foo ü="test" />`
+ * 这种带属性/非 ASCII 的标签**根本不会产生任何记录**（lang-markdown 的
+ * HTML 节点规则不认它），只看记录就会漏掉整类输入（实测刷新返回 false，
+ * 手动重建同一状态却立刻得到 `mdx-jsx`）。
+ *
+ * 源码扫描要排除代码区域，否则围栏/行内代码里的 `<Foo` 会命中并白烧一次重建：
+ * 用索引判断命中位置是否落在 `deferred-code` / `inline-code` 记录里；
+ * 已在 `mdx-jsx` 记录里的候选说明已经处理过，跳过。
  */
 function hasPendingMdxBlocks(view: RendererViewAdapter): boolean {
   const index = view.state.field(markdownRangeIndexField, false);
@@ -73,11 +81,17 @@ function hasPendingMdxBlocks(view: RendererViewAdapter): boolean {
 
   // 非 MDX 模式下大写标签是合法 HTML，不该被当成待升级的候选。
   if (!view.state.facet(mdxModeFacet)) return false;
-  return index.records.some(
-    (record) =>
-      (record.kind === "html" || record.kind === "deferred-html") &&
-      MDX_CANDIDATE.test(view.state.sliceDoc(record.fullRange.from, record.fullRange.to)),
-  );
+
+  const source = view.state.doc.toString();
+  for (const match of source.matchAll(MDX_CANDIDATE)) {
+    const covering = index.at(match.index);
+    // 已是 MDX 记录 ⇒ 该候选已处理。
+    if (covering.some((record) => record.kind === "mdx-jsx")) continue;
+    // 落在代码区域内 ⇒ 只是源码文本，不是候选。
+    if (covering.some((record) => CODE_KINDS.has(record.kind))) continue;
+    return true;
+  }
+  return false;
 }
 
 /**

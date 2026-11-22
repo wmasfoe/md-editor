@@ -42,6 +42,31 @@ function defineNodeNames(plugin: MarkdownSyntaxPlugin): string[] {
   return (definitions ?? []).map((node) => (typeof node === "string" ? node : node.name));
 }
 
+/**
+ * 注册表的完整内部状态快照（**含注册代号**）。
+ *
+ * 用途只有一个：注册流程在"写注册表之后、视图接受之前"失败时把状态还原。
+ * 必须连代号一起还原——代号码变了，调用方手里已发出的句柄就会失效，
+ * 回滚时再 `dispose()` 就摘不掉自己刚注册的条目。
+ *
+ * @internal 编辑器内部件，不属于插件作者契约。
+ */
+export interface SyntaxPluginRegistrySnapshot {
+  readonly plugins: ReadonlyMap<string, MarkdownSyntaxPlugin>;
+  readonly nodePolicies: ReadonlyMap<string, MarkdownNodePolicy>;
+  readonly nodeToPlugin: ReadonlyMap<string, MarkdownSyntaxPlugin>;
+  readonly declaredNodes: ReadonlyMap<string, MarkdownSyntaxPlugin>;
+  readonly imperative: ReadonlySet<string>;
+  readonly tokens: ReadonlyMap<string, number>;
+  readonly nextToken: number;
+}
+
+/** 用快照内容整体替换一个 Map（`restore` 专用）。 */
+function replaceMap<V>(target: Map<string, V>, source: ReadonlyMap<string, V>): void {
+  target.clear();
+  for (const [key, value] of source) target.set(key, value);
+}
+
 /** 命令式注册句柄：`dispose()` 返回是否真的移除了本次注册（幂等）。 */
 export interface SyntaxPluginRegistrationHandle {
   dispose(): boolean;
@@ -246,6 +271,39 @@ export class SyntaxPluginRegistry {
       if (this.#declaredNodes.get(nodeName) === plugin) this.#declaredNodes.delete(nodeName);
     }
     return true;
+  }
+
+  /**
+   * 取当前状态的完整快照（用于失败回滚）。
+   *
+   * @internal 编辑器内部件，不属于插件作者契约。
+   */
+  snapshot(): SyntaxPluginRegistrySnapshot {
+    return {
+      plugins: new Map(this.#plugins),
+      nodePolicies: new Map(this.#nodePolicies),
+      nodeToPlugin: new Map(this.#nodeToPlugin),
+      declaredNodes: new Map(this.#declaredNodes),
+      imperative: new Set(this.#imperative),
+      tokens: new Map(this.#tokens),
+      nextToken: this.#nextToken,
+    };
+  }
+
+  /**
+   * 还原到 `snapshot()` 取到的状态（含代号，使已发出的句柄继续有效）。
+   *
+   * @internal 编辑器内部件，不属于插件作者契约。
+   */
+  restore(snapshot: SyntaxPluginRegistrySnapshot): void {
+    replaceMap(this.#plugins, snapshot.plugins);
+    replaceMap(this.#nodePolicies, snapshot.nodePolicies);
+    replaceMap(this.#nodeToPlugin, snapshot.nodeToPlugin);
+    replaceMap(this.#declaredNodes, snapshot.declaredNodes);
+    replaceMap(this.#tokens, snapshot.tokens);
+    this.#imperative.clear();
+    for (const id of snapshot.imperative) this.#imperative.add(id);
+    this.#nextToken = snapshot.nextToken;
   }
 
   /**
