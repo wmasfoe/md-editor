@@ -11,7 +11,7 @@ import {
   type Diagnostic,
 } from "@codemirror/lint";
 import type { EditorView } from "@codemirror/view";
-import { lint as lintMarkdownSync } from "markdownlint/sync";
+import { resolveMarkdownLintEngine, type MarkdownLintEngine } from "./engine.ts";
 import { authorizeWysiwygProtectedChange } from "../wysiwyg/state/change-authorization.ts";
 import { markdownRangeIndexField } from "../markdown/range-index.ts";
 import {
@@ -42,6 +42,7 @@ export interface MarkdownLintFixAllResult {
 export function collectFixableMarkdownLintChanges(
   state: EditorState,
   config?: Record<string, unknown>,
+  engine?: MarkdownLintEngine,
 ): readonly MarkdownLintTextChange[] {
   const text = state.doc.toString();
   if (!text.trim()) {
@@ -53,8 +54,11 @@ export function collectFixableMarkdownLintChanges(
     ...config,
   };
 
+  // 引擎缺失必须在 try 之外抛（同 `runMarkdownLint`），否则会被 catch 收尸成「没有可修复项」。
+  const lintEngine = resolveMarkdownLintEngine(state, engine);
+
   try {
-    const result = lintMarkdownSync({
+    const result = lintEngine.lint({
       strings: { content: text },
       config: mergedConfig,
     });
@@ -131,7 +135,8 @@ export function filterNonOverlappingDescendingChanges(
 
 /**
  * 收集当前 state 中除 markdownlint 以外的既有诊断（例如手动链接检查结果），避免被清空逻辑误杀
- */
+ * @internal
+/** @internal */
 export function collectPreservedNonMarkdownDiagnostics(state: EditorState): Diagnostic[] {
   const preserved: Diagnostic[] = [];
   forEachDiagnostic(state, (diagnostic, from, to) => {
@@ -148,7 +153,8 @@ export function collectPreservedNonMarkdownDiagnostics(state: EditorState): Diag
 
 /**
  * 清除所有 markdownlint 产生的波浪线诊断，同时保留其他来源诊断（如链接检查）
- */
+ * @internal
+/** @internal */
 export function clearMarkdownLintDiagnostics(state: EditorState): TransactionSpec {
   const preserved = collectPreservedNonMarkdownDiagnostics(state);
   return setDiagnostics(state, preserved);
@@ -185,10 +191,12 @@ export function clearMarkdownLintCommand(view: EditorView): void {
  * 运行或切换 Markdown 规范检查命令：
  * - 若当前处于已检查状态（存在活跃诊断），再次执行则 Toggle Off（清空波浪线并收起面板）；
  * - 若当前处于关闭状态，则执行全新扫描，分发诊断并呼出底部面板供跳转查看。
- */
+ * @internal
+/** @internal */
 export function runMarkdownLintCommand(
   view: EditorView,
   config?: Record<string, unknown>,
+  engine?: MarkdownLintEngine,
 ): MarkdownLintRunResult {
   // 如果当前视图中已经存在活跃的 markdownlint 诊断（已处于检查状态），再次执行快捷键则 Toggle Off（退出校验状态）
   const activeCount = countActiveMarkdownLintDiagnostics(view.state);
@@ -202,7 +210,7 @@ export function runMarkdownLintCommand(
     };
   }
 
-  const diagnostics = runMarkdownLint(view.state, config);
+  const diagnostics = runMarkdownLint(view.state, config, engine);
   view.dispatch(setDiagnostics(view.state, diagnostics));
 
   if (diagnostics.length > 0 && typeof view.plugin === "function") {
@@ -238,16 +246,18 @@ const MAX_FIX_ALL_PASSES = 5;
  * - 多轮级联收敛（最多 5 轮）
  * - 单次 Undo 历史（单步 Cmd+Z 即可全部撤回）
  * - 刷新诊断状态，若无残留问题自动关闭问题面板
- */
+ * @internal
+/** @internal */
 export function fixAllMarkdownLintIssues(
   view: EditorView,
   config?: Record<string, unknown>,
+  engine?: MarkdownLintEngine,
 ): MarkdownLintFixAllResult {
   let appliedCount = 0;
   let passes = 0;
 
   while (passes < MAX_FIX_ALL_PASSES) {
-    const changes = collectFixableMarkdownLintChanges(view.state, config);
+    const changes = collectFixableMarkdownLintChanges(view.state, config, engine);
     if (changes.length === 0) {
       break;
     }
@@ -268,7 +278,7 @@ export function fixAllMarkdownLintIssues(
   }
 
   // 修复完成后重新计算诊断，刷新波浪线
-  const remaining = runMarkdownLint(view.state, config);
+  const remaining = runMarkdownLint(view.state, config, engine);
   view.dispatch(setDiagnostics(view.state, remaining));
 
   if (remaining.length === 0 && typeof view.plugin === "function") {

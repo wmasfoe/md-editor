@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppEditor, resolveCodeFontStack, resolveProseFontStack } from "@md-editor/app-ui";
+import { useMarkdownLintEngine } from "@md-editor/app-ui/markdownlint";
+
+import { useExternalSyntaxRegistration } from "./editor/use-external-syntax-registration.ts";
 import { type AiSuggestionItem, type CodeMirrorEditorPorts } from "@md-editor/editor";
 import { useTranslation } from "@md-editor/i18n";
 import {
@@ -128,25 +131,34 @@ export function DesktopCodeMirrorEditor({
     !snapshot.filePath ||
     /<\/?[A-Z]/.test(snapshot.markdown);
 
-  const activePlugins = useMemo(() => {
-    return [
-      ...DESKTOP_SYNTAX_PLUGINS.filter((plugin) => settings.plugins.enabled[plugin.id] ?? true),
-      ...externalPlugins,
-    ];
-  }, [settings.plugins, externalPlugins]);
+  // 声明式命名空间只放内置插件；外部插件经 useExternalSyntaxRegistration 走命令式通道
+  // （`ports.addSyntaxPlugin`），这样切换内置插件开关时的全量替换不会静默注销外部插件。
+  const markdownlint = useMarkdownLintEngine();
+
+  const activePlugins = useMemo(
+    () => DESKTOP_SYNTAX_PLUGINS.filter((plugin) => settings.plugins.enabled[plugin.id] ?? true),
+    [settings.plugins],
+  );
+
+  useExternalSyntaxRegistration(ports, externalPlugins);
 
   return (
     <AppEditor
       document={runtime.document}
       plugins={activePlugins}
+      markdownlint={markdownlint}
       className="min-h-0 flex-1"
-      fontSize={settings.editor.wysiwygFontSize}
-      proseFontFamily={resolveProseFontStack(settings.editor.proseFontFamily)}
-      codeFontFamily={resolveCodeFontStack(settings.editor.codeFontFamily)}
+      theme={{
+        typography: {
+          fontSize: settings.editor.wysiwygFontSize,
+          proseFontFamily: resolveProseFontStack(settings.editor.proseFontFamily),
+          codeFontFamily: resolveCodeFontStack(settings.editor.codeFontFamily),
+        },
+      }}
       hidden={hidden}
       codeBlockLineNumbers={settings.editor.showCodeBlockLineNumbers}
       showInlineStyleMarkers={settings.editor.showInlineStyleMarkers}
-      enableMarkdownLint={settings.editor.enableMarkdownLint}
+      enableMarkdownLint={Boolean(markdownlint) && settings.editor.enableMarkdownLint}
       ariaLabel={t("sidebar.editorAria")}
       aiSuggestionLabels={aiSuggestionLabels}
       onAiSuggestionAccepted={recordAcceptedAiText}

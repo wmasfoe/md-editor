@@ -1,3 +1,4 @@
+import { preloadOptionalModules } from "../../src/module-loader.ts";
 import { history, undo } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import {
@@ -6,7 +7,7 @@ import {
   type SelectionRange,
   type TransactionSpec,
 } from "@codemirror/state";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { M1_MARKDOWN_EXTENSIONS } from "../../src/markdown/extensions.ts";
 import { markdownRangeIndexField } from "../../src/markdown/range-index.ts";
 import { editorModeField } from "../../src/mode.ts";
@@ -101,6 +102,11 @@ function createHarness(
     },
   };
 }
+
+beforeAll(async () => {
+  // 转换链（turndown + gfm）按需加载：先预热，保证断言测的是真实转换结果。
+  await preloadOptionalModules();
+});
 
 describe("Smart Paste Pipeline", () => {
   describe("convertHtmlToMarkdown unit tests", () => {

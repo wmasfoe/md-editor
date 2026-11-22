@@ -15,7 +15,8 @@ const workspacePackages = () =>
     .map((manifest) => JSON.parse(readFileSync(manifest)));
 
 test("packed editor SDK consumers accept one shared compatible SDK patch", () => {
-  const consumers = ["@md-editor/core", "@md-editor/editor", "@md-editor/plugin-host"];
+  // core 刻意不在其中：它不能依赖 plugin-sdk（D-2 无头约束），单独断言见下一条。
+  const consumers = ["@md-editor/editor", "@md-editor/plugin-host"];
   const sdk = workspacePackages().find((pkg) => pkg.name === "@md-editor/plugin-sdk");
   const nextPatch = semver.inc(sdk.version, "patch");
   const directory = mkdtempSync(join(tmpdir(), "inkpoint-sdk-ranges-"));
@@ -71,16 +72,17 @@ test("public package closure excludes the six application packages", () => {
   );
 });
 
-test("core/editor publication includes only their six runtime packages", () => {
+test("core/editor publication includes only their five runtime packages", () => {
   assert.deepEqual(
     selectPublicationPackages(workspacePackages(), ["@md-editor/core", "@md-editor/editor"])
       .map((pkg) => pkg.name)
       .toSorted(),
+    // P5：`@md-editor/plugin-host` 只是 editor 的测试依赖，已移出运行时闭包
+    // （此前是幻影依赖：声明了但 src/dist 零引用）。
     [
       "@md-editor/core",
       "@md-editor/editor",
       "@md-editor/markdown-fidelity",
-      "@md-editor/plugin-host",
       "@md-editor/plugin-sdk",
       "@md-editor/shared",
     ],
@@ -227,4 +229,42 @@ test("peer ranges are checked even when the same package is also a dependency", 
       ]),
     /consumer.*dependency.*0\.1\.2.*\^1\.0\.0/,
   );
+});
+
+test("D-3：打包后的 core 清单不含 plugin-sdk，也没有 CodeMirror/Lezer 依赖", () => {
+  const directory = mkdtempSync(join(tmpdir(), "inkpoint-core-headless-"));
+  try {
+    execFileSync(
+      "pnpm",
+      [
+        "--filter",
+        "@md-editor/core",
+        "pack",
+        "--config.ignore-scripts=true",
+        "--pack-destination",
+        directory,
+      ],
+      { cwd: fileURLToPath(new URL("../..", import.meta.url)), stdio: "pipe" },
+    );
+    const [archive] = readdirSync(directory);
+    const manifest = JSON.parse(
+      execFileSync("tar", ["-xOf", join(directory, archive), "package/package.json"], {
+        encoding: "utf8",
+      }),
+    );
+    assert.deepEqual(
+      Object.keys(manifest.dependencies ?? {}).toSorted(),
+      ["@md-editor/shared"],
+      `发布产物里的 core 依赖应只有 shared，实际：${Object.keys(manifest.dependencies ?? {}).join(", ")}`,
+    );
+    const editorRuntime = Object.keys({
+      ...manifest.dependencies,
+      ...manifest.peerDependencies,
+    }).filter((name) =>
+      /^@codemirror\/|^@lezer\/|^(markdownlint|turndown|sanitize-html)$/u.test(name),
+    );
+    assert.deepEqual(editorRuntime, [], `core 清单泄漏了编辑器运行时：${editorRuntime.join(", ")}`);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });

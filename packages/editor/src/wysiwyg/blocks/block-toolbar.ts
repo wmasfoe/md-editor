@@ -7,6 +7,7 @@ import {
   type DecorationSet,
   type ViewUpdate,
 } from "@codemirror/view";
+import { syntaxPluginHostPortsFacet } from "@md-editor/plugin-sdk/syntax";
 import { readBlockRanges, type BlockRange } from "./block-move.ts";
 import { blockWidgetCoveredRanges, projectionStateChanged } from "../state/projection-field.ts";
 import {
@@ -40,12 +41,38 @@ export const blockToolbarLabelsFacet = Facet.define<BlockToolbarOptions, BlockTo
 });
 
 /** 折叠按钮 Widget(仅在可折叠行挂载) */
+export interface FoldToggleLabels {
+  readonly expand: string;
+  readonly collapse: string;
+}
+
+/** 库默认英文：编辑器包不假设宿主语言。 */
+export const DEFAULT_FOLD_TOGGLE_LABELS: FoldToggleLabels = Object.freeze({
+  expand: "Expand",
+  collapse: "Collapse",
+});
+
+/** 从宿主端口 facet 读取 translator；未注入时退回英文。 */
+function resolveFoldToggleLabels(state: EditorState): FoldToggleLabels {
+  const translate = state.facet(syntaxPluginHostPortsFacet).translateEditorMessage;
+  if (!translate) return DEFAULT_FOLD_TOGGLE_LABELS;
+  return {
+    expand: translate("editor.fold.expand", DEFAULT_FOLD_TOGGLE_LABELS.expand),
+    collapse: translate("editor.fold.collapse", DEFAULT_FOLD_TOGGLE_LABELS.collapse),
+  };
+}
+
 class FoldToggleWidget extends WidgetType {
   private readonly blockFrom: number;
   private readonly fold: FoldToggleRange;
   private readonly foldCollapsed: boolean;
 
-  constructor(blockFrom: number, fold: FoldToggleRange, foldCollapsed: boolean) {
+  constructor(
+    blockFrom: number,
+    fold: FoldToggleRange,
+    foldCollapsed: boolean,
+    readonly labels: FoldToggleLabels = DEFAULT_FOLD_TOGGLE_LABELS,
+  ) {
     super();
     this.blockFrom = blockFrom;
     this.fold = fold;
@@ -58,7 +85,9 @@ class FoldToggleWidget extends WidgetType {
       other.blockFrom === this.blockFrom &&
       other.fold.lineFrom === this.fold.lineFrom &&
       other.fold.kind === this.fold.kind &&
-      other.foldCollapsed === this.foldCollapsed
+      other.foldCollapsed === this.foldCollapsed &&
+      other.labels.expand === this.labels.expand &&
+      other.labels.collapse === this.labels.collapse
     );
   }
 
@@ -73,8 +102,9 @@ class FoldToggleWidget extends WidgetType {
     fold.className = "cm-md-fold-toggle";
     fold.dataset.collapsed = String(this.foldCollapsed);
     fold.setAttribute("aria-expanded", String(!this.foldCollapsed));
-    fold.setAttribute("aria-label", this.foldCollapsed ? "展开" : "折叠");
-    fold.title = this.foldCollapsed ? "展开" : "折叠";
+    const label = this.foldCollapsed ? this.labels.expand : this.labels.collapse;
+    fold.setAttribute("aria-label", label);
+    fold.title = label;
     fold.tabIndex = -1;
     fold.addEventListener("mousedown", (event) => {
       event.preventDefault();
@@ -145,7 +175,12 @@ export function blockDecorationsFromRanges(
       lineDeco,
       Decoration.widget({
         side: -1,
-        widget: new FoldToggleWidget(block.from, fold, rangeIsFolded(state, fold)),
+        widget: new FoldToggleWidget(
+          block.from,
+          fold,
+          rangeIsFolded(state, fold),
+          resolveFoldToggleLabels(state),
+        ),
       }).range(block.from),
     ];
   });

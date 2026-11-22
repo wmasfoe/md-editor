@@ -19,8 +19,7 @@
     "prepack": "pnpm build"
   },
   "dependencies": {
-    "@md-editor/shared": "workspace:*",
-    "@md-editor/plugin-sdk": "workspace:^0.6.0"
+    "@md-editor/shared": "workspace:*"
   },
   "devDependencies": {
     "@md-editor/mdx-plugins": "workspace:*",
@@ -39,5 +38,14 @@
         "default": "./dist/index.js"
       }
     }
-  }
+  },
+  "sideEffects": false,
+  "keywords": [
+    "inkpoint",
+    "markdown",
+    "editor",
+    "core",
+    "headless"
+  ],
+  "homepage": "https://github.com/wmasfoe/md-editor/tree/main/packages/core"
 }

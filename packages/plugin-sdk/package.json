@@ -29,8 +29,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./syntax": "./src/syntax.ts",
-    "./callout": "./src/callout-data.ts",
-    "./mdx": "./src/mdx.ts"
+    "./callout": "./src/callout-data.ts"
   },
   "scripts": {
     "build": "node ../../scripts/packages/build.mjs",
@@ -67,10 +66,6 @@
       "./callout": {
         "types": "./dist/callout-data.d.ts",
         "default": "./dist/callout-data.js"
-      },
-      "./mdx": {
-        "types": "./dist/mdx.d.ts",
-        "default": "./dist/mdx.js"
       }
     },
     "access": "public"

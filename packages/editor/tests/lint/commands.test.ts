@@ -15,6 +15,14 @@ import {
   type MarkdownLintTextChange,
 } from "../../src/lint/commands.ts";
 
+import { lint as markdownlintLint } from "markdownlint/sync";
+import type { MarkdownLintResult } from "../../src/lint/engine.ts";
+
+const MARKDOWNLINT = {
+  lint: (request: Parameters<typeof markdownlintLint>[0]) =>
+    markdownlintLint(request) as unknown as MarkdownLintResult,
+};
+
 function createTestEditor(doc: string): { view: EditorView; getState: () => EditorState } {
   let state = EditorState.create({
     doc,
@@ -62,7 +70,7 @@ describe("MarkdownLint 快捷键与批量修复命令 (commands.ts)", () => {
     const badDoc = "# 标题\n\n\n\n正文内容";
     const { view } = createTestEditor(badDoc);
 
-    const result = runMarkdownLintCommand(view);
+    const result = runMarkdownLintCommand(view, undefined, MARKDOWNLINT);
     expect(result.total).toBeGreaterThan(0);
     expect(result.errors).toBeGreaterThan(0);
   });
@@ -72,7 +80,7 @@ describe("MarkdownLint 快捷键与批量修复命令 (commands.ts)", () => {
     const messyDoc = "#标题\n\n\n\n正文段落第一行\n\n\n\n##第二级标题\n\n正文段落第二行";
     const { view, getState } = createTestEditor(messyDoc);
 
-    const fixResult = fixAllMarkdownLintIssues(view);
+    const fixResult = fixAllMarkdownLintIssues(view, undefined, MARKDOWNLINT);
     expect(fixResult.appliedCount).toBeGreaterThan(0);
 
     const fixedDoc = getState().doc.toString();
@@ -82,7 +90,7 @@ describe("MarkdownLint 快捷键与批量修复命令 (commands.ts)", () => {
     expect(fixedDoc).not.toContain("\n\n\n\n");
 
     // 再次执行，已无残留可修复项
-    const secondResult = fixAllMarkdownLintIssues(view);
+    const secondResult = fixAllMarkdownLintIssues(view, undefined, MARKDOWNLINT);
     expect(secondResult.appliedCount).toBe(0);
   });
 
@@ -90,7 +98,7 @@ describe("MarkdownLint 快捷键与批量修复命令 (commands.ts)", () => {
     const originalDoc = "#标题\n\n\n\n正文内容\n\n\n\n##子标题";
     const { view, getState } = createTestEditor(originalDoc);
 
-    fixAllMarkdownLintIssues(view);
+    fixAllMarkdownLintIssues(view, undefined, MARKDOWNLINT);
     expect(getState().doc.toString()).not.toBe(originalDoc);
 
     // 触发单次 undo
@@ -110,7 +118,7 @@ title: 测试标题
 # 正文标题
 `;
     const { view } = createTestEditor(docWithFrontmatter);
-    const changes = collectFixableMarkdownLintChanges(view.state);
+    const changes = collectFixableMarkdownLintChanges(view.state, undefined, MARKDOWNLINT);
     // frontmatter 内部不产生修复项
     const changesInFrontmatter = changes.filter((c) => c.from < 50);
     expect(changesInFrontmatter).toHaveLength(0);
@@ -127,12 +135,12 @@ title: 测试标题
       },
     } as unknown as EditorView;
 
-    const result = runMarkdownLintCommand(mockView);
+    const result = runMarkdownLintCommand(mockView, undefined, MARKDOWNLINT);
     expect(panelOpened).toBe(true);
     expect(result.total).toBeGreaterThan(0);
 
     const cleanView = createTestEditor("# 标题\n\n正文\n").view;
-    const cleanResult = runMarkdownLintCommand(cleanView);
+    const cleanResult = runMarkdownLintCommand(cleanView, undefined, MARKDOWNLINT);
     expect(cleanResult.total).toBe(0);
     expect(cleanResult.toggledOff).toBe(false);
   });
@@ -141,19 +149,19 @@ title: 测试标题
     const { view } = createTestEditor("# 标题\n\n\n\n正文内容");
 
     // 第一次执行：分发诊断并打开面板
-    const firstResult = runMarkdownLintCommand(view);
+    const firstResult = runMarkdownLintCommand(view, undefined, MARKDOWNLINT);
     expect(firstResult.total).toBeGreaterThan(0);
     expect(firstResult.toggledOff).toBe(false);
     expect(countActiveMarkdownLintDiagnostics(view.state)).toBeGreaterThan(0);
 
     // 第二次执行：触发 Toggle Off，自动清空所有诊断标记与面板
-    const toggleResult = runMarkdownLintCommand(view);
+    const toggleResult = runMarkdownLintCommand(view, undefined, MARKDOWNLINT);
     expect(toggleResult.toggledOff).toBe(true);
     expect(toggleResult.total).toBe(0);
     expect(countActiveMarkdownLintDiagnostics(view.state)).toBe(0);
 
     // 第三次执行：再次开启
-    const thirdResult = runMarkdownLintCommand(view);
+    const thirdResult = runMarkdownLintCommand(view, undefined, MARKDOWNLINT);
     expect(thirdResult.toggledOff).toBe(false);
     expect(thirdResult.total).toBeGreaterThan(0);
     expect(countActiveMarkdownLintDiagnostics(view.state)).toBeGreaterThan(0);
@@ -161,7 +169,7 @@ title: 测试标题
 
   it("clearMarkdownLintCommand 可直接清除所有 markdownlint 诊断并关闭面板", () => {
     const { view } = createTestEditor("# 标题\n\n\n\n正文内容");
-    runMarkdownLintCommand(view);
+    runMarkdownLintCommand(view, undefined, MARKDOWNLINT);
     expect(countActiveMarkdownLintDiagnostics(view.state)).toBeGreaterThan(0);
 
     clearMarkdownLintCommand(view);

@@ -12,7 +12,7 @@ import {
 } from "../../src/markdown/range-index.ts";
 import { M1_MARKDOWN_EXTENSIONS } from "../../src/markdown/extensions.ts";
 import { editorModeField } from "../../src/mode.ts";
-import { SyntaxPluginRegistry } from "../../src/plugins/syntax-registry.ts";
+import { SyntaxPluginRegistry } from "@md-editor/plugin-sdk/syntax";
 import {
   initialInlineStyleMarkersFacet,
   inlineStyleMarkersField,

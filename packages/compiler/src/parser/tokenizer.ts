@@ -1,3 +1,4 @@
+import { createHeadingSlugAllocator, slugifyHeading } from "@md-editor/shared";
 import { Marked, Tokenizer, type MarkedExtension, type Token, type Tokens } from "marked";
 import markedCjkFriendly from "marked-cjk-friendly";
 import type {
@@ -37,19 +38,12 @@ export function generateLegacyHeadingSlug(text: string): string {
  * - Falls back to legacy slug for purely symbolic text
  */
 export function generateHeadingSlug(text: string): string {
-  const plainText = text.replace(/<[^>]+>/g, "").trim();
-  const githubSlug = plainText
-    .toLowerCase()
-    .replace(/[`*_~[\]()]/g, "")
-    .replace(/[^\p{L}\p{N}\p{M}\s_-]/gu, "")
-    .trim()
-    .replace(/\s+/gu, "-")
-    .replace(/^-|-$/g, "");
-
-  if (githubSlug.length > 0) {
-    return githubSlug;
+  // 单一实现：规则来自 `@md-editor/shared`（与大纲、文档内锚点解析共用）。
+  const slug = slugifyHeading(text);
+  if (slug.length > 0) {
+    return slug;
   }
-
+  // 纯符号标题在历史上回退到 legacy 规则；保留该兜底以免行为回归。
   return generateLegacyHeadingSlug(text);
 }
 
@@ -355,7 +349,10 @@ function convertListItemTokens(tokens: Token[], loose?: boolean): StaticToken[] 
 /**
  * Converts Marked block tokens to StaticToken[]
  */
-function convertBlockTokens(tokens: Token[]): BlockToken[] {
+function convertBlockTokens(
+  tokens: Token[],
+  allocateSlug: (source: string) => string = createHeadingSlugAllocator(),
+): BlockToken[] {
   const result: BlockToken[] = [];
 
   for (const t of tokens) {
@@ -368,7 +365,7 @@ function convertBlockTokens(tokens: Token[]): BlockToken[] {
           raw: h.raw,
           level: h.depth as 1 | 2 | 3 | 4 | 5 | 6,
           text: h.text,
-          id: generateHeadingSlug(plain),
+          id: allocateSlug(plain),
           tokens: convertInlineTokens(h.tokens),
         });
         break;
@@ -412,14 +409,14 @@ function convertBlockTokens(tokens: Token[]): BlockToken[] {
             calloutType: rawType,
             title,
             bodyText,
-            tokens: convertBlockTokens(innerTokens),
+            tokens: convertBlockTokens(innerTokens, allocateSlug),
           });
         } else {
           result.push({
             type: "blockquote",
             raw: bq.raw,
             text: bq.text,
-            tokens: bq.tokens ? convertBlockTokens(bq.tokens) : undefined,
+            tokens: bq.tokens ? convertBlockTokens(bq.tokens, allocateSlug) : undefined,
           });
         }
         break;
@@ -438,7 +435,7 @@ function convertBlockTokens(tokens: Token[]): BlockToken[] {
           calloutType: dc.directiveType,
           title,
           bodyText: dc.body,
-          tokens: dc.tokens ? convertBlockTokens(dc.tokens) : undefined,
+          tokens: dc.tokens ? convertBlockTokens(dc.tokens, allocateSlug) : undefined,
         });
         break;
       }
@@ -578,7 +575,7 @@ export function tokenizeMarkdown(markdown: string, options: TokenizeOptions = {}
   }
 
   const markedTokens = markedLexer.lexer(content);
-  const staticTokens = convertBlockTokens(markedTokens);
+  const staticTokens = convertBlockTokens(markedTokens, createHeadingSlugAllocator());
 
   return {
     tokens: staticTokens,

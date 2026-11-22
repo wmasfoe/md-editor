@@ -51,7 +51,6 @@ export const KAMI_LIGHT_THEME_CSS = `
   --theme-marker-dim: #6b6a64;
   --theme-mark: rgba(27, 54, 93, 0.22);
   --theme-content-width: 820px;
-  --theme-editor-font-size: 16px;
   --theme-editor-line-height: 1.58;
   --theme-editor-line-height-em: 1.58em;
   --theme-editor-paragraph-spacing: 1.0em;
@@ -125,7 +124,6 @@ export const KAMI_DARK_THEME_CSS = `
   --theme-marker-dim: #7a7870;
   --theme-mark: rgba(45, 90, 138, 0.35);
   --theme-content-width: 820px;
-  --theme-editor-font-size: 16px;
   --theme-editor-line-height: 1.58;
   --theme-editor-line-height-em: 1.58em;
   --theme-editor-paragraph-spacing: 1.0em;

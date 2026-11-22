@@ -1,3 +1,4 @@
+import type { MarkdownLintEngine } from "./engine.ts";
 import type { Diagnostic } from "@codemirror/lint";
 
 export interface MarkdownLintDiagnostic extends Diagnostic {
@@ -28,4 +29,6 @@ export interface DocumentLinterOptions extends LinkLintOptions {
   readonly enableLinkCheck?: boolean;
   /** 自定义 markdownlint 配置规则覆盖 */
   readonly markdownlintConfig?: Record<string, unknown>;
+  /** 宿主注入的 lint 引擎；缺省时 lint 会以可诊断错误失败。 */
+  readonly markdownlint?: MarkdownLintEngine;
 }

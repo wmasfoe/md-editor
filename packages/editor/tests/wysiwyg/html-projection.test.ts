@@ -1,6 +1,7 @@
+import { preloadOptionalModules } from "../../src/module-loader.ts";
 import { markdown } from "@codemirror/lang-markdown";
 import { EditorSelection, EditorState } from "@codemirror/state";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { provideWysiwygDiagnostics, WysiwygDiagnostics } from "../../src/diagnostics.ts";
 import { M1_MARKDOWN_EXTENSIONS } from "../../src/markdown/extensions.ts";
 import { markdownRangeIndexField } from "../../src/markdown/range-index.ts";
@@ -57,6 +58,11 @@ function findHtmlWidget(state: EditorState): HtmlBlockWidget | null {
     });
   return widget;
 }
+
+beforeAll(async () => {
+  // 消毒器按需加载：先预热，保证断言看到的是真实渲染而非"加载中"占位。
+  await preloadOptionalModules();
+});
 
 describe("M4-a HTML projection", () => {
   it("projects HTMLBlock while keeping inline HTMLTag deferred raw", () => {

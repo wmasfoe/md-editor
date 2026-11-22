@@ -1,6 +1,6 @@
 # MDX 官方组件分层方案
 
-> 历史方案：本文保留官方 MDX 组件的设计背景。包边界已由 [GitHub 外部插件](./github_external_plugins.md) 更新：公共 MDX 契约位于 `@md-editor/plugin-sdk/mdx`，注册表位于 `@md-editor/plugin-host/mdx`，原 `mdx-component-registry` 包已在提交 `aa781d1`（分支 `feature/github-external-plugins`）中删除。下文的旧包名和“仅内置插件”描述不再代表当前整体插件能力；第三方 MDX 组件执行仍未开放。
+> 历史方案：本文保留官方 MDX 组件的设计背景。包边界已由 [GitHub 外部插件](./github_external_plugins.md) 更新：公共 MDX 契约现位于 `@md-editor/shared/mdx`（原 `@md-editor/plugin-sdk/mdx`，为让 `core` 保持无头而迁至 shared），注册表位于 `@md-editor/plugin-host/mdx`，原 `mdx-component-registry` 包已在提交 `aa781d1`（分支 `feature/github-external-plugins`）中删除。下文的旧包名和“仅内置插件”描述不再代表当前整体插件能力；第三方 MDX 组件执行仍未开放。
 
 ## 1. 文档用途
 

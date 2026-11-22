@@ -38,6 +38,8 @@ vi.mock("../../../src/app/settings-context", () => ({
 vi.mock("@md-editor/i18n", () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock("@md-editor/app-ui", () => ({
   useEditorUiActions: () => ({ getRendererPorts: mocks.getRendererPorts }),
+
+  useMarkdownLintEngine: () => ({ lint: () => ({}) }),
 }));
 vi.mock("@tauri-apps/api/core", () => ({ isTauri: () => false }));
 vi.mock("../../../src/app/ai/desktop-ai-service", () => ({ desktopAiService: {} }));

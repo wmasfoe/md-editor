@@ -22,9 +22,20 @@ import {
 } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import type { SyntaxNode } from "@lezer/common";
-import TurndownService from "turndown";
-// @ts-expect-error -- turndown-plugin-gfm does not ship official TypeScript definitions on npm
-import { gfm } from "turndown-plugin-gfm";
+import type TurndownService from "turndown";
+
+import { getOptionalModule, noteOptionalModuleDegraded } from "../../module-loader.ts";
+
+/**
+ * Turndown 转换链（turndown + gfm 插件）按需加载：两者合计约 208 KB，
+ * 不属于首屏静态图。未就绪时粘贴降级为浏览器默认纯文本粘贴（不丢内容）。
+ */
+interface TurndownBundle {
+  readonly TurndownService: new (options?: Record<string, unknown>) => TurndownService;
+  readonly gfm: (service: TurndownService) => void;
+}
+
+const TURNDOWN_KEY = "turndown";
 import { isAllowedImageSrc, isAllowedLinkProtocol } from "../../markdown/html-whitelist.ts";
 import { markdownRangeIndexField } from "../../markdown/range-index.ts";
 import { authorizeWysiwygProtectedChange } from "../state/change-authorization.ts";
@@ -58,7 +69,8 @@ export interface SmartPasteEvent {
 
 /**
  * 校验是否为合法 URL
- */
+ * @internal
+/** @internal */
 export function isValidUrl(text: string): boolean {
   const trimmed = text.trim();
   if (!trimmed || /\s/.test(trimmed)) {
@@ -362,9 +374,9 @@ let turndownServiceInstance: TurndownService | null = null;
 /**
  * 获取或创建单例 Turndown 转换服务
  */
-function getTurndownService(): TurndownService {
+function getTurndownService(bundle: TurndownBundle): TurndownService {
   if (!turndownServiceInstance) {
-    const service = new TurndownService({
+    const service = new bundle.TurndownService({
       headingStyle: "atx",
       codeBlockStyle: "fenced",
       emDelimiter: "*",
@@ -374,7 +386,7 @@ function getTurndownService(): TurndownService {
     });
 
     // 启用 GFM 扩展（表格、删除线、任务列表）
-    service.use(gfm);
+    service.use(bundle.gfm);
 
     // 剔除无意义或具有安全隐患的外部标签及其子内容
     service.remove(["script", "style", "meta", "link", "noscript", "iframe"]);
@@ -447,7 +459,12 @@ export function convertHtmlToMarkdown(html: string): string {
   if (!html || !html.trim()) {
     return "";
   }
-  const service = getTurndownService();
+  const bundle = getOptionalModule<TurndownBundle>(TURNDOWN_KEY);
+  if (!bundle) {
+    noteOptionalModuleDegraded();
+    return "";
+  }
+  const service = getTurndownService(bundle);
   return service.turndown(html).trim();
 }
 
@@ -472,6 +489,12 @@ export function handleSmartPaste(event: SmartPasteEvent, view: SmartPasteView): 
 
   const rawHtml = clipboardData.getData("text/html");
   const rawPlain = clipboardData.getData("text/plain");
+
+  // 转换链按需加载中：交回浏览器默认粘贴（纯文本），不吞内容也不阻塞输入。
+  if (rawHtml && !getOptionalModule<TurndownBundle>(TURNDOWN_KEY)) {
+    noteOptionalModuleDegraded();
+    return false;
+  }
 
   // 1. 检查选区是否处于代码环境（代码块 / 行内代码）
   const isInsideCode = state.selection.ranges.some((range) =>
@@ -575,7 +598,8 @@ export function handleSmartPaste(event: SmartPasteEvent, view: SmartPasteView): 
 /**
  * 智能富文本与链接粘贴扩展：
  * 统一收敛处理 IME 输入、代码块 Bypass、纯文本快捷键、Smart Link 以及富文本转换。
- */
+ * @internal
+/** @internal */
 export const smartPasteExtension = EditorView.domEventHandlers({
   paste(event: ClipboardEvent, view: EditorView) {
     return handleSmartPaste(event, view);

@@ -3,13 +3,9 @@ import { EditorSelection, EditorState, type StateEffect } from "@codemirror/stat
 import { describe, expect, it, vi } from "vitest";
 import type { EditorView, WidgetType } from "@codemirror/view";
 import { createDocumentState } from "@md-editor/core";
-import {
-  createDefaultSyntaxPluginHostPorts,
-  markdownRangeIndexField,
-  syntaxPluginRegistryFacet,
-  SyntaxPluginRegistry,
-} from "@md-editor/editor";
-import { syntaxPluginHostPortsFacet } from "@md-editor/plugin-sdk/syntax";
+import { createDefaultSyntaxPluginHostPorts } from "@md-editor/editor";
+import { markdownRangeIndexField, syntaxPluginRegistryFacet } from "@md-editor/editor/internals";
+import { SyntaxPluginRegistry, syntaxPluginHostPortsFacet } from "@md-editor/plugin-sdk/syntax";
 import {
   createCodeMirrorRendererWithFactory,
   findLayoutDecorationsForTesting,

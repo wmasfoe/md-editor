@@ -17,6 +17,8 @@ import { lintLanguageField } from "../lint/markdown-lint-i18n.ts";
 import { Compartment, EditorSelection, type EditorState, type Extension } from "@codemirror/state";
 import type { ViewUpdate } from "@codemirror/view";
 import { injectEditorStyles } from "../styles/index.ts";
+import { MarkdownLintController } from "./controller/markdown-lint.ts";
+import { attachOptionalModuleRefresh } from "./controller/optional-modules.ts";
 import type {
   DocumentSnapshot,
   DocumentStateEvent,
@@ -30,7 +32,8 @@ import { WysiwygDiagnostics } from "../diagnostics.ts";
 import { editorModeField } from "../mode.ts";
 import type { RendererTransactionOrigin } from "../origin.ts";
 import type { MarkdownSyntaxPlugin } from "@md-editor/plugin-sdk/syntax";
-import { SyntaxPluginRegistry } from "../plugins/syntax-registry.ts";
+import type { Disposable } from "@md-editor/plugin-sdk";
+import { SyntaxPluginRegistry } from "@md-editor/plugin-sdk/syntax";
 import {
   aiSuggestionLabelsFacet,
   type AiSuggestionInput,
@@ -42,7 +45,7 @@ import {
   type ModeViewportContext,
 } from "./controller/mode-viewport.ts";
 import {
-  registerSyntaxPlugins,
+  createImperativeSyntaxRegistration,
   replaceSyntaxPlugins,
   type SyntaxPluginContext,
 } from "./controller/plugin-management.ts";
@@ -64,13 +67,11 @@ import {
   readSelectionSnapshot,
   readViewAiSuggestion,
   readViewModeState,
-  recomputeViewMarkdownLint,
   runViewMarkdownLint,
   scrollViewToLine,
   setFormattingViewKeymaps,
   setViewInlineStyleMarkers,
   setViewCodeBlockLineNumbers,
-  configureViewMarkdownLint,
   setViewSelection,
   setViewLanguage,
   showViewAiSuggestion,
@@ -135,7 +136,6 @@ export class CodeMirrorRendererController {
   readonly #markdownLanguageCompartment = new Compartment();
   readonly #syntaxRegistryCompartment = new Compartment();
   readonly #aiSuggestionLabelsCompartment = new Compartment();
-  readonly #markdownLintCompartment = new Compartment();
   readonly #formattingKeymapCompartment = new Compartment();
   readonly #syntaxRegistry: SyntaxPluginRegistry;
   readonly #rootExtensions: readonly Extension[];
@@ -150,7 +150,7 @@ export class CodeMirrorRendererController {
   #persistenceStatus: DocumentSnapshot["persistenceStatus"]["kind"];
   #codeBlockLineNumbers = false;
   #inlineStyleMarkers = false;
-  #markdownLintEnabled = false;
+  readonly #markdownLint: MarkdownLintController;
   #aiSuggestionLabels: AiSuggestionLabels | undefined;
   #compositionActive = false;
   #queuedExternalEdit: ExternalEditRequest | null = null;
@@ -174,6 +174,8 @@ export class CodeMirrorRendererController {
   readonly #modeScrollTopsByMode = new Map<EditorMode, number>();
   readonly #modeCursorPosByMode = new Map<EditorMode, number>();
   #destroyed = false;
+  /** 可选重依赖（HTML 消毒 / MDX 解析 / 粘贴转换）的预加载与就绪重算接线。 */
+  #optionalModules = attachOptionalModuleRefresh(() => this.#view);
 
   constructor(
     options: CodeMirrorRendererOptions,
@@ -198,9 +200,14 @@ export class CodeMirrorRendererController {
     this.#stateRevision = initialSnapshot.stateRevision;
     this.#contentRevision = initialSnapshot.contentRevision;
     this.#persistenceStatus = initialSnapshot.persistenceStatus.kind;
-    this.#markdownLintEnabled = options.enableMarkdownLint ?? false;
+    this.#markdownLint = new MarkdownLintController({
+      enabled: options.enableMarkdownLint ?? false,
+      engine: options.markdownlint,
+      getView: () => this.#view,
+      isDestroyed: () => this.#destroyed,
+    });
 
-    const initialPlugins = options.plugins ?? options.syntaxPlugins ?? [];
+    const initialPlugins = options.plugins ?? [];
     this.#syntaxRegistry = new SyntaxPluginRegistry(initialPlugins);
     this.#graphicalCodeEditors = new GraphicalCodeEditorCoordinator({
       view: () => this.#view,
@@ -317,23 +324,13 @@ export class CodeMirrorRendererController {
     return { status: "applied" };
   }
 
-  setMarkdownLint(enabled: boolean): MarkdownLintPortResult {
-    if (this.#destroyed) return { status: "destroyed" };
-    if (enabled === this.#markdownLintEnabled) return { status: "noop" };
-    this.#markdownLintEnabled = enabled;
-    configureViewMarkdownLint(this.#view, this.#markdownLintCompartment, enabled);
-    return { status: "applied" };
+  /** lint 端口（开关 / 引擎注入 / 重算）由协作者自持。 */
+  get markdownLintPorts(): MarkdownLintController {
+    return this.#markdownLint;
   }
 
   setLanguage(language: string | undefined): MarkdownLintPortResult {
-    return setViewLanguage(this.#view, language, this.#markdownLintEnabled, this.#destroyed);
-  }
-
-  recomputeMarkdownLint(): MarkdownLintPortResult {
-    if (this.#destroyed) return { status: "destroyed" };
-    if (!this.#markdownLintEnabled) return { status: "noop" };
-    recomputeViewMarkdownLint(this.#view);
-    return { status: "applied" };
+    return setViewLanguage(this.#view, language, this.#markdownLint.enabled, this.#destroyed);
   }
 
   setCodeBlockLineNumbers(enabled: boolean): CodeBlockLineNumberPortResult {
@@ -524,6 +521,7 @@ export class CodeMirrorRendererController {
     this.#modeScrollTopsByMode.clear();
     this.#modeCursorPosByMode.clear();
     this.#destroyed = true;
+    this.#optionalModules();
     this.#graphicalCodeEditors.destroy();
     this.#view.destroy();
     this.#viewDestructionCount += 1;
@@ -554,8 +552,10 @@ export class CodeMirrorRendererController {
       codeBlockLineNumbers: this.#codeBlockLineNumbers,
       inlineStyleMarkers: this.#inlineStyleMarkers,
       modeCompartment: this.#modeCompartment,
-      markdownLintCompartment: this.#markdownLintCompartment,
-      markdownLintEnabled: this.#markdownLintEnabled,
+      markdownLintCompartment: this.#markdownLint.compartment,
+      markdownLintEngineCompartment: this.#markdownLint.engineCompartment,
+      markdownLintEngine: this.#markdownLint.engine,
+      markdownLintEnabled: this.#markdownLint.enabled,
     });
   }
 
@@ -764,24 +764,19 @@ export class CodeMirrorRendererController {
     finishComposition(this.#documentProtocolContext());
   }
 
-  use(...plugins: (MarkdownSyntaxPlugin | readonly MarkdownSyntaxPlugin[])[]): this {
-    if (this.#destroyed) {
-      return this;
-    }
-    registerSyntaxPlugins(this.#syntaxPluginContext(), plugins);
-    return this;
+  addSyntaxPlugin(plugin: MarkdownSyntaxPlugin): Disposable {
+    if (this.#destroyed)
+      throw new Error("Cannot addSyntaxPlugin after the renderer was destroyed.");
+    return createImperativeSyntaxRegistration(
+      this.#syntaxPluginContext(),
+      plugin,
+      () => this.#destroyed,
+    );
   }
 
-  /**
-   * 动态全量替换当前已激活的 Markdown 语法插件集合。
-   *
-   * 核心交互与生命周期契约（全文见 `controller/plugin-management.ts`）：
-   * ID 清单幂等守卫、原子化 Compartment 重构、零 DOM 侵入。
-   */
-  setPlugins(plugins: readonly MarkdownSyntaxPlugin[]): this {
-    if (this.#destroyed) {
-      return this;
-    }
+  setSyntaxPlugins(plugins: readonly MarkdownSyntaxPlugin[]): this {
+    if (this.#destroyed)
+      throw new Error("Cannot setSyntaxPlugins after the renderer was destroyed.");
     replaceSyntaxPlugins(this.#syntaxPluginContext(), plugins);
     return this;
   }

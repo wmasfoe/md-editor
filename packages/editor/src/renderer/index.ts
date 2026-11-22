@@ -6,6 +6,7 @@
  * 因此不存在 const/class 求值环。
  */
 
+import type { MarkdownLintEngine } from "../lint/engine.ts";
 import type {
   DocumentSnapshot,
   DocumentStateEvent,
@@ -52,8 +53,10 @@ function createRendererFacade(controller: CodeMirrorRendererController): CodeMir
     rollbackMode: (receipt: ModeReceipt) => controller.rollbackMode(receipt),
     setCodeBlockLineNumbers: (enabled: boolean) => controller.setCodeBlockLineNumbers(enabled),
     setInlineStyleMarkers: (enabled: boolean) => controller.setInlineStyleMarkers(enabled),
-    setMarkdownLint: (enabled: boolean) => controller.setMarkdownLint(enabled),
-    recomputeMarkdownLint: () => controller.recomputeMarkdownLint(),
+    setMarkdownLint: (enabled: boolean) => controller.markdownLintPorts.setEnabled(enabled),
+    setMarkdownLintEngine: (engine: MarkdownLintEngine | undefined) =>
+      controller.markdownLintPorts.setEngine(engine),
+    recomputeMarkdownLint: () => controller.markdownLintPorts.recompute(),
     setLanguage: (language: string | undefined) => controller.setLanguage(language),
     setHostVisibility: (hidden: boolean) => controller.setHostVisibility(hidden),
     showSuggestion: (suggestion: AiSuggestionInput) => controller.showSuggestion(suggestion),
@@ -89,12 +92,9 @@ function createRendererFacade(controller: CodeMirrorRendererController): CodeMir
     ) => controller.scrollToLine(line, options),
     requestMeasure: () => controller.requestMeasure(),
     flushPendingEdits: () => controller.flushPendingEdits(),
-    use: (...plugins: (MarkdownSyntaxPlugin | readonly MarkdownSyntaxPlugin[])[]) => {
-      controller.use(...plugins);
-      return renderer;
-    },
-    setPlugins: (plugins: readonly MarkdownSyntaxPlugin[]) => {
-      controller.setPlugins(plugins);
+    addSyntaxPlugin: (plugin: MarkdownSyntaxPlugin) => controller.addSyntaxPlugin(plugin),
+    setSyntaxPlugins: (plugins: readonly MarkdownSyntaxPlugin[]) => {
+      controller.setSyntaxPlugins(plugins);
       return renderer;
     },
     runDocumentLint: (options?: DocumentLinterOptions) => controller.runDocumentLint(options),
@@ -108,6 +108,7 @@ function createRendererFacade(controller: CodeMirrorRendererController): CodeMir
   return renderer;
 }
 
+/** @internal */
 export function createCodeMirrorRenderer(options: CodeMirrorRendererOptions): CodeMirrorRenderer {
   return createCodeMirrorRendererWithFactory(
     options,
@@ -117,12 +118,25 @@ export function createCodeMirrorRenderer(options: CodeMirrorRendererOptions): Co
 }
 
 /** @internal Exported only for the package's state-backed protocol test harness. */
+/** 启用 lint 却未注入引擎：创建期直接报错，避免运行时静默产出空诊断。 */
+function assertLintEngineAvailable(options: CodeMirrorRendererOptions): void {
+  if (options.enableMarkdownLint && !options.markdownlint) {
+    throw new Error(
+      "`enableMarkdownLint` requires a `markdownlint` engine. Install `markdownlint` and pass " +
+        "`markdownlint={{ lint }}` (React) or `markdownlint: { lint }` (bridge).",
+    );
+  }
+}
+
 export function createCodeMirrorRendererWithFactory(
   options: CodeMirrorRendererOptions,
   viewFactory: RendererViewFactory,
   controllerOptions: CodeMirrorRendererControllerOptions = { useNativeCodeLanguages: false },
 ): CodeMirrorRenderer {
+  assertLintEngineAvailable(options);
   return createRendererFacade(
+    // 引擎只有**一个来源**：`options.markdownlint`，由 root-extensions 写进 facet。
+    // 不再往 controllerOptions 里塞第二份，避免两个来源不一致。
     new CodeMirrorRendererController(options, viewFactory, controllerOptions),
   );
 }

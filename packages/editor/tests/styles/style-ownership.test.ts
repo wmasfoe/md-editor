@@ -410,3 +410,24 @@ describe("与 CodeMirror baseTheme 的特异性对抗", () => {
     expect(tooWeak).toEqual([]);
   });
 });
+
+describe("T-5 契约变量条数与关键成员（防止静默增删）", () => {
+  it("恰好 71 条，且包含第 71 条 --theme-editor-font-size", () => {
+    // 条数是**契约**：新增/删除变量会改变宿主可见面，必须显式改这个数字并登记到 matrix 的
+    // 「导出预算变更记录」，而不是让测试跟着代码走。
+    expect(THEME_VARIABLES).toHaveLength(71);
+    expect(THEME_VARIABLES.map((v) => v.name)).toContain("--theme-editor-font-size");
+  });
+
+  it("没有重复的变量名", () => {
+    const names = THEME_VARIABLES.map((v) => v.name);
+    expect(new Set(names).size).toBe(names.length);
+  });
+
+  it("每条变量名都以 --theme- 前缀开头", () => {
+    const offenders = THEME_VARIABLES.filter((v) => !v.name.startsWith("--theme-")).map(
+      (v) => v.name,
+    );
+    expect(offenders).toEqual([]);
+  });
+});

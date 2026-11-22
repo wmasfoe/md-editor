@@ -17,6 +17,7 @@ const rendererMock = vi.hoisted(() => {
         rollbackMode: vi.fn(),
         setCodeBlockLineNumbers: vi.fn(() => ({ status: "noop" as const })),
         setMarkdownLint: vi.fn(() => ({ status: "noop" as const })),
+        setMarkdownLintEngine: vi.fn(),
         recomputeMarkdownLint: vi.fn(() => ({ status: "noop" as const })),
         setHostVisibility: vi.fn(),
         focus: vi.fn(),

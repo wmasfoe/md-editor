@@ -1,4 +1,4 @@
-import type { MdxComponentPlugin } from "@md-editor/plugin-sdk/mdx";
+import type { MdxComponentPlugin } from "@md-editor/shared/mdx";
 import { describe, expect, it } from "vitest";
 import { componentPluginFromDescriptor, createMdxComponentRegistry } from "../src/mdx.ts";
 

@@ -29,6 +29,8 @@ export const coreEditorCss = String.raw`
     system-ui,
     sans-serif
   );
+  /* 正文字号的唯一消费者：fallback 取 inherit，保持"裸用"时继承页面字号的既有行为。 */
+  font-size: var(--theme-editor-font-size, inherit);
   line-height: var(--theme-editor-line-height, 1.62);
   letter-spacing: var(--theme-letter-spacing, 0);
   -webkit-font-smoothing: antialiased;

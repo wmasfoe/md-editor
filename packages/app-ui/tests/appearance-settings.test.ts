@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { EDITOR_STYLE_CSS } from "@md-editor/editor";
+import { EDITOR_STYLE_CSS } from "@md-editor/editor/internals";
 
 const panelSource = readFileSync(
   new URL("../src/components/settings/AppearanceSettingsPanel.tsx", import.meta.url),

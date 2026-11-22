@@ -9,7 +9,6 @@
 export { calculateDocumentMetrics, type DocumentMetrics } from "./markdown/document-metrics.ts";
 export {
   createCodeMirrorEditorBridge,
-  getRendererForTesting,
   type CodeMirrorEditorBridge,
   type CodeMirrorEditorBridgeOptions,
   type CodeMirrorEditorPorts,
@@ -18,14 +17,7 @@ export {
   type CodeMirrorEditorClipboardWriter,
   type MdxComponentsLookup,
 } from "./bridge.ts";
-export type {
-  ImageInsertionInput,
-  ImageInsertionOptions,
-  PreparedImageInsertion,
-} from "./image-insertion.ts";
-
 export {
-  createCodeMirrorRenderer,
   type CodeMirrorRenderer,
   type CodeMirrorRendererOptions,
   type CodeBlockLineNumberPortResult,
@@ -33,99 +25,23 @@ export {
   type ExternalEditRequest,
   type ExternalEditResult,
 } from "./renderer/index.ts";
+export { type SuggestionViewportPosition } from "./wysiwyg/view/suggestion.ts";
 export {
-  aiSuggestionExtension,
-  acceptAiSuggestion,
-  dismissAiSuggestion,
-  setAiSuggestionEffect,
-  clearAiSuggestionEffect,
-  aiSuggestionField,
-  getSuggestionViewportStatus,
-  type SuggestionViewportPosition,
-} from "./wysiwyg/view/suggestion.ts";
-export {
-  aiSuggestionLabelsFacet,
-  DEFAULT_AI_SUGGESTION_LABELS,
   type AiSuggestionLabels,
   type AiSuggestionItem,
   type AiSuggestionInput,
   type AiSuggestionValue,
   type AiSuggestionKind,
   type AiSuggestionAcceptedEvent,
-  aiSuggestionAcceptedAnnotation,
 } from "./wysiwyg/view/suggestion-model.ts";
-export {
-  toggleBold,
-  toggleItalic,
-  toggleStrikethrough,
-  toggleInlineCode,
-  toggleHighlight,
-  insertOrWrapLink,
-  insertCodeBlock,
-  toggleBlockquote,
-  toggleBulletList,
-  toggleOrderedList,
-  toggleTaskList,
-  setParagraph,
-  setHeading1,
-  setHeading2,
-  setHeading3,
-  setHeading4,
-  setHeading5,
-  setHeading6,
-  createMarkdownFormattingKeymap,
-  normalizeCodeMirrorKey,
-} from "./wysiwyg/editing/markdown-formatting.ts";
-export {
-  search,
-  searchKeymap,
-  openSearchPanel,
-  closeSearchPanel,
-  findNext,
-  findPrevious,
-  replaceNext,
-  replaceAll,
-} from "@codemirror/search";
-export { createLiquidSearchPanel } from "./wysiwyg/view/search-panel.ts";
-export { smartPasteExtension, isValidUrl } from "./wysiwyg/input/smart-paste.ts";
-export { smartPairsExtension } from "./wysiwyg/input/smart-pairs.ts";
-export type {
-  ImagePreviewResolveInput,
-  ImagePreviewResolver,
-} from "./wysiwyg/view/image-resolver.ts";
-
-export type {
-  DocumentSnapshot,
-  DocumentStateEvent,
-  EditorMode,
-  ModePortResult,
-  ModeReceipt,
-  ModeRequest,
-  RendererExternalEditReceipt,
-  RendererSyncResult,
-} from "@md-editor/core";
-
-export { SyntaxPluginRegistry } from "./plugins/syntax-registry.ts";
 export { createDefaultSyntaxPluginHostPorts } from "./plugins/syntax-plugin-ports.ts";
 export {
-  EDITOR_STYLE_CSS,
-  EDITOR_STYLE_ELEMENT_ID,
   THEME_VARIABLES,
-  createDocumentStylePort,
-  ensureStyleElement,
-  injectEditorStyles,
   type InjectEditorStylesOptions,
   type StyleElementPort,
   type StyleInjectionPort,
   type ThemeVariableSpec,
 } from "./styles/index.ts";
-export {
-  CalloutHeaderWidget,
-  CalloutFooterWidget,
-  DirectiveHeaderWidget,
-} from "./wysiwyg/widgets/callout-widget.ts";
-export { markdownRangeIndexField, syntaxPluginRegistryFacet } from "./markdown/range-index.ts";
-
 export {
   CODE_BLOCK_LANGUAGES,
   findCodeBlockLanguage,
@@ -136,32 +52,32 @@ export {
   dispatchEditorUserNotice,
   type EditorUserNoticeDetail,
 } from "./editor-user-notice.ts";
-
 export {
-  closeMediaViewerFor,
-  openMediaViewer,
   type MediaViewerContent,
   type MediaViewerHandle,
   type MediaViewerOptions,
   type MediaViewerZoomPan,
 } from "./media-viewer/index.ts";
-
 export {
-  createLintBaseExtensions,
-  createRealtimeMarkdownLintExtension,
-  clearMarkdownLintDiagnostics,
-  collectPreservedNonMarkdownDiagnostics,
-  createDiagnosticDomNode,
-  lintLiquidTheme,
-  executeDocumentLint,
-  runMarkdownLint,
-  runMarkdownLintCommand,
-  fixAllMarkdownLintIssues,
   type MarkdownLintRunResult,
   type MarkdownLintFixAllResult,
-  runLinkValidation,
   type DocumentLinterOptions,
   type LinkLintOptions,
   type LinkDiagnosticItem,
   type MarkdownLintDiagnostic,
 } from "./lint/index.ts";
+export {
+  compileEditorTheme,
+  type EditorTheme,
+  type EditorThemeColors,
+  type EditorThemeGeometry,
+  type EditorThemeTypography,
+  type ThemeVariables,
+} from "./theme/index.ts";
+
+export type {
+  MarkdownLintEngine,
+  MarkdownLintIssue,
+  MarkdownLintRequest,
+  MarkdownLintResult,
+} from "./lint/engine.ts";

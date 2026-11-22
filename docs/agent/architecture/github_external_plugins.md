@@ -11,7 +11,7 @@
 | `@md-editor/syntax-plugins` | 内置 Markdown 插件实现 |
 | `@md-editor/mdx-plugins` | 内置 MDX 组件与 metadata |
 
-原 `mdx-component-registry` 已删除，公共类型迁入 `@md-editor/plugin-sdk/mdx`，注册实现迁入 `@md-editor/plugin-host/mdx`。其他文档中仍出现的旧包名是历史记录，以本文为准。编辑器核心和 renderer 只依赖 SDK 契约，应用创建 host MDX 注册表后注入编辑器。SDK 不依赖 host、编辑器实现、React 或平台代码。运行机制是 host 的内部职责，没有额外的 runtime 包。
+原 `mdx-component-registry` 已删除，公共类型现位于 `@md-editor/shared/mdx`（原 `@md-editor/plugin-sdk/mdx`，为让 core 保持无头而移至 shared），注册实现迁入 `@md-editor/plugin-host/mdx`。其他文档中仍出现的旧包名是历史记录，以本文为准。编辑器核心和 renderer 只依赖 SDK 契约，应用创建 host MDX 注册表后注入编辑器。SDK 不依赖 host、编辑器实现、React 或平台代码。运行机制是 host 的内部职责，没有额外的 runtime 包。
 
 首版支持公开 GitHub Releases 中可信作者的语法、写作命令、模板、快捷键和设置。第三方 React/MDX 组件执行、私有仓库、凭据和网络能力、自定义面板仍未开放。桌面插件与应用处于同一 JavaScript 环境，公共 API 不是逐插件权限沙箱。
 

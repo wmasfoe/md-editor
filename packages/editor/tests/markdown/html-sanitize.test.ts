@@ -3,7 +3,13 @@
  * 双轨拒绝语义、攻击向量表 #1-17 字符串层清洗、空判定、协议纯函数。
  * Node 无 DOM 直接运行（C7 验证点：无 jsdom，import 即用）。
  */
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
+
+import {
+  consumeOptionalModuleDegraded,
+  preloadOptionalModules,
+  resetOptionalModuleCache,
+} from "../../src/module-loader.ts";
 
 import {
   ALLOWED_HTML_ATTRS,
@@ -17,7 +23,16 @@ import {
   isAllowedLinkProtocol,
   isDeniedHtmlAttr,
 } from "../../src/markdown/html-whitelist";
-import { isEmptySanitizedHtml, sanitizeHtmlBlock } from "../../src/markdown/html-sanitize";
+import {
+  isEmptySanitizedHtml,
+  sanitizeHtmlBlock,
+  sanitizeHtmlBlockDetailed,
+} from "../../src/markdown/html-sanitize";
+
+beforeAll(async () => {
+  // 消毒器改为按需加载：测试里先显式预热，避免把"未就绪占位"混进清洗语义断言。
+  await preloadOptionalModules();
+});
 
 describe("U-SANITIZE 白名单常量精确匹配 D5 清单", () => {
   it("tags 清单与 D5 逐项一致", () => {
@@ -210,14 +225,14 @@ function expectNoLiveHandlerAttrs(html: string): void {
 
 describe("U-SANITIZE 双轨拒绝语义", () => {
   it("① 属性级剥离：已登记标签拒绝属性移除、标签保留", () => {
-    expect(sanitizeHtmlBlock('<img src="x.png" onerror="alert(1)">')).toBe('<img src="x.png" />');
-    expect(sanitizeHtmlBlock('<div style="background:url(javascript:alert(1))">t</div>')).toBe(
+    expect(expectSanitized('<img src="x.png" onerror="alert(1)">')).toBe('<img src="x.png" />');
+    expect(expectSanitized('<div style="background:url(javascript:alert(1))">t</div>')).toBe(
       "<div>t</div>",
     );
-    expect(sanitizeHtmlBlock('<p class="hero" title="t">t</p>')).toBe('<p title="t">t</p>');
+    expect(expectSanitized('<p class="hero" title="t">t</p>')).toBe('<p title="t">t</p>');
   });
   it("② 整标签剔除：data:image/svg+xml src 由 exclusiveFilter 兜底剔除", () => {
-    const out = sanitizeHtmlBlock('<img src="data:image/svg+xml,<svg onload=alert(1)>">');
+    const out = expectSanitized('<img src="data:image/svg+xml,<svg onload=alert(1)>">');
     expect(out).not.toMatch(/<img/i);
     expect(out).not.toMatch(/svg/i);
   });
@@ -233,40 +248,40 @@ describe("U-SANITIZE 双轨拒绝语义", () => {
 
 describe("U-SANITIZE 攻击向量表 #1-17（字符串层）", () => {
   it("#1 script 块 → 空（→ 占位）", () => {
-    const out = sanitizeHtmlBlock("<script>alert(1)</script>");
+    const out = expectSanitized("<script>alert(1)</script>");
     expect(isEmptySanitizedHtml(out)).toBe(true);
   });
   it("#2 img onerror → src 保留、onerror 移除", () => {
-    const out = sanitizeHtmlBlock('<img src="x" onerror="alert(1)">');
+    const out = expectSanitized('<img src="x" onerror="alert(1)">');
     expect(out).toBe('<img src="x" />');
     expect(out).not.toMatch(/onerror/i);
   });
   it("#3 javascript: href → 链接文本保留、href 移除", () => {
-    const out = sanitizeHtmlBlock('<a href="javascript:alert(1)">x</a>');
+    const out = expectSanitized('<a href="javascript:alert(1)">x</a>');
     expect(out).toBe("<a>x</a>");
     expect(out).not.toMatch(/href/i);
   });
   it("#4 iframe srcdoc → 空", () => {
-    const out = sanitizeHtmlBlock('<iframe srcdoc="<script>alert(1)</script>"></iframe>');
+    const out = expectSanitized('<iframe srcdoc="<script>alert(1)</script>"></iframe>');
     expect(isEmptySanitizedHtml(out)).toBe(true);
   });
   it("#5 object/embed → 移除", () => {
-    expect(
-      isEmptySanitizedHtml(sanitizeHtmlBlock('<object data="data:text/html,x"></object>')),
-    ).toBe(true);
-    expect(isEmptySanitizedHtml(sanitizeHtmlBlock('<embed src="x.swf">'))).toBe(true);
+    expect(isEmptySanitizedHtml(expectSanitized('<object data="data:text/html,x"></object>'))).toBe(
+      true,
+    );
+    expect(isEmptySanitizedHtml(expectSanitized('<embed src="x.swf">'))).toBe(true);
   });
   it("#6 div style → style 移除、div 保留", () => {
-    const out = sanitizeHtmlBlock('<div style="background:url(javascript:alert(1))">t</div>');
+    const out = expectSanitized('<div style="background:url(javascript:alert(1))">t</div>');
     expect(out).toBe("<div>t</div>");
   });
   it("#7 svg onload → 节点移除", () => {
-    const out = sanitizeHtmlBlock('<svg onload="alert(1)">x</svg>');
+    const out = expectSanitized('<svg onload="alert(1)">x</svg>');
     expect(out).not.toMatch(/<svg/i);
     expect(out).not.toMatch(/onload/i);
   });
   it("#8 mXSS math/mtext 载荷 → 存活节点无危险属性/危险标签", () => {
-    const out = sanitizeHtmlBlock(
+    const out = expectSanitized(
       '<math><mtext><table><mglyph><style><!--</style><img title="--><img src=1 onerror=alert(1)>">',
     );
     expect(out).not.toMatch(/<script/i);
@@ -279,59 +294,57 @@ describe("U-SANITIZE 攻击向量表 #1-17（字符串层）", () => {
     expect(out).toBe('<img title="--&gt;&lt;img src=1 onerror=alert(1)&gt;" />');
   });
   it("#9 嵌套 svg 重入 → 存活节点无危险属性/危险标签", () => {
-    const out = sanitizeHtmlBlock("<svg><p><style><img src=x onerror=alert(1)></style></p></svg>");
+    const out = expectSanitized("<svg><p><style><img src=x onerror=alert(1)></style></p></svg>");
     expect(out).not.toMatch(/<script/i);
     expect(out).not.toMatch(/<style/i);
     expect(out).not.toMatch(/<svg/i);
     expectNoLiveHandlerAttrs(out);
   });
   it("#10 data:image/svg+xml src → 整标签移除（exclusiveFilter 兜底）", () => {
-    const out = sanitizeHtmlBlock('<img src="data:image/svg+xml,<svg onload=alert(1)>">');
+    const out = expectSanitized('<img src="data:image/svg+xml,<svg onload=alert(1)>">');
     expect(out).not.toMatch(/<img/i);
     expect(out).not.toMatch(/svg/i);
     expect(out).not.toMatch(/onload/i);
   });
   it("#11 file:// href → href 移除", () => {
-    const out = sanitizeHtmlBlock('<a href="file:///etc/passwd">x</a>');
+    const out = expectSanitized('<a href="file:///etc/passwd">x</a>');
     expect(out).toBe("<a>x</a>");
   });
   it("#12 form/input → 移除", () => {
     expect(
-      isEmptySanitizedHtml(
-        sanitizeHtmlBlock('<form action="https://evil"><input autofocus></form>'),
-      ),
+      isEmptySanitizedHtml(expectSanitized('<form action="https://evil"><input autofocus></form>')),
     ).toBe(true);
   });
   it("#13 meta refresh → 移除", () => {
     expect(
       isEmptySanitizedHtml(
-        sanitizeHtmlBlock('<meta http-equiv="refresh" content="0;url=https://evil">'),
+        expectSanitized('<meta http-equiv="refresh" content="0;url=https://evil">'),
       ),
     ).toBe(true);
   });
   it("#14 link stylesheet → 移除", () => {
     expect(
-      isEmptySanitizedHtml(sanitizeHtmlBlock('<link rel="stylesheet" href="https://evil/x.css">')),
+      isEmptySanitizedHtml(expectSanitized('<link rel="stylesheet" href="https://evil/x.css">')),
     ).toBe(true);
   });
   it("#15 未知标签 + on* 属性 → 移除", () => {
-    const out = sanitizeHtmlBlock('<xss onmouseover="alert(1)">t</xss>');
+    const out = expectSanitized('<xss onmouseover="alert(1)">t</xss>');
     expect(out).not.toMatch(/onmouseover/i);
     expect(out).toBe("t");
   });
   it("#16 实体混淆 javascript: href → 解码后仍拒绝", () => {
-    const out = sanitizeHtmlBlock('<a href="&#106;&#97;vascript:alert(1)">x</a>');
+    const out = expectSanitized('<a href="&#106;&#97;vascript:alert(1)">x</a>');
     expect(out).toBe("<a>x</a>");
     expect(out).not.toMatch(/href/i);
   });
   it("#17 xmp raw-text 走私（CVE-2026-44990 类）→ 字符串层无 script 残留", () => {
-    const out = sanitizeHtmlBlock("<div><xmp><script>alert(1)</script></xmp></div>");
+    const out = expectSanitized("<div><xmp><script>alert(1)</script></xmp></div>");
     expect(out).not.toMatch(/<script/i);
     expect(out).not.toMatch(/<xmp/i);
     // 渲染层 textContent 兜底由 L3 断言（widget 层禁 innerHTML）
   });
   it("向量清洗后全局无危险属性残留", () => {
-    const out = sanitizeHtmlBlock(
+    const out = expectSanitized(
       '<div><img src=x onerror=alert(1)><a href="javascript:alert(1)">x</a>' +
         '<script>alert(1)</script><iframe srcdoc="x"></iframe></div>',
     );
@@ -347,5 +360,22 @@ describe("U-SANITIZE 空判定", () => {
     expect(isEmptySanitizedHtml("")).toBe(true);
     expect(isEmptySanitizedHtml("   \n ")).toBe(true);
     expect(isEmptySanitizedHtml("<p>t</p>")).toBe(false);
+  });
+});
+
+/** 测试辅助：断言消毒器已就绪并取回清洗结果（"未就绪"由前一条断言挡掉）。 */
+function expectSanitized(html: string): string {
+  const out = sanitizeHtmlBlock(html);
+  expect(out).not.toBeNull();
+  return out as string;
+}
+
+// 必须放在文件末尾：本组会清空加载状态，影响同文件后续断言的前提。
+describe("按需加载：未就绪时降级而不是放行", () => {
+  it("消毒器未就绪时两个入口都返回 null，并标记降级（渲染层只可能拿到占位）", () => {
+    resetOptionalModuleCache();
+    expect(sanitizeHtmlBlockDetailed("<b>x</b>")).toBeNull();
+    expect(sanitizeHtmlBlock("<b>x</b>")).toBeNull();
+    expect(consumeOptionalModuleDegraded()).toBe(true);
   });
 });

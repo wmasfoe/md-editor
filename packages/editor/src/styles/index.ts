@@ -38,14 +38,18 @@ import { mermaidCss } from "./mermaid-css.ts";
 import { searchCss } from "./search-css.ts";
 import { tableCss } from "./table-css.ts";
 
-/** `<style>` 元素的幂等键。 */
+/**
+ * `<style>` 元素的幂等键。
+ * @internal
+ */
 export const EDITOR_STYLE_ELEMENT_ID = "md-editor-renderer-style";
 
 /**
  * 全部渲染器样式的拼接结果（按依赖顺序：基础 → 组件 → 面板）。
  *
  * 顺序有意义：后面的规则可以覆盖前面的同类选择器。
- */
+ * @internal
+/** @internal */
 export const EDITOR_STYLE_CSS = [
   coreEditorCss,
   tableCss,
@@ -72,7 +76,8 @@ export interface InjectEditorStylesOptions {
  * （内容相同则完全跳过），因此多次挂载编辑器或 HMR 不会累积重复规则。
  *
  * Node / SSR 环境无 `document` 时静默返回，不抛错。
- */
+ * @internal
+/** @internal */
 export function injectEditorStyles(options: InjectEditorStylesOptions = {}): void {
   const doc = options.document ?? (typeof document === "undefined" ? undefined : document);
   if (!doc) return;

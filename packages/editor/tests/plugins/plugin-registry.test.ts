@@ -9,7 +9,8 @@ import {
   type RendererViewFactoryInput,
 } from "../../src/renderer/index.ts";
 import { resolveDimOpacity } from "../../src/wysiwyg/view/focus-mode.ts";
-import { markdownRangeIndexField, SyntaxPluginRegistry } from "../../src";
+import { SyntaxPluginRegistry } from "@md-editor/plugin-sdk/syntax";
+import { markdownRangeIndexField } from "../../src/internals.ts";
 
 describe("MarkdownSyntaxPlugin & SyntaxPluginRegistry (Renderer Core)", () => {
   it("rejects conflicting IDs and nodes without partially replacing a valid registry", () => {
@@ -25,7 +26,7 @@ describe("MarkdownSyntaxPlugin & SyntaxPluginRegistry (Renderer Core)", () => {
       "already registered",
     );
     expect(registry.plugins).toEqual([first]);
-    expect(() => registry.setPlugins([first, { ...first, id: "author.second" }])).toThrow(
+    expect(() => registry.replaceDeclarative([first, { ...first, id: "author.second" }])).toThrow(
       "Syntax node",
     );
     expect(registry.plugins).toEqual([first]);
@@ -121,9 +122,13 @@ describe("MarkdownSyntaxPlugin & SyntaxPluginRegistry (Renderer Core)", () => {
       name: "Plugin 2",
     };
 
-    // 验证链式调用 use() 返回 renderer 实例
-    const chained = renderer.use(plugin1).use(plugin2);
-    expect(chained).toBe(renderer);
+    // 增量注册：两次 addSyntaxPlugin 各自返回可卸载句柄（取代已删除的链式 use()）
+    const handle1 = renderer.addSyntaxPlugin(plugin1);
+    const handle2 = renderer.addSyntaxPlugin(plugin2);
+    expect(typeof handle1.dispose).toBe("function");
+    expect(handle1).not.toBe(handle2);
+    handle1.dispose();
+    expect(() => renderer.addSyntaxPlugin(plugin1)).not.toThrow();
 
     // 验证无插件时，纯文本渲染正常
     expect(viewState).toBeDefined();
@@ -187,7 +192,7 @@ describe("MarkdownSyntaxPlugin & SyntaxPluginRegistry (Renderer Core)", () => {
       buildDecorations: () => [],
     };
 
-    renderer.use(uiPlugin);
+    renderer.addSyntaxPlugin(uiPlugin);
 
     const afterUiIndex = viewState!.field(markdownRangeIndexField);
     // 纯 UI 插件未包含 markdownExtension，AST RangeIndex 版本号保持不变，零重构开销
@@ -202,7 +207,7 @@ describe("MarkdownSyntaxPlugin & SyntaxPluginRegistry (Renderer Core)", () => {
       },
     };
 
-    renderer.use(syntaxPlugin);
+    renderer.addSyntaxPlugin(syntaxPlugin);
 
     const afterSyntaxIndex = viewState!.field(markdownRangeIndexField);
     // 语法插件包含 markdownExtension，成功调度 AST 重新解析，RangeIndex 版本号递增
@@ -254,14 +259,14 @@ describe("MarkdownSyntaxPlugin & SyntaxPluginRegistry (Renderer Core)", () => {
     expect(registry.getNodePolicy("Node2")).toBeNull();
 
     // 验证 setPlugins() 重新设为仅包含 p2
-    registry.setPlugins([p2]);
+    registry.replaceDeclarative([p2]);
     expect(registry.plugins).toHaveLength(1);
     expect(registry.plugins[0].id).toBe("p2");
     expect(registry.getNodePolicy("Node1")).toBeNull();
     expect(registry.getNodePolicy("Node2")).not.toBeNull();
   });
 
-  it("dynamically enables and disables plugins via renderer.setPlugins() with full idempotency", () => {
+  it("dynamically enables and disables plugins via renderer.setSyntaxPlugins() with full idempotency", () => {
     const parent = (
       typeof document !== "undefined" ? document.createElement("div") : {}
     ) as HTMLElement;
@@ -325,39 +330,39 @@ describe("MarkdownSyntaxPlugin & SyntaxPluginRegistry (Renderer Core)", () => {
     };
 
     // 1. 初始化安装 2 个插件
-    renderer.setPlugins([pluginMath, pluginMermaid]);
+    renderer.setSyntaxPlugins([pluginMath, pluginMermaid]);
     expect(viewState).toBeDefined();
 
     const dispatchCount1 = dispatchedEffects.length;
     expect(dispatchCount1).toBeGreaterThan(0);
 
     // 2. 幂等性测试：传入完全相同清单，不重复 dispatch
-    renderer.setPlugins([pluginMath, pluginMermaid]);
+    renderer.setSyntaxPlugins([pluginMath, pluginMermaid]);
     expect(dispatchedEffects.length).toBe(dispatchCount1);
 
     // 调用方（如 web 端设置变化后 useMemo 重新 filter）常会传入一个新数组，
     // 但数组里仍是同一批插件实例。比较的是实例而不是数组本身，所以同样不能重配。
     const rebuiltArray = [pluginMath, pluginMermaid].filter(() => true);
-    renderer.setPlugins(rebuiltArray);
+    renderer.setSyntaxPlugins(rebuiltArray);
     expect(dispatchedEffects.length).toBe(dispatchCount1);
 
     // The same stable ID can carry a new parser/projection after an upgrade.
     const nextMath = { ...pluginMath, name: "Math Plugin v2" };
-    renderer.setPlugins([nextMath, pluginMermaid]);
+    renderer.setSyntaxPlugins([nextMath, pluginMermaid]);
     expect(dispatchedEffects.length).toBeGreaterThan(dispatchCount1);
 
     // 3. 禁用 Mermaid 插件（仅保留 Math 插件）：触发重配
-    renderer.setPlugins([pluginMath]);
+    renderer.setSyntaxPlugins([pluginMath]);
     expect(dispatchedEffects.length).toBeGreaterThan(dispatchCount1);
 
     // 4. 清空所有插件（全部禁用）：触发重配
     const dispatchCount3 = dispatchedEffects.length;
-    renderer.setPlugins([]);
+    renderer.setSyntaxPlugins([]);
     expect(dispatchedEffects.length).toBeGreaterThan(dispatchCount3);
 
     // 5. 重新全部启用：安全恢复
     const dispatchCount4 = dispatchedEffects.length;
-    renderer.setPlugins([pluginMath, pluginMermaid]);
+    renderer.setSyntaxPlugins([pluginMath, pluginMermaid]);
     expect(dispatchedEffects.length).toBeGreaterThan(dispatchCount4);
   });
 

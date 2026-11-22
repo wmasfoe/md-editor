@@ -78,11 +78,11 @@ describe("AI suggestion accepted event", () => {
     const fix = createAiBadge(document, labels, "", "fix");
     const style = createAiBadge(document, labels, " (1/2)", "style");
 
-    expect(plain.textContent).toBe("Tab 接受 · Esc 取消");
+    expect(plain.textContent).toBe("Tab Accept · Esc Dismiss");
     expect(plain.dataset.kind).toBeUndefined();
-    expect(fix.textContent).toBe("修正 · Tab 接受 · Esc 取消");
+    expect(fix.textContent).toBe("Fix · Tab Accept · Esc Dismiss");
     expect(fix.dataset.kind).toBe("fix");
-    expect(style.textContent).toBe("风格 · Tab 接受 (1/2) · Esc 取消");
+    expect(style.textContent).toBe("Style · Tab Accept (1/2) · Esc Dismiss");
     expect(style.dataset.kind).toBe("style");
   });
 });

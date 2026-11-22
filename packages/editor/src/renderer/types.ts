@@ -26,6 +26,7 @@ import type {
   MarkdownSyntaxPlugin,
   SyntaxPluginHostPorts,
 } from "@md-editor/plugin-sdk/syntax";
+import type { Disposable } from "@md-editor/plugin-sdk";
 import type { MdxComponentLookup } from "../wysiwyg/projections/mdx-projection.ts";
 import type { WysiwygProjectionSnapshot } from "../wysiwyg/state/types.ts";
 import type { ImagePreviewResolver } from "../wysiwyg/view/image-resolver.ts";
@@ -36,6 +37,7 @@ import type {
   AiSuggestionAcceptedEvent,
 } from "../wysiwyg/view/suggestion-model.ts";
 import type { DocumentLinterOptions } from "../lint/types.ts";
+import type { MarkdownLintEngine } from "../lint/engine.ts";
 import type { DocumentMetrics } from "../markdown/document-metrics.ts";
 export type { DocumentLinterOptions };
 
@@ -91,10 +93,10 @@ export interface CodeMirrorRendererOptions {
   readonly focusDimOpacity?: number;
   /** 是否开启实时 Markdown 规范检查（默认 false，由宿主按需开启） */
   readonly enableMarkdownLint?: boolean;
+  /** 宿主注入的 lint 引擎（编辑器不再静态依赖 markdownlint）。 */
+  readonly markdownlint?: MarkdownLintEngine;
   /** 可选语法扩展插件列表（纯增量加载，未配置时保持标准 CommonMark/GFM） */
   readonly plugins?: readonly MarkdownSyntaxPlugin[];
-  /** 兼容别名：同 plugins */
-  readonly syntaxPlugins?: readonly MarkdownSyntaxPlugin[];
   /** AI 建议徽标国际化文案 */
   readonly aiSuggestionLabels?: AiSuggestionLabels;
   /** 用户采纳一项 AI 建议并插入文本后回调（不影响采纳本身） */
@@ -159,6 +161,8 @@ export interface CodeMirrorRenderer {
   setCodeBlockLineNumbers(enabled: boolean): CodeBlockLineNumberPortResult;
   setInlineStyleMarkers(enabled: boolean): InlineStyleMarkerPortResult;
   setMarkdownLint(enabled: boolean): MarkdownLintPortResult;
+  /** 运行期注入/替换 lint 引擎（引擎晚于视图到达时不重建视图）。 */
+  setMarkdownLintEngine(engine: MarkdownLintEngine | undefined): MarkdownLintPortResult;
   recomputeMarkdownLint(): MarkdownLintPortResult;
   setLanguage(language: string | undefined): MarkdownLintPortResult;
   setHostVisibility(hidden: boolean): void;
@@ -211,10 +215,15 @@ export interface CodeMirrorRenderer {
   readonly isComposing: boolean;
   /** 将当前未提交的投影控件/表单（例如 WYSIWYG 表格单元格）同步刷新到底层文档 */
   flushPendingEdits(): boolean;
-  /** 安装/挂载 Markdown 语法扩展插件（支持链式调用） */
-  use(...plugins: (MarkdownSyntaxPlugin | readonly MarkdownSyntaxPlugin[])[]): this;
+  /**
+   * 增量安装一个 Markdown 语法扩展插件，返回可卸载句柄。
+   *
+   * 与 `setPlugins`（声明式全量替换）分命名空间：全量替换不会清掉这里的注册，
+   * 句柄带身份守卫（同名插件被后来的注册替换后，旧句柄失效）。
+   */
+  addSyntaxPlugin(plugin: MarkdownSyntaxPlugin): Disposable;
   /** 全量替换并热重载 Markdown 语法扩展插件列表（用于启用/禁用插件热更新） */
-  setPlugins(plugins: readonly MarkdownSyntaxPlugin[]): this;
+  setSyntaxPlugins(plugins: readonly MarkdownSyntaxPlugin[]): this;
   /** 执行文档 MarkdownLint 与链接检查，将诊断结果同步分发至视口 */
   runDocumentLint(options?: DocumentLinterOptions): Promise<readonly Diagnostic[]>;
   /** 运行或切换 Markdown 规范检查，分发诊断并打开问题面板（若已开启则 Toggle Off 关闭） */

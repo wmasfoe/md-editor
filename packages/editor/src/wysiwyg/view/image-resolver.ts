@@ -1,11 +1,13 @@
 import { Facet, type EditorState, type Extension } from "@codemirror/state";
 
+/** @internal */
 export interface ImagePreviewResolveInput {
   readonly source: string;
   readonly alt: string;
   readonly title: string | null;
 }
 
+/** @internal */
 export type ImagePreviewResolver = (input: ImagePreviewResolveInput) => string;
 
 const imagePreviewResolverFacet = Facet.define<ImagePreviewResolver, ImagePreviewResolver>({

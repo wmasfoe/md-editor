@@ -21,6 +21,7 @@
     "marked-cjk-friendly": "0.1.2"
   },
   "devDependencies": {
+    "@md-editor/markdown-fidelity": "workspace:*",
     "@types/katex": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

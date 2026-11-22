@@ -1,6 +1,6 @@
 # CodeMirror 6 Markdown 可视化编辑器架构方案
 
-> 包名变更（历史说明）：文中的 `@md-editor/mdx-component-registry` 已在 PR `feature/github-external-plugins`（提交 `aa781d1`）中删除；公共 MDX 契约现位于 `@md-editor/plugin-sdk/mdx`，注册表实现位于 `@md-editor/plugin-host/mdx`，详见 [GitHub 外部插件](./github_external_plugins.md)。本文其余内容保留为历史资料，不再随包名变更修改。
+> 包名变更（历史说明）：文中的 `@md-editor/mdx-component-registry` 已在 PR `feature/github-external-plugins`（提交 `aa781d1`）中删除；公共 MDX 契约现位于 `@md-editor/shared/mdx`（原 `@md-editor/plugin-sdk/mdx`，为让 `core` 保持无头而迁至 shared），注册表实现位于 `@md-editor/plugin-host/mdx`，详见 [GitHub 外部插件](./github_external_plugins.md)。本文其余内容保留为历史资料，不再随包名变更修改。
 
 > 用途：定义从 Milkdown 迁移到 CodeMirror 6 后的产品行为、领域边界、状态模型、实现顺序和验收契约。
 >

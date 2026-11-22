@@ -1,5 +1,5 @@
-import type { MdxComponentRegistry } from "@md-editor/plugin-sdk/mdx";
-import type { Disposable } from "@md-editor/plugin-sdk";
+import type { MdxComponentRegistry } from "@md-editor/shared/mdx";
+import type { Disposable } from "@md-editor/shared";
 
 import type { DocumentSnapshot, DocumentState } from "./document-state.ts";
 
@@ -225,15 +225,15 @@ export function createCommandRegistry(): CommandRegistry {
       return commands.delete(id);
     },
     async dispatch(id, context) {
-      console.log("[Command Dispatch]", id, "registered commands:", [...commands.keys()]);
       const command = commands.get(id);
       if (!command) {
+        // 这是"命令 id 不存在"的唯一可观察信号（生产调用点丢弃 boolean 返回值），
+        // 在错误契约统一之前必须保留。
         console.warn("[Command Dispatch] Command not found:", id);
         return false;
       }
-      console.log("[Command Dispatch] Running:", id);
+      // 成功路径不产生任何控制台输出：发布给宿主的库不应污染宿主控制台。
       await command.run(context);
-      console.log("[Command Dispatch] Completed:", id);
       return true;
     },
     list() {

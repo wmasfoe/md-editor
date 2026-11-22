@@ -13,6 +13,7 @@ npm install @md-editor/plugin-host
 `validateCatalog` checks an unknown value and returns a typed catalog. It throws
 if the value has an invalid schema, duplicate entries or exceeds the size limit.
 
+<!-- readme-check -->
 ```ts
 import { validateCatalog } from "@md-editor/plugin-host";
 

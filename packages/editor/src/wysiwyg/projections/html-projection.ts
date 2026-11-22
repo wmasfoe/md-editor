@@ -457,6 +457,19 @@ function buildHtmlWidgetValue(
   }
 
   const result = getSanitizedHtml(record, state);
+  if (!result) {
+    // 消毒器按需加载中：渲染占位而非源码，避免"先闪源码再变渲染结果"。
+    return {
+      recordId: record.id,
+      sanitizedHtml: "",
+      placeholder: "Loading HTML preview…",
+      selected,
+      diagnostics,
+      rawHtml,
+      from: record.fullRange.from,
+      to: record.fullRange.to,
+    };
+  }
   return {
     recordId: record.id,
     sanitizedHtml: result.html,
@@ -472,7 +485,10 @@ function buildHtmlWidgetValue(
   };
 }
 
-function getSanitizedHtml(record: MarkdownRangeRecord, state: EditorState): SanitizedHtmlBlock {
+function getSanitizedHtml(
+  record: MarkdownRangeRecord,
+  state: EditorState,
+): SanitizedHtmlBlock | null {
   const key = `${HTML_WHITELIST_VERSION}:${record.sourceFingerprint}`;
   const cached = sanitizeCache.get(key);
   if (cached) {
@@ -482,6 +498,7 @@ function getSanitizedHtml(record: MarkdownRangeRecord, state: EditorState): Sani
   const result = sanitizeHtmlBlockDetailed(
     state.sliceDoc(record.fullRange.from, record.fullRange.to),
   );
+  if (!result) return null;
   sanitizeCache.set(key, result);
   if (sanitizeCache.size > HTML_SANITIZE_CACHE_LIMIT) {
     const oldest = sanitizeCache.keys().next().value;

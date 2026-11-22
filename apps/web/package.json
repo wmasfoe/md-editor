@@ -35,7 +35,8 @@
     "@codemirror/state": "catalog:",
     "@codemirror/view": "catalog:",
     "@lezer/common": "catalog:",
-    "@lezer/markdown": "catalog:"
+    "@lezer/markdown": "catalog:",
+    "markdownlint": "^0.42.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "catalog:",

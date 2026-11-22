@@ -1,11 +1,8 @@
 import { markdown } from "@codemirror/lang-markdown";
 import { EditorState } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
-import {
-  markdownRangeIndexField,
-  syntaxPluginRegistryFacet,
-  SyntaxPluginRegistry,
-} from "@md-editor/editor";
+import { markdownRangeIndexField, syntaxPluginRegistryFacet } from "@md-editor/editor/internals";
+import { SyntaxPluginRegistry } from "@md-editor/plugin-sdk/syntax";
 import { provideWysiwygDiagnostics, WysiwygDiagnostics } from "@md-editor/editor/testing";
 import {
   mermaidPlugin,

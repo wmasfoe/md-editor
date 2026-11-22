@@ -4,7 +4,8 @@
   "license": "GPL-3.0-or-later",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./mdx": "./src/mdx.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -26,6 +27,10 @@
       ".": {
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
+      },
+      "./mdx": {
+        "types": "./dist/mdx.d.ts",
+        "default": "./dist/mdx.js"
       }
     }
   },
@@ -37,5 +42,12 @@
   },
   "bugs": {
     "url": "https://github.com/wmasfoe/md-editor/issues"
-  }
+  },
+  "sideEffects": false,
+  "keywords": [
+    "markdown",
+    "shared",
+    "types"
+  ],
+  "homepage": "https://github.com/wmasfoe/md-editor/tree/main/packages/shared"
 }

@@ -83,7 +83,12 @@ test.describe("standalone editor/react bridge", () => {
       .toBe(true);
     await expect(page.locator(".cm-gutters, .cm-lineNumbers")).toHaveCount(0);
     await page.evaluate(() => window.__CODEMIRROR_EDITOR_E2E__?.setFontSize(19));
-    await expect(page.locator(".code-mirror-editor-host")).toHaveCSS("font-size", "19px");
+    // P2：字号改由第 71 条契约变量驱动，断言目标从 host 内联迁到真正解析它的 .cm-scroller。
+    await expect(page.locator(".code-mirror-editor-host")).toHaveCSS(
+      "--theme-editor-font-size",
+      "19px",
+    );
+    await expect(page.locator(".cm-md-editor .cm-scroller")).toHaveCSS("font-size", "19px");
     await page.evaluate(async () => {
       // CSS updates before CodeMirror's animation-frame measurement adjusts the scroll anchor.
       // Record the preview baseline only after the font layout has been measured and painted.

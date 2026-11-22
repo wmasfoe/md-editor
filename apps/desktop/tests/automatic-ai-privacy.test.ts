@@ -28,6 +28,8 @@ vi.mock("@md-editor/app-ui", () => ({
   },
   resolveCodeFontStack: () => "monospace",
   resolveProseFontStack: () => "serif",
+
+  useMarkdownLintEngine: () => ({ lint: () => ({}) }),
 }));
 vi.mock("@md-editor/i18n", () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock("@md-editor/syntax-plugins", () => ({

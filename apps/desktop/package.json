@@ -47,7 +47,8 @@
     "@codemirror/view": "catalog:",
     "@lezer/markdown": "catalog:",
     "@lezer/common": "catalog:",
-    "@md-editor/editor": "workspace:*"
+    "@md-editor/editor": "workspace:*",
+    "markdownlint": "^0.42.0"
   },
   "devDependencies": {
     "@playwright/test": "catalog:",

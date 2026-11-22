@@ -45,7 +45,8 @@ export interface EnsureStyleElementOptions {
  *
  * 已存在时只比较并刷新 `textContent`（`textContent === css` 时完全跳过写入，
  * 避免无谓的样式重算）。
- */
+ * @internal
+/** @internal */
 export function ensureStyleElement(options: EnsureStyleElementOptions): void {
   const { id, css, nonce, port } = options;
   const existing = port.getElementById(id);
@@ -66,7 +67,10 @@ export function ensureStyleElement(options: EnsureStyleElementOptions): void {
   port.appendToHead(element);
 }
 
-/** 由宿主 `Document` 构造注入端口（浏览器路径）。 */
+/**
+ * 由宿主 `Document` 构造注入端口（浏览器路径）。
+ * @internal
+ */
 export function createDocumentStylePort(doc: Document): StyleInjectionPort {
   return {
     getElementById: (id) =>

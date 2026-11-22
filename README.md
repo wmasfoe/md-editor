@@ -71,7 +71,7 @@
 ### MDX and plugins
 - **MDX in the document**: mix Markdown with React and JSX components in one file.
 - **Built in**: `Callout` (info, warning, success, danger), Mermaid diagrams with click-to-zoom, KaTeX formulas, `:::note` style directives and `==highlight==`.
-- **Component registry**: custom MDX components register through `@md-editor/plugin-sdk/mdx`.
+- **Component registry**: custom MDX components register through `@md-editor/shared/mdx`.
 - **External plugins**: install plugins from GitHub Releases without rebuilding the app. Write them against [`@md-editor/plugin-sdk`](https://www.npmjs.com/package/@md-editor/plugin-sdk), or start from [inkpoint-plugin-starter](https://github.com/inkpoint-editor/inkpoint-plugin-starter). On GitHub, use **Use this template** or fork that repository.
 - **Moved repositories**: [inkpoint-plugin-starter](https://github.com/inkpoint-editor/inkpoint-plugin-starter) and the on-device model repository [md-editor-models](https://github.com/inkpoint-editor/md-editor-models) (default branch `master`) now belong to the inkpoint-editor organization. The old `wmasfoe/inkpoint-plugin-starter` and `wmasfoe/md-editor-models` addresses redirect automatically. This application stays at [wmasfoe/md-editor](https://github.com/wmasfoe/md-editor).
 

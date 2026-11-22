@@ -10,6 +10,7 @@ const bridge = vi.hoisted(() => ({
     setCodeBlockLineNumbers: vi.fn(),
     setInlineStyleMarkers: vi.fn(),
     setMarkdownLint: vi.fn(),
+    setMarkdownLintEngine: vi.fn(),
     recomputeMarkdownLint: vi.fn(),
     setLanguage: vi.fn(),
     requestMeasure: vi.fn(),

@@ -1,3 +1,4 @@
+import { preloadOptionalModules } from "../../../src/module-loader.ts";
 // @vitest-environment jsdom
 
 if (typeof Range !== "undefined" && !Range.prototype.getClientRects) {
@@ -13,7 +14,7 @@ import { virtualTrailingLineExtension } from "../../../src/wysiwyg/editing/virtu
 import { virtualTrailingLineActiveField } from "../../../src/wysiwyg/state/types.ts";
 import { HtmlBlockWidget } from "../../../src/wysiwyg/widgets/html-block-widget.ts";
 import { openLinkTargetFacet } from "../../../src/wysiwyg/view/link-interaction.ts";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { M1_MARKDOWN_EXTENSIONS } from "../../../src/markdown/extensions.ts";
 import { markdownRangeIndexField } from "../../../src/markdown/range-index.ts";
 import { editorModeField } from "../../../src/mode.ts";
@@ -93,6 +94,11 @@ afterEach(() => {
   }
   views.length = 0;
   document.body.replaceChildren();
+});
+
+beforeAll(async () => {
+  // 消毒器按需加载：先预热，保证断言看到的是真实渲染而非"加载中"占位。
+  await preloadOptionalModules();
 });
 
 describe("HtmlBlockWidget native in-place reveal (Option A)", () => {

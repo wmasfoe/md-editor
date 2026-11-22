@@ -40,5 +40,13 @@
   },
   "bugs": {
     "url": "https://github.com/wmasfoe/md-editor/issues"
-  }
+  },
+  "sideEffects": false,
+  "keywords": [
+    "markdown",
+    "roundtrip",
+    "frontmatter",
+    "slug"
+  ],
+  "homepage": "https://github.com/wmasfoe/md-editor/tree/main/packages/markdown-fidelity"
 }

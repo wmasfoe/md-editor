@@ -29,7 +29,7 @@ import {
 import { getWysiwygDiagnostics } from "../diagnostics.ts";
 import type { MdxJsxElement } from "./mdx-parse.ts";
 import { getMarkdownNodePolicy } from "./node-policy.ts";
-import { SyntaxPluginRegistry } from "../plugins/syntax-registry.ts";
+import { SyntaxPluginRegistry } from "@md-editor/plugin-sdk/syntax";
 import type {
   MarkdownNodePolicy,
   MarkdownParseCoverage,
@@ -226,7 +226,8 @@ export const mdxModeFacet = Facet.define<boolean, boolean>({
 
 /**
  * 语法插件注册中心 Facet，用于向 Range Index 注入自定义节点策略与元数据解析器。
- */
+ * @internal
+/** @internal */
 export const syntaxPluginRegistryFacet = Facet.define<SyntaxPluginRegistry, SyntaxPluginRegistry>({
   combine: (values) => values[0] ?? new SyntaxPluginRegistry(),
 });
@@ -234,7 +235,8 @@ export const syntaxPluginRegistryFacet = Facet.define<SyntaxPluginRegistry, Synt
 /**
  * CodeMirror StateField：维护当前编辑器状态的 `MarkdownRangeIndex` 单例。
  * 在文档修改或语法树覆盖度刷新时自动更新。
- */
+ * @internal
+/** @internal */
 export const markdownRangeIndexField = StateField.define<MarkdownRangeIndex>({
   create(state) {
     const diagnostics = getWysiwygDiagnostics(state);

@@ -22,7 +22,7 @@ For `:::note` style blocks written without JSX, see the directive plugin in `@md
 
 ## Registering it
 
-Each component has a matching `MdxComponentPlugin` (the contract is in `@md-editor/plugin-sdk/mdx`) with its props, an insert snippet and search keywords. `officialMdxPlugins` lists them all.
+Each component has a matching `MdxComponentPlugin` (the contract is in `@md-editor/shared/mdx`) with its props, an insert snippet and search keywords. `officialMdxPlugins` lists them all.
 
 ```tsx
 import { Callout, officialMdxPlugins } from "@md-editor/mdx-plugins";

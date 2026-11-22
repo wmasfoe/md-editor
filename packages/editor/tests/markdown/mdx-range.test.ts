@@ -1,7 +1,8 @@
+import { preloadOptionalModules } from "../../src/module-loader.ts";
 import { markdown } from "@codemirror/lang-markdown";
 import { EditorState } from "@codemirror/state";
 import { ensureSyntaxTree, syntaxTree } from "@codemirror/language";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { M1_MARKDOWN_EXTENSIONS } from "../../src/markdown/extensions.ts";
 import { buildMarkdownRangeIndex, mdxModeFacet } from "../../src/markdown/range-index.ts";
 import type { MarkdownRangeRecord } from "@md-editor/plugin-sdk/syntax";
@@ -21,6 +22,11 @@ function byKind(
 ): readonly MarkdownRangeRecord[] {
   return records.filter((record) => record.kind === kind);
 }
+
+beforeAll(async () => {
+  // MDX 解析器按需加载：先预热，保证断言看到的是真实解析结果而非"未就绪降级"。
+  await preloadOptionalModules();
+});
 
 describe("MDX range-index 集成", () => {
   it("C1: 块级 MDX 组件产生 mdx-jsx record", () => {

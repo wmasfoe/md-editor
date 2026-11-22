@@ -13,7 +13,8 @@
     ".": "./src/index.ts",
     "./testing": "./src/testing.ts",
     "./react": "./src/react/index.ts",
-    "./react/testing": "./src/react/testing.ts"
+    "./react/testing": "./src/react/testing.ts",
+    "./internals": "./src/internals.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -47,7 +48,6 @@
     "@md-editor/core": "workspace:*",
     "@md-editor/markdown-fidelity": "workspace:*",
     "@md-editor/shared": "workspace:*",
-    "markdownlint": "^0.42.0",
     "mdast-util-from-markdown": "^2.0.3",
     "mdast-util-mdx-jsx": "^3.2.0",
     "micromark": "^4.0.2",
@@ -57,8 +57,7 @@
     "sanitize-html": "catalog:",
     "turndown": "catalog:",
     "turndown-plugin-gfm": "catalog:",
-    "@md-editor/plugin-sdk": "workspace:^0.6.0",
-    "@md-editor/plugin-host": "workspace:*"
+    "@md-editor/plugin-sdk": "workspace:^0.6.0"
   },
   "devDependencies": {
     "@types/markdownlint": "^0.18.0",
@@ -70,13 +69,19 @@
     "react": "catalog:",
     "react-dom": "catalog:",
     "@types/react": "catalog:",
-    "@types/react-dom": "catalog:"
+    "@types/react-dom": "catalog:",
+    "@md-editor/plugin-host": "workspace:*",
+    "markdownlint": "^0.42.0"
   },
   "peerDependencies": {
-    "react": ">=18.3.0 <20"
+    "react": ">=18.3.0 <20",
+    "markdownlint": "^0.42.0"
   },
   "peerDependenciesMeta": {
     "react": {
+      "optional": true
+    },
+    "markdownlint": {
       "optional": true
     }
   },
@@ -105,7 +110,20 @@
       "./react/testing": {
         "types": "./dist/react/testing.d.ts",
         "default": "./dist/react/testing.js"
+      },
+      "./internals": {
+        "types": "./dist/internals.d.ts",
+        "default": "./dist/internals.js"
       }
     }
-  }
+  },
+  "keywords": [
+    "inkpoint",
+    "markdown",
+    "editor",
+    "codemirror",
+    "wysiwyg",
+    "mdx"
+  ],
+  "homepage": "https://github.com/wmasfoe/md-editor/tree/main/packages/editor"
 }

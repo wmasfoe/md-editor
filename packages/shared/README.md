@@ -34,3 +34,17 @@ function parseDocument(raw: string): Result<string, "EMPTY_DOC"> {
 pnpm test
 pnpm typecheck
 ```
+
+## Usage
+
+<!-- readme-check -->
+```ts
+import { createHeadingSlugAllocator, ok, slugifyHeading } from "@md-editor/shared";
+
+const slug = slugifyHeading("snake_case 与 Привет мир");
+const allocate = createHeadingSlugAllocator();
+const ids = ["A", "A"].map(allocate);
+const result = ok(ids);
+
+console.log(slug, result);
+```

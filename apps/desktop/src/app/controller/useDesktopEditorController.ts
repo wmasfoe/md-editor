@@ -40,7 +40,7 @@ import {
 import { useDocumentActionsController } from "./useDocumentActionsController";
 import { useEditorUiActions } from "@md-editor/app-ui";
 import { type CodeMirrorEditorPorts } from "@md-editor/editor";
-import type { MdxComponentPlugin } from "@md-editor/plugin-sdk/mdx";
+import type { MdxComponentPlugin } from "@md-editor/shared/mdx";
 
 import { useConfirmationStore } from "../stores/confirmation-store";
 import { useDocumentUiStore } from "../stores/document-ui-store";

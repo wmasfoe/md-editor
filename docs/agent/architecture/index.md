@@ -11,6 +11,8 @@
 - 能力边界设计原则： [capability_boundary_design_principles.md](./capability_boundary_design_principles.md)
 - 仓库优化与加固方案（体积/首屏、配置单源、巨型文件拆分、工程门禁、依赖卫生五项方案与验收标准）： [repo_optimization_plan.md](./repo_optimization_plan.md)
   记录 KaTeX 运行时收敛（双版本 + 启动预加载）、Vite 工作区别名单源化、distribution-worker router 拆分、CI 门禁与包体预算护栏、依赖卫生（幽灵依赖与 catalog）的现状证据、分步实施与风险。
+- 公开 API 自定义能力矩阵（三条通道、`/internals` 白名单与晋级规则、错误契约临时约定、跨表面变量差异）： [public_api_extensibility_matrix.md](./public_api_extensibility_matrix.md)
+  机器约束在 `scripts/packages/public-surface.test.mjs`（导出面快照 + 身份棘轮 + 白名单双向交叉）。
 - 仓库结构与命名规范（目录职责/命名后缀/测试位置/导入规则/体量阈值与豁免/规则分批上线）： [repo_structure_and_naming_conventions.md](./repo_structure_and_naming_conventions.md)
   唯一事实来源的机器可读部分在 `scripts/structure/check.mjs`；改动结构、移动文件、调整阈值或登记豁免前必读。
 - Desktop Store 与 Controller 边界规范： [desktop_store_controller_boundary.md](./desktop_store_controller_boundary.md)

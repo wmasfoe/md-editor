@@ -24,6 +24,7 @@ automatically. Keep the SDK as a runtime dependency if your output imports
 
 ## Usage
 
+<!-- readme-check -->
 ```ts
 import { definePlugin } from "@md-editor/plugin-sdk";
 
@@ -54,7 +55,7 @@ export default definePlugin({
 | `@md-editor/plugin-sdk` | `definePlugin`, `PluginDefinition`, `PluginContext`, manifest/catalog/package types, command/keymap/settings/editor types |
 | `@md-editor/plugin-sdk/syntax` | `MarkdownSyntaxPlugin` and the Markdown range/policy/metadata types for syntax contributions |
 | `@md-editor/plugin-sdk/callout` | Callout icons and default titles. Pure data, no CodeMirror. Use this from Node/JSC exporters |
-| `@md-editor/plugin-sdk/mdx` | MDX component descriptor and registry contract types |
+| `@md-editor/shared/mdx` | MDX component descriptor and registry contract types（放在 shared 是为了让 `core` 保持无头，不反向依赖本 SDK） |
 
 ## Getting started
 

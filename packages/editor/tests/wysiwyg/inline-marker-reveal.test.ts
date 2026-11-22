@@ -9,7 +9,7 @@ import {
   markdownRangeIndexField,
   syntaxPluginRegistryFacet,
 } from "../../src/markdown/range-index.ts";
-import { SyntaxPluginRegistry } from "../../src/plugins/syntax-registry.ts";
+import { SyntaxPluginRegistry } from "@md-editor/plugin-sdk/syntax";
 import { freezeProjectionState, type ProjectionStateDraft } from "../../src/wysiwyg/state/atoms.ts";
 import {
   EMPTY_REVEAL_IDS,

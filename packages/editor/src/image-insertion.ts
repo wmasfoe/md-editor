@@ -2,16 +2,21 @@ import type { DocumentState } from "@md-editor/core";
 import type { CodeMirrorEditorExternalEditResult } from "./bridge.ts";
 import type { ExternalEditRequest } from "./renderer/types.ts";
 
+/** @internal */
 export interface ImageInsertionInput {
   readonly src: string;
   readonly alt: string;
 }
 
+/** @internal */
 export interface ImageInsertionOptions {
   readonly layout?: "inline" | "block";
 }
 
-/** Prepared before asynchronous storage; an outdated insertion never overwrites later edits. */
+/**
+ * Prepared before asynchronous storage; an outdated insertion never overwrites later edits.
+ * @internal
+ */
 export type PreparedImageInsertion = (
   image: ImageInsertionInput,
 ) => CodeMirrorEditorExternalEditResult;
