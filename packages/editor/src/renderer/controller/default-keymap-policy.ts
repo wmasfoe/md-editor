@@ -53,13 +53,17 @@ export const SUPPRESSED_CODEMIRROR_KEYS: readonly string[] = ["Mod-/"];
 /**
  * 拆出「主键 + 修饰键集合」，用于归一化比较。
  *
+ * 用 `split(/-(?!$)/)` 而不是 `split("-")`：主键本身可能就是 `-`（CM 写作 `Mod--`），
+ * 按 `-` 直接切会把它拆成空串。这个正则与 CodeMirror 自己的 `normalizeKeyName`
+ * （`@codemirror/view` buildKeymap）一致，保证两边拆法相同。
+ *
  * 修饰键排序后拼接，所以 `Shift-Mod-k` 与 `Mod-Shift-k` 得到同一个修饰键集合；
  * 主键转小写，因为 CM 对字母键的大小写差异等价于是否按 Shift。
  */
 function splitChord(chord: string): { main: string; modifiers: string } {
-  const parts = chord.split("-");
+  const parts = chord.split(/-(?!$)/);
   const main = (parts.pop() ?? "").toLowerCase();
-  return { main, modifiers: parts.toSorted().join("-") };
+  return { main, modifiers: parts.filter(Boolean).toSorted().join("-") };
 }
 
 /**

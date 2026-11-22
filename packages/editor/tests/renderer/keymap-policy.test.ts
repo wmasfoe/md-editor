@@ -17,7 +17,8 @@
  */
 import { defaultKeymap } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
-import { EditorState, type Extension } from "@codemirror/state";
+import { searchKeymap } from "@codemirror/search";
+import { Compartment, EditorState } from "@codemirror/state";
 import { keymap } from "@codemirror/view";
 import { describe, expect, it } from "vitest";
 import { provideWysiwygDiagnostics, WysiwygDiagnostics } from "../../src/diagnostics.ts";
@@ -30,7 +31,10 @@ import {
   createEditorKeymapExtension,
   SUPPRESSED_CODEMIRROR_KEYS,
 } from "../../src/renderer/controller/default-keymap-policy.ts";
-import { createMarkdownFormattingBindings } from "../../src/wysiwyg/editing/markdown-formatting.ts";
+import {
+  createMarkdownFormattingBindings,
+  createMarkdownFormattingKeymap,
+} from "../../src/wysiwyg/editing/markdown-formatting.ts";
 import { createWysiwygProjectionExtensions } from "../../src/wysiwyg/index.ts";
 
 /**
@@ -39,7 +43,9 @@ import { createWysiwygProjectionExtensions } from "../../src/wysiwyg/index.ts";
  * 顺序刻意与生产一致 —— 根扩展在前、格式化键位在后。这正是缺陷的成因：
  * `keymap` facet 按装配顺序派发，所以只有格式化键位提权（`Prec.high`）才能赢。
  */
-function createProductionKeymapStack(extra: readonly Extension[] = []): EditorState {
+function createProductionKeymapStack(
+  projectionOptions: Parameters<typeof createWysiwygProjectionExtensions>[1] = {},
+): EditorState {
   return EditorState.create({
     doc: "hello",
     extensions: [
@@ -49,8 +55,10 @@ function createProductionKeymapStack(extra: readonly Extension[] = []): EditorSt
       editorModeField,
       markdownRangeIndexField,
       createEditorKeymapExtension(),
-      createWysiwygProjectionExtensions(["blocks", "headings", "inline-styles", "links"]),
-      ...extra,
+      createWysiwygProjectionExtensions(
+        ["blocks", "headings", "inline-styles", "links"],
+        projectionOptions,
+      ),
     ],
   });
 }
@@ -91,6 +99,15 @@ describe("defaultKeymap 准入策略", () => {
     expect(chordsMatch("Mod-Shift-k", "Mod-k")).toBe(false);
     expect(chordsMatch("Mod-/", "Mod-,")).toBe(false);
     expect(chordsMatch(undefined, "Mod-k")).toBe(false);
+  });
+
+  it("主键本身是 `-` 时也能正确拆分（CM 写作 `Mod--`）", () => {
+    expect(chordsMatch("Mod--", "Mod--")).toBe(true);
+    expect(chordsMatch("Mod--", "Mod-Shift--")).toBe(false);
+    expect(chordsMatch("Mod-Shift--", "Shift-Mod--")).toBe(true);
+    // 主键是 `-` 与主键为空/缺失不能混为一谈
+    expect(chordsMatch("Mod--", "Mod-")).toBe(false);
+    expect(chordsMatch("Mod--", "Mod-k")).toBe(false);
   });
 
   it("准入后的默认键位里没有剔除项，其余条目与上游同序", () => {
@@ -142,16 +159,42 @@ describe("格式化键位压过 CodeMirror 默认键位", () => {
     expect(candidates[1]).toBe(upstream);
   });
 
-  it("运行期替换自定义键位后仍保持提权（否则用户改一次键就回退成删行）", () => {
-    const overwritten = new Map([["format.codeBlock", "Mod-Shift-j"]]);
-    const state = createProductionKeymapStack([
-      createWysiwygProjectionExtensions(["blocks"], { customFormattingKeymaps: overwritten }),
-    ]);
+  it("Mod-l / Mod-Shift-l 插入链接，且 Mod-Shift-l 不再落到搜索的 selectSelectionMatches", () => {
+    const state = createProductionKeymapStack();
+    // searchKeymap 与本层同为默认优先级，但追加在根扩展里；提权后格式化层胜出。
+    const searchBinding = searchKeymap.find((binding) => chordsMatch(binding.key, "Mod-Shift-l"));
+    expect(searchBinding, "上游 Mod-Shift-l 应来自 searchKeymap").toBeDefined();
+
+    const candidates = bindingsForChord(state, "Mod-Shift-l");
+    expect(candidates).toHaveLength(2);
+    expect(candidates[0]).not.toBe(searchBinding);
+    expect(candidates[1]).toBe(searchBinding);
+  });
+
+  it("运行期 reconfigure 自定义键位后仍保持提权（否则用户改一次键就回退成删行）", () => {
+    const compartment = new Compartment();
+    const state = createProductionKeymapStack({ formattingKeymapCompartment: compartment });
     const upstream = upstreamBinding("Mod-Shift-k");
-    const original = bindingsForChord(state, "Mod-Shift-k");
-    // 主键已被改到 Mod-Shift-j；备用键 Mod-Shift-k 仍在格式化表里，且必须排在上游之前。
-    expect(original[0]).not.toBe(upstream);
-    expect(bindingsForChord(state, "Mod-Shift-j").length).toBeGreaterThan(0);
+
+    // 基线：默认键位的备用键已排在上游 deleteLine 之前
+    expect(bindingsForChord(state, "Mod-Shift-k")[0]).not.toBe(upstream);
+
+    // 真正走一次生产用的重配路径（`setFormattingKeymaps` → compartment.reconfigure）
+    const next = state.update({
+      effects: compartment.reconfigure(
+        createMarkdownFormattingKeymap(new Map([["format.codeBlock", "Mod-Shift-j"]])),
+      ),
+    }).state;
+
+    // 自定义主键生效，且它是唯一命中项（上游没有这个 chord）
+    expect(bindingsForChord(next, "Mod-Shift-j")).toHaveLength(1);
+
+    // 关键断言：重配后备用键 Mod-Shift-k 的第一个命中项仍在格式化层，
+    // 若 reconfigure 丢了 Prec.high，这里就会变回上游 deleteLine。
+    const afterReconfigure = bindingsForChord(next, "Mod-Shift-k");
+    expect(afterReconfigure).toHaveLength(2);
+    expect(afterReconfigure[0]).not.toBe(upstream);
+    expect(afterReconfigure[1]).toBe(upstream);
   });
 
   it("格式化表不得占用 Tab / Escape / Mod-Enter 这类结构性键位", () => {

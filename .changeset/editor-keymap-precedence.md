@@ -32,5 +32,14 @@ leaves room for a host or plugin to outrank them. The precedence lives inside
 inherits it — otherwise customizing one shortcut would drop back to the default level and
 start deleting lines again.
 
+One **intended** consequence goes beyond the three bugs: the formatting layer now also outranks
+`searchKeymap`, so `Mod-Shift-l` wraps the selection in a link instead of running the search
+package's `selectSelectionMatches`. That matches the shortcut table, which already documents
+`Mod-l`/`Mod-Shift-l` as the link commands. The same holds for `historyKeymap`: a *custom*
+formatting shortcut takes precedence over undo/redo, so remapping a formatting command onto
+`Mod-z` will shadow undo — hosts exposing a shortcut editor should warn about that.
+
 Chord comparison is normalization-aware: upstream writes `Shift-Mod-k` where the formatting
-table writes `Mod-Shift-k`, and both dispatch as the same chord.
+table writes `Mod-Shift-k`, and both dispatch as the same chord. Chords are split with
+`/-(?!$)/`, matching CodeMirror's own `normalizeKeyName`, so a binding whose main key is `-`
+(`Mod--`) is compared correctly.
