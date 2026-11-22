@@ -115,9 +115,9 @@ function createKeyEvent(overrides: Partial<KeyboardEvent>): KeyboardEvent {
 }
 
 describe("Web Keyboard Shortcuts System", () => {
-  it("handles shortcuts for mode toggle, outline, settings, save to storage, and AI", () => {
+  it("handles shortcuts for mode toggle, sidebar, settings, save to storage, and AI", () => {
     const onToggleMode = vi.fn();
-    const onToggleOutline = vi.fn();
+    const onToggleSidebar = vi.fn();
     const onOpenSettings = vi.fn();
     const onSave = vi.fn();
     const onTriggerAi = vi.fn();
@@ -125,7 +125,7 @@ describe("Web Keyboard Shortcuts System", () => {
 
     const handlers = {
       onToggleMode,
-      onToggleOutline,
+      onToggleSidebar,
       onOpenSettings,
       onSave,
       onTriggerAi,
@@ -138,11 +138,11 @@ describe("Web Keyboard Shortcuts System", () => {
     );
     expect(onToggleMode).toHaveBeenCalledTimes(1);
 
-    // 2. Mod-Shift-B (Toggle Outline)
+    // 2. Mod-Shift-B (Toggle Sidebar —— core 的 view.toggleSidebarPrimary)
     expect(
       handleWebKeyboardEvent(createKeyEvent({ code: "KeyB", key: "b", shiftKey: true }), handlers),
     ).toBe(true);
-    expect(onToggleOutline).toHaveBeenCalledTimes(1);
+    expect(onToggleSidebar).toHaveBeenCalledTimes(1);
 
     // 3. Mod-, (Open Settings)
     expect(handleWebKeyboardEvent(createKeyEvent({ code: "Comma", key: "," }), handlers)).toBe(
@@ -164,15 +164,12 @@ describe("Web Keyboard Shortcuts System", () => {
     ).toBe(true);
     expect(onCloseOverlay).toHaveBeenCalledTimes(1);
 
-    // 7. Mod-b (Toggle Sidebar)
-    const onToggleSidebar = vi.fn();
-    expect(
-      handleWebKeyboardEvent(createKeyEvent({ code: "KeyB", key: "b" }), {
-        ...handlers,
-        onToggleSidebar,
-      }),
-    ).toBe(true);
-    expect(onToggleSidebar).toHaveBeenCalledTimes(1);
+    // 7. Mod-b 必须归还给编辑器（加粗），web 不得再抢它当侧边栏
+    onToggleSidebar.mockClear();
+    expect(handleWebKeyboardEvent(createKeyEvent({ code: "KeyB", key: "b" }), handlers)).toBe(
+      false,
+    );
+    expect(onToggleSidebar).not.toHaveBeenCalled();
 
     // 8. Mod-n (New Document)
     const onNewDocument = vi.fn();
@@ -230,7 +227,7 @@ describe("Web Keyboard Shortcuts System", () => {
     const cleanup = bindWebKeyboardShortcuts(
       {
         onToggleMode: vi.fn(),
-        onToggleOutline: vi.fn(),
+        onToggleSidebar: vi.fn(),
         onOpenSettings: vi.fn(),
         onSave: vi.fn(),
         onTriggerAi: vi.fn(),

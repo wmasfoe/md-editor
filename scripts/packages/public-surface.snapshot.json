@@ -6,8 +6,8 @@
   "entries": {
     "@md-editor/core": {
       "budget": {
-        "total": 104,
-        "values": 34
+        "total": 107,
+        "values": 37
       },
       "exports": [
         {
@@ -64,6 +64,10 @@
         },
         {
           "name": "createBuiltInEditorFeature",
+          "kind": "value"
+        },
+        {
+          "name": "createBuiltInKeymaps",
           "kind": "value"
         },
         {
@@ -227,6 +231,10 @@
           "kind": "type"
         },
         {
+          "name": "MARKDOWN_FORMATTING_KEYMAPS",
+          "kind": "value"
+        },
+        {
           "name": "MarkdownBlock",
           "kind": "type"
         },
@@ -349,6 +357,10 @@
         {
           "name": "ReplaceDocumentInput",
           "kind": "type"
+        },
+        {
+          "name": "resolveKeymaps",
+          "kind": "value"
         },
         {
           "name": "resolveReplaceIntent",

@@ -47,3 +47,32 @@ displayShortcutKey("Mod-Alt-T", "linux");   // => "Ctrl+Alt+T"
 
 - 桌面端 Rust 原生菜单（`apps/desktop/src-tauri/src/app_menu.rs`）声明的快捷键加速器必须与前端应用默认快捷键绑定保持 1:1 绝对一致；
 - 新增或调整全局快捷键时，必须同步更新原生菜单加速器与前端 Keymap 注册表。
+
+### 5. 单一键位表与归属（Single Source of Truth）
+
+**背景**：默认 chord 曾同时存在于 6 处（core 的 `createMarkdownFormattingFeature`、`@md-editor/editor` 的
+`createMarkdownFormattingBindings` 内联字面量、desktop 的 `DEFAULT_SHORTCUT_TEMPLATES`、web 的
+if-chain、web 设置面板速查表、app-ui 的展示层）。其中 desktop 还用了与 core 不一致的大小写
+（core `Mod-f` / desktop `Mod-F`），web 更把 `Mod-b` 当作"切换侧边栏"，与格式化表的"加粗"直接冲突 ——
+同一个 `⌘B` 在 web 是侧边栏、在 desktop 是加粗。
+
+**契约**：
+
+1. **默认 chord 只写在 `packages/core/src/keymap.ts`**：
+   - `MARKDOWN_FORMATTING_KEYMAPS`（格式化命令，形状 = `KeymapDescriptor & { title }`）；
+   - 其余内建命令的默认键位通过 `createBuiltInKeymaps()` 读取（它把内建 Feature 装进一次性注册表后返回 `list()`）。
+2. **每个 chord 必须声明归属** `KeymapDescriptor.owner`：
+   - `"editor"`：编辑器内核自己安装 keydown 监听（CodeMirror keymap）；
+   - 缺省 = `"host"`：宿主安装监听并派发。编辑器**不得**为宿主语义的 chord 安装任何绑定，
+     否则宿主在 bubble 阶段监听时会被静默吞掉（历史缺陷：`Mod-/` 被 CodeMirror `toggleComment` 吃掉）。
+3. **默认值与用户覆盖只按一套规则合并**：`resolveKeymaps(base, overrides)`。
+   `null` 或空白串 = 显式解绑（该 id 不出现在结果里）；未知 id 忽略。
+   宿主把合并结果传给编辑器端口 `setFormattingKeymaps()` 时，该表是**权威表**：
+   结果里没有的 id 即视为解绑，编辑器不会再回退到默认值。
+4. **固定别名不算默认值**：如 `Mod-Shift-k` 之于 `format.codeBlock`。它们在编辑器内维护，
+   但必须与所属命令**同生共死**（命令解绑后别名一并消失）。
+5. **新增/调整内建快捷键时**：改 `packages/core/src/keymap.ts` 一处，然后
+   - 若新增的是格式化命令，编辑器的命令映射表（`createMarkdownFormattingBindings`）需要加执行体；
+   - 桌面端原生菜单加速器（`app_menu.rs`）与前端保持 1:1；
+   - `pnpm test` 里的 `packages/core/tests/keymap.test.ts` 会校验 id / chord 不重复、
+     内建表与 Feature 装配不脱钩。

@@ -504,9 +504,6 @@ function MainWebEditorApp({
       onToggleSidebar: () => {
         setIsSidebarVisible((prev) => !prev);
       },
-      onToggleOutline: () => {
-        setIsSidebarVisible(true);
-      },
       onOpenSettings: () => {
         setIsSettingsOpen(true);
       },
