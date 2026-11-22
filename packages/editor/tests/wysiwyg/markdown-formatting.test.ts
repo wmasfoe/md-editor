@@ -9,6 +9,7 @@ import {
 } from "@codemirror/state";
 import { keymap, type EditorView, runScopeHandlers } from "@codemirror/view";
 import { describe, expect, it } from "vitest";
+import { MARKDOWN_FORMATTING_KEYMAPS, resolveKeymaps } from "@md-editor/core";
 import { markdownRangeIndexField } from "../../src/markdown/range-index.ts";
 import { M1_MARKDOWN_EXTENSIONS } from "../../src/markdown/extensions.ts";
 import { editorModeField } from "../../src/mode.ts";
@@ -404,10 +405,11 @@ describe("Smart Link Paste & Smart Pairs", () => {
     });
 
     it("createMarkdownFormattingKeymap 将用户设置里的大写键交给 keymap.of 前规范成小写，并保留备用键", () => {
-      const customKeymaps = new Map([
-        ["format.bold", "Mod-B"],
-        ["format.strikethrough", "Mod-Shift-S"],
-      ]);
+      // 端口约定：传入的是**经 resolveKeymaps 合并后的权威表**（未列出的 id 视为解绑）。
+      const customKeymaps = resolveKeymaps(MARKDOWN_FORMATTING_KEYMAPS, {
+        "format.bold": "Mod-B",
+        "format.strikethrough": "Mod-Shift-S",
+      });
       const state = EditorState.create({
         doc: "hello",
         selection: EditorSelection.range(0, 5),
@@ -423,6 +425,43 @@ describe("Smart Link Paste & Smart Pairs", () => {
       expect(keys).not.toContain("Mod-Shift-S");
       expect(keys).toContain("Mod-Shift-x");
       expect(keys).toContain("Mod-Shift-k");
+    });
+
+    it("已解绑的格式化命令连同其备用别名一起消失（解绑要解得干净）", () => {
+      // 只保留加粗，其余格式化命令均解绑。
+      const resolved = resolveKeymaps(MARKDOWN_FORMATTING_KEYMAPS, {
+        "format.italic": null,
+        "format.strikethrough": null,
+        "format.inlineCode": null,
+        "format.highlight": null,
+        "format.codeBlock": null,
+        "format.blockquote": null,
+        "format.bulletList": null,
+        "format.orderedList": null,
+        "format.taskList": null,
+        "format.paragraph": null,
+        "format.heading1": null,
+        "format.heading2": null,
+        "format.heading3": null,
+        "format.heading4": null,
+        "format.heading5": null,
+        "format.heading6": null,
+      });
+      const keys = EditorState.create({
+        doc: "hello",
+        extensions: [createMarkdownFormattingKeymap(resolved)],
+      })
+        .facet(keymap)
+        .flat()
+        .map((binding) => binding.key);
+
+      expect(keys).toContain("Mod-b");
+      // 解绑命令的备用别名不得漏网，否则“解绑”只解了一半
+      expect(keys).not.toContain("Mod-Shift-x");
+      expect(keys).not.toContain("Mod-Shift-k");
+      expect(keys).not.toContain("Mod-`");
+      // 插入链接在 core 里没有命令条目，不受格式化解绑影响
+      expect(keys).toContain("Mod-l");
     });
 
     it("真实 keydown 匹配：Mod-B 命中不加 Shift 的加粗，Mod-Shift-x / Mod-Shift-k 仍可用", () => {

@@ -6,6 +6,7 @@ import {
   type StateCommand,
 } from "@codemirror/state";
 import { keymap, type Command, type EditorView, type KeyBinding } from "@codemirror/view";
+import { MARKDOWN_FORMATTING_KEYMAPS } from "@md-editor/core";
 import { authorizeWysiwygProtectedChange } from "../state/change-authorization.ts";
 import { wysiwygProjectionField } from "../state/projection-field.ts";
 
@@ -589,55 +590,83 @@ export function normalizeCodeMirrorKey(chord: string): string {
 export function createMarkdownFormattingBindings(
   customKeymaps?: ReadonlyMap<string, string>,
 ): readonly KeyBinding[] {
-  const getKey = (commandId: string, defaultKey: string) => {
-    const raw = customKeymaps?.get(commandId) ?? defaultKey;
-    return normalizeCodeMirrorKey(raw);
+  // 默认 chord 的唯一事实来源在 `@md-editor/core`，编辑器不再抄字串。
+  const defaults = new Map(MARKDOWN_FORMATTING_KEYMAPS.map((entry) => [entry.id, entry.key]));
+
+  /**
+   * 取生效 chord。
+   *
+   * - `customKeymaps` 缺省 → 全部用默认 chord（裸编辑器开箱可用）；
+   * - 传了 `customKeymaps` → 它**是权威表**（宿主用 `resolveKeymaps()` 合并过默认值与用户覆盖），
+   *   没列出的 id 视为已解绑，不再回退到默认值 —— 否则“解绑”永远解不掉。
+   */
+  const getKey = (commandId: string) => {
+    const raw =
+      customKeymaps === undefined ? defaults.get(commandId) : customKeymaps.get(commandId);
+    return raw ? normalizeCodeMirrorKey(raw) : "";
   };
 
-  const bindings = [
-    { key: getKey("format.bold", "Mod-b"), run: viewFormattingCommand(toggleBold) },
-    { key: getKey("format.italic", "Mod-i"), run: viewFormattingCommand(toggleItalic) },
+  const primaries = [
+    { key: getKey("format.bold"), run: viewFormattingCommand(toggleBold) },
+    { key: getKey("format.italic"), run: viewFormattingCommand(toggleItalic) },
+    { key: getKey("format.inlineCode"), run: viewFormattingCommand(toggleInlineCode) },
+    { key: getKey("format.strikethrough"), run: viewFormattingCommand(toggleStrikethrough) },
+    { key: getKey("format.highlight"), run: viewFormattingCommand(toggleHighlight) },
+    { key: getKey("format.blockquote"), run: viewFormattingCommand(toggleBlockquote) },
+    { key: getKey("format.codeBlock"), run: viewFormattingCommand(insertCodeBlock) },
+    { key: getKey("format.bulletList"), run: viewFormattingCommand(toggleBulletList) },
+    { key: getKey("format.orderedList"), run: viewFormattingCommand(toggleOrderedList) },
+    { key: getKey("format.taskList"), run: viewFormattingCommand(toggleTaskList) },
+    { key: getKey("format.paragraph"), run: viewFormattingCommand(setParagraph) },
+    { key: getKey("format.heading1"), run: viewFormattingCommand(setHeading1) },
+    { key: getKey("format.heading2"), run: viewFormattingCommand(setHeading2) },
+    { key: getKey("format.heading3"), run: viewFormattingCommand(setHeading3) },
+    { key: getKey("format.heading4"), run: viewFormattingCommand(setHeading4) },
+    { key: getKey("format.heading5"), run: viewFormattingCommand(setHeading5) },
+    { key: getKey("format.heading6"), run: viewFormattingCommand(setHeading6) },
+  ];
+
+  /**
+   * 固定别名：不是用户可改写的默认值，因此不进 core 的默认表。
+   *
+   * `gate` 指“跟哪个主键同生共死”：宿主把该命令解绑后，别名也不能继续生效，
+   * 否则“解绑”只解了一半。
+   * 插入链接（`Mod-l` / `Mod-Shift-l`）在 core 里没有对应命令条目（它只是行内标记操作），
+   * 因此不设 gate，始终生效。
+   */
+  const aliases: Array<{
+    readonly key: string;
+    readonly run: Command;
+    readonly gate?: string;
+  }> = [
     // 注：编辑器侧不再绑 Mod-k —— 全局命令面板拥有该 chord（桌面惯例），
     // 且曾在双层注册时每次唤面板都额外插入 `[](url)`（E2E 探针实证）。
     // 分工决议见 docs/agent/review/ux_interaction_audit_and_bugs.md 问题#4：
-    // 编辑器内插链接用 Mod-l / Mod-Shift-l（本表已有）。
+    // 编辑器内插链接用 Mod-l / Mod-Shift-l。
     { key: "Mod-l", run: viewFormattingCommand(insertOrWrapLink) },
     { key: "Mod-Shift-l", run: viewFormattingCommand(insertOrWrapLink) },
-    { key: getKey("format.inlineCode", "Mod-e"), run: viewFormattingCommand(toggleInlineCode) },
-    { key: "Mod-`", run: viewFormattingCommand(toggleInlineCode) },
-    {
-      key: getKey("format.strikethrough", "Mod-Shift-s"),
-      run: viewFormattingCommand(toggleStrikethrough),
-    },
+    { key: "Mod-`", run: viewFormattingCommand(toggleInlineCode), gate: "format.inlineCode" },
     // 兼容传统删除线备用快捷键 Mod-Shift-x
-    { key: "Mod-Shift-x", run: viewFormattingCommand(toggleStrikethrough) },
-    { key: getKey("format.highlight", "Mod-Shift-h"), run: viewFormattingCommand(toggleHighlight) },
     {
-      key: getKey("format.blockquote", "Mod-Shift-q"),
-      run: viewFormattingCommand(toggleBlockquote),
+      key: "Mod-Shift-x",
+      run: viewFormattingCommand(toggleStrikethrough),
+      gate: "format.strikethrough",
     },
-    { key: getKey("format.codeBlock", "Mod-Shift-c"), run: viewFormattingCommand(insertCodeBlock) },
     // 兼容传统代码块备用快捷键 Mod-Shift-k
-    { key: "Mod-Shift-k", run: viewFormattingCommand(insertCodeBlock) },
-    {
-      key: getKey("format.bulletList", "Mod-Shift-u"),
-      run: viewFormattingCommand(toggleBulletList),
-    },
-    {
-      key: getKey("format.orderedList", "Mod-Shift-o"),
-      run: viewFormattingCommand(toggleOrderedList),
-    },
-    { key: getKey("format.taskList", "Mod-Shift-t"), run: viewFormattingCommand(toggleTaskList) },
-    { key: getKey("format.paragraph", "Mod-Alt-0"), run: viewFormattingCommand(setParagraph) },
-    { key: getKey("format.heading1", "Mod-Alt-1"), run: viewFormattingCommand(setHeading1) },
-    { key: getKey("format.heading2", "Mod-Alt-2"), run: viewFormattingCommand(setHeading2) },
-    { key: getKey("format.heading3", "Mod-Alt-3"), run: viewFormattingCommand(setHeading3) },
-    { key: getKey("format.heading4", "Mod-Alt-4"), run: viewFormattingCommand(setHeading4) },
-    { key: getKey("format.heading5", "Mod-Alt-5"), run: viewFormattingCommand(setHeading5) },
-    { key: getKey("format.heading6", "Mod-Alt-6"), run: viewFormattingCommand(setHeading6) },
+    { key: "Mod-Shift-k", run: viewFormattingCommand(insertCodeBlock), gate: "format.codeBlock" },
   ];
 
-  return bindings.filter((b) => Boolean(b.key));
+  const enabled = (gate: string | undefined) => gate === undefined || getKey(gate).length > 0;
+
+  return [
+    ...primaries,
+    ...aliases
+      .filter((alias) => enabled(alias.gate))
+      .map((alias) => ({
+        key: alias.key,
+        run: alias.run,
+      })),
+  ].filter((binding) => Boolean(binding.key));
 }
 
 /**

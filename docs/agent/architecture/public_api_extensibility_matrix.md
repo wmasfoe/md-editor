@@ -15,6 +15,7 @@
 | 接入 Markdown lint | 创建期 `markdownlint={{ lint }}` + `enableMarkdownLint` | `ports.setMarkdownLintEngine(engine)`（引擎晚到时补注，不重建视图） | — |
 | 只做无头渲染（Node / QuickLook） | `@md-editor/compiler` 的 `renderStaticHtml` | — | `compileToTokens` 自行消费 |
 | 工具栏、大纲、状态栏、AI 面板 | **不在 editor 包内**，宿主自建 | — | `@md-editor/app-ui`（私有）作为参考实现 |
+| 改默认快捷键 / 换一套键位方案 | `@md-editor/core`：`MARKDOWN_FORMATTING_KEYMAPS`（默认表）+ `createBuiltInKeymaps()`（整表）+ `resolveKeymaps()`（默认值×用户覆盖） | 同左（都是纯数据与纯函数） | 直接把合并结果交给 `ports.setFormattingKeymaps` |
 
 原则：**同一能力只有一个官方入口 + 一个逃生口**。任何"半公开"（名字泄漏内部实现、语义只在某一条路径成立）的入口都不允许留在正式 API 里。
 
@@ -278,3 +279,18 @@
 markdownlint 离开 app-ui 子入口 → 661 036（`apps/desktop/scripts/bundle-budget.baseline.json`）。
 契约由 `packages/editor/tests/module-loader.test.ts` 锁定（未就绪返回 undefined / 只通知一次 /
 失败不永久缓存）。
+
+## 键位表为什么进正式 API（3 个新符号）
+
+`@md-editor/core` 0.6 起新增三个运行时导出，全部是**数据或纯函数**，没有新的可变状态：
+
+| 符号 | 作用 | 为什么不放在 `/internals` |
+| --- | --- | --- |
+| `MARKDOWN_FORMATTING_KEYMAPS` | 格式化命令的默认 chord（`KeymapDescriptor & { title }`） | `@md-editor/editor` 只依赖 core，必须从正式入口读到默认值；否则编辑器只能再抄一份（这正是 0.6.0 之前的漂移源头） |
+| `createBuiltInKeymaps()` | 内建能力的完整键位表（含归属），无需先建 `Runtime` | 第三方宿主（例如只挂 `CodeMirrorEditor` 的应用）需要知道"默认是什么"，构造 `Runtime` 需要 `DocumentState` + `MDX` 注册表 |
+| `resolveKeymaps(base, overrides)` | 默认值 × 用户覆盖的唯一合并规则（`null`/空白 = 解绑，未知 id 忽略） | 该规则被编辑器端口、桌面设置、web 派发共用；散落在三处就是上一轮漂移的成因 |
+
+配套的**类型**没有新增导出：`owner?: "editor" | "host"` 内联在 `KeymapDescriptor` 上，
+覆盖表就是 `Readonly<Record<string, string | null>>`，判断归属直接写 `keymap.owner === "editor"`。
+`public-surface` 预算因此只增长 3 个 value（total 104 → 107，values 34 → 37），零 type 增长。
+`KeymapDescriptor` 从 `index.ts` 移到 `src/keymap.ts` 并由包根再导出，导入路径不变。

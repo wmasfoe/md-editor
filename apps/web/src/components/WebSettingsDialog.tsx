@@ -23,6 +23,8 @@ import {
   settingsSectionTitleClassName,
   settingsSmallButtonClassName,
 } from "@md-editor/app-ui/settings";
+import { createBuiltInKeymaps } from "@md-editor/core";
+import { formatKeymapParts } from "@md-editor/app-ui";
 import { type BuiltInThemeId, type WebSettings } from "../lib/web-settings";
 import {
   AI_URL_PRESETS,
@@ -68,14 +70,6 @@ export function WebSettingsDialog({
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<AiConnectionTestResult | null>(null);
 
-  // 跨平台快捷键提示前缀判断（Mac 显示 ⌘，其余平台显示 Ctrl）
-  const isMac = useMemo(() => {
-    if (typeof navigator === "undefined") return false;
-    return /mac/i.test(navigator.userAgent);
-  }, []);
-  const modKey = isMac ? "⌘" : "Ctrl";
-  const shiftKey = isMac ? "⇧" : "Shift+";
-
   // 当外部 settings 改变时同步到 localSettings
   React.useEffect(() => {
     setLocalSettings(settings);
@@ -116,47 +110,40 @@ export function WebSettingsDialog({
     onClose();
   };
 
-  // 快捷键列表配置（只读速查表）
-  const shortcutsList = useMemo(
-    () => [
+  // 快捷键列表配置（只读速查表）。
+  // chord 一律来自 core 的内建键位表，与真正派发的 if-chain 同源，避免"文档写的键没生效"。
+  const shortcutsList = useMemo(() => {
+    const builtIn = createBuiltInKeymaps();
+    const chordOf = (id: string): string => {
+      const chord = builtIn.find((keymap) => keymap.id === id)?.key;
+      return chord ? formatKeymapParts(chord).join("+") : "";
+    };
+    return [
       {
         id: "view.toggleMode",
         label: t("web.shortcuts.toggleMode"),
-        key: `${modKey}+/`,
+        key: chordOf("view.toggleSource"),
       },
       {
-        id: "view.toggleOutline",
+        id: "view.toggleSidebar",
         label: t("web.shortcuts.toggleOutline"),
-        key: `${shiftKey}${modKey}+B`,
+        key: chordOf("view.toggleSidebarPrimary"),
       },
       {
-        id: "ai.trigger",
+        id: "ai.continueWriting",
         label: t("web.shortcuts.aiTrigger"),
-        key: `${modKey}+J`,
+        key: chordOf("ai.continueWriting"),
       },
+      { id: "ai.accept", label: t("web.shortcuts.aiAccept"), key: "Tab" },
+      { id: "view.closeOverlay", label: t("web.shortcuts.closeOverlay"), key: "Escape" },
+      { id: "file.save", label: t("web.shortcuts.saveDocument"), key: chordOf("file.save") },
       {
-        id: "ai.accept",
-        label: t("web.shortcuts.aiAccept"),
-        key: "Tab",
-      },
-      {
-        id: "view.closeOverlay",
-        label: t("web.shortcuts.closeOverlay"),
-        key: "Escape",
-      },
-      {
-        id: "file.save",
-        label: t("web.shortcuts.saveDocument"),
-        key: `${modKey}+S`,
-      },
-      {
-        id: "app.settings",
+        id: "settings.open",
         label: t("web.shortcuts.openSettings"),
-        key: `${modKey}+,`,
+        key: chordOf("settings.open"),
       },
-    ],
-    [modKey, shiftKey, t],
-  );
+    ];
+  }, [t]);
 
   const tabs: readonly SettingsTabItem[] = useMemo(
     () => [

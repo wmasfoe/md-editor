@@ -4,6 +4,7 @@ import { useMarkdownLintEngine } from "@md-editor/app-ui/markdownlint";
 
 import { useExternalSyntaxRegistration } from "./editor/use-external-syntax-registration.ts";
 import { type AiSuggestionItem, type CodeMirrorEditorPorts } from "@md-editor/editor";
+import { createBuiltInKeymaps, resolveKeymaps } from "@md-editor/core";
 import { useTranslation } from "@md-editor/i18n";
 import {
   containerDirectivePlugin,
@@ -70,13 +71,22 @@ export function DesktopCodeMirrorEditor({
     onRendererPortsChange?.(newPorts);
   };
 
-  // 同步用户在设置中自定义的快捷键至 CodeMirror 格式化按键扩展
+  // 同步用户在设置中自定义的快捷键至 CodeMirror 格式化按键扩展。
+  //
+  // 端口约定：传进去的是**权威表**（没列出的 id = 已解绑），所以这里用
+  // `resolveKeymaps()` 把 core 的默认值与该用户的覆盖合并成完整表 ——
+  // 两个端（设置面板、编辑器 keymap）从此共用同一套合并规则。
   useEffect(() => {
     if (!ports) {
       return;
     }
-    const customKeymaps = new Map(settings.shortcuts.map((s) => [s.id, s.key]));
-    ports.setFormattingKeymaps(customKeymaps);
+    const overrides = Object.fromEntries(settings.shortcuts.map((s) => [s.id, s.key]));
+    ports.setFormattingKeymaps(
+      resolveKeymaps(
+        createBuiltInKeymaps().filter((keymap) => keymap.owner === "editor"),
+        overrides,
+      ),
+    );
   }, [ports, settings.shortcuts]);
 
   useAutomaticAiEditing({ ports, settings });

@@ -2,11 +2,14 @@ import type { MdxComponentRegistry } from "@md-editor/shared/mdx";
 import type { Disposable } from "@md-editor/shared";
 
 import type { DocumentSnapshot, DocumentState } from "./document-state.ts";
+import type { KeymapDescriptor } from "./keymap.ts";
+import { MARKDOWN_FORMATTING_KEYMAPS } from "./keymap.ts";
 
 export * from "./content.ts";
 export * from "./document-state.ts";
 export * from "./document-save.ts";
 export * from "./document-identity.ts";
+export * from "./keymap.ts";
 export * from "./markdown.ts";
 export * from "./raw-fragments.ts";
 export * from "./session/index.ts";
@@ -51,13 +54,6 @@ export interface CommandRegistry {
     context: CommandContext,
     placement?: CommandPlacement,
   ): readonly CommandDescriptor[];
-}
-
-export interface KeymapDescriptor {
-  readonly id: string;
-  readonly key: string;
-  readonly commandId: string;
-  readonly when?: string;
 }
 
 export interface KeymapRegistry {
@@ -615,40 +611,17 @@ export function createMarkdownFormattingFeature(): FeatureDescriptor {
     id: "editor.markdown-formatting",
     title: "Markdown formatting commands",
     setup(context) {
-      const commands: Array<{ id: string; title: string; defaultKey: string }> = [
-        { id: "format.bold", title: "Bold", defaultKey: "Mod-b" },
-        { id: "format.italic", title: "Italic", defaultKey: "Mod-i" },
-        { id: "format.strikethrough", title: "Strikethrough", defaultKey: "Mod-Shift-S" },
-        { id: "format.inlineCode", title: "Inline Code", defaultKey: "Mod-e" },
-        { id: "format.highlight", title: "Highlight", defaultKey: "Mod-Shift-H" },
-        { id: "format.codeBlock", title: "Code Block", defaultKey: "Mod-Shift-C" },
-        { id: "format.blockquote", title: "Blockquote", defaultKey: "Mod-Shift-Q" },
-        { id: "format.bulletList", title: "Bullet List", defaultKey: "Mod-Shift-U" },
-        { id: "format.orderedList", title: "Ordered List", defaultKey: "Mod-Shift-O" },
-        { id: "format.taskList", title: "Task List", defaultKey: "Mod-Shift-T" },
-        { id: "format.heading1", title: "Heading 1", defaultKey: "Mod-Alt-1" },
-        { id: "format.heading2", title: "Heading 2", defaultKey: "Mod-Alt-2" },
-        { id: "format.heading3", title: "Heading 3", defaultKey: "Mod-Alt-3" },
-        { id: "format.heading4", title: "Heading 4", defaultKey: "Mod-Alt-4" },
-        { id: "format.heading5", title: "Heading 5", defaultKey: "Mod-Alt-5" },
-        { id: "format.heading6", title: "Heading 6", defaultKey: "Mod-Alt-6" },
-        { id: "format.paragraph", title: "Paragraph", defaultKey: "Mod-Alt-0" },
-      ];
-
-      for (const cmd of commands) {
+      for (const { title, ...descriptor } of MARKDOWN_FORMATTING_KEYMAPS) {
         context.commands.register({
-          id: cmd.id,
-          title: cmd.title,
+          id: descriptor.id,
+          title,
           group: "格式",
           run(ctx) {
-            return ctx.actions?.executeFormatting?.(cmd.id);
+            return ctx.actions?.executeFormatting?.(descriptor.id);
           },
         });
-        context.keymaps.register({
-          id: cmd.id,
-          key: cmd.defaultKey,
-          commandId: cmd.id,
-        });
+        // 描述符已带 owner: "editor"：格式化键位由编辑器内核自己装，宿主不要重复绑。
+        context.keymaps.register(descriptor);
       }
     },
   };
@@ -793,4 +766,30 @@ export function createEditorRuntime(input: EditorRuntimeInput): EditorRuntime {
       return input.document.getSnapshot();
     },
   };
+}
+
+/**
+ * 内建能力的完整键位表（默认 chord + 归属）。
+ *
+ * 供"只想知道默认 chord 是什么、不想自己装配 Feature Registry"的调用方使用：
+ * web 的快捷键派发与速查表就是这种场景（此前它们在 if-chain 里硬编码了 10 个 chord，
+ * 其中 `Mod-b` 与格式化表的加粗直接冲突）。
+ *
+ * 返回只读描述符；与 `createEditorRuntime()` 不共享实例，因此调用方无法通过它改注册表。
+ * 需要"用户改键后生效"的场景请用 `resolveKeymaps()` 合并覆盖表。
+ */
+export function createBuiltInKeymaps(): readonly KeymapDescriptor[] {
+  const commands = createCommandRegistry();
+  const keymaps = createKeymapRegistry();
+  const features = [
+    createBuiltInEditorFeature(),
+    createMarkdownFormattingFeature(),
+    createEditorSearchFeature(),
+    createAiWritingFeature(),
+    createBlockCommandsFeature(),
+  ];
+  for (const feature of features) {
+    feature.setup({ commands, keymaps });
+  }
+  return keymaps.list();
 }
