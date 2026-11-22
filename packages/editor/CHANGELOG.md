@@ -1,5 +1,135 @@
 # @md-editor/editor
 
+## 0.7.0
+
+### Minor Changes
+
+- 48de219: Take formatting defaults from `@md-editor/core` and treat the port table as authoritative.
+  
+  `createMarkdownFormattingBindings()` used to carry its own copy of every default chord
+  (`getKey("format.bold", "Mod-b")`), duplicating `@md-editor/core`'s table. The defaults now come
+  from `MARKDOWN_FORMATTING_KEYMAPS`, so there is exactly one place to change them.
+  
+  The map handed to `setFormattingKeymaps()` is now the **authoritative** table: an id missing from
+  it means that command has no chord, and the editor no longer falls back to the default. Hosts are
+  expected to pass `resolveKeymaps(createBuiltInKeymaps(), overrides)`, which is what makes
+  "unbind" actually unbind — a fixed alias such as `Mod-Shift-k` for `format.codeBlock` disappears
+  along with its command instead of lingering after the user removed it.
+  
+  Callers that previously passed a partial map (only the chords they wanted to change) must merge
+  defaults first; passing no map at all still means "all defaults".
+
+### Patch Changes
+
+- cc6bba5: Stop CodeMirror's default keymap from overriding documented editor and host shortcuts.
+  
+  Three collisions were reproduced in a real browser against a bare `CodeMirrorEditor` mount
+  (no host keybindings), and all three silently disagreed with the shortcut tables:
+  
+  - **`Mod-/` inserted HTML comments instead of leaving the chord alone.** `packages/core`
+    declares `Mod-/` as `view.toggleSource`, but `@codemirror/commands` binds the same chord to
+    `toggleComment`, and `@codemirror/lang-markdown` supplies block comment tokens, so pressing
+    it rewrote the line to `<!-- … -->`. Hosts had to swallow the key in the capture phase to
+    make their own binding work — an implementation detail leaking into the contract.
+  - **`Mod-Shift-k` deleted the whole line instead of inserting a code block.** The formatting
+    keymap binds that chord to `insertCodeBlock` (the documented backup for `Mod-Shift-c`), but
+    it was assembled *after* `defaultKeymap`, and the `keymap` facet dispatches in assembly
+    order, so upstream `deleteLine` won.
+  - **`Mod-i` only worked by luck.** Upstream `selectParentSyntax` claimed the chord; it
+    happened to return `false`, and its binding carries `preventDefault: true`, so the event was
+    consumed even though nothing happened.
+  
+  Keymaps now have an explicit ownership policy. Chords that belong to the *host* (mode
+  switching, save, open, settings) are dropped from the editor's copy of `defaultKeymap` by a
+  new admission layer (`renderer/controller/default-keymap-policy.ts`) instead of being
+  swallowed: the editor installs no binding at all, so keydown reaches the host even when the
+  host binds in the bubble phase. Chords that belong to the *editor* (bold, italic, links, code
+  blocks) are installed with `Prec.high`, which outranks `defaultKeymap` but stays below the
+  editor's own `Prec.highest` bindings (the `Tab` arbiter and the HTML source-block keymap) and
+  leaves room for a host or plugin to outrank them. The precedence lives inside
+  `createMarkdownFormattingKeymap`, so the runtime `setFormattingKeymaps` reconfiguration
+  inherits it — otherwise customizing one shortcut would drop back to the default level and
+  start deleting lines again.
+  
+  One **intended** consequence goes beyond the three bugs: the formatting layer now also outranks
+  `searchKeymap`, so `Mod-Shift-l` wraps the selection in a link instead of running the search
+  package's `selectSelectionMatches`. That matches the shortcut table, which already documents
+  `Mod-l`/`Mod-Shift-l` as the link commands. The same holds for `historyKeymap`: a *custom*
+  formatting shortcut takes precedence over undo/redo, so remapping a formatting command onto
+  `Mod-z` will shadow undo — hosts exposing a shortcut editor should warn about that.
+  
+  Chord comparison is normalization-aware: upstream writes `Shift-Mod-k` where the formatting
+  table writes `Mod-Shift-k`, and both dispatch as the same chord. Chords are split with
+  `/-(?!$)/`, matching CodeMirror's own `normalizeKeyName`, so a binding whose main key is `-`
+  (`Mod--`) is compared correctly.
+- 682dc5c: Fix four behaviours reported after the public-API consolidation.
+  
+  **MDX content upgrades when the parser arrives late.** A document that opens before the MDX
+  parser has loaded records its `<Component>` blocks as plain HTML with
+  `parserCoverage === "complete"` — the syntax parsed fine, it simply was not treated as MDX.
+  The readiness refresh only looked for incomplete coverage, so it never fired and the blocks
+  stayed on the HTML path for the lifetime of the view. The predicate now also recognises
+  `<Uppercase` candidates, derived from state rather than a build-time flag (incremental index
+  updates reuse historical records, which would drop such a flag on the next keystroke).
+  Candidates are found by scanning the document source rather than the record list: on a cold
+  start `<Foo ü="test" />` produces **no records at all** — the HTML node rules do not recognise
+  tags with non-ASCII attribute names — so a record-based scan missed that whole class of input.
+  The scan skips positions that fall inside `deferred-code` / `inline-code` records, and skips
+  candidates already covered by an `mdx-jsx` record.
+  
+  **Failed plugin registration no longer keeps the id.** `registerSyntaxPlugins` and
+  `replaceSyntaxPlugins` wrote the registry before building the Lezer language extension and
+  dispatching. A plugin that references a parser that does not exist throws
+  `Position specified relative to unknown parser` — and that error is **lazy**, raised while the
+  view parses the new language, long after the call site that registered it. The caller never
+  received a handle, so the desktop host's per-handle rollback could not help: the failed plugin
+  kept its id and a corrected retry with the same id failed with `already registered`. Both paths
+  now snapshot the registry (including registration tokens, so handles already handed out stay
+  valid) and restore it if anything after the write throws.
+  
+  **Batch plugin registration is atomic across every node declaration.** `registerAll` built its
+  conflict set from the decoration-dispatch map only, while single `register` also consults the
+  declared-node set. With an existing plugin that declares a node purely through Lezer
+  `defineNodes`, a batch of `[valid, conflicting]` passed preflight and then failed partway: the
+  valid entry stayed registered after the throw. The batch preflight now reads both maps.
+  
+  **A plugin cannot silently change registration origin.** `setSyntaxPlugins` compared its
+  declarative input against *all* registered plugins, so `addSyntaxPlugin(p)` followed by
+  `setSyntaxPlugins([p])` looked unchanged and returned early — `p` stayed in the imperative
+  namespace and disappeared once its handle was released. The idempotence guard now compares the
+  declarative list only, so the cross-origin case reaches the id-conflict check and throws.
+  `SyntaxPluginRegistry.declarativePlugins` backs that guard and is marked `@internal` — it is an
+  editor-side implementation detail, not part of the plugin-author contract.
+  
+  **Nested headings share the document allocator and the alias conflict set.** `convertListItemTokens`
+  called `convertBlockTokens([t])` without the document allocator, so a list-item heading got a
+  fresh allocator and could duplicate an existing id (`# A` plus `- # A` produced two `id="a"`).
+  The export-side alias guard also collected real heading ids from top-level tokens only, so a
+  legacy alias could collide with a heading nested in a blockquote or callout. The recursive
+  collector walks every array-valued field of a token rather than only `tokens`, because
+  containers do not agree on where children live — lists put them in `items[].tokens` while the
+  `list` token itself has no `tokens` field, so a `tokens`-only walk missed list-item headings
+  entirely (`# テスト手順` plus `- # 手順` still produced duplicate `id="手順"`).
+  
+  Outline extraction intentionally still lists top-level headings only, but it now allocates ids
+  for **every** heading in document order and only then filters to the top level. Without that,
+  an earlier nested heading shifts every later top-level id: for `- # A` / `# A` / `# A` the
+  export produced `a` / `a-1` / `a-2` while the outline claimed `a` for line 3 and `a-1` for
+  line 5, so `#a-1` jumped to the wrong heading and `#a-2` resolved to nothing.
+  
+  `markdown-fidelity` gets a patch purely for documentation: `extractHeadingOutline` now states
+  the "top-level headings only" rule explicitly, alongside the export-side uniqueness contract it
+  relies on.
+  
+  The desktop host also rolls back partial external-plugin registration: if the n-th
+  `addSyntaxPlugin` is rejected, the handles already created in that batch are disposed in
+  reverse order before the original error is rethrown.
+- Updated dependencies [48de219]
+- Updated dependencies [682dc5c]
+  - @md-editor/core@0.6.0
+  - @md-editor/markdown-fidelity@0.3.1
+  - @md-editor/plugin-sdk@0.8.1
+
 ## 0.6.0
 
 ### Minor Changes
