@@ -46,6 +46,7 @@ export const RENDERER_CLUSTER_MEMBERS = {
   ],
   controller: [
     "composition.ts",
+    "default-keymap-policy.ts",
     "document-protocol.ts",
     "host-visibility.ts",
     "markdown-lint.ts",
