@@ -21,6 +21,7 @@
 
 import {
   markdownRangeIndexField,
+  mdxModeFacet,
   refreshMarkdownParseCoverageEffect,
 } from "../../markdown/range-index.ts";
 import {
@@ -40,11 +41,39 @@ function hasPendingHtmlBlocks(view: RendererViewAdapter): boolean {
   return index.records.some((record) => record.kind === "html");
 }
 
-/** 本视图是否还有 MDX 块停在 `parserCoverage=partial`。 */
+/** MDX 组件候选（大写开头的 JSX 标签），与 `extractors/mdx.ts` 的判定保持一致。 */
+const MDX_CANDIDATE = /<\/?[A-Z]/u;
+
+/**
+ * 本视图是否还有 MDX 内容需要重新解析。
+ *
+ * 两类都要算上，否则会漏：
+ *
+ * 1. **解析覆盖不完整**（`parserCoverage !== "complete"`）：增量解析被截断；
+ * 2. **被当成 HTML 处理掉的 MDX 组件**：冷启动时 MDX 解析器尚未就绪，
+ *    `<Callout>` 会落到 lang-markdown 的 HTML 节点、记录成 `html` / `deferred-html`
+ *    且 `parserCoverage` 是 **complete**（语法解析确实没问题，只是没被当成 MDX）。
+ *    只查第 1 类会永远返回 false —— 组件就永久停在 HTML 处理上（实测复现）。
+ *
+ * 第 2 类刻意用**无状态推导**而不是"构建时记一个 pending 标记"：
+ * 索引的增量更新只重建脏区间、并复用其余历史记录，标记会在下一次按键后丢失。
+ * 而"MDX 模式下还有非 mdx-jsx 的 `<Uppercase` 记录"这个判断在任何时刻都成立，
+ * 且解析器就绪后重解析一次自然会消失（记录变成 `mdx-jsx`）。
+ */
 function hasPendingMdxBlocks(view: RendererViewAdapter): boolean {
   const index = view.state.field(markdownRangeIndexField, false);
   if (!index) return false;
-  return index.records.some((record) => record.parserCoverage !== "complete");
+
+  const coverageIncomplete = index.records.some((record) => record.parserCoverage !== "complete");
+  if (coverageIncomplete) return true;
+
+  // 非 MDX 模式下大写标签是合法 HTML，不该被当成待升级的候选。
+  if (!view.state.facet(mdxModeFacet)) return false;
+  return index.records.some(
+    (record) =>
+      record.kind !== "mdx-jsx" &&
+      MDX_CANDIDATE.test(view.state.sliceDoc(record.fullRange.from, record.fullRange.to)),
+  );
 }
 
 /**

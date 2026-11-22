@@ -172,7 +172,12 @@ export function replaceSyntaxPlugins(
   }
 
   // 更新版本可保留 ID，但其解析器、投影或闭包已变化，必须重配新实例。
-  const currentPlugins = ctx.registry.plugins;
+  //
+  // 只比对**声明式**清单（不是全部插件）：否则"同一对象先命令式注册、再作为
+  // 声明式集合提交"会被误判为无变化而提前返回，该条目仍留在命令式命名空间，
+  // 释放命令式句柄就把它摘掉了。改成比声明式清单后，这种情况会进入
+  // `replaceDeclarative` 的 ID 冲突校验并如实报错。
+  const currentPlugins = ctx.registry.declarativePlugins;
   if (
     currentPlugins.length === flattened.length &&
     currentPlugins.every((curr, idx) => curr === flattened[idx])

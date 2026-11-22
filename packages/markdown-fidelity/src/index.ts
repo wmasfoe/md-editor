@@ -226,6 +226,19 @@ export function restoreRawBlocksFromPreview(
   }, markdown);
 }
 
+/**
+ * 提取文档大纲（导航目录 + 文档内锚点解析的唯一来源）。
+ *
+ * **规则：只收录顶层标题。**
+ *
+ * 列表项（`- # 标题`）与引用块/callout（`> # 标题`）里的标题**不进大纲**，
+ * 也不参与 `resolveHeadingAnchor` 的解析。这是刻意保留的边界：
+ * 大纲是导航目录，收录嵌套标题会让 TOC 混入噪声（callout 正文里的标题尤其明显）。
+ *
+ * 但**导出 HTML 必须保证任何 `<hN id>` 在文档内唯一**——嵌套标题也占 ID，
+ * 否则 `#fragment` 会跳到错的位置。两条规则各自成立、互不替代：
+ * 唯一直到导出侧（compiler 的分配器与别名冲突判定），收录范围限于本函数。
+ */
 export function extractHeadingOutline(markdown: string): readonly HeadingOutlineItem[] {
   // 去重是文档级属性，用 shared 的分配器（与 HTML 导出共用同一语义）。
   const allocate = createHeadingSlugAllocator();

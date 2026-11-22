@@ -139,7 +139,12 @@ export class SyntaxPluginRegistry {
   ): this {
     // Validate the full batch first so one conflict cannot leave a partial registration.
     const ids = new Set(this.#plugins.keys());
-    const nodes = new Set(this.#nodeToPlugin.keys());
+    // 节点名必须**同时**取自两张表，与单项 `register` 的预检保持一致。
+    //
+    // 只用 `#nodeToPlugin` 会漏掉"仅用 `defineNodes` 声明"的节点（它们登记在
+    // `#declaredNodes`）。那样批量预检放行、单项注册时才被拒 —— 于是批次里
+    // 第一个合法插件已经落表，调用方拿到异常却留下半批状态（实测复现）。
+    const nodes = new Set([...this.#nodeToPlugin.keys(), ...this.#declaredNodes.keys()]);
     for (const plugin of plugins) {
       if (!plugin?.id) continue;
       if (ids.has(plugin.id)) throw new Error(`Syntax plugin already registered: ${plugin.id}`);
@@ -270,6 +275,23 @@ export class SyntaxPluginRegistry {
 
   get plugins(): readonly MarkdownSyntaxPlugin[] {
     return Object.freeze(Array.from(this.#plugins.values()));
+  }
+
+  /**
+   * **仅声明式**注册的插件（命令式 `addSyntaxPlugin` 的条目不在内）。
+   *
+   * 全量替换的幂等判断必须用它：拿"声明式输入"和**全部**已注册插件比较，
+   * 会在"同一插件对象先命令式注册、再作为声明式集合提交"时误判为无变化而提前返回，
+   * 于是该条目仍留在命令式命名空间里 —— 释放命令式句柄就会把它摘掉，
+   * 而调用方以为它已经是声明式清单的一员（实测：`add(p)` → `set([p])` 静默成功，
+   * 随后释放句柄，p 就消失了）。
+   */
+  get declarativePlugins(): readonly MarkdownSyntaxPlugin[] {
+    return Object.freeze(
+      Array.from(this.#plugins.entries())
+        .filter(([id]) => !this.#imperative.has(id))
+        .map(([, plugin]) => plugin),
+    );
   }
 
   getMarkdownExtensions(): readonly MarkdownConfig[] {

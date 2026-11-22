@@ -297,7 +297,18 @@ function convertInlineTokens(tokens?: Token[]): InlineToken[] | undefined {
 /**
  * Converts Marked list item tokens to StaticToken[]
  */
-function convertListItemTokens(tokens: Token[], loose?: boolean): StaticToken[] {
+function convertListItemTokens(
+  tokens: Token[],
+  loose?: boolean,
+  /**
+   * 文档级 slug 分配器。
+   *
+   * **必须由调用方传入**：列表项里的 `# 标题` 是文档级标题，若不共享文档分配器，
+   * `convertBlockTokens` 会用默认参数新建一个 —— 它与文档其余部分互不知情，
+   * 于是 `# A` + `- # A` 产出两个相同的 `id="a"`（实测）。
+   */
+  allocateSlug: (source: string) => string = createHeadingSlugAllocator(),
+): StaticToken[] {
   const result: StaticToken[] = [];
 
   for (const t of tokens) {
@@ -325,7 +336,7 @@ function convertListItemTokens(tokens: Token[], loose?: boolean): StaticToken[] 
       continue;
     }
     // 4. 其他块级节点（如 paragraph, list, code, blockquote, table 等）走常规块转换
-    const blocks = convertBlockTokens([t]);
+    const blocks = convertBlockTokens([t], allocateSlug);
     // 若当前列表项为紧凑模式且块仅为单个普通段落，将其展开为纯内联 token，防止在 <li> 中产生多余 <p> 标签引发换行和边距
     if (!loose && blocks.length === 1 && blocks[0].type === "paragraph") {
       const p = blocks[0];
@@ -479,7 +490,9 @@ function convertBlockTokens(
           checked: item.checked,
           loose: item.loose,
           text: item.text,
-          tokens: item.tokens ? convertListItemTokens(item.tokens, item.loose) : undefined,
+          tokens: item.tokens
+            ? convertListItemTokens(item.tokens, item.loose, allocateSlug)
+            : undefined,
         }));
         result.push({
           type: "list",

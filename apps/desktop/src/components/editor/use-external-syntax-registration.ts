@@ -20,12 +20,31 @@ export type SyntaxRegistrationPorts = Pick<CodeMirrorEditorPorts, "addSyntaxPlug
  *
  * 抽成纯函数是为了让"注册了哪些、按什么顺序、卸载时是否 dispose"能被直接断言，
  * 而不必渲染整棵 React 树。
+ *
+ * **失败必须回滚**：端口按插件 id 顺序注册，第 n 个被拒时前 n-1 个已经生效。
+ * 若不回收，宿主会留下"只启用了一半"的状态，而调用方只看到一次抛错。
+ * 这里逐项注册 + 失败时把已创建的句柄逆序释放，再把原异常抛出去。
  */
 export function registerExternalSyntaxPlugins(
   ports: SyntaxRegistrationPorts,
   plugins: readonly MarkdownSyntaxPlugin[],
 ): () => void {
-  const handles = plugins.map((plugin) => ports.addSyntaxPlugin(plugin));
+  const handles: { dispose(): void }[] = [];
+  try {
+    for (const plugin of plugins) {
+      handles.push(ports.addSyntaxPlugin(plugin));
+    }
+  } catch (error) {
+    // 逆序释放：后注册的通常依赖前者的节点/语言扩展。
+    for (const handle of handles.toReversed()) {
+      try {
+        handle.dispose();
+      } catch {
+        // 回滚期间的二次失败不应掩盖原始错误。
+      }
+    }
+    throw error;
+  }
   return () => {
     for (const handle of handles) handle.dispose();
   };
