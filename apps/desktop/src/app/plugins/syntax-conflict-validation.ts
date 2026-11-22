@@ -92,8 +92,12 @@ export function createSyntaxRegistrar(
       assertNoSyntaxConflicts(plugin, builtins, new Set(registered.keys()), registeredNodes());
       registered.set(plugin.id, plugin);
       onChanged([...registered.values()]);
+      let released = false;
       return {
         dispose() {
+          // 句柄幂等：释放过就不再产生副作用（也就不会再触发 onChanged）。
+          if (released) return;
+          released = true;
           // 身份守卫：只删**本句柄注册的那个实例**。
           // 只按 id 删会让"同 ID 换实例"时旧句柄误删新实例（插件莫名消失）。
           if (registered.get(plugin.id) !== plugin) return;
@@ -124,13 +128,18 @@ export function createSyntaxRegistrar(
       for (const plugin of plugins) registered.set(plugin.id, plugin);
       onChanged([...registered.values()]);
 
-      return plugins.map((plugin) => ({
-        dispose() {
-          if (registered.get(plugin.id) !== plugin) return;
-          registered.delete(plugin.id);
-          onChanged([...registered.values()]);
-        },
-      }));
+      return plugins.map((plugin) => {
+        let released = false;
+        return {
+          dispose() {
+            if (released) return;
+            released = true;
+            if (registered.get(plugin.id) !== plugin) return;
+            registered.delete(plugin.id);
+            onChanged([...registered.values()]);
+          },
+        };
+      });
     },
     list(): readonly MarkdownSyntaxPlugin[] {
       return [...registered.values()];

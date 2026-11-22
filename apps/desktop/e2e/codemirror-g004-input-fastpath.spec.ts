@@ -39,6 +39,20 @@ test.describe("CodeMirror G004 input lifecycle", () => {
     const content = page.locator(".cm-content");
     await content.click();
     await page.keyboard.press("Control+End");
+    // 等编辑器的输入事务彻底静止再取基线。
+    //
+    // 快路径要求"本次 update 恰好包含 1 个 docChanged 事务"
+    // （`plainTextInputCanMapVisibleMarks` 的 `changedTransactionCount !== 1` 分支）。
+    // 点击与 Control+End 都可能排队产生事务；在慢机器上这些事务可能延迟到
+    // 打字之后才结算，于是打字那次 update 里混进 2 个 docChanged 事务，快路径不命中、
+    // 计数只 +0 而不是 +1（CI 上重试后仍红，本地高并发也难复现）。
+    // 这里显式等到一次双 rAF 空闲，让基线读数落在静止状态上。
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) => {
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+        }),
+    );
     const before = await diagnostics(page);
     await page.keyboard.type("x");
     await expect

@@ -242,7 +242,13 @@ export function extractHeadingOutline(markdown: string): readonly HeadingOutline
    * 复用本文件已有的 `matchOpeningCodeFence` / `isClosingCodeFence`，
    * 与 `replaceManagedRawBlocks` 用同一套 CommonMark 围栏判定。
    */
-  let openFence: { readonly marker: "`" | "~"; readonly length: number } | null = null;
+  let openFence: {
+    readonly marker: "`" | "~";
+    readonly length: number;
+    readonly indent: number;
+  } | null = null;
+  /** 当前是否处在列表项内部（缩进围栏的判定依据）。 */
+  let insideListItem = false;
 
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
@@ -256,8 +262,24 @@ export function extractHeadingOutline(markdown: string): readonly HeadingOutline
 
     const fence = matchOpeningCodeFence(line);
     if (fence) {
+      // 缩进围栏只有在**不处于列表项**时才是真正的开启围栏。
+      //
+      // 列表项里的收尾围栏写作 `  ``` `（缩进 2 格），列表项标记 `- ` 本身
+      // 又让它前面那行不是围栏开头。若不判断上下文，这个收尾行会被当成
+      // 新的开启围栏，而它永远等不到同缩进的闭合行，于是把文档剩余部分全部
+      // 吞进围栏 —— 大纲里之后的标题凭空消失（实测踩过）。
+      if (fence.indent > 0 && insideListItem) {
+        continue;
+      }
       openFence = fence;
       continue;
+    }
+
+    // 列表项上下文：用于区分"列表项里的收尾围栏"与"真正的缩进开启围栏"。
+    if (/^\s*([-*+]|\d+[.)])\s/u.test(line)) {
+      insideListItem = true;
+    } else if (line.trim() !== "" && !/^\s/u.test(line)) {
+      insideListItem = false;
     }
 
     const match = /^(#{1,6})\s+(.+?)\s*#*$/.exec(line);
@@ -437,14 +459,15 @@ function replaceOutsideMarkdownCodeFences(
 
 function matchOpeningCodeFence(
   line: string,
-): { readonly marker: "`" | "~"; readonly length: number } | null {
-  const match = /^(?: {0,3})(`{3,}|~{3,})/u.exec(line);
+): { readonly marker: "`" | "~"; readonly length: number; readonly indent: number } | null {
+  const match = /^( {0,3})(`{3,}|~{3,})/u.exec(line);
 
   if (!match) {
     return null;
   }
 
-  const sequence = match[1];
+  const indent = match[1].length;
+  const sequence = match[2];
   const marker = sequence[0] as "`" | "~";
   const infoString = line.slice(match[0].length);
 
@@ -453,16 +476,19 @@ function matchOpeningCodeFence(
     return null;
   }
 
-  return { marker, length: sequence.length };
+  return { marker, length: sequence.length, indent };
 }
 
 function isClosingCodeFence(
   line: string,
-  opening: { readonly marker: "`" | "~"; readonly length: number },
+  opening: { readonly marker: "`" | "~"; readonly length: number; readonly indent: number },
 ): boolean {
-  const match = /^(?: {0,3})(`+|~+)\s*$/u.exec(line);
+  const match = /^( {0,3})(`+|~+)\s*$/u.exec(line);
 
-  return Boolean(match && match[1][0] === opening.marker && match[1].length >= opening.length);
+  if (!match) {
+    return false;
+  }
+  return match[2][0] === opening.marker && match[2].length >= opening.length;
 }
 
 function extractManagedRawFenceContent(

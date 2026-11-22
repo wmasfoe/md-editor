@@ -36,6 +36,32 @@ usable. `getMarkdownLintState()` exposes the current `{ enabled, hasEngine }` sn
 official positional signature. The double `as unknown as` assertion in `@md-editor/app-ui`
 is gone.
 
+### Breaking type and API changes
+
+These are public-surface changes that may need host-side edits. They ship as a `minor` bump
+under 0.x, but are worth calling out explicitly:
+
+- **`MarkdownLintIssue.severity` narrowed** from `string` to `"error" | "warning"`. A custom
+  engine that produces some other value now fails to compile. The official `markdownlint`
+  only ever produces these two values, so this matches reality rather than restricting it.
+- **`errorDetail` / `errorContext` / `errorRange` / `fixInfo` are now nullable** to match the
+  official `LintError` (`string | null`, `number[] | null`, `FixInfo | null`). Code that reads
+  these fields needs a null check — `undefined`-only checks no longer cover every case.
+  `errorRange` also widens from a fixed `[number, number]` tuple to `readonly number[]`.
+- **`MarkdownLintResult` is no longer `Readonly`**, and `MarkdownLintRequest.strings` /
+  `.config` dropped `Readonly` too. This is what lets the official `lint` be assigned to
+  `MarkdownLintEngine` at all (function parameters are contravariant). Treat these values as
+  read-only by convention; the type system no longer enforces it.
+- **`noteOptionalModuleDegraded` / `consumeOptionalModuleDegraded` / `degradedScopeCount`
+  were removed** from `@md-editor/editor`. They had no remaining consumers inside the repo and
+  retained `EditorState` references. `onOptionalModuleReady` now passes the module key.
+- **`parseMdxJsxElements` / `collectMdxElements` / `sanitizeHtmlBlock(D) `lost their optional
+  `scope` parameter**, and `MarkdownRangeIndexBuildOptions.degradedScope` is gone. Callers
+  passing that argument must drop it.
+- **`extractHeadingOutline` now skips fenced code blocks.** Documents that put `# heading`
+  lines inside a fence will see fewer outline entries and different ids for the headings that
+  follow — matching what the HTML exporter has always produced.
+
 **Heading anchors are unique per document.** `createHeadingSlugAllocator` records the ids it
 has already assigned and increments until it finds a free one, so `A` / `A` / `A-1` yields
 `a` / `a-1` / `a-1-1` instead of a duplicate `a-1`. Legacy `<a id>` aliases are emitted at most

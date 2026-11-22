@@ -158,9 +158,6 @@ export function checkReadmeExamples() {
         2,
       ),
     );
-    if (process.env.DEBUG_README_TS) {
-      console.log(readFileSync(join(dir, "tsconfig.json"), "utf8"));
-    }
     try {
       execFileSync(
         process.execPath,

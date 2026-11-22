@@ -115,3 +115,40 @@ describe("代号守卫：未释放的旧句柄撞上新注册", () => {
     expect(registry.plugins).toEqual([]);
   });
 });
+
+/**
+ * 代号必须**全局单调**，不能因为 `replaceDeclarative` 的临时实例而从 1 重新开始。
+ *
+ * 若临时实例从 1 开始分配，声明式条目拿到的代号可能等于历史上已发出的代号。
+ * 一旦某个 id 先被不带 token 的 `dispose(id)` 摘掉、再经 `replaceDeclarative`
+ * 以同一对象重新注册，旧句柄的代号就可能"碰巧对上"，从而误删新注册。
+ */
+describe("replaceDeclarative 之后代号仍全局单调", () => {
+  it("临时实例不得复用历史代号", () => {
+    const registry = new SyntaxPluginRegistry();
+    const p = plugin("p");
+    const stale = registry.registerImperative(p);
+    const staleToken = registry.tokenOf("p");
+    expect(staleToken).toBeDefined();
+
+    // 不经 token 摘掉（模拟外部/旧路径），再用同对象走全量替换注册。
+    registry.dispose("p", p);
+    registry.replaceDeclarative([p]);
+
+    // 新代号必须严格大于历史值，旧句柄的 token 不该对上。
+    expect(registry.tokenOf("p")).toBeGreaterThan(staleToken as number);
+    expect(stale.dispose()).toBe(false);
+    expect(registry.plugins.map((x) => x.id)).toEqual(["p"]);
+  });
+
+  it("连续多次全量替换后代号持续递增", () => {
+    const registry = new SyntaxPluginRegistry();
+    const tokens: number[] = [];
+    for (let i = 0; i < 3; i += 1) {
+      registry.replaceDeclarative([plugin(`p${i}`)]);
+      tokens.push(registry.tokenOf(`p${i}`) as number);
+    }
+    expect(tokens[0]).toBeLessThan(tokens[1] as number);
+    expect(tokens[1]).toBeLessThan(tokens[2] as number);
+  });
+});

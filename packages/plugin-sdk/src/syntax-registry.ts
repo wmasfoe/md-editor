@@ -178,6 +178,10 @@ export class SyntaxPluginRegistry {
   replaceDeclarative(plugins: readonly MarkdownSyntaxPlugin[]): this {
     const kept = this.#plugins;
     const next = new SyntaxPluginRegistry();
+    // 代号必须**全局单调**：临时实例若从 1 开始，声明式条目拿到的代号可能
+    // 等于历史上已发出的代号。一旦某 id 先被不带 token 的 `dispose(id)` 摘掉、
+    // 再经本方法以同一对象重新注册，旧句柄的代号就可能"碰巧对上"而误删新注册。
+    next.#nextToken = this.#nextToken;
     // 先放入命令式条目，再放新的声明式条目；冲突由 preflight 统一抛错。
     for (const [id, plugin] of kept) {
       if (this.#imperative.has(id)) {

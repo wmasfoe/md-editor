@@ -110,3 +110,62 @@ describe("createSyntaxRegistrar 批量注册的原子性", () => {
     expect(registrar.list()).toEqual([]);
   });
 });
+
+/**
+ * 同一插件对象"释放 → 重新注册"后，旧句柄不得摘掉新注册。
+ *
+ * 只有实例身份守卫挡不住这条：`registered.get(id) === plugin` 在新注册后依然成立，
+ * 旧句柄再释放一次就会把**新注册**删掉。SDK 侧用注册 token 修掉了同一场景，
+ * 这里必须用"已释放"标记对齐（句柄本来就该幂等）。
+ *
+ * 注意测试必须**复用同一个对象实例**——早先用 `plugin(id)` 重新构造，
+ * 对象身份不同，身份守卫恰好挡住了缺陷，测不出问题。
+ */
+describe("同一对象重新注册后，旧句柄必须失效", () => {
+  it("register → dispose → register(同对象) → 旧句柄再 dispose，新注册仍在", () => {
+    const registrar = createSyntaxRegistrar([], () => undefined);
+    const shared = plugin("shared", "SharedNode");
+
+    const first = registrar.register(shared);
+    first.dispose();
+    expect(registrar.list()).toEqual([]);
+
+    const second = registrar.register(shared);
+    expect(registrar.list().map((p) => p.id)).toEqual(["shared"]);
+
+    // 关键：旧句柄再释放一次，不能摘掉第二次注册。
+    first.dispose();
+    expect(registrar.list().map((p) => p.id)).toEqual(["shared"]);
+
+    second.dispose();
+    expect(registrar.list()).toEqual([]);
+  });
+
+  it("registerAll 的句柄同样幂等（同对象重新注册后旧句柄失效）", () => {
+    const registrar = createSyntaxRegistrar([], () => undefined);
+    const shared = plugin("shared", "SharedNode");
+
+    const [firstBatch] = registrar.registerAll([shared]);
+    firstBatch?.dispose();
+    expect(registrar.list()).toEqual([]);
+
+    registrar.register(shared);
+    firstBatch?.dispose();
+    expect(registrar.list().map((p) => p.id)).toEqual(["shared"]);
+  });
+
+  it("句柄重复释放不重复触发 onChanged", () => {
+    const changes: string[][] = [];
+    const registrar = createSyntaxRegistrar([], (plugins) => {
+      changes.push(plugins.map((p) => p.id));
+    });
+
+    const handle = registrar.register(plugin("once", "OnceNode"));
+    changes.length = 0;
+    handle.dispose();
+    handle.dispose();
+    handle.dispose();
+    // 只应有一次"移除"回调。
+    expect(changes).toEqual([[]]);
+  });
+});

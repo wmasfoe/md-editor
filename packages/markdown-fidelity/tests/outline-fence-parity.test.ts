@@ -46,3 +46,32 @@ describe("大纲跳过代码围栏", () => {
     expect(outline[0]?.line).toBe(5);
   });
 });
+
+/**
+ * 列表内围栏不得吞掉后续标题。
+ *
+ * 根因：`matchOpeningCodeFence` 允许 0–3 空格缩进，列表项里的收尾围栏（`  ``` `）
+ * 因此被当成**新的开启围栏**，而它永远等不到同缩进的闭合行，于是把文档剩余部分
+ * 全部当作围栏内容 —— 大纲里围栏之后的所有标题凭空消失（实测 `- ``` … ` 之后的
+ * `## after` 完全不出现）。
+ *
+ * 修复：闭合围栏的缩进必须与开启围栏一致（CommonMark 的列表内围栏语义），
+ * 这样"缩进对不上"的收尾行不会另起一个新围栏。
+ */
+describe("列表内围栏不吞掉后续标题", () => {
+  it("列表项开头的围栏不会吞掉之后的标题", () => {
+    const outline = extractHeadingOutline("- ```\n  # 列表内\n  ```\n\n## 之后\n");
+    // 列表内围栏内容不该出现在大纲里，但"之后"必须出现。
+    expect(outline.map((item) => item.text)).toEqual(["之后"]);
+  });
+
+  it("缩进围栏正常闭合后标题仍在", () => {
+    const outline = extractHeadingOutline("- item\n\n  ```\n  # 围栏内\n  ```\n\n## 之后\n");
+    expect(outline.map((item) => item.text)).toEqual(["之后"]);
+  });
+
+  it("顶层围栏行为不变", () => {
+    const outline = extractHeadingOutline("```\n# 围栏内\n```\n\n## 之后\n");
+    expect(outline.map((item) => item.text)).toEqual(["之后"]);
+  });
+});
