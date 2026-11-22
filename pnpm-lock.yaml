@@ -823,7 +823,7 @@ importers:
         specifier: workspace:*
         version: link:../markdown-fidelity
       '@md-editor/plugin-sdk':
-        specifier: workspace:^0.6.0
+        specifier: workspace:^0.7.0
         version: link:../plugin-sdk
       '@md-editor/shared':
         specifier: workspace:*
@@ -969,7 +969,7 @@ importers:
   packages/plugin-host:
     dependencies:
       '@md-editor/plugin-sdk':
-        specifier: workspace:^0.6.0
+        specifier: workspace:^0.7.0
         version: link:../plugin-sdk
       '@md-editor/shared':
         specifier: workspace:*
