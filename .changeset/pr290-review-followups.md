@@ -2,7 +2,6 @@
 "@md-editor/editor": minor
 "@md-editor/plugin-sdk": minor
 "@md-editor/shared": minor
-"@md-editor/compiler": minor
 "@md-editor/markdown-fidelity": minor
 ---
 
