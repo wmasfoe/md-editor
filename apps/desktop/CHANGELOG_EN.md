@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.25.1 - 2026-11-22 (#295)
+
+- Fix MDX components rendering as HTML when the parser loads after the document opens, which previously never recovered. A plugin that fails to register can now be retried with the same id. Fix anchor links for nested headings inside list items and blockquotes jumping to the wrong place, and outline entries whose ids did not match the exported HTML.
+
 ## 0.25.0 - 2026-11-21 (#288)
 
 - Edit Mermaid sequence diagrams with alt/else/loop fragments, including block conditions, plus autonumber, notes and activations. Fix low-contrast diagram menus in light themes and the transparent viewer background that let document text show through.
