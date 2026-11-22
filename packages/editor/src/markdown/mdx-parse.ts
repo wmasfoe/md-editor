@@ -78,11 +78,15 @@ function isWholeExpressionText(text: string): boolean {
 }
 
 /** 源码中的 JSX 组件元素列表(深度优先,块级 + 行内)。解析失败返回空数组。 */
-export function parseMdxJsxElements(source: string): readonly MdxJsxElement[] {
+export function parseMdxJsxElements(
+  source: string,
+  /** 降级记账 scope（通常是当前 `EditorState`）。 */
+  scope?: object,
+): readonly MdxJsxElement[] {
   const parser = getOptionalModule<MdxParserBundle>(MDX_PARSER_KEY);
   if (!parser) {
     // 解析器按需加载中：该块保持 partial（源码可见），就绪后重解析。
-    noteOptionalModuleDegraded();
+    noteOptionalModuleDegraded(scope);
     return [];
   }
   let root: MdxAstNode;

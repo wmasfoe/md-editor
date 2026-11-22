@@ -29,22 +29,45 @@ export function onOptionalModuleReady(listener: () => void): () => void {
 }
 
 /**
- * 记录"这一点因为模块未就绪而降级过"。
+ * 记录"**某个视图**因为模块未就绪而降级过"。
  *
  * 就绪后只有出现过降级才需要重算；否则会凭空多派一个事务，
  * 干扰正在进行的编辑（实测会打断图形代码块的编辑链路）。
+ *
+ * 必须按视图记账，不能用模块级布尔量：页面上同时存在多个编辑器时
+ * （官网 live editor、任何多实例宿主），第一个监听器把标记清零后，
+ * 其余实例就再也不会重算 —— HTML 块会永久停在占位、MDX 块永久停在 partial。
+ *
+ * 未传视图（无法确定归属）时退化为全局标记，由"不传 scope 的消费"取走。
  */
-let degradedWhileLoading = false;
+const degradedScopes = new Set<object>();
+let degradedGlobally = false;
 
-export function noteOptionalModuleDegraded(): void {
-  degradedWhileLoading = true;
+export function noteOptionalModuleDegraded(scope?: object): void {
+  if (scope) {
+    degradedScopes.add(scope);
+    return;
+  }
+  degradedGlobally = true;
 }
 
-/** 取走降级标记（取走即清零，避免重复重算）。 */
-export function consumeOptionalModuleDegraded(): boolean {
-  const degraded = degradedWhileLoading;
-  degradedWhileLoading = false;
+/**
+ * 取走降级标记（取走即清零，避免重复重算）。
+ *
+ * @param scope 视图身份；省略时只消费全局标记（不触碰任何视图的标记）。
+ */
+export function consumeOptionalModuleDegraded(scope?: object): boolean {
+  if (scope) {
+    return degradedScopes.delete(scope);
+  }
+  const degraded = degradedGlobally;
+  degradedGlobally = false;
   return degraded;
+}
+
+/** 当前仍有降级标记的视图数（测试与诊断用）。 */
+export function degradedScopeCount(): number {
+  return degradedScopes.size;
 }
 
 /** 已就绪则返回模块，否则返回 `undefined`（调用方据此降级）。 */
@@ -108,7 +131,8 @@ export async function preloadOptionalModules(): Promise<void> {
 
 /** 测试用：重置加载状态。 */
 export function resetOptionalModuleCache(): void {
-  degradedWhileLoading = false;
+  degradedScopes.clear();
+  degradedGlobally = false;
   ready.clear();
   pending.clear();
   listeners.clear();

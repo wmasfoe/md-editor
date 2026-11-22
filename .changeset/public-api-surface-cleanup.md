@@ -61,3 +61,18 @@ Consolidate the public API surface ahead of 1.0.
 - `@md-editor/plugin-host`: depends on `@md-editor/shared` directly for the MDX component
   contract vocabulary (previously obtained transitively through `@md-editor/plugin-sdk`,
   which no longer re-exports it). No public API change.
+
+### 懒加载与 lint 引擎的行为细节
+
+- **多编辑器实例**：可选模块（HTML 消毒 / MDX 解析 / 粘贴转换）就绪后的重算按**视图**隔离。
+  此前用模块级标记，页面上有多个编辑器时只有第一个会重算，其余实例的 HTML 块会停在占位、
+  MDX 块停在 `parserCoverage=partial`。现在每个实例各自记账。
+- **lint 引擎同一性按函数比较**：`markdownlint={{ lint }}` 这种内联写法每次宿主渲染都是新对象，
+  但引擎是否变更按 `lint` / `readConfig` / `applyFixes` 的**函数身份**判断，不会重复 reconfigure
+  （也就不会在每次输入时重跑整份 lint）。`CodeMirrorEditor` 的 `markdownlint` prop 因此可在运行中更换，
+  就地补注而不重建编辑器。
+- **`enableMarkdownLint` 仍然要求引擎存在**：缺少引擎时开启会**抛错**（不静默无诊断）。
+  该错误发生在 `useLayoutEffect` 中，第三方宿主只传 `enableMarkdownLint` 而不传引擎会直接抛出，
+  请务必同时提供 `markdownlint`（应用侧可用 `@md-editor/app-ui/markdownlint` 的 `useMarkdownLintEngine`）。
+- **标题锚点去重后缀改为 GitHub 语义**：第 2 个同名标题从 `x-2` 变为 `x-1`。文档里既有的
+  `#标题-2` 链接可能指向别的标题或失效 —— 这是用户可见的变化。

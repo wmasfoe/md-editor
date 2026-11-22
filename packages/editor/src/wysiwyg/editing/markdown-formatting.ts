@@ -564,7 +564,7 @@ export function executeFormattingCommand(view: EditorView, commandId: string): b
  * 本函数将键位组合中的字母按键（最后一段）规范化为小写，确保无论传入 "Mod-B" 还是 "Mod-b"
  * 均能被正确识别为无需按 Shift 的普通组合键；如需 Shift 则明确带有 Shift 修饰符（如 "Mod-Shift-s"）。
  * @internal
-/** @internal */
+ */
 export function normalizeCodeMirrorKey(chord: string): string {
   if (!chord) {
     return chord;
@@ -581,7 +581,7 @@ export function normalizeCodeMirrorKey(chord: string): string {
 /**
  * 创建 Markdown 常用格式化快捷键扩展，支持传入自定义键位映射
  * @internal
-/** @internal */
+ */
 export function createMarkdownFormattingKeymap(customKeymaps?: ReadonlyMap<string, string>) {
   const getKey = (commandId: string, defaultKey: string) => {
     const raw = customKeymaps?.get(commandId) ?? defaultKey;

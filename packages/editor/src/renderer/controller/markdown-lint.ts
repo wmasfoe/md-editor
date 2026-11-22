@@ -18,6 +18,20 @@ export interface MarkdownLintControllerOptions {
   readonly isDestroyed: () => boolean;
 }
 
+/** 两个引擎在行为上是否等价（比较函数身份，不比较外层对象）。 */
+function isSameEngine(
+  next: MarkdownLintEngine | undefined,
+  current: MarkdownLintEngine | undefined,
+): boolean {
+  if (next === current) return true;
+  if (!next || !current) return false;
+  return (
+    next.lint === current.lint &&
+    next.readConfig === current.readConfig &&
+    next.applyFixes === current.applyFixes
+  );
+}
+
 export class MarkdownLintController {
   /** 实时 lint 扩展的开关位。 */
   readonly compartment = new Compartment();
@@ -47,15 +61,24 @@ export class MarkdownLintController {
   setEnabled(enabled: boolean): MarkdownLintPortResult {
     if (this.#isDestroyed()) return { status: "destroyed" };
     if (enabled === this.#enabled) return { status: "noop" };
-    this.#enabled = enabled;
+    // 先执行（可能抛错的）配置，成功后才落状态：否则抛错后会停在
+    // "已开启但未配置"，下次再传 true 直接 noop，lint 永远不会真的生效。
     configureViewMarkdownLint(this.#getView(), this.compartment, enabled);
+    this.#enabled = enabled;
     return { status: "applied" };
   }
 
-  /** 运行期注入/替换引擎（宿主动态 import 完成后调用）。 */
+  /**
+   * 运行期注入/替换引擎（宿主动态 import 完成后调用）。
+   *
+   * 同一性判断取引擎上各**函数**的身份，而不是引擎对象：README 推荐的
+   * `markdownlint={{ lint }}` 每次渲染都是新对象，用对象身份会让每次渲染都
+   * reconfigure 一次 compartment（开关开着时还会重跑整份 lint）。
+   * 这条兜底与 React 层的依赖数组互为双保险（非 React 宿主也能受益）。
+   */
   setEngine(engine: MarkdownLintEngine | undefined): MarkdownLintPortResult {
     if (this.#isDestroyed()) return { status: "destroyed" };
-    if (engine === this.#engine) return { status: "noop" };
+    if (isSameEngine(engine, this.#engine)) return { status: "noop" };
     this.#engine = engine;
     const view = this.#getView();
     view.dispatch({

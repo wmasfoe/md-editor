@@ -46,7 +46,7 @@ export interface EnsureStyleElementOptions {
  * 已存在时只比较并刷新 `textContent`（`textContent === css` 时完全跳过写入，
  * 避免无谓的样式重算）。
  * @internal
-/** @internal */
+ */
 export function ensureStyleElement(options: EnsureStyleElementOptions): void {
   const { id, css, nonce, port } = options;
   const existing = port.getElementById(id);

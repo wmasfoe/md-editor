@@ -49,7 +49,7 @@ export const EDITOR_STYLE_ELEMENT_ID = "md-editor-renderer-style";
  *
  * 顺序有意义：后面的规则可以覆盖前面的同类选择器。
  * @internal
-/** @internal */
+ */
 export const EDITOR_STYLE_CSS = [
   coreEditorCss,
   tableCss,
@@ -77,7 +77,7 @@ export interface InjectEditorStylesOptions {
  *
  * Node / SSR 环境无 `document` 时静默返回，不抛错。
  * @internal
-/** @internal */
+ */
 export function injectEditorStyles(options: InjectEditorStylesOptions = {}): void {
   const doc = options.document ?? (typeof document === "undefined" ? undefined : document);
   if (!doc) return;

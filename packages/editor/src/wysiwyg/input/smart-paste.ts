@@ -25,6 +25,10 @@ import type { SyntaxNode } from "@lezer/common";
 import type TurndownService from "turndown";
 
 import { getOptionalModule, noteOptionalModuleDegraded } from "../../module-loader.ts";
+import { isAllowedImageSrc, isAllowedLinkProtocol } from "../../markdown/html-whitelist.ts";
+import { markdownRangeIndexField } from "../../markdown/range-index.ts";
+import { authorizeWysiwygProtectedChange } from "../state/change-authorization.ts";
+import { wysiwygProjectionField } from "../state/projection-field.ts";
 
 /**
  * Turndown 转换链（turndown + gfm 插件）按需加载：两者合计约 208 KB，
@@ -36,10 +40,6 @@ interface TurndownBundle {
 }
 
 const TURNDOWN_KEY = "turndown";
-import { isAllowedImageSrc, isAllowedLinkProtocol } from "../../markdown/html-whitelist.ts";
-import { markdownRangeIndexField } from "../../markdown/range-index.ts";
-import { authorizeWysiwygProtectedChange } from "../state/change-authorization.ts";
-import { wysiwygProjectionField } from "../state/projection-field.ts";
 
 /**
  * 抽象粘贴视图接口（便于 Node 单元测试与真实 EditorView 双向适配）
@@ -70,7 +70,7 @@ export interface SmartPasteEvent {
 /**
  * 校验是否为合法 URL
  * @internal
-/** @internal */
+ */
 export function isValidUrl(text: string): boolean {
   const trimmed = text.trim();
   if (!trimmed || /\s/.test(trimmed)) {
@@ -599,7 +599,7 @@ export function handleSmartPaste(event: SmartPasteEvent, view: SmartPasteView): 
  * 智能富文本与链接粘贴扩展：
  * 统一收敛处理 IME 输入、代码块 Bypass、纯文本快捷键、Smart Link 以及富文本转换。
  * @internal
-/** @internal */
+ */
 export const smartPasteExtension = EditorView.domEventHandlers({
   paste(event: ClipboardEvent, view: EditorView) {
     return handleSmartPaste(event, view);

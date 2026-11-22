@@ -29,7 +29,7 @@ export const linkLintOptionsFacet = Facet.define<LinkLintOptions, LinkLintOption
 /**
  * 主题自适应 Apple 毛玻璃风格 CodeMirror Lint 诊断气泡与波浪线主题扩展
  * @internal
-/** @internal */
+ */
 export const lintLiquidTheme = EditorView.baseTheme({
   ".cm-tooltip:has(.cm-tooltip-lint), .cm-tooltip.cm-tooltip-lint": {
     border: "1px solid var(--theme-border-strong, rgba(0, 0, 0, 0.12))",
@@ -244,7 +244,7 @@ export const MAX_REALTIME_LINT_DOC_CHARS = 120_000;
  * 提供 CM6 原生 Lint 常驻底座（包含状态字段挂载、快捷键导航以及 Liquid Glass 毛玻璃气泡视觉定制）
  * 不挂载任何自动轮询源，零定时器与零静态检查开销。
  * @internal
-/** @internal */
+ */
 export function createLintBaseExtensions(): Extension {
   return [
     linter(null),
@@ -298,7 +298,7 @@ export function createLintBaseExtensions(): Extension {
  * 当 enabled 为 false 时返回空扩展；
  * 当 enabled 为 true 时防抖 600ms 同步检查并在主视口展示波浪线。
  * @internal
-/** @internal */
+ */
 export function createRealtimeMarkdownLintExtension(enabled: boolean): Extension {
   if (!enabled) {
     return [];
@@ -320,7 +320,7 @@ export function createRealtimeMarkdownLintExtension(enabled: boolean): Extension
 /**
  * 执行完整的 Markdown 格式与本地链接检查，并将结果分发至 EditorView
  * @internal
-/** @internal */
+ */
 export async function executeDocumentLint(
   view: { readonly state: EditorState; dispatch(spec: TransactionSpec): void },
   options: DocumentLinterOptions = {},

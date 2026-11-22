@@ -35,9 +35,14 @@ export function useMarkdownLintEngine(): MarkdownLintEngine | undefined {
 
   useEffect(() => {
     let alive = true;
-    void loadMarkdownLintEngine().then((next) => {
-      if (alive) setLoaded(next);
-    });
+    void loadMarkdownLintEngine()
+      .then((next) => {
+        if (alive) setLoaded(next);
+      })
+      .catch(() => {
+        // 加载失败（离线 / 被 CSP 拦）时保持"引擎未就绪"：调用方据此关闭 lint 开关，
+        // 不产生未处理的 Promise rejection。
+      });
     return () => {
       alive = false;
     };

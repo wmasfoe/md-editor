@@ -72,7 +72,7 @@ export const DEFAULT_MARKDOWNLINT_CONFIG: Record<string, unknown> = {
 /**
  * 对编辑器中的 Markdown 内容执行同步静态规则检查
  * @internal
-/** @internal */
+ */
 export function runMarkdownLint(
   state: EditorState,
   config?: Record<string, unknown>,

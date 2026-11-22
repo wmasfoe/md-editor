@@ -62,7 +62,10 @@ export interface CodeMirrorEditorProps {
    * import { lint } from "markdownlint/sync";
    * <CodeMirrorEditor markdownlint={{ lint }} enableMarkdownLint />
    * ```
-   * 创建期读取：运行中更换引擎**不会**立即生效（需要重建编辑器/重新挂载）。
+   * 可在运行中更换：引擎变化会就地补注（`ports.setMarkdownLintEngine`），**不会**重建编辑器。
+   * 比较依据是引擎上各函数的身份（`lint` / `readConfig` / `applyFixes`），因此内联字面量
+   * `markdownlint={{ lint }}` 不会在每次宿主渲染时重复重配 —— 前提是这些函数本身引用稳定
+   * （应用侧用 `useMarkdownLintEngine` 或 `useMemo` 即可）。
    */
   readonly markdownlint?: MarkdownLintEngine;
   readonly hidden?: boolean;
@@ -227,8 +230,8 @@ export function CodeMirrorEditor({
       bridge.destroy();
       callbacksRef.current.onRendererPortsChange?.(null);
     };
-    // 依赖用 `lint` 函数身份而非引擎对象身份：`markdownlint={{ lint }}` 这种内联写法
-    // 每次渲染都是新对象，用对象身份会重建编辑器（丢选区/撤销栈/IME）。
+    // 创建只依赖这些稳定输入。lint 引擎刻意不在其中：它走下面的补注 effect，
+    // 更换引擎不需要（也不应该）重建编辑器。
   }, [document, hasClipboardWriter, injectStyles, styleNonce]);
 
   useLayoutEffect(() => {
@@ -240,9 +243,16 @@ export function CodeMirrorEditor({
   }, [showInlineStyleMarkers]);
 
   // 引擎可能晚于视图到达（宿主动态 import）：就地补注，不重建视图。
+  //
+  // 依赖刻意取引擎上各**函数**的身份，而不是引擎对象身份：README 推荐的
+  // `markdownlint={{ lint }}` 每次宿主渲染都会产生新对象，用对象身份会每次都
+  // reconfigure 一次 compartment（开关开着时还会重跑整份 lint）。
   useLayoutEffect(() => {
     bridgeRef.current?.ports.setMarkdownLintEngine(markdownlint);
-  }, [markdownlint]);
+    // 故意只依赖三个函数身份：`markdownlint` 对象本身每次渲染都可能变（内联字面量），
+    // 用对象身份会退化成"每次渲染都重配一次"。三个函数已完整覆盖引擎的可观察行为。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [markdownlint?.lint, markdownlint?.readConfig, markdownlint?.applyFixes]);
 
   useLayoutEffect(() => {
     bridgeRef.current?.ports.setMarkdownLint(enableMarkdownLint);

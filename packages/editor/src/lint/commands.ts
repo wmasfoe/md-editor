@@ -136,7 +136,7 @@ export function filterNonOverlappingDescendingChanges(
 /**
  * 收集当前 state 中除 markdownlint 以外的既有诊断（例如手动链接检查结果），避免被清空逻辑误杀
  * @internal
-/** @internal */
+ */
 export function collectPreservedNonMarkdownDiagnostics(state: EditorState): Diagnostic[] {
   const preserved: Diagnostic[] = [];
   forEachDiagnostic(state, (diagnostic, from, to) => {
@@ -154,7 +154,7 @@ export function collectPreservedNonMarkdownDiagnostics(state: EditorState): Diag
 /**
  * 清除所有 markdownlint 产生的波浪线诊断，同时保留其他来源诊断（如链接检查）
  * @internal
-/** @internal */
+ */
 export function clearMarkdownLintDiagnostics(state: EditorState): TransactionSpec {
   const preserved = collectPreservedNonMarkdownDiagnostics(state);
   return setDiagnostics(state, preserved);
@@ -192,7 +192,7 @@ export function clearMarkdownLintCommand(view: EditorView): void {
  * - 若当前处于已检查状态（存在活跃诊断），再次执行则 Toggle Off（清空波浪线并收起面板）；
  * - 若当前处于关闭状态，则执行全新扫描，分发诊断并呼出底部面板供跳转查看。
  * @internal
-/** @internal */
+ */
 export function runMarkdownLintCommand(
   view: EditorView,
   config?: Record<string, unknown>,
@@ -247,7 +247,7 @@ const MAX_FIX_ALL_PASSES = 5;
  * - 单次 Undo 历史（单步 Cmd+Z 即可全部撤回）
  * - 刷新诊断状态，若无残留问题自动关闭问题面板
  * @internal
-/** @internal */
+ */
 export function fixAllMarkdownLintIssues(
   view: EditorView,
   config?: Record<string, unknown>,
