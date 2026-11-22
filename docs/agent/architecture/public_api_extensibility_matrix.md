@@ -167,12 +167,48 @@
 | A-4/A-5 锚点端到端 | 破坏 compiler 侧 id 来源（改 `generateLegacyHeadingSlug` 的名字/实现） | **19 条红**（全量） |
 | T-5 变量条数 | 往 `THEME_VARIABLES` 加第 72 条 | 1 条红（条数是契约，不是跟随代码） |
 | utools 字号透传 | 删 `UtoolsApp` 的 `fontSize: settings.fontSize` | 1 条红（15px 会静默落回 inherit） |
+| PR#290-A1/C7 按模块名刷新 | 去掉按 key 分流、一律全量刷新 | 2 条红（Turndown 也派发、消毒器多派发解析索引） |
+| PR#290-A1/C7 监听器异常隔离 | 去掉 `notifyReady` 的逐项 try/catch | 1 条红（坏监听器挡住后续订阅者） |
+| PR#290-A2 lint 原子提交 | 还原"先引擎、后开关"两步提交 | 1 条红（非法组合失败后旧配置不可用） |
+| PR#290-A3 注册 token | 去掉 `dispose` 的 token 守卫 | 2 条红（旧句柄摘掉新注册） |
+| PR#290-A3 桌面句柄身份 | 桌面 `dispose` 只按 id 删 | 1 条红（同 ID 换实例被误删） |
+| PR#290-A4 分配器最终 ID 唯一 | 还原"只按原始 slug 计数" | 3 条红（`a`/`a-1`/`a-1` 撞车） |
+| PR#290-A5 别名全文档唯一 | 去掉 `emittedAliases` 条件 | 2 条红（`手順` 重复） |
+| PR#290-A6 `defineNodes` 预检 | 预检漏 `defineNodes` | 1 条红 |
+| PR#290-A6 桌面批量原子性 | `registerAll` 退化为逐项 `register` | 3 条红（半批状态） |
+| PR#290-C8 大纲跳过围栏 | 去掉围栏状态判断 | 6 条红（围栏内假标题占掉 id） |
+| PR#290-C9 类型对齐官方 | 还原窄类型（`errorDetail?: string`） | tsc 报 TS2322 **且** README 示例检查红 |
 
 反例（**不可接受**，已修两次）：
 1. 早期版本把四个 option 用 spread 传入 —— TypeScript 的多余属性检查对 spread 不生效，删掉 `bridge.ts` 的四行转发后测试仍全绿。
 2. 改成显式字面量后，`focusDimOpacity` 与 `syntaxPluginHostPorts` 两条仍是恒真断言（前者只做纯算术 + `expect(fn).toBeTypeOf("function")`，
    后者断言 `Array.isArray(calls)`）；`bridge.ports` 上根本没有 `state` 成员，"经 facet 到达 state" 的说法是错的。
    现改为读焦点模式写入的 `--cm-md-focus-dim-opacity` CSS 变量、以及折叠按钮真实调用宿主 translator。
+
+## 两个非显然的跨层陷阱（PR #290 复审时实证）
+
+这两条都不是"写错了代码"，而是**看起来合理、实际会炸**的结构性陷阱，且都没有类型错误提示。
+
+### 1. 纯声明的语法节点不能进装饰分派表
+
+`SyntaxPluginRegistry` 有两个语义完全不同的表：
+
+| 表 | 语义 | 谁查它 |
+| --- | --- | --- |
+| `#nodeToPlugin` | "这个节点由**谁**渲染/提取/解析" | `buildDecorations` / `extractMetadata` / `resolveContentRange` |
+| 冲突表（独立） | "这个节点名**已被占用**" | 仅注册前的冲突预检 |
+
+把只通过 Lezer `defineNodes` 声明、没有装饰实现的插件塞进 `#nodeToPlugin` 后，
+`buildDecorations` 会命中它并返回**空数组**。CM6 对空 mark decoration 直接抛
+`RangeError: Mark decorations may not be empty`——错误信息完全不指向根因，
+实测让 `syntax-plugins` 3 条用例崩溃。冲突预检与装饰分派必须用两张表。
+
+### 2. `dispose` 必须同时清策略表与分派表
+
+简写 `nodePolicy`（单节点）路径在注册时写了两张表（`#nodePolicies` + `#nodeToPlugin`），
+`dispose` 只清前者时，节点名会继续占用分派表。后果不是"多占一个名字"，而是
+**同一插件释放后无法重新注册**：预检看到分派表里还有该节点名，报"节点已注册"。
+这个缺陷只有在引入注册 token（同一对象可释放→重注册）之后才暴露出来。
 
 ## 已删 API 的文档门禁（removed-api-scan）
 

@@ -17,57 +17,37 @@ interface ModuleEntry {
 }
 
 const ready = new Map<string, ModuleEntry>();
-const listeners = new Set<() => void>();
+const listeners = new Set<(key: OptionalModuleKey) => void>();
 const pending = new Map<string, Promise<void>>();
 
-/** 订阅"任意可选模块就绪"事件；返回取消订阅函数。 */
-export function onOptionalModuleReady(listener: () => void): () => void {
+/** 三个门槛模块的稳定 key（订阅方据此决定刷新哪些投影）。 */
+export const OPTIONAL_MODULE_KEYS = {
+  sanitizeHtml: "sanitize-html",
+  mdxParser: "mdx-parser",
+  turndown: "turndown",
+} as const;
+
+/**
+ * 模块 key。
+ *
+ * `(string & {})` 保留已知 key 的自动补全，同时允许任意字符串 —— 加载器本身
+ * 是与模块无关的门闸，测试与未来的可选模块不需要改这里。
+ */
+export type OptionalModuleKey =
+  (typeof OPTIONAL_MODULE_KEYS)[keyof typeof OPTIONAL_MODULE_KEYS] | (string & {});
+
+/**
+ * 订阅"某个可选模块就绪"事件；返回取消订阅函数。
+ *
+ * 通知**携带模块名**：三类模块影响的是不同投影（消毒器 → HTML 块预览、
+ * MDX 解析器 → 解析索引、Turndown → 仅下次粘贴），不带模块名就只能一律全量
+ * 重算，连"只供下次粘贴使用"的 Turndown 就绪也会触发整份 range index 重建。
+ */
+export function onOptionalModuleReady(listener: (key: OptionalModuleKey) => void): () => void {
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
   };
-}
-
-/**
- * 记录"**某个视图**因为模块未就绪而降级过"。
- *
- * 就绪后只有出现过降级才需要重算；否则会凭空多派一个事务，
- * 干扰正在进行的编辑（实测会打断图形代码块的编辑链路）。
- *
- * 必须按视图记账，不能用模块级布尔量：页面上同时存在多个编辑器时
- * （官网 live editor、任何多实例宿主），第一个监听器把标记清零后，
- * 其余实例就再也不会重算 —— HTML 块会永久停在占位、MDX 块永久停在 partial。
- *
- * 未传视图（无法确定归属）时退化为全局标记，由"不传 scope 的消费"取走。
- */
-const degradedScopes = new Set<object>();
-let degradedGlobally = false;
-
-export function noteOptionalModuleDegraded(scope?: object): void {
-  if (scope) {
-    degradedScopes.add(scope);
-    return;
-  }
-  degradedGlobally = true;
-}
-
-/**
- * 取走降级标记（取走即清零，避免重复重算）。
- *
- * @param scope 视图身份；省略时只消费全局标记（不触碰任何视图的标记）。
- */
-export function consumeOptionalModuleDegraded(scope?: object): boolean {
-  if (scope) {
-    return degradedScopes.delete(scope);
-  }
-  const degraded = degradedGlobally;
-  degradedGlobally = false;
-  return degraded;
-}
-
-/** 当前仍有降级标记的视图数（测试与诊断用）。 */
-export function degradedScopeCount(): number {
-  return degradedScopes.size;
 }
 
 /** 已就绪则返回模块，否则返回 `undefined`（调用方据此降级）。 */
@@ -77,7 +57,7 @@ export function getOptionalModule<T>(key: string): T | undefined {
 
 /** 启动一个可选模块的加载（幂等）；返回加载完成 Promise。 */
 export function preloadOptionalModule(
-  key: string,
+  key: OptionalModuleKey,
   importer: () => Promise<unknown>,
 ): Promise<void> {
   const existing = pending.get(key);
@@ -87,7 +67,7 @@ export function preloadOptionalModule(
   const task = importer()
     .then((value) => {
       ready.set(key, { value });
-      for (const listener of listeners) listener();
+      notifyReady(key);
     })
     .catch(() => {
       // 失败不永久缓存：下次调用重试（离线/瞬时错误常见）。
@@ -95,6 +75,27 @@ export function preloadOptionalModule(
     });
   pending.set(key, task);
   return task;
+}
+
+/**
+ * 逐个通知订阅者。
+ *
+ * **单个监听器抛错不得影响其余订阅者**：多实例宿主里一个视图刷新失败，
+ * 不应该让其它编辑器永远收不到"已就绪"（它们会永久停在降级态）。
+ * 也刻意不把异常往上抛给 `preloadOptionalModule` 的 `.catch` —— 那会把
+ * "某视图刷新失败"误记成"模块导入失败"，进而清掉 pending 导致重复导入。
+ */
+function notifyReady(key: OptionalModuleKey): void {
+  for (const listener of listeners) {
+    try {
+      listener(key);
+    } catch (error) {
+      // 视图侧刷新失败不该阻断其它视图；记录后继续。
+      if (typeof console !== "undefined") {
+        console.error(`[md-editor] optional module listener failed for "${key}"`, error);
+      }
+    }
+  }
 }
 
 /** 预加载全部门槛模块。渲染器创建时调用一次。 */
@@ -131,8 +132,6 @@ export async function preloadOptionalModules(): Promise<void> {
 
 /** 测试用：重置加载状态。 */
 export function resetOptionalModuleCache(): void {
-  degradedScopes.clear();
-  degradedGlobally = false;
   ready.clear();
   pending.clear();
   listeners.clear();

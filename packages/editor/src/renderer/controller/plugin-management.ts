@@ -102,10 +102,15 @@ export function createImperativeSyntaxRegistration(
   isDestroyed: () => boolean,
 ): Disposable {
   registerSyntaxPlugins(ctx, [plugin], "imperative");
+  // 句柄记住**本次**注册的代号：同一对象释放后重新注册时，旧句柄不得摘掉新注册。
+  const token = ctx.registry.tokenOf(plugin.id);
+  let released = false;
   return {
     dispose: () => {
+      if (released) return;
+      released = true;
       if (isDestroyed()) return;
-      unregisterSyntaxPlugin(ctx, plugin);
+      unregisterSyntaxPlugin(ctx, plugin, token);
     },
   };
 }
@@ -118,9 +123,10 @@ export function createImperativeSyntaxRegistration(
 export function unregisterSyntaxPlugin(
   ctx: SyntaxPluginContext,
   plugin: MarkdownSyntaxPlugin,
+  token?: number,
 ): boolean {
   const wasSyntaxPlugin = Boolean(plugin.markdownExtension);
-  if (!ctx.registry.dispose(plugin.id, plugin)) {
+  if (!ctx.registry.dispose(plugin.id, plugin, token)) {
     return false;
   }
 

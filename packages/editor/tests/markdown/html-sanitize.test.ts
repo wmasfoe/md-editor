@@ -5,11 +5,7 @@
  */
 import { beforeAll, describe, expect, it } from "vitest";
 
-import {
-  consumeOptionalModuleDegraded,
-  preloadOptionalModules,
-  resetOptionalModuleCache,
-} from "../../src/module-loader.ts";
+import { preloadOptionalModules, resetOptionalModuleCache } from "../../src/module-loader.ts";
 
 import {
   ALLOWED_HTML_ATTRS,
@@ -372,10 +368,9 @@ function expectSanitized(html: string): string {
 
 // 必须放在文件末尾：本组会清空加载状态，影响同文件后续断言的前提。
 describe("按需加载：未就绪时降级而不是放行", () => {
-  it("消毒器未就绪时两个入口都返回 null，并标记降级（渲染层只可能拿到占位）", () => {
+  it("消毒器未就绪时两个入口都返回 null（渲染层只可能拿到占位）", () => {
     resetOptionalModuleCache();
     expect(sanitizeHtmlBlockDetailed("<b>x</b>")).toBeNull();
     expect(sanitizeHtmlBlock("<b>x</b>")).toBeNull();
-    expect(consumeOptionalModuleDegraded()).toBe(true);
   });
 });

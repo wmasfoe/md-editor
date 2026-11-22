@@ -11,7 +11,7 @@
  */
 import type sanitizeHtmlFn from "sanitize-html";
 
-import { getOptionalModule, noteOptionalModuleDegraded } from "../module-loader.ts";
+import { getOptionalModule } from "../module-loader.ts";
 
 import {
   ALLOWED_HTML_ATTRS,
@@ -74,13 +74,9 @@ export interface SanitizedHtmlBlock {
 }
 
 /** 清洗 HTML 块源码 → 安全字符串；调用方以 isEmptySanitizedHtml 判定空结果（→ 占位） */
-export function sanitizeHtmlBlock(html: string, scope?: object): string | null {
+export function sanitizeHtmlBlock(html: string): string | null {
   const sanitizeHtml = getOptionalModule<Sanitizer>("sanitize-html");
-  if (!sanitizeHtml) {
-    noteOptionalModuleDegraded(scope);
-    return null;
-  }
-  return sanitizeHtml(html, SANITIZE_OPTIONS);
+  return sanitizeHtml ? sanitizeHtml(html, SANITIZE_OPTIONS) : null;
 }
 
 /**
@@ -94,16 +90,9 @@ type SanitizeOptions = NonNullable<Parameters<Sanitizer>[1]>;
  * 清洗 HTML 块源码。返回 `null` 表示清洗器尚未就绪 —— 调用方必须渲染占位，
  * 不得把未消毒内容交给渲染层（安全不变量）。
  */
-export function sanitizeHtmlBlockDetailed(
-  html: string,
-  /** 降级记账 scope（通常是当前 `EditorState`）：就绪后只重算真正降级过的视图。 */
-  scope?: object,
-): SanitizedHtmlBlock | null {
+export function sanitizeHtmlBlockDetailed(html: string): SanitizedHtmlBlock | null {
   const sanitizeHtml = getOptionalModule<Sanitizer>("sanitize-html");
-  if (!sanitizeHtml) {
-    noteOptionalModuleDegraded(scope);
-    return null;
-  }
+  if (!sanitizeHtml) return null;
   let hasUnsupportedBlockTag = false;
   const sanitized = sanitizeHtml(html, {
     ...SANITIZE_OPTIONS,

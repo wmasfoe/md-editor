@@ -9,13 +9,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
-  consumeOptionalModuleDegraded,
   getOptionalModule,
-  noteOptionalModuleDegraded,
   onOptionalModuleReady,
   preloadOptionalModule,
   resetOptionalModuleCache,
+  type OptionalModuleKey,
 } from "../src/module-loader";
+
+/** 测试用模块 key：加载器本身对 key 是开放的，只要求稳定字符串。 */
+const DEMO_KEY = "turndown" as OptionalModuleKey;
 
 afterEach(() => {
   resetOptionalModuleCache();
@@ -34,26 +36,19 @@ describe("optional module loader", () => {
     const listener = vi.fn();
     const unsubscribe = onOptionalModuleReady(listener);
 
-    void preloadOptionalModule("demo", importer);
-    expect(getOptionalModule("demo")).toBeUndefined();
+    void preloadOptionalModule(DEMO_KEY, importer);
+    expect(getOptionalModule(DEMO_KEY)).toBeUndefined();
     expect(listener).not.toHaveBeenCalled();
 
     resolveImport?.({ marker: "ready" });
-    await vi.waitFor(() => expect(getOptionalModule("demo")).toEqual({ marker: "ready" }));
+    await vi.waitFor(() => expect(getOptionalModule(DEMO_KEY)).toEqual({ marker: "ready" }));
     await vi.waitFor(() => expect(listener).toHaveBeenCalledTimes(1));
 
     // 幂等：再次预加载既不再调用 importer，也不再重复通知。
-    await preloadOptionalModule("demo", importer);
+    await preloadOptionalModule(DEMO_KEY, importer);
     expect(importer).toHaveBeenCalledTimes(1);
     expect(listener).toHaveBeenCalledTimes(1);
     unsubscribe();
-  });
-
-  it("降级标记只被消费一次（避免重复重算）", () => {
-    expect(consumeOptionalModuleDegraded()).toBe(false);
-    noteOptionalModuleDegraded();
-    expect(consumeOptionalModuleDegraded()).toBe(true);
-    expect(consumeOptionalModuleDegraded()).toBe(false);
   });
 
   it("加载失败不缓存为永久失败，可重试", async () => {

@@ -242,21 +242,22 @@ export function CodeMirrorEditor({
     bridgeRef.current?.ports.setInlineStyleMarkers(showInlineStyleMarkers);
   }, [showInlineStyleMarkers]);
 
-  // 引擎可能晚于视图到达（宿主动态 import）：就地补注，不重建视图。
+  // 引擎与开关**一次提交**：分成两个 effect 时，从「有引擎 + 已开启」切到
+  // 「无引擎 + 已关闭」会出现「开关 true + 无引擎」的中间态（引擎先撤、开关后关），
+  // 校验随即抛错。调换顺序只是把问题挪到开启路径。
   //
   // 依赖刻意取引擎上各**函数**的身份，而不是引擎对象身份：README 推荐的
   // `markdownlint={{ lint }}` 每次宿主渲染都会产生新对象，用对象身份会每次都
   // reconfigure 一次 compartment（开关开着时还会重跑整份 lint）。
   useLayoutEffect(() => {
-    bridgeRef.current?.ports.setMarkdownLintEngine(markdownlint);
+    bridgeRef.current?.ports.configureMarkdownLint({
+      engine: markdownlint,
+      enabled: enableMarkdownLint,
+    });
     // 故意只依赖三个函数身份：`markdownlint` 对象本身每次渲染都可能变（内联字面量），
     // 用对象身份会退化成"每次渲染都重配一次"。三个函数已完整覆盖引擎的可观察行为。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [markdownlint?.lint, markdownlint?.readConfig, markdownlint?.applyFixes]);
-
-  useLayoutEffect(() => {
-    bridgeRef.current?.ports.setMarkdownLint(enableMarkdownLint);
-  }, [enableMarkdownLint]);
+  }, [markdownlint?.lint, markdownlint?.readConfig, markdownlint?.applyFixes, enableMarkdownLint]);
 
   useLayoutEffect(() => {
     bridgeRef.current?.ports.setLanguage(language);

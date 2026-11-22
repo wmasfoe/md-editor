@@ -10,7 +10,7 @@
 - 实现状态、迁移进度、Beta 缺口与阶段验证记录（含 Mermaid 可视化编辑 P0、默认布局验收、探针依赖升级维护及 CM6 S6 EditorView 性能实测）： [status/index.md](./status/index.md)
 - 高风险行为规范（编辑器交互、macOS 桌面全选、桌面系统文件打开及平台限制契约）： [specs/index.md](./specs/index.md)
 - 发布与仓库流程： [release/index.md](./release/index.md)
-- 评审、体验与问题审查记录： [review/index.md](./review/index.md)
+- 评审、体验与问题审查记录（含 PR #290 公开 API 的修复建议、复现结果与验收条件）： [review/index.md](./review/index.md)
 
 ## 文档分类判据
 

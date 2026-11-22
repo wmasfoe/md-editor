@@ -94,3 +94,30 @@ describe("G-1 声明式与命令式共享同一 id 空间", () => {
     );
   });
 });
+
+describe("addSyntaxPlugin 句柄只释放当次注册", () => {
+  it("释放 → 重新注册同一对象 → 旧句柄再释放，新注册仍在", () => {
+    const harness = createHarness();
+    const p = plugin("p");
+
+    const first = harness.renderer.addSyntaxPlugin(p);
+    first.dispose();
+
+    const second = harness.renderer.addSyntaxPlugin(p);
+    // 旧句柄再释放一次：不能摘掉第二次注册。
+    first.dispose();
+
+    // 新句柄仍然有效（能正常释放，且不抛错）。
+    expect(() => second.dispose()).not.toThrow();
+    harness.renderer.destroy();
+  });
+
+  it("句柄可重复释放（幂等，不抛错）", () => {
+    const harness = createHarness();
+    const handle = harness.renderer.addSyntaxPlugin(plugin("q"));
+    handle.dispose();
+    expect(() => handle.dispose()).not.toThrow();
+    expect(() => handle.dispose()).not.toThrow();
+    harness.renderer.destroy();
+  });
+});

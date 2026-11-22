@@ -76,3 +76,46 @@ describe("createHeadingSlugAllocator 按 GitHub 语义去重", () => {
     expect(new Set(slugs).size).toBe(slugs.length);
   });
 });
+
+/**
+ * 最终 ID 必须唯一。
+ *
+ * 历史缺陷：分配器只按**原始 slug** 计数（`seen.get(base)`），没登记已分配的
+ * 最终 ID。于是 `A` / `A` / `A-1` 会产出 `a` / `a-1` / `a-1` —— 第三个标题与
+ * 第二个撞车，`#a-1` 永远只能跳到其中一个。
+ */
+describe("分配器保证最终 ID 唯一", () => {
+  // 期望值对齐 GitHub 的权威实现（github-slugger 的 JS 版与 Rust 移植版行为一致）：
+  // 后缀始终基于**本次标题自己的 base** 重新从 1 递增，并跳过已占用的候选。
+  // 所以 `A`/`A`/`A-1` 是 `a`/`a-1`/`a-1-1`，而不是 `a-2`。
+  it("A / A / A-1 → a / a-1 / a-1-1（不得撞车）", () => {
+    const allocate = createHeadingSlugAllocator();
+    expect(["A", "A", "A-1"].map(allocate)).toEqual(["a", "a-1", "a-1-1"]);
+  });
+
+  it("显式带后缀的标题与自动去重后缀不冲突", () => {
+    const allocate = createHeadingSlugAllocator();
+    // 先占用 a-1（显式），再重复 a 时必须跳过已占用的 a-1。
+    expect(["A-1", "A", "A"].map(allocate)).toEqual(["a-1", "a", "a-2"]);
+  });
+
+  it("任意输入序列下最终 ID 全文档唯一", () => {
+    const allocate = createHeadingSlugAllocator();
+    const sources = ["A", "A", "A-1", "A", "A-2", "a", "A"];
+    const ids = sources.map(allocate);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("长串连续重复也保持唯一且后缀单调", () => {
+    const allocate = createHeadingSlugAllocator();
+    const ids = Array.from({ length: 6 }, () => allocate("X"));
+    expect(ids).toEqual(["x", "x-1", "x-2", "x-3", "x-4", "x-5"]);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("空标题兜底值同样参与去重", () => {
+    const allocate = createHeadingSlugAllocator();
+    const ids = [allocate(""), allocate(""), allocate("section")];
+    expect(new Set(ids).size).toBe(3);
+  });
+});

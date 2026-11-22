@@ -19,6 +19,8 @@ import {
   type CodeBlockLineNumberPortResult,
   type InlineStyleMarkerPortResult,
   type MarkdownLintPortResult,
+  type MarkdownLintTarget,
+  type MarkdownLintTargetState,
   type CodeMirrorRenderer,
   type ExternalEditRequest,
   type ExternalEditResult,
@@ -62,6 +64,15 @@ export interface CodeMirrorEditorPorts {
   setCodeBlockLineNumbers(enabled: boolean): CodeBlockLineNumberPortResult;
   setInlineStyleMarkers(enabled: boolean): InlineStyleMarkerPortResult;
   setMarkdownLint(enabled: boolean): MarkdownLintPortResult;
+  /**
+   * **原子**提交 `{ engine, enabled }`。
+   *
+   * React 侧用它把"引擎"和"开关"合成一次提交：分成两步时会出现
+   * 「开关 true + 无引擎」的非法中间态。
+   */
+  configureMarkdownLint(target: MarkdownLintTarget): MarkdownLintPortResult;
+  /** 当前 lint 配置快照（测试与宿主自检用）。 */
+  getMarkdownLintState(): MarkdownLintTargetState;
   /**
    * 运行期注入/替换 lint 引擎。
    *
@@ -373,6 +384,8 @@ export function createCodeMirrorEditorBridge(
     setCodeBlockLineNumbers: (enabled: boolean) => renderer.setCodeBlockLineNumbers(enabled),
     setInlineStyleMarkers: (enabled: boolean) => renderer.setInlineStyleMarkers(enabled),
     setMarkdownLint: (enabled: boolean) => renderer.setMarkdownLint(enabled),
+    configureMarkdownLint: (target: MarkdownLintTarget) => renderer.configureMarkdownLint(target),
+    getMarkdownLintState: () => renderer.getMarkdownLintState(),
     setMarkdownLintEngine: (engine: MarkdownLintEngine | undefined) =>
       renderer.setMarkdownLintEngine(engine),
     recomputeMarkdownLint: () => renderer.recomputeMarkdownLint(),

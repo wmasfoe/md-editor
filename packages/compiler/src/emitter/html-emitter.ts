@@ -62,6 +62,15 @@ export function emitHtml(tokens: StaticToken[], options: EmitHtmlOptions = {}): 
       .filter((id): id is string => Boolean(id)),
   );
 
+  /**
+   * 已输出的 legacy 别名。
+   *
+   * 两个不同标题的别名可以撞车（`## テスト手順` 与 `## ガイド手順` 的别名都是
+   * `手順`）。别名只是给旧链接兜底的 `<a id>`，同名时第二个永远跳不到 ——
+   * 因此每个别名在**全文档内只输出一次**，后来的直接跳过（不报错，标题本身不受影响）。
+   */
+  const emittedAliases = new Set<string>();
+
   function renderInline(token: InlineToken): string {
     switch (token.type) {
       case "text":
@@ -175,11 +184,17 @@ export function emitHtml(tokens: StaticToken[], options: EmitHtmlOptions = {}): 
           const plainText = token.text.replace(/<[^>]+>/g, "").trim();
           const idAttr = token.id ? ` id="${escapeHtml(token.id)}"` : "";
           const legacySlug = generateLegacyHeadingSlug(plainText);
-          // 只在「与自身 id 不同」且「不与任何标题的真实 id 冲突」时输出别名。
-          const aliasTag =
-            legacySlug && legacySlug !== token.id && !realHeadingIds.has(legacySlug)
-              ? `<a id="${escapeHtml(legacySlug)}" class="heading-anchor-alias" aria-hidden="true"></a>`
-              : "";
+          // 只在「与自身 id 不同」「不与任何标题的真实 id 冲突」「尚未输出过同名别名」
+          // 三个条件都成立时输出别名。
+          const aliasUsable =
+            Boolean(legacySlug) &&
+            legacySlug !== token.id &&
+            !realHeadingIds.has(legacySlug as string) &&
+            !emittedAliases.has(legacySlug as string);
+          if (aliasUsable && legacySlug) emittedAliases.add(legacySlug);
+          const aliasTag = aliasUsable
+            ? `<a id="${escapeHtml(legacySlug as string)}" class="heading-anchor-alias" aria-hidden="true"></a>`
+            : "";
           return `<h${token.level}${idAttr} data-heading-text="${escapeHtml(plainText)}">${aliasTag}${inner}</h${token.level}>\n`;
         };
         return custom?.heading ? custom.heading(token, next) : next();

@@ -52,15 +52,30 @@ export const EMPTY_HEADING_SLUG = "section";
  *
  * 必须是**有状态**的：去重是文档级属性，单个标题函数无法表达。
  * 调用方（大纲提取、HTML 导出）各自为每份文档创建一个实例，顺序即文档顺序。
+ *
+ * 去重依据是**最终 ID**，不是原始 slug。只按原始 slug 计数会撞车：
+ * `A` / `A` / `A-1` 曾产出 `a` / `a-1` / `a-1` —— 第三个标题与第二个同名，
+ * `#a-1` 只能跳到其中一个。这里把已分配出去的 ID 全部登记，逐个尝试
+ * `base`、`base-1`、`base-2`… 直到拿到未占用的那个。
  */
 export function createHeadingSlugAllocator(
   fallback: string = EMPTY_HEADING_SLUG,
 ): (source: string) => string {
-  const seen = new Map<string, number>();
+  /** 已分配出去的最终 ID（含空标题的兜底值）。 */
+  const used = new Set<string>();
   return (source: string) => {
     const base = slugifyHeading(source) || fallback;
-    const count = seen.get(base) ?? 0;
-    seen.set(base, count + 1);
-    return count === 0 ? base : `${base}-${count}`;
+    if (!used.has(base)) {
+      used.add(base);
+      return base;
+    }
+    // 从 1 开始递增，跳过已被别的标题显式占用的后缀。
+    let suffix = 1;
+    while (used.has(`${base}-${suffix}`)) {
+      suffix += 1;
+    }
+    const id = `${base}-${suffix}`;
+    used.add(id);
+    return id;
   };
 }

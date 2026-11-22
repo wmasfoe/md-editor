@@ -25,12 +25,15 @@ import type {
   RendererViewFactory,
   RendererTestingProbeInternal,
   DocumentLinterOptions,
+  MarkdownLintTarget,
 } from "./types.ts";
 
 export type {
   CodeBlockLineNumberPortResult,
   InlineStyleMarkerPortResult,
   MarkdownLintPortResult,
+  MarkdownLintTarget,
+  MarkdownLintTargetState,
   CodeMirrorRenderer,
   CodeMirrorRendererControllerOptions,
   CodeMirrorRendererOptions,
@@ -56,6 +59,12 @@ function createRendererFacade(controller: CodeMirrorRendererController): CodeMir
     setMarkdownLint: (enabled: boolean) => controller.markdownLintPorts.setEnabled(enabled),
     setMarkdownLintEngine: (engine: MarkdownLintEngine | undefined) =>
       controller.markdownLintPorts.setEngine(engine),
+    configureMarkdownLint: (target: MarkdownLintTarget) =>
+      controller.markdownLintPorts.configure(target),
+    getMarkdownLintState: () => {
+      const state = controller.markdownLintPorts.state;
+      return { enabled: state.enabled, hasEngine: state.engine !== undefined };
+    },
     recomputeMarkdownLint: () => controller.markdownLintPorts.recompute(),
     setLanguage: (language: string | undefined) => controller.setLanguage(language),
     setHostVisibility: (hidden: boolean) => controller.setHostVisibility(hidden),

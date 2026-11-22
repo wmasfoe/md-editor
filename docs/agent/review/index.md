@@ -4,5 +4,6 @@
 
 ## 文档
 
+- [PR #290 公开 API 合并后审查](./pr290-public-api-review.md) 记录插件注册、lint、可选模块加载和标题锚点的修改位置、复现结果与验收条件。
 - 编辑器交互体验、流畅度问题与 Bug 审计记录： [ux_interaction_audit_and_bugs.md](./ux_interaction_audit_and_bugs.md)
 - PR #31 亲自 review 的分层材料（里程碑分组、关键决策、验证证据、reviewer 验证路径）： [pr31-review-materials.md](./pr31-review-materials.md)
