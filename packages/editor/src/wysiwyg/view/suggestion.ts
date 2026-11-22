@@ -30,6 +30,7 @@ export type SuggestionViewportPosition = "above" | "below" | "visible";
  * 判定建议项相对于当前编辑器可见视口的物理位置。
  * 1. 若超出 CodeMirror DOM 虚拟化渲染范围，直接判定 above / below
  * 2. 在 DOM 渲染范围内，利用 scrollDOM 与字符真实 DOMRect 计算是否位于屏幕可见视口之上/之下
+ * @internal
  */
 export function getSuggestionViewportStatus(
   view: EditorView,
@@ -64,10 +65,13 @@ export function getSuggestionViewportStatus(
   }
 }
 
+/** @internal */
 export const setAiSuggestionEffect = StateEffect.define<AiSuggestionInput | null>();
+/** @internal */
 export const clearAiSuggestionEffect = StateEffect.define<void>();
 export const markAiSuggestionScrolledEffect = StateEffect.define<boolean>();
 
+/** @internal */
 export const aiSuggestionField = StateField.define<AiSuggestionValue | null>({
   create() {
     return null;
@@ -221,6 +225,7 @@ function canAcceptAiSuggestion(view: EditorView): boolean {
   return !view.composing && (!projection || projection.compositionGuardRanges.length === 0);
 }
 
+/** @internal */
 export function acceptAiSuggestion(view: EditorView): boolean {
   if (!canAcceptAiSuggestion(view)) {
     return false;
@@ -341,6 +346,7 @@ export function acceptAiSuggestion(view: EditorView): boolean {
   return true;
 }
 
+/** @internal */
 export function dismissAiSuggestion(view: EditorView): boolean {
   const suggestion = view.state.field(aiSuggestionField);
   if (!suggestion || suggestion.items.length === 0) {
@@ -591,6 +597,7 @@ export const aiViewportCuePlugin: ViewPlugin<PluginValue> = ViewPlugin.fromClass
   },
 );
 
+/** @internal */
 export const aiSuggestionExtension: Extension[] = [
   aiSuggestionLabelsFacet.of(DEFAULT_AI_SUGGESTION_LABELS),
   aiSuggestionField,

@@ -1,5 +1,5 @@
 import { createContext, use } from "react";
-import type { MdxComponentPlugin } from "@md-editor/plugin-sdk/mdx";
+import type { MdxComponentPlugin } from "@md-editor/shared/mdx";
 
 export interface DesktopEditorActions {
   readonly dispatchCommand: (id: string) => Promise<void>;

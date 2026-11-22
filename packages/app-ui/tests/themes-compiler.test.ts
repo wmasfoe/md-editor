@@ -195,3 +195,21 @@ describe("WebFont Loader", () => {
     expect(() => ensureWebFontsForCss("TsangerJinKai02")).not.toThrow();
   });
 });
+
+describe("M-6 app-ui 与 editor 共用同一份变量映射", () => {
+  it("同一组 typography/geometry 覆盖产出与 compileEditorTheme 完全相同的变量", async () => {
+    const { compileEditorTheme } = await import("@md-editor/editor");
+    const css = compileThemeCss({
+      baseTheme: "kami-light",
+      typographyOverrides: { fontSize: 19, proseFontFamily: "X", lineHeight: 1.9 },
+      geometryOverrides: { contentMaxWidth: 700 },
+    });
+    const expected = compileEditorTheme({
+      typography: { fontSize: 19, proseFontFamily: "X", lineHeight: 1.9 },
+      geometry: { contentMaxWidth: 700 },
+    });
+    for (const [name, value] of Object.entries(expected)) {
+      expect(css).toContain(`${name}: ${value};`);
+    }
+  });
+});

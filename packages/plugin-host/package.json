@@ -15,7 +15,8 @@
     "prepack": "pnpm build"
   },
   "dependencies": {
-    "@md-editor/plugin-sdk": "workspace:^0.6.0"
+    "@md-editor/plugin-sdk": "workspace:^0.6.0",
+    "@md-editor/shared": "workspace:*"
   },
   "devDependencies": {
     "typescript": "catalog:",
@@ -50,5 +51,13 @@
   },
   "bugs": {
     "url": "https://github.com/wmasfoe/md-editor/issues"
-  }
+  },
+  "sideEffects": false,
+  "keywords": [
+    "inkpoint",
+    "plugin",
+    "plugin-host",
+    "markdown"
+  ],
+  "homepage": "https://github.com/wmasfoe/md-editor/tree/main/packages/plugin-host"
 }

@@ -1,9 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { preloadOptionalModules } from "../../src/module-loader.ts";
+import { beforeAll, describe, expect, it } from "vitest";
 import { parseMdxJsxElements, type MdxJsxElement } from "../../src/markdown/mdx-parse.ts";
 
 function elementNames(elements: readonly MdxJsxElement[]): readonly string[] {
   return elements.map((element) => `${element.name}@${element.from}-${element.to}`);
 }
+
+beforeAll(async () => {
+  // MDX 解析器按需加载：先预热，保证断言看到的是真实解析结果而非"未就绪降级"。
+  await preloadOptionalModules();
+});
 
 describe("MdxJsxElement 解析(micromark 无 acorn 模式)", () => {
   it("C1: 块级组件与属性/children 边界正确", () => {

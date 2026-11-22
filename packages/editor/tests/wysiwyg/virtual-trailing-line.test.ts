@@ -1,3 +1,4 @@
+import { preloadOptionalModules } from "../../src/module-loader.ts";
 // @vitest-environment jsdom
 
 if (typeof Range !== "undefined" && !Range.prototype.getClientRects) {
@@ -8,7 +9,7 @@ import { markdown } from "@codemirror/lang-markdown";
 import { defaultKeymap, history, undo } from "@codemirror/commands";
 import { EditorSelection, EditorState, type Extension } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { provideWysiwygDiagnostics, WysiwygDiagnostics } from "../../src/diagnostics.ts";
 import { createMdxComponentRegistry } from "@md-editor/plugin-host/mdx";
 import { M1_MARKDOWN_EXTENSIONS } from "../../src/markdown/extensions.ts";
@@ -131,6 +132,11 @@ function mountWithFeatures(doc: string) {
     },
   };
 }
+
+beforeAll(async () => {
+  // MDX 解析器按需加载：先预热，保证断言看到的是真实解析结果而非"未就绪降级"。
+  await preloadOptionalModules();
+});
 
 describe("Virtual Trailing Line", () => {
   describe("needsVirtualTrailingLine gating logic", () => {

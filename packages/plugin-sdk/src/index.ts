@@ -43,6 +43,13 @@ export interface PluginPackage {
   readonly examples: readonly PluginExample[];
   readonly settings?: Readonly<Record<string, PluginSettingDefinition>>;
 }
+/**
+ * 可释放句柄。
+ *
+ * 结构类型，与 `@md-editor/shared` 的 `Disposable` **结构完全一致**，因此两边的句柄可互换；
+ * 但这里不再从 shared 导入 —— 契约包不应为一个 3 行接口引入运行时依赖
+ * （`plugin-sdk` 的 `dependencies` 必须为空，见 `tests/boundary.test.ts`）。
+ */
 export interface Disposable {
   dispose(): void;
 }

@@ -21,6 +21,7 @@ export interface DiagnosticDomOptions {
 
 /**
  * 构造具有 Apple 毛玻璃与圆角胶囊视觉层级的诊断信息 DOM 节点
+ * @internal
  */
 export function createDiagnosticDomNode(options: DiagnosticDomOptions): HTMLElement | null {
   if (typeof document === "undefined") {

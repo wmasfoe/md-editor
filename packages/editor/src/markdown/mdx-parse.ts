@@ -1,7 +1,23 @@
-import { fromMarkdown } from "mdast-util-from-markdown";
-import { mdxJsxFromMarkdown } from "mdast-util-mdx-jsx";
-import { mdxJsx as mdxJsxMicromark } from "micromark-extension-mdx-jsx";
-import { mdxMd } from "micromark-extension-mdx-md";
+import type { fromMarkdown as FromMarkdownFn } from "mdast-util-from-markdown";
+import type { mdxJsxFromMarkdown as MdxJsxFromMarkdownFn } from "mdast-util-mdx-jsx";
+import type { mdxMd as MdxMdFn } from "micromark-extension-mdx-md";
+import type { mdxJsx as MdxJsxMicromarkFn } from "micromark-extension-mdx-jsx";
+
+import { getOptionalModule, noteOptionalModuleDegraded } from "../module-loader.ts";
+
+/**
+ * MDX 文法解析所需的重依赖。它们不在首屏静态图内：未就绪时
+ * `parseMdxJsxElements` 返回空数组，对应块保持 `parserCoverage=partial`（既有降级语义），
+ * 模块就绪后由宿主触发一次重解析。
+ */
+export interface MdxParserBundle {
+  readonly fromMarkdown: typeof FromMarkdownFn;
+  readonly mdxJsxFromMarkdown: typeof MdxJsxFromMarkdownFn;
+  readonly mdxJsxMicromark: typeof MdxJsxMicromarkFn;
+  readonly mdxMd: typeof MdxMdFn;
+}
+
+export const MDX_PARSER_KEY = "mdx-parser";
 
 /**
  * MDX JSX 元素(源码范围 + 属性 + children 边界)。
@@ -62,12 +78,22 @@ function isWholeExpressionText(text: string): boolean {
 }
 
 /** 源码中的 JSX 组件元素列表(深度优先,块级 + 行内)。解析失败返回空数组。 */
-export function parseMdxJsxElements(source: string): readonly MdxJsxElement[] {
+export function parseMdxJsxElements(
+  source: string,
+  /** 降级记账 scope（通常是当前 `EditorState`）。 */
+  scope?: object,
+): readonly MdxJsxElement[] {
+  const parser = getOptionalModule<MdxParserBundle>(MDX_PARSER_KEY);
+  if (!parser) {
+    // 解析器按需加载中：该块保持 partial（源码可见），就绪后重解析。
+    noteOptionalModuleDegraded(scope);
+    return [];
+  }
   let root: MdxAstNode;
   try {
-    root = fromMarkdown(source, {
-      extensions: [mdxJsxMicromark(), mdxMd()],
-      mdastExtensions: [mdxJsxFromMarkdown()],
+    root = parser.fromMarkdown(source, {
+      extensions: [parser.mdxJsxMicromark(), parser.mdxMd()],
+      mdastExtensions: [parser.mdxJsxFromMarkdown()],
     }) as MdxAstNode;
   } catch {
     // 非法嵌套/未闭合标签:保持源码,不产生组件节点(fail-closed)

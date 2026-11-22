@@ -9,7 +9,7 @@
 编辑器基于 **CodeMirror 6** 与 **Lezer AST** 构建，遵循「**纯增量扩展与优雅降级**」的架构哲学：
 
 - **优雅降级**：未加载插件时，任何未识别的自定义文本都会安全回退为标准 CommonMark 普通段落，**绝对不会报错崩溃**。
-- **动静皆宜**：插件既可以在编辑器初始化时**静态批量注入**（首屏零闪烁），也可以在运行期通过 `renderer.use(...)` **动态按需加载**。
+- **动静皆宜**：插件既可以在编辑器初始化时**静态批量注入**（`<CodeMirrorEditor plugins={[...]} />`，首屏零闪烁），也可以在运行期通过 `ports.setSyntaxPlugins(...)` 全量替换或 `ports.addSyntaxPlugin(...)` 增量安装（返回可卸载句柄）。
 - **自动分流与性能自适应**：
   编辑器底层会通过属性自动检测插件类型：
   ```ts
@@ -261,31 +261,34 @@ export function MyEditor({ docState }) {
 
 ### 方式 B：命令式动态插拔（按需加载、第三方扩展）
 
-通过渲染器实例上的 `renderer.use(...)` 动态加载插件：
+运行时有两个入口，语义不同但共享**同一个注册表与同一个 id 空间**：
 
 ```ts
-// 支持批量传入多个插件（底层合并为单个事务，零冗余重绘）
-renderer.use(pluginA, pluginB);
+// ① 声明式全量替换：适合"设置里勾选启用哪些插件"
+ports.setSyntaxPlugins([pluginA, pluginB]);
 
-// 也支持数组传参或流式链式调用
-renderer.use([pluginA, pluginB]).use(pluginC);
+// ② 命令式增量安装：返回可卸载句柄，适合第三方插件按需加载
+const handle = ports.addSyntaxPlugin(pluginA);
+handle.dispose(); // 卸载；同名插件被后注册替换后，旧句柄会自动失效（身份守卫）
 ```
+
+`setSyntaxPlugins` **只替换声明式命名空间**，不会清掉 `addSyntaxPlugin` 注册的条目——
+否则用户在设置里切换任一内置插件开关时，外部插件会被静默注销。
 
 #### 动态调用的最佳实践与避坑指南
 
-1. **避免在循环中单发调用**：
+1. **批量启用用声明式**：
    ```ts
-   // ❌ 差：产生 N 次 CodeMirror 事务派发
-   for (const p of plugins) {
-     renderer.use(p);
-   }
+   // ❌ 差：N 次增量安装会产生 N 次事务派发
+   for (const p of plugins) ports.addSyntaxPlugin(p);
 
-   // ✅ 好：批量单次传入，合并为 1 次原子派发
-   renderer.use(...plugins);
+   // ✅ 好：一次性全量替换，合并为一次原子派发
+   ports.setSyntaxPlugins(plugins);
    ```
 
 2. **区分 UI 插件与语法插件**：
    如果只想改变样式、图标或加行高亮，**不要写空 `markdownExtension`**。保持 `markdownExtension` 为 `undefined`，底层会自动识别为 UI 插件，跳过全篇 AST 重新解析，性能提高数倍。
 
-3. **零配置幂等性保证**：
-   即使重复传入相同 `id` 的插件，底层也会自动过滤重复项，保证对已有状态的幂等安全。
+3. **重复 id 是错误，不是幂等**：
+   同一个 id 再次注册会抛错（与 `@md-editor/plugin-sdk` 的 `register` 一致）。
+   `setSyntaxPlugins` 传入**同一个数组实例**重放是 no-op（引用相等短路）。

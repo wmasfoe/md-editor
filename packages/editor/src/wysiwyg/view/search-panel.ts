@@ -64,6 +64,7 @@ function computeMatchStatus(
 
 /**
  * 打造 Apple Liquid Glass 风格的文档内搜索与替换悬浮面板
+ * @internal
  */
 export function createLiquidSearchPanel(view: EditorView): Panel {
   const initialQuery = getSearchQuery(view.state);

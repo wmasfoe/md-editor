@@ -382,7 +382,7 @@ export const AiShowcaseEditor = forwardRef<AiShowcaseEditorHandle, AiShowcaseEdi
         >
           <AppEditor
             document={documentState}
-            fontSize={17}
+            theme={{ typography: { fontSize: 17 } }}
             className="site-ai-codemirror text-lg leading-[1.9] sm:text-xl"
             onRendererPortsChange={setPorts}
             aiSuggestionLabels={aiSuggestionLabels}

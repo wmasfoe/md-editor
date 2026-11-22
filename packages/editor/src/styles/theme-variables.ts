@@ -85,6 +85,7 @@ export const THEME_VARIABLES: readonly ThemeVariableSpec[] = [
   { name: "--theme-mono-font", group: "排版", purpose: "等宽字体栈" },
   { name: "--theme-ui-font", group: "排版", purpose: "界面字体栈" },
   { name: "--theme-heading-font", group: "排版", purpose: "标题字体栈" },
+  { name: "--theme-editor-font-size", group: "排版", purpose: "编辑器正文字号" },
   { name: "--theme-editor-line-height", group: "排版", purpose: "编辑器行高" },
   { name: "--theme-source-line-height", group: "排版", purpose: "源码模式行高" },
   { name: "--theme-letter-spacing", group: "排版", purpose: "字距" },

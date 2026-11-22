@@ -91,5 +91,6 @@ export const smartPairsInputHandler = EditorView.inputHandler.of((view, from, to
 
 /**
  * 智能符号配对扩展（保留选区包裹能力）
+ * @internal
  */
 export const smartPairsExtension: Extension = [smartPairsInputHandler];

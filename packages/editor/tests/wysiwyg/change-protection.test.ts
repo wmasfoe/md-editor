@@ -1,8 +1,9 @@
+import { preloadOptionalModules } from "../../src/module-loader.ts";
 import { history } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { EditorSelection, EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { provideWysiwygDiagnostics, WysiwygDiagnostics } from "../../src/diagnostics.ts";
 import { M1_MARKDOWN_EXTENSIONS } from "../../src/markdown/extensions.ts";
 import { getM3TableFixture } from "../../src/markdown/fixtures.ts";
@@ -102,6 +103,11 @@ function createMdxHarness(doc: string): Harness {
   });
   return { state, index: state.field(markdownRangeIndexField), diagnostics };
 }
+
+beforeAll(async () => {
+  // MDX 解析器按需加载：先预热，保证断言看到的是真实解析结果而非"未就绪降级"。
+  await preloadOptionalModules();
+});
 
 describe("wysiwyg change protection provenance semantics", () => {
   it("rejects an exactly selected footnote deletion and announces source mode", () => {

@@ -48,6 +48,8 @@ export interface MediaViewerOptions {
   readonly onRequestEdit?: (() => void) | undefined;
   /** 关闭后焦点归还（由调用方注入，通常 `() => view.focus()`）。 */
   readonly restoreFocus?: (() => void) | undefined;
+  /** 浮层内标签的翻译器；缺省英文（库不假设宿主语言）。 */
+  readonly translate?: ((key: string, fallback: string) => string) | undefined;
 }
 
 export interface MediaViewerHandle {
@@ -172,7 +174,10 @@ function buildOverlay(
   content: MediaViewerContent,
   zoomPanEnabled: boolean,
   onEditRequest: (() => void) | undefined,
+  translate: ((key: string, fallback: string) => string) | undefined,
 ): OverlayParts {
+  const text = (key: string, fallback: string): string =>
+    translate?.(`editor.mediaViewer.${key}`, fallback) ?? fallback;
   const root = doc.createElement("div");
   root.className = "cm-md-media-viewer";
   if (zoomPanEnabled) {
@@ -209,8 +214,9 @@ function buildOverlay(
   const closeButton = doc.createElement("button");
   closeButton.type = "button";
   closeButton.className = "cm-md-media-viewer__close";
-  closeButton.setAttribute("aria-label", "关闭");
-  closeButton.title = "关闭";
+  const closeLabel = text("close", "Close");
+  closeButton.setAttribute("aria-label", closeLabel);
+  closeButton.title = closeLabel;
   // 注：浮层是**宿主级 UI**（挂在 `document.body`、不在 `.cm-content` 内），
   // 因此**不适用**“文档内控件必须 tabIndex=-1”的约定——恰恰相反：
   // 一个声称 `aria-modal` 的对话框里必须有可 Tab 达的控件，否则键盘用户无法抵达关闭/编辑入口。
@@ -221,10 +227,11 @@ function buildOverlay(
     const editButton = doc.createElement("button");
     editButton.type = "button";
     editButton.className = "cm-md-media-viewer__edit";
-    editButton.setAttribute("aria-label", "编辑源码");
-    editButton.title = "编辑源码";
+    const editLabel = text("editSource", "Edit source");
+    editButton.setAttribute("aria-label", editLabel);
+    editButton.title = editLabel;
     // 同上：宿主级模态内的控件必须可键盘达
-    editButton.textContent = "编辑源码";
+    editButton.textContent = editLabel;
     root.append(editButton);
   }
 
@@ -258,7 +265,10 @@ function bindDocumentKeyDown(
   };
 }
 
-/** 打开查看器：重复 open 先关旧句柄（防幽灵浮层），并把新句柄登记到 host 名下。 */
+/**
+ * 打开查看器：重复 open 先关旧句柄（防幽灵浮层），并把新句柄登记到 host 名下。
+ * @internal
+ */
 export function openMediaViewer(options: MediaViewerOptions): MediaViewerHandle {
   const { document: doc, host } = options;
   // 重复 open 守卫：先关旧句柄（含其浮层 DOM 与 document 级监听），再构建新浮层
@@ -270,6 +280,7 @@ export function openMediaViewer(options: MediaViewerOptions): MediaViewerHandle 
     options.content,
     options.zoomPan !== false,
     options.onRequestEdit,
+    options.translate,
   );
   const contentSize = measureIntrinsicSize(media);
   const closeButton = root.querySelector<HTMLButtonElement>(".cm-md-media-viewer__close");
@@ -409,7 +420,10 @@ export function openMediaViewer(options: MediaViewerOptions): MediaViewerHandle 
   return publicHandle;
 }
 
-/** 关闭 registry 中属于该 host 的浮层；未登记时为幂等 no-op。 */
+/**
+ * 关闭 registry 中属于该 host 的浮层；未登记时为幂等 no-op。
+ * @internal
+ */
 export function closeMediaViewerFor(host: HTMLElement): void {
   registry.closeFor(host, { restoreFocus: false });
 }

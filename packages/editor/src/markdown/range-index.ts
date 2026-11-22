@@ -29,7 +29,7 @@ import {
 import { getWysiwygDiagnostics } from "../diagnostics.ts";
 import type { MdxJsxElement } from "./mdx-parse.ts";
 import { getMarkdownNodePolicy } from "./node-policy.ts";
-import { SyntaxPluginRegistry } from "../plugins/syntax-registry.ts";
+import { SyntaxPluginRegistry } from "@md-editor/plugin-sdk/syntax";
 import type {
   MarkdownNodePolicy,
   MarkdownParseCoverage,
@@ -83,6 +83,8 @@ export interface MarkdownRangeIndexBuildOptions {
   readonly mdxMode?: boolean;
   /** 外部语法扩展插件注册中心 */
   readonly pluginRegistry?: SyntaxPluginRegistry;
+  /** 降级记账 scope（当前 `EditorState`）：就绪后只重算真正降级过的视图。 */
+  readonly degradedScope?: object;
 }
 
 /**
@@ -226,6 +228,7 @@ export const mdxModeFacet = Facet.define<boolean, boolean>({
 
 /**
  * 语法插件注册中心 Facet，用于向 Range Index 注入自定义节点策略与元数据解析器。
+ * @internal
  */
 export const syntaxPluginRegistryFacet = Facet.define<SyntaxPluginRegistry, SyntaxPluginRegistry>({
   combine: (values) => values[0] ?? new SyntaxPluginRegistry(),
@@ -234,6 +237,7 @@ export const syntaxPluginRegistryFacet = Facet.define<SyntaxPluginRegistry, Synt
 /**
  * CodeMirror StateField：维护当前编辑器状态的 `MarkdownRangeIndex` 单例。
  * 在文档修改或语法树覆盖度刷新时自动更新。
+ * @internal
  */
 export const markdownRangeIndexField = StateField.define<MarkdownRangeIndex>({
   create(state) {
@@ -245,6 +249,7 @@ export const markdownRangeIndexField = StateField.define<MarkdownRangeIndex>({
       coverage: coverageOfTree(tree, state.doc.length),
       mdxMode: state.facet(mdxModeFacet),
       pluginRegistry: state.facet(syntaxPluginRegistryFacet),
+      degradedScope: state,
     });
   },
   update(previous, transaction) {
@@ -264,6 +269,7 @@ export const markdownRangeIndexField = StateField.define<MarkdownRangeIndex>({
         version: previous.version + 1,
         mdxMode: transaction.state.facet(mdxModeFacet),
         pluginRegistry: transaction.state.facet(syntaxPluginRegistryFacet),
+        degradedScope: transaction.state,
       });
     }
 
@@ -294,7 +300,7 @@ export function buildMarkdownRangeIndex(
   // `<Callout>` 会被 lang-markdown 当成 HTML 节点,由 mdx-jsx record 接管。
   // 仅 MDX 模式启用;纯 Markdown 下大写标签是合法 HTML,保持 HTML 路径。
   const mdxElements = options.mdxMode
-    ? collectMdxElements(source, options.includeRanges ?? null)
+    ? collectMdxElements(source, options.includeRanges ?? null, options.degradedScope)
     : [];
   visitParserNode(
     tree.topNode,

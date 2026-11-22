@@ -1,6 +1,6 @@
 import { Transaction, type EditorState, type Text } from "@codemirror/state";
 import { closeLintPanel, setDiagnostics, type Action, type Diagnostic } from "@codemirror/lint";
-import { lint as lintMarkdownSync } from "markdownlint/sync";
+import { resolveMarkdownLintEngine, type MarkdownLintEngine } from "./engine.ts";
 import { authorizeWysiwygProtectedChange } from "../wysiwyg/state/change-authorization.ts";
 import { markdownRangeIndexField } from "../markdown/range-index.ts";
 import type { MarkdownSyntaxKind } from "@md-editor/plugin-sdk/syntax";
@@ -71,10 +71,12 @@ export const DEFAULT_MARKDOWNLINT_CONFIG: Record<string, unknown> = {
 
 /**
  * 对编辑器中的 Markdown 内容执行同步静态规则检查
+ * @internal
  */
 export function runMarkdownLint(
   state: EditorState,
   config?: Record<string, unknown>,
+  engine?: MarkdownLintEngine,
 ): Diagnostic[] {
   const text = state.doc.toString();
   if (!text.trim()) {
@@ -86,8 +88,12 @@ export function runMarkdownLint(
     ...config,
   };
 
+  // 引擎缺失必须在 try **之外**抛：否则会被下面的 catch 收尸成「没有诊断」，
+  // 让"忘记注入引擎"表现为"文档很干净"。
+  const lintEngine = resolveMarkdownLintEngine(state, engine);
+
   try {
-    const result = lintMarkdownSync({
+    const result = lintEngine.lint({
       strings: { content: text },
       config: mergedConfig,
     });
@@ -180,7 +186,7 @@ export function runMarkdownLint(
           createDiagnosticDomNode({
             ruleCode,
             ruleAlias: displayAlias,
-            description: displayDesc,
+            description: displayDesc ?? "",
             detail: displayDetail,
             severity,
             locale: activeLocale,

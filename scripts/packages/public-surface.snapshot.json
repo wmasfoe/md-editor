@@ -1,0 +1,1636 @@
+{
+  "schemaVersion": 1,
+  "generatedBy": "scripts/packages/public-surface.mjs",
+  "method": "ts.Program + checker.getExportsOfModule over workspace source entries",
+  "regenerateWith": "node scripts/packages/public-surface.mjs",
+  "entries": {
+    "@md-editor/core": {
+      "budget": {
+        "total": 104,
+        "values": 34
+      },
+      "exports": [
+        {
+          "name": "BuiltInCommandId",
+          "kind": "type"
+        },
+        {
+          "name": "clampCursorOffset",
+          "kind": "value"
+        },
+        {
+          "name": "collectRawFragments",
+          "kind": "value"
+        },
+        {
+          "name": "CommandContext",
+          "kind": "type"
+        },
+        {
+          "name": "CommandDescriptor",
+          "kind": "type"
+        },
+        {
+          "name": "CommandHandler",
+          "kind": "type"
+        },
+        {
+          "name": "CommandMutationOrigin",
+          "kind": "type"
+        },
+        {
+          "name": "CommandPlacement",
+          "kind": "type"
+        },
+        {
+          "name": "CommandRegistry",
+          "kind": "type"
+        },
+        {
+          "name": "CommitModeInput",
+          "kind": "type"
+        },
+        {
+          "name": "computeDirtyState",
+          "kind": "value"
+        },
+        {
+          "name": "createAiWritingFeature",
+          "kind": "value"
+        },
+        {
+          "name": "createBlockCommandsFeature",
+          "kind": "value"
+        },
+        {
+          "name": "createBuiltInEditorFeature",
+          "kind": "value"
+        },
+        {
+          "name": "createCommandRegistry",
+          "kind": "value"
+        },
+        {
+          "name": "createDocumentState",
+          "kind": "value"
+        },
+        {
+          "name": "createEditorContent",
+          "kind": "value"
+        },
+        {
+          "name": "CreateEditorContentInput",
+          "kind": "type"
+        },
+        {
+          "name": "createEditorRuntime",
+          "kind": "value"
+        },
+        {
+          "name": "createEditorSearchFeature",
+          "kind": "value"
+        },
+        {
+          "name": "createFeatureRegistry",
+          "kind": "value"
+        },
+        {
+          "name": "createKeymapRegistry",
+          "kind": "value"
+        },
+        {
+          "name": "createMarkdownFormattingFeature",
+          "kind": "value"
+        },
+        {
+          "name": "DocumentListenerErrorContext",
+          "kind": "type"
+        },
+        {
+          "name": "DocumentMutationOrigin",
+          "kind": "type"
+        },
+        {
+          "name": "DocumentMutationResult",
+          "kind": "type"
+        },
+        {
+          "name": "DocumentReplaceIntent",
+          "kind": "type"
+        },
+        {
+          "name": "DocumentSaveCheckpoint",
+          "kind": "type"
+        },
+        {
+          "name": "DocumentSaveExecution",
+          "kind": "type"
+        },
+        {
+          "name": "DocumentSavePort",
+          "kind": "type"
+        },
+        {
+          "name": "DocumentSnapshot",
+          "kind": "type"
+        },
+        {
+          "name": "DocumentState",
+          "kind": "type"
+        },
+        {
+          "name": "DocumentStateEvent",
+          "kind": "type"
+        },
+        {
+          "name": "DocumentStateInput",
+          "kind": "type"
+        },
+        {
+          "name": "DocumentTransition",
+          "kind": "type"
+        },
+        {
+          "name": "EditorActionHandlers",
+          "kind": "type"
+        },
+        {
+          "name": "EditorContent",
+          "kind": "type"
+        },
+        {
+          "name": "EditorMode",
+          "kind": "type"
+        },
+        {
+          "name": "EditorRuntime",
+          "kind": "type"
+        },
+        {
+          "name": "EditorRuntimeInput",
+          "kind": "type"
+        },
+        {
+          "name": "EditorSerializeResult",
+          "kind": "type"
+        },
+        {
+          "name": "executeDocumentSave",
+          "kind": "value"
+        },
+        {
+          "name": "ExternalEditFinalizeReceipt",
+          "kind": "type"
+        },
+        {
+          "name": "ExternalEditReleaseReason",
+          "kind": "type"
+        },
+        {
+          "name": "ExternalEditReservation",
+          "kind": "type"
+        },
+        {
+          "name": "externalEditReservationBrand",
+          "kind": "value"
+        },
+        {
+          "name": "ExternalEditReservationResult",
+          "kind": "type"
+        },
+        {
+          "name": "FeatureContext",
+          "kind": "type"
+        },
+        {
+          "name": "FeatureDescriptor",
+          "kind": "type"
+        },
+        {
+          "name": "FeatureRegistry",
+          "kind": "type"
+        },
+        {
+          "name": "getRawFragmentSaveSource",
+          "kind": "value"
+        },
+        {
+          "name": "isDiscardProtectionRequired",
+          "kind": "value"
+        },
+        {
+          "name": "KeymapDescriptor",
+          "kind": "type"
+        },
+        {
+          "name": "KeymapRegistry",
+          "kind": "type"
+        },
+        {
+          "name": "MarkdownBlock",
+          "kind": "type"
+        },
+        {
+          "name": "MarkdownBlockType",
+          "kind": "type"
+        },
+        {
+          "name": "MarkdownDocument",
+          "kind": "type"
+        },
+        {
+          "name": "MarkdownRoundTripResult",
+          "kind": "type"
+        },
+        {
+          "name": "markSaved",
+          "kind": "value"
+        },
+        {
+          "name": "ModePortResult",
+          "kind": "type"
+        },
+        {
+          "name": "ModeReceipt",
+          "kind": "type"
+        },
+        {
+          "name": "ModeRendererPort",
+          "kind": "type"
+        },
+        {
+          "name": "ModeRequest",
+          "kind": "type"
+        },
+        {
+          "name": "ModeSwitchError",
+          "kind": "type"
+        },
+        {
+          "name": "ModeSwitchFailure",
+          "kind": "type"
+        },
+        {
+          "name": "ModeSwitchOk",
+          "kind": "type"
+        },
+        {
+          "name": "ModeSwitchOptions",
+          "kind": "type"
+        },
+        {
+          "name": "ModeSwitchResult",
+          "kind": "type"
+        },
+        {
+          "name": "MutationBusyResult",
+          "kind": "type"
+        },
+        {
+          "name": "MutationRejectedResult",
+          "kind": "type"
+        },
+        {
+          "name": "MutationStaleResult",
+          "kind": "type"
+        },
+        {
+          "name": "normalizeMarkdownForComparison",
+          "kind": "value"
+        },
+        {
+          "name": "OPEN_FOLDER_SHORTCUT",
+          "kind": "value"
+        },
+        {
+          "name": "parseMarkdownFixture",
+          "kind": "value"
+        },
+        {
+          "name": "PersistenceStatus",
+          "kind": "type"
+        },
+        {
+          "name": "RawFragment",
+          "kind": "type"
+        },
+        {
+          "name": "RawFragmentCollectionResult",
+          "kind": "type"
+        },
+        {
+          "name": "RawFragmentKind",
+          "kind": "type"
+        },
+        {
+          "name": "RawFragmentRangeError",
+          "kind": "both"
+        },
+        {
+          "name": "RendererExternalEditReceipt",
+          "kind": "type"
+        },
+        {
+          "name": "RendererMutationOrigin",
+          "kind": "type"
+        },
+        {
+          "name": "RendererSyncDeliveryResult",
+          "kind": "type"
+        },
+        {
+          "name": "RendererSyncPort",
+          "kind": "type"
+        },
+        {
+          "name": "RendererSyncResult",
+          "kind": "type"
+        },
+        {
+          "name": "ReplaceDocumentInput",
+          "kind": "type"
+        },
+        {
+          "name": "resolveReplaceIntent",
+          "kind": "value"
+        },
+        {
+          "name": "RestoreDraftOptions",
+          "kind": "type"
+        },
+        {
+          "name": "restoreDraftToDocument",
+          "kind": "value"
+        },
+        {
+          "name": "revertDocumentToSnapshot",
+          "kind": "value"
+        },
+        {
+          "name": "roundTripMarkdownFixture",
+          "kind": "value"
+        },
+        {
+          "name": "SaveDestination",
+          "kind": "type"
+        },
+        {
+          "name": "SaveOutcome",
+          "kind": "type"
+        },
+        {
+          "name": "SaveWarning",
+          "kind": "type"
+        },
+        {
+          "name": "serializeEditorContent",
+          "kind": "value"
+        },
+        {
+          "name": "serializeMarkdownDocument",
+          "kind": "value"
+        },
+        {
+          "name": "serializeWithRawFragments",
+          "kind": "value"
+        },
+        {
+          "name": "SetDocumentPathInput",
+          "kind": "type"
+        },
+        {
+          "name": "SettleSaveResult",
+          "kind": "type"
+        },
+        {
+          "name": "SourceRange",
+          "kind": "type"
+        },
+        {
+          "name": "switchEditorModeSafely",
+          "kind": "value"
+        },
+        {
+          "name": "synchronizeRendererEvent",
+          "kind": "value"
+        },
+        {
+          "name": "Unsubscribe",
+          "kind": "type"
+        },
+        {
+          "name": "updateRawMarkdown",
+          "kind": "value"
+        },
+        {
+          "name": "validateKeymapKey",
+          "kind": "value"
+        }
+      ]
+    },
+    "@md-editor/editor": {
+      "budget": {
+        "total": 55,
+        "values": 9
+      },
+      "exports": [
+        {
+          "name": "AiSuggestionAcceptedEvent",
+          "kind": "type"
+        },
+        {
+          "name": "AiSuggestionInput",
+          "kind": "type"
+        },
+        {
+          "name": "AiSuggestionItem",
+          "kind": "type"
+        },
+        {
+          "name": "AiSuggestionKind",
+          "kind": "type"
+        },
+        {
+          "name": "AiSuggestionLabels",
+          "kind": "type"
+        },
+        {
+          "name": "AiSuggestionValue",
+          "kind": "type"
+        },
+        {
+          "name": "calculateDocumentMetrics",
+          "kind": "value"
+        },
+        {
+          "name": "CODE_BLOCK_LANGUAGES",
+          "kind": "value"
+        },
+        {
+          "name": "CodeBlockLanguageLoadObserver",
+          "kind": "type"
+        },
+        {
+          "name": "CodeBlockLineNumberPortResult",
+          "kind": "type"
+        },
+        {
+          "name": "CodeMirrorEditorBridge",
+          "kind": "type"
+        },
+        {
+          "name": "CodeMirrorEditorBridgeOptions",
+          "kind": "type"
+        },
+        {
+          "name": "CodeMirrorEditorClipboardWriter",
+          "kind": "type"
+        },
+        {
+          "name": "CodeMirrorEditorExternalEditResult",
+          "kind": "type"
+        },
+        {
+          "name": "CodeMirrorEditorPorts",
+          "kind": "type"
+        },
+        {
+          "name": "CodeMirrorEditorSyncError",
+          "kind": "type"
+        },
+        {
+          "name": "CodeMirrorRenderer",
+          "kind": "type"
+        },
+        {
+          "name": "CodeMirrorRendererOptions",
+          "kind": "type"
+        },
+        {
+          "name": "compileEditorTheme",
+          "kind": "value"
+        },
+        {
+          "name": "createCodeMirrorEditorBridge",
+          "kind": "value"
+        },
+        {
+          "name": "createDefaultSyntaxPluginHostPorts",
+          "kind": "value"
+        },
+        {
+          "name": "dispatchEditorUserNotice",
+          "kind": "value"
+        },
+        {
+          "name": "DocumentLinterOptions",
+          "kind": "type"
+        },
+        {
+          "name": "DocumentMetrics",
+          "kind": "type"
+        },
+        {
+          "name": "EDITOR_USER_NOTICE_EVENT",
+          "kind": "value"
+        },
+        {
+          "name": "EditorTheme",
+          "kind": "type"
+        },
+        {
+          "name": "EditorThemeColors",
+          "kind": "type"
+        },
+        {
+          "name": "EditorThemeGeometry",
+          "kind": "type"
+        },
+        {
+          "name": "EditorThemeTypography",
+          "kind": "type"
+        },
+        {
+          "name": "EditorUserNoticeDetail",
+          "kind": "type"
+        },
+        {
+          "name": "ExternalEditRequest",
+          "kind": "type"
+        },
+        {
+          "name": "ExternalEditResult",
+          "kind": "type"
+        },
+        {
+          "name": "findCodeBlockLanguage",
+          "kind": "value"
+        },
+        {
+          "name": "InjectEditorStylesOptions",
+          "kind": "type"
+        },
+        {
+          "name": "LinkDiagnosticItem",
+          "kind": "type"
+        },
+        {
+          "name": "LinkLintOptions",
+          "kind": "type"
+        },
+        {
+          "name": "MarkdownLintDiagnostic",
+          "kind": "type"
+        },
+        {
+          "name": "MarkdownLintEngine",
+          "kind": "type"
+        },
+        {
+          "name": "MarkdownLintFixAllResult",
+          "kind": "type"
+        },
+        {
+          "name": "MarkdownLintIssue",
+          "kind": "type"
+        },
+        {
+          "name": "MarkdownLintPortResult",
+          "kind": "type"
+        },
+        {
+          "name": "MarkdownLintRequest",
+          "kind": "type"
+        },
+        {
+          "name": "MarkdownLintResult",
+          "kind": "type"
+        },
+        {
+          "name": "MarkdownLintRunResult",
+          "kind": "type"
+        },
+        {
+          "name": "MdxComponentsLookup",
+          "kind": "type"
+        },
+        {
+          "name": "MediaViewerContent",
+          "kind": "type"
+        },
+        {
+          "name": "MediaViewerHandle",
+          "kind": "type"
+        },
+        {
+          "name": "MediaViewerOptions",
+          "kind": "type"
+        },
+        {
+          "name": "MediaViewerZoomPan",
+          "kind": "type"
+        },
+        {
+          "name": "StyleElementPort",
+          "kind": "type"
+        },
+        {
+          "name": "StyleInjectionPort",
+          "kind": "type"
+        },
+        {
+          "name": "SuggestionViewportPosition",
+          "kind": "type"
+        },
+        {
+          "name": "THEME_VARIABLES",
+          "kind": "value"
+        },
+        {
+          "name": "ThemeVariables",
+          "kind": "type"
+        },
+        {
+          "name": "ThemeVariableSpec",
+          "kind": "type"
+        }
+      ]
+    },
+    "@md-editor/editor/internals": {
+      "budget": {
+        "total": 71,
+        "values": 58
+      },
+      "exports": [
+        {
+          "name": "acceptAiSuggestion",
+          "kind": "value"
+        },
+        {
+          "name": "aiSuggestionAcceptedAnnotation",
+          "kind": "value"
+        },
+        {
+          "name": "aiSuggestionExtension",
+          "kind": "value"
+        },
+        {
+          "name": "aiSuggestionField",
+          "kind": "value"
+        },
+        {
+          "name": "aiSuggestionLabelsFacet",
+          "kind": "value"
+        },
+        {
+          "name": "CalloutFooterWidget",
+          "kind": "both"
+        },
+        {
+          "name": "CalloutHeaderWidget",
+          "kind": "both"
+        },
+        {
+          "name": "clearAiSuggestionEffect",
+          "kind": "value"
+        },
+        {
+          "name": "clearMarkdownLintDiagnostics",
+          "kind": "value"
+        },
+        {
+          "name": "closeMediaViewerFor",
+          "kind": "value"
+        },
+        {
+          "name": "collectPreservedNonMarkdownDiagnostics",
+          "kind": "value"
+        },
+        {
+          "name": "createCodeMirrorRenderer",
+          "kind": "value"
+        },
+        {
+          "name": "createDiagnosticDomNode",
+          "kind": "value"
+        },
+        {
+          "name": "createDocumentStylePort",
+          "kind": "value"
+        },
+        {
+          "name": "createLintBaseExtensions",
+          "kind": "value"
+        },
+        {
+          "name": "createLiquidSearchPanel",
+          "kind": "value"
+        },
+        {
+          "name": "createMarkdownFormattingKeymap",
+          "kind": "value"
+        },
+        {
+          "name": "createRealtimeMarkdownLintExtension",
+          "kind": "value"
+        },
+        {
+          "name": "DEFAULT_AI_SUGGESTION_LABELS",
+          "kind": "value"
+        },
+        {
+          "name": "DirectiveHeaderWidget",
+          "kind": "both"
+        },
+        {
+          "name": "dismissAiSuggestion",
+          "kind": "value"
+        },
+        {
+          "name": "DocumentSnapshot",
+          "kind": "type"
+        },
+        {
+          "name": "DocumentStateEvent",
+          "kind": "type"
+        },
+        {
+          "name": "EDITOR_STYLE_CSS",
+          "kind": "value"
+        },
+        {
+          "name": "EDITOR_STYLE_ELEMENT_ID",
+          "kind": "value"
+        },
+        {
+          "name": "EditorMode",
+          "kind": "type"
+        },
+        {
+          "name": "ensureStyleElement",
+          "kind": "value"
+        },
+        {
+          "name": "executeDocumentLint",
+          "kind": "value"
+        },
+        {
+          "name": "fixAllMarkdownLintIssues",
+          "kind": "value"
+        },
+        {
+          "name": "getSuggestionViewportStatus",
+          "kind": "value"
+        },
+        {
+          "name": "ImageInsertionInput",
+          "kind": "type"
+        },
+        {
+          "name": "ImageInsertionOptions",
+          "kind": "type"
+        },
+        {
+          "name": "ImagePreviewResolveInput",
+          "kind": "type"
+        },
+        {
+          "name": "ImagePreviewResolver",
+          "kind": "type"
+        },
+        {
+          "name": "injectEditorStyles",
+          "kind": "value"
+        },
+        {
+          "name": "insertCodeBlock",
+          "kind": "value"
+        },
+        {
+          "name": "insertOrWrapLink",
+          "kind": "value"
+        },
+        {
+          "name": "isValidUrl",
+          "kind": "value"
+        },
+        {
+          "name": "lintLiquidTheme",
+          "kind": "value"
+        },
+        {
+          "name": "markdownRangeIndexField",
+          "kind": "value"
+        },
+        {
+          "name": "ModePortResult",
+          "kind": "type"
+        },
+        {
+          "name": "ModeReceipt",
+          "kind": "type"
+        },
+        {
+          "name": "ModeRequest",
+          "kind": "type"
+        },
+        {
+          "name": "normalizeCodeMirrorKey",
+          "kind": "value"
+        },
+        {
+          "name": "openMediaViewer",
+          "kind": "value"
+        },
+        {
+          "name": "PreparedImageInsertion",
+          "kind": "type"
+        },
+        {
+          "name": "RendererExternalEditReceipt",
+          "kind": "type"
+        },
+        {
+          "name": "RendererSyncResult",
+          "kind": "type"
+        },
+        {
+          "name": "runLinkValidation",
+          "kind": "value"
+        },
+        {
+          "name": "runMarkdownLint",
+          "kind": "value"
+        },
+        {
+          "name": "runMarkdownLintCommand",
+          "kind": "value"
+        },
+        {
+          "name": "setAiSuggestionEffect",
+          "kind": "value"
+        },
+        {
+          "name": "setHeading1",
+          "kind": "value"
+        },
+        {
+          "name": "setHeading2",
+          "kind": "value"
+        },
+        {
+          "name": "setHeading3",
+          "kind": "value"
+        },
+        {
+          "name": "setHeading4",
+          "kind": "value"
+        },
+        {
+          "name": "setHeading5",
+          "kind": "value"
+        },
+        {
+          "name": "setHeading6",
+          "kind": "value"
+        },
+        {
+          "name": "setParagraph",
+          "kind": "value"
+        },
+        {
+          "name": "smartPairsExtension",
+          "kind": "value"
+        },
+        {
+          "name": "smartPasteExtension",
+          "kind": "value"
+        },
+        {
+          "name": "syntaxPluginRegistryFacet",
+          "kind": "value"
+        },
+        {
+          "name": "toggleBlockquote",
+          "kind": "value"
+        },
+        {
+          "name": "toggleBold",
+          "kind": "value"
+        },
+        {
+          "name": "toggleBulletList",
+          "kind": "value"
+        },
+        {
+          "name": "toggleHighlight",
+          "kind": "value"
+        },
+        {
+          "name": "toggleInlineCode",
+          "kind": "value"
+        },
+        {
+          "name": "toggleItalic",
+          "kind": "value"
+        },
+        {
+          "name": "toggleOrderedList",
+          "kind": "value"
+        },
+        {
+          "name": "toggleStrikethrough",
+          "kind": "value"
+        },
+        {
+          "name": "toggleTaskList",
+          "kind": "value"
+        }
+      ]
+    },
+    "@md-editor/editor/react": {
+      "budget": {
+        "total": 2,
+        "values": 2
+      },
+      "exports": [
+        {
+          "name": "CodeMirrorEditor",
+          "kind": "value"
+        },
+        {
+          "name": "CodeMirrorEditorProps",
+          "kind": "value"
+        }
+      ]
+    },
+    "@md-editor/editor/react/testing": {
+      "budget": {
+        "total": 3,
+        "values": 2
+      },
+      "exports": [
+        {
+          "name": "CodeMirrorEditorTestingProbe",
+          "kind": "type"
+        },
+        {
+          "name": "inspectCodeMirrorEditorForTesting",
+          "kind": "value"
+        },
+        {
+          "name": "installCodeBlockLineNumberGeometryFixture",
+          "kind": "value"
+        }
+      ]
+    },
+    "@md-editor/editor/testing": {
+      "budget": {
+        "total": 12,
+        "values": 8
+      },
+      "exports": [
+        {
+          "name": "createCodeMirrorRendererWithFactory",
+          "kind": "value"
+        },
+        {
+          "name": "createRendererTestHarness",
+          "kind": "value"
+        },
+        {
+          "name": "findLayoutDecorationsForTesting",
+          "kind": "value"
+        },
+        {
+          "name": "getM2CodeBlockPerformanceFixture",
+          "kind": "value"
+        },
+        {
+          "name": "inspectRendererForTesting",
+          "kind": "value"
+        },
+        {
+          "name": "installCodeBlockLineNumberGeometryFixture",
+          "kind": "value"
+        },
+        {
+          "name": "LayoutDecorationProbe",
+          "kind": "type"
+        },
+        {
+          "name": "provideWysiwygDiagnostics",
+          "kind": "value"
+        },
+        {
+          "name": "RendererTestHarness",
+          "kind": "type"
+        },
+        {
+          "name": "RendererTestHarnessOptions",
+          "kind": "type"
+        },
+        {
+          "name": "RendererTestingProbe",
+          "kind": "type"
+        },
+        {
+          "name": "WysiwygDiagnostics",
+          "kind": "both"
+        }
+      ]
+    },
+    "@md-editor/markdown-fidelity": {
+      "budget": {
+        "total": 21,
+        "values": 13
+      },
+      "exports": [
+        {
+          "name": "createMarkdownImageSrcResolver",
+          "kind": "value"
+        },
+        {
+          "name": "extractHeadingOutline",
+          "kind": "value"
+        },
+        {
+          "name": "findActiveHeadingIdForLine",
+          "kind": "value"
+        },
+        {
+          "name": "findFrontmatterSourceRange",
+          "kind": "value"
+        },
+        {
+          "name": "FrontmatterBlock",
+          "kind": "type"
+        },
+        {
+          "name": "FrontmatterSourceRange",
+          "kind": "type"
+        },
+        {
+          "name": "headingAnchorSlug",
+          "kind": "value"
+        },
+        {
+          "name": "HeadingOutlineItem",
+          "kind": "type"
+        },
+        {
+          "name": "isLikelyMdxBlock",
+          "kind": "value"
+        },
+        {
+          "name": "MarkdownImagePreviewInput",
+          "kind": "type"
+        },
+        {
+          "name": "MarkdownImageSrcResolverOptions",
+          "kind": "type"
+        },
+        {
+          "name": "MarkdownRawBlockPreviewInput",
+          "kind": "type"
+        },
+        {
+          "name": "MarkdownSourceRange",
+          "kind": "type"
+        },
+        {
+          "name": "resolveHeadingAnchor",
+          "kind": "value"
+        },
+        {
+          "name": "restoreMarkdownImageSources",
+          "kind": "value"
+        },
+        {
+          "name": "restoreRawBlocksFromPreview",
+          "kind": "value"
+        },
+        {
+          "name": "rewriteMarkdownImageSourcesForPreview",
+          "kind": "value"
+        },
+        {
+          "name": "rewriteRawBlocksForPreview",
+          "kind": "value"
+        },
+        {
+          "name": "RoundTripResult",
+          "kind": "type"
+        },
+        {
+          "name": "serializeRoundTrip",
+          "kind": "value"
+        },
+        {
+          "name": "splitFrontmatter",
+          "kind": "value"
+        }
+      ]
+    },
+    "@md-editor/plugin-host": {
+      "budget": {
+        "total": 11,
+        "values": 8
+      },
+      "exports": [
+        {
+          "name": "createPluginCommandBindings",
+          "kind": "value"
+        },
+        {
+          "name": "createPluginHost",
+          "kind": "value"
+        },
+        {
+          "name": "isSettingValue",
+          "kind": "value"
+        },
+        {
+          "name": "MAX_CATALOG_BYTES",
+          "kind": "value"
+        },
+        {
+          "name": "MAX_PACKAGE_BYTES",
+          "kind": "value"
+        },
+        {
+          "name": "PluginCommandBinding",
+          "kind": "type"
+        },
+        {
+          "name": "PluginHostOptions",
+          "kind": "type"
+        },
+        {
+          "name": "PluginStatus",
+          "kind": "type"
+        },
+        {
+          "name": "syntaxNodePrefix",
+          "kind": "value"
+        },
+        {
+          "name": "validateCatalog",
+          "kind": "value"
+        },
+        {
+          "name": "validatePluginPackage",
+          "kind": "value"
+        }
+      ]
+    },
+    "@md-editor/plugin-host/github": {
+      "budget": {
+        "total": 8,
+        "values": 5
+      },
+      "exports": [
+        {
+          "name": "createPluginInstallUrl",
+          "kind": "value"
+        },
+        {
+          "name": "createPluginPreviewUrl",
+          "kind": "value"
+        },
+        {
+          "name": "downloadPlugin",
+          "kind": "value"
+        },
+        {
+          "name": "getPluginCatalog",
+          "kind": "value"
+        },
+        {
+          "name": "GitHubOptions",
+          "kind": "type"
+        },
+        {
+          "name": "GitHubPluginCatalog",
+          "kind": "type"
+        },
+        {
+          "name": "parsePluginInstallUrl",
+          "kind": "value"
+        },
+        {
+          "name": "PluginSource",
+          "kind": "type"
+        }
+      ]
+    },
+    "@md-editor/plugin-host/mdx": {
+      "budget": {
+        "total": 3,
+        "values": 3
+      },
+      "exports": [
+        {
+          "name": "componentPluginFromDescriptor",
+          "kind": "value"
+        },
+        {
+          "name": "createBuiltInMdxRegistry",
+          "kind": "value"
+        },
+        {
+          "name": "createMdxComponentRegistry",
+          "kind": "value"
+        }
+      ]
+    },
+    "@md-editor/plugin-sdk": {
+      "budget": {
+        "total": 16,
+        "values": 1
+      },
+      "exports": [
+        {
+          "name": "definePlugin",
+          "kind": "value"
+        },
+        {
+          "name": "Disposable",
+          "kind": "type"
+        },
+        {
+          "name": "PluginCatalog",
+          "kind": "type"
+        },
+        {
+          "name": "PluginCatalogEntry",
+          "kind": "type"
+        },
+        {
+          "name": "PluginCommand",
+          "kind": "type"
+        },
+        {
+          "name": "PluginContext",
+          "kind": "type"
+        },
+        {
+          "name": "PluginDefinition",
+          "kind": "type"
+        },
+        {
+          "name": "PluginEditorSnapshot",
+          "kind": "type"
+        },
+        {
+          "name": "PluginEditRequest",
+          "kind": "type"
+        },
+        {
+          "name": "PluginEditResult",
+          "kind": "type"
+        },
+        {
+          "name": "PluginExample",
+          "kind": "type"
+        },
+        {
+          "name": "PluginKeymap",
+          "kind": "type"
+        },
+        {
+          "name": "PluginManifest",
+          "kind": "type"
+        },
+        {
+          "name": "PluginPackage",
+          "kind": "type"
+        },
+        {
+          "name": "PluginSettingDefinition",
+          "kind": "type"
+        },
+        {
+          "name": "PluginSettingValue",
+          "kind": "type"
+        }
+      ]
+    },
+    "@md-editor/plugin-sdk/callout": {
+      "budget": {
+        "total": 3,
+        "values": 3
+      },
+      "exports": [
+        {
+          "name": "CALLOUT_SVG_ICONS",
+          "kind": "value"
+        },
+        {
+          "name": "defaultCalloutTitle",
+          "kind": "value"
+        },
+        {
+          "name": "getCalloutSvg",
+          "kind": "value"
+        }
+      ]
+    },
+    "@md-editor/plugin-sdk/syntax": {
+      "budget": {
+        "total": 49,
+        "values": 10
+      },
+      "exports": [
+        {
+          "name": "CALLOUT_SVG_ICONS",
+          "kind": "value"
+        },
+        {
+          "name": "CJK_FRIENDLY_MARKDOWN_EXTENSIONS",
+          "kind": "value"
+        },
+        {
+          "name": "cjkFriendlyEmphasisMarkdownExtension",
+          "kind": "value"
+        },
+        {
+          "name": "cjkFriendlyStrikethroughMarkdownExtension",
+          "kind": "value"
+        },
+        {
+          "name": "defaultCalloutTitle",
+          "kind": "value"
+        },
+        {
+          "name": "DelimiterMarker",
+          "kind": "type"
+        },
+        {
+          "name": "DelimiterNeighbors",
+          "kind": "type"
+        },
+        {
+          "name": "DelimiterSides",
+          "kind": "type"
+        },
+        {
+          "name": "EditorMessageTranslator",
+          "kind": "type"
+        },
+        {
+          "name": "getCalloutSvg",
+          "kind": "value"
+        },
+        {
+          "name": "GraphicalCodeBlockDiagramType",
+          "kind": "type"
+        },
+        {
+          "name": "GraphicalCodeBlockEditorHandle",
+          "kind": "type"
+        },
+        {
+          "name": "GraphicalCodeBlockEditorProvider",
+          "kind": "type"
+        },
+        {
+          "name": "MarkdownAlertMetadata",
+          "kind": "type"
+        },
+        {
+          "name": "MarkdownAlertType",
+          "kind": "type"
+        },
+        {
+          "name": "MarkdownCodeBlockFenceStyle",
+          "kind": "type"
+        },
+        {
+          "name": "MarkdownCodeBlockKind",
+          "kind": "type"
+        },
+        {
+          "name": "MarkdownCodeBlockLanguageInfo",
+          "kind": "type"
+        },
+        {
+          "name": "MarkdownCodeBlockLineFingerprint",
+          "kind": "type"
+        },
+        {
+          "name": "MarkdownCodeBlockMetadata",
+          "kind": "type"
+        },
+        {
+          "name": "MarkdownCodeBlockStatus",
+          "kind": "type"
+        },
+        {
+          "name": "MarkdownContentStrategy",
+          "kind": "type"
+        },
+        {
+          "name": "MarkdownDirectiveMetadata",
+          "kind": "type"
+        },
+        {
+          "name": "MarkdownEditPolicy",
+          "kind": "type"
+        },
+        {
+          "name": "MarkdownGraphicalCodeBlockMetadata",
+          "kind": "type"
+        },
+        {
+          "name": "MarkdownInteractionPolicy",
+          "kind": "type"
+        },
+        {
+          "name": "MarkdownMdxBlockMetadata",
+          "kind": "type"
+        },
+        {
+          "name": "MarkdownNodePolicy",
+          "kind": "type"
+        },
+        {
+          "name": "MarkdownParseCoverage",
+          "kind": "type"
+        },
+        {
+          "name": "MarkdownRangeRecord",
+          "kind": "type"
+        },
+        {
+          "name": "MarkdownRangeSegment",
+          "kind": "type"
+        },
+        {
+          "name": "MarkdownRangeSegmentRole",
+          "kind": "type"
+        },
+        {
+          "name": "MarkdownRenderPolicy",
+          "kind": "type"
+        },
+        {
+          "name": "MarkdownSyntaxKind",
+          "kind": "type"
+        },
+        {
+          "name": "MarkdownSyntaxPlugin",
+          "kind": "type"
+        },
+        {
+          "name": "MarkdownTableBlockMetadata",
+          "kind": "type"
+        },
+        {
+          "name": "MarkdownTableCellAlignment",
+          "kind": "type"
+        },
+        {
+          "name": "MarkdownTableCellRange",
+          "kind": "type"
+        },
+        {
+          "name": "MediaViewerContent",
+          "kind": "type"
+        },
+        {
+          "name": "MediaViewerHandle",
+          "kind": "type"
+        },
+        {
+          "name": "MediaViewerOpenOptions",
+          "kind": "type"
+        },
+        {
+          "name": "MediaViewerZoomPan",
+          "kind": "type"
+        },
+        {
+          "name": "PluginRegistrationOrigin",
+          "kind": "type"
+        },
+        {
+          "name": "readDelimiterNeighbors",
+          "kind": "value"
+        },
+        {
+          "name": "resolveCjkFriendlyDelimiterSides",
+          "kind": "value"
+        },
+        {
+          "name": "SourceRange",
+          "kind": "type"
+        },
+        {
+          "name": "SyntaxPluginHostPorts",
+          "kind": "type"
+        },
+        {
+          "name": "syntaxPluginHostPortsFacet",
+          "kind": "value"
+        },
+        {
+          "name": "SyntaxPluginRegistry",
+          "kind": "both"
+        }
+      ]
+    },
+    "@md-editor/shared": {
+      "budget": {
+        "total": 12,
+        "values": 7
+      },
+      "exports": [
+        {
+          "name": "createHeadingSlugAllocator",
+          "kind": "value"
+        },
+        {
+          "name": "Disposable",
+          "kind": "type"
+        },
+        {
+          "name": "EMPTY_HEADING_SLUG",
+          "kind": "value"
+        },
+        {
+          "name": "err",
+          "kind": "value"
+        },
+        {
+          "name": "headingSlugSource",
+          "kind": "value"
+        },
+        {
+          "name": "Markdown",
+          "kind": "type"
+        },
+        {
+          "name": "normalizeLineEndings",
+          "kind": "value"
+        },
+        {
+          "name": "ok",
+          "kind": "value"
+        },
+        {
+          "name": "Result",
+          "kind": "type"
+        },
+        {
+          "name": "ResultErr",
+          "kind": "type"
+        },
+        {
+          "name": "ResultOk",
+          "kind": "type"
+        },
+        {
+          "name": "slugifyHeading",
+          "kind": "value"
+        }
+      ]
+    },
+    "@md-editor/shared/mdx": {
+      "budget": {
+        "total": 7,
+        "values": 0
+      },
+      "exports": [
+        {
+          "name": "MdxComponentDescriptor",
+          "kind": "type"
+        },
+        {
+          "name": "MdxComponentPlugin",
+          "kind": "type"
+        },
+        {
+          "name": "MdxComponentRegistry",
+          "kind": "type"
+        },
+        {
+          "name": "MDXComponentRegistry",
+          "kind": "type"
+        },
+        {
+          "name": "MdxInsertDefinition",
+          "kind": "type"
+        },
+        {
+          "name": "MdxPropDescriptor",
+          "kind": "type"
+        },
+        {
+          "name": "MdxPropType",
+          "kind": "type"
+        }
+      ]
+    }
+  }
+}

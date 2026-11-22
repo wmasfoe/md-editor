@@ -71,7 +71,7 @@
 ### MDX 与插件
 - **文档里直接写 MDX**：同一个文件里混排 Markdown 与 React / JSX 组件。
 - **内置功能**：`Callout`（info、warning、success、danger）、可点击放大的 Mermaid 图表、KaTeX 公式、`:::note` 一类的指令语法、`==高亮==`。
-- **组件注册表**：自定义 MDX 组件通过 `@md-editor/plugin-sdk/mdx` 注册。
+- **组件注册表**：自定义 MDX 组件通过 `@md-editor/shared/mdx` 注册。
 - **外部插件**：无需重新编译应用，从 GitHub Release 安装插件。基于 [`@md-editor/plugin-sdk`](https://www.npmjs.com/package/@md-editor/plugin-sdk) 开发，也可以从 [inkpoint-plugin-starter](https://github.com/inkpoint-editor/inkpoint-plugin-starter) 起步。在 GitHub 上使用 **Use this template**，或 Fork 该仓库。
 - **仓库迁移**：插件模板 [inkpoint-plugin-starter](https://github.com/inkpoint-editor/inkpoint-plugin-starter) 与端侧模型仓库 [md-editor-models](https://github.com/inkpoint-editor/md-editor-models)（默认分支 `master`）现已属于 inkpoint-editor 组织。旧地址 `wmasfoe/inkpoint-plugin-starter` 与 `wmasfoe/md-editor-models` 会自动跳转。本应用仓库仍在 [wmasfoe/md-editor](https://github.com/wmasfoe/md-editor)。
 

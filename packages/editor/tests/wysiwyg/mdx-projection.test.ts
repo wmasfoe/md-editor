@@ -1,7 +1,8 @@
+import { preloadOptionalModules } from "../../src/module-loader.ts";
 import { markdown } from "@codemirror/lang-markdown";
 import { EditorSelection, EditorState } from "@codemirror/state";
-import { describe, expect, it } from "vitest";
-import type { MdxComponentDescriptor } from "@md-editor/plugin-sdk/mdx";
+import { beforeAll, describe, expect, it } from "vitest";
+import type { MdxComponentDescriptor } from "@md-editor/shared/mdx";
 import { createMdxComponentRegistry } from "@md-editor/plugin-host/mdx";
 import { provideWysiwygDiagnostics, WysiwygDiagnostics } from "../../src/diagnostics.ts";
 import { M1_MARKDOWN_EXTENSIONS } from "../../src/markdown/extensions.ts";
@@ -77,6 +78,11 @@ function findMdxWidget(state: EditorState): MdxComponentWidget | null {
     });
   return widget;
 }
+
+beforeAll(async () => {
+  // MDX 解析器按需加载：先预热，保证断言看到的是真实解析结果而非"未就绪降级"。
+  await preloadOptionalModules();
+});
 
 describe("MDX projection(白名单求值)", () => {
   it("C2: 已注册组件投影为 widget 并携带描述符与属性", () => {

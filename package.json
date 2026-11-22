@@ -46,7 +46,7 @@
     "verify": "pnpm lint && pnpm test && pnpm typecheck && pnpm verify:packages",
     "pr:watch": "node scripts/git/watch-pr.mjs",
     "prepare": "node scripts/git/install-hooks.mjs",
-    "test": "pnpm -r --sort test && pnpm test:release && pnpm test:structure && pnpm test:style-eval && pnpm test:bundle && pnpm test:packages",
+    "test": "pnpm -r --sort test && pnpm test:release && pnpm test:structure && pnpm test:style-eval && pnpm test:bundle && pnpm test:packages && pnpm test:docs",
     "test:bundle": "node --test apps/desktop/scripts/bundle-budget.test.mjs && node apps/desktop/scripts/code-language-bundle-probe.mjs",
     "test:bundle:update": "node apps/desktop/scripts/code-language-bundle-probe.mjs --update-budget",
     "test:release": "node --test scripts/release/*.test.mjs scripts/mobile/*.test.mjs",
@@ -64,7 +64,8 @@
     "build:packages": "pnpm --filter \"./packages/**\" -r --sort build",
     "test:packages": "node --test scripts/packages/*.test.mjs",
     "verify:packages": "pnpm build:packages && node scripts/packages/verify.mjs",
-    "verify:editor-packages": "pnpm --filter-prod @md-editor/editor... -r --sort build && node scripts/packages/verify.mjs --package @md-editor/core --package @md-editor/editor"
+    "verify:editor-packages": "pnpm --filter-prod @md-editor/editor... -r --sort build && node scripts/packages/verify.mjs --package @md-editor/core --package @md-editor/editor",
+    "test:docs": "node --test scripts/docs/*.test.mjs"
   },
   "devDependencies": {
     "@changesets/cli": "^3.0.3",

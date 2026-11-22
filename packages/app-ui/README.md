@@ -15,9 +15,19 @@ Props include:
 | Group | Props |
 | :--- | :--- |
 | Content | `document` (required), `mdxMode`, `mdxComponents`, `plugins` (syntax plugins) |
-| Appearance | `fontSize`, `proseFontFamily`, `codeFontFamily`, `headingFontFamily`, `lineHeight`, `letterSpacing`, `contentMaxWidth`, `boldFontWeight`, `headingFontWeight`, `codeBlockLineNumbers`, `showInlineStyleMarkers` |
+| Appearance | `theme` (see below), `codeBlockLineNumbers`, `showInlineStyleMarkers` |
 | Behavior | `enableMarkdownLint` (off by default), `resolveImageSrc`, `openLinkTarget`, `writeClipboardText`, `hidden` |
 | Callbacks | `onCursorLineChange`, `onSyncError`, `onQueuedExternalEditResult`, `onRendererPortsChange` |
+
+The nine typography props that used to sit on this component (`fontSize`, `proseFontFamily`,
+`codeFontFamily`, `headingFontFamily`, `lineHeight`, `letterSpacing`, `contentMaxWidth`,
+`boldFontWeight`, `headingFontWeight`) were removed: they duplicated the editor's own theme schema
+lossily. Pass them through the single `theme` prop instead, which is typed as `EditorTheme` from
+`@md-editor/editor` and compiles to the same `--theme-*` custom properties:
+
+```tsx
+<AppEditor document={document} theme={{ typography: { fontSize: 17, proseFontFamily: "var(--font-sans)" } }} />
+```
 
 `onRendererPortsChange` hands the host the renderer ports, which expose mode switching, formatting commands, find, lint and suggestions.
 

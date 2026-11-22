@@ -1,6 +1,6 @@
 # CodeMirror 6 渲染器迁移状态
 
-> 包名变更（历史说明）：文中的 `@md-editor/mdx-component-registry` 已在 PR `feature/github-external-plugins`（提交 `aa781d1`）中删除；公共 MDX 契约现位于 `@md-editor/plugin-sdk/mdx`，注册表实现位于 `@md-editor/plugin-host/mdx`，详见 [GitHub 外部插件](../architecture/github_external_plugins.md)。本文其余内容保留为历史资料，不再随包名变更修改。
+> 包名变更（历史说明）：文中的 `@md-editor/mdx-component-registry` 已在 PR `feature/github-external-plugins`（提交 `aa781d1`）中删除；公共 MDX 契约现位于 `@md-editor/shared/mdx`（原 `@md-editor/plugin-sdk/mdx`，为让 `core` 保持无头而迁至 shared），注册表实现位于 `@md-editor/plugin-host/mdx`，详见 [GitHub 外部插件](../architecture/github_external_plugins.md)。本文其余内容保留为历史资料，不再随包名变更修改。
 
 > 用途：记录 CM6 单编辑器迁移的真实代码进度、beta 可用性、缺口、降级和验证证据。
 >

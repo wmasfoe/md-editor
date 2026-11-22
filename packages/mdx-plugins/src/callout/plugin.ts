@@ -1,4 +1,4 @@
-import type { MdxComponentPlugin } from "@md-editor/plugin-sdk/mdx";
+import type { MdxComponentPlugin } from "@md-editor/shared/mdx";
 
 export const calloutPlugin: MdxComponentPlugin = {
   id: "mdx.callout",

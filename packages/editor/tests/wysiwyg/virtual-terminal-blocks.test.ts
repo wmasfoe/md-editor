@@ -12,7 +12,7 @@ import {
   markdownRangeIndexField,
   syntaxPluginRegistryFacet,
 } from "../../src/markdown/range-index.ts";
-import { SyntaxPluginRegistry } from "../../src/plugins/syntax-registry.ts";
+import { SyntaxPluginRegistry } from "@md-editor/plugin-sdk/syntax";
 import { editorModeField, setEditorModeEffect } from "../../src/mode.ts";
 import { createWysiwygProjectionExtensions } from "../../src/wysiwyg/index.ts";
 import { wysiwygProjectionField } from "../../src/wysiwyg/state/projection-field.ts";

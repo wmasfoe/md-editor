@@ -1,4 +1,8 @@
-import { normalizeLineEndings } from "@md-editor/shared";
+import {
+  createHeadingSlugAllocator,
+  normalizeLineEndings,
+  slugifyHeading,
+} from "@md-editor/shared";
 
 export interface FrontmatterBlock {
   readonly raw: string;
@@ -223,7 +227,8 @@ export function restoreRawBlocksFromPreview(
 }
 
 export function extractHeadingOutline(markdown: string): readonly HeadingOutlineItem[] {
-  const seen = new Map<string, number>();
+  // 去重是文档级属性，用 shared 的分配器（与 HTML 导出共用同一语义）。
+  const allocate = createHeadingSlugAllocator();
   const outline: HeadingOutlineItem[] = [];
   const lines = normalizeLineEndings(markdown).split("\n");
 
@@ -234,11 +239,8 @@ export function extractHeadingOutline(markdown: string): readonly HeadingOutline
     }
 
     const text = match[2].trim();
-    const slug = slugify(text);
-    const count = seen.get(slug) ?? 0;
-    seen.set(slug, count + 1);
     outline.push({
-      id: count === 0 ? slug : `${slug}-${count + 1}`,
+      id: allocate(text),
       level: match[1].length,
       text,
       line: index + 1,
@@ -267,38 +269,12 @@ export function findActiveHeadingIdForLine(
   return active?.id ?? null;
 }
 
-/**
- * 标题的**可见文本**：锚点按渲染后的文本生成（GitHub 语义），
- * 因此必须剔除行内 markdown 语法与 HTML 标签，而不是直接给源码做 slug。
- * 例如 `## 使用 \`npm run dev\` 启动 [文档](https://x.dev)` 的锚点只包含
- * 可见文字 `使用 npm run dev 启动 文档`。
- */
-function headingAnchorText(source: string): string {
-  return source
-    .replace(/!\[([^\]]*)\]\([^)]*\)/gu, "$1")
-    .replace(/!\[([^\]]*)\]\[[^\]]*\]/gu, "$1")
-    .replace(/\[([^\]]*)\]\([^)]*\)/gu, "$1")
-    .replace(/\[([^\]]*)\]\[[^\]]*\]/gu, "$1")
-    .replace(/<[^>]*>/gu, "")
-    .replace(/\*\*|~~|__/gu, "")
-    .replace(/[*`]/gu, "");
-}
+// 行内语法剥离已下沉到 `@md-editor/shared` 的 `headingSlugSource`：
+// 大纲、文档内锚点解析、导出 HTML 三者共用同一实现，避免再次漂移。
 
-/**
- * GitHub 兼容的标题锚点（slug）：
- *
- * - 大小写折叠；
- * - **丢弃** Unicode 标点与符号（`：`、`、`、`？`、`（`、`➔`、emoji 等），
- *   这是 GitHub / github-slugger 的行为，也是绝大多数 TOC 生成器的目标格式；
- * - 空白 → `-`，保留 `-` / `_`。
- */
 export function headingAnchorSlug(source: string): string {
-  return headingAnchorText(source)
-    .trim()
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}\p{M}\s_-]/gu, "")
-    .trim()
-    .replace(/\s+/gu, "-");
+  // 单一实现：与大纲、HTML 导出共用 `@md-editor/shared` 的规则。
+  return slugifyHeading(source);
 }
 
 /**
@@ -330,11 +306,12 @@ function normalizeHeadingFragment(fragment: string): string {
 /**
  * 把文档内锚点（`#fragment`）解析为对应标题。
  *
- * 匹配顺序（逐标题、逐别名，一次命中即返回）：
- * 1. 精确别名：GitHub 锚点、重复标题后缀（`-1` 起）与既有大纲 id（`-2` 起）；
+ * 匹配顺序：
+ * 1. 精确命中：大纲 id（已包含 GitHub 去重后缀 `-1`、`-2`）；
  * 2. 全文档无精确命中时，取第一个宽松匹配（忽略标点/空白/连字符差异）。
  *
  * 只做确定性比对，不做相似度猜测：找不到返回 `null`，由调用方提示失败。
+ * 不再兼容旧的 `-2` 起编号：大纲与导出 HTML 现在共用同一套 GitHub 语义。
  */
 export function resolveHeadingAnchor(
   markdown: string,
@@ -347,27 +324,15 @@ export function resolveHeadingAnchor(
 
   const outline = extractHeadingOutline(markdown);
   const wantedLoose = looseHeadingKey(wanted);
-  const occurrences = new Map<string, number>();
   // 宽松匹配只做兜底：先记下第一个候选，等整份文档都没有精确命中再返回。
   let looseMatch: HeadingOutlineItem | null = null;
 
   for (const item of outline) {
-    const anchor = headingAnchorSlug(item.text);
-    const occurrence = anchor.length > 0 ? (occurrences.get(anchor) ?? 0) : 0;
-    if (anchor.length > 0) {
-      occurrences.set(anchor, occurrence + 1);
+    if (item.id === wanted) {
+      return item;
     }
-    const aliases = [anchor, occurrence > 0 ? `${anchor}-${occurrence}` : "", item.id].filter(
-      (alias) => alias.length > 0,
-    );
-
-    for (const alias of aliases) {
-      if (alias === wanted) {
-        return item;
-      }
-      if (looseMatch === null && wantedLoose.length > 0 && looseHeadingKey(alias) === wantedLoose) {
-        looseMatch = item;
-      }
+    if (looseMatch === null && wantedLoose.length > 0 && looseHeadingKey(item.id) === wantedLoose) {
+      looseMatch = item;
     }
   }
 
@@ -378,15 +343,6 @@ export function isLikelyMdxBlock(markdown: string): boolean {
   // 大写 JSX 标签暂时只识别为需要保留的 MDX 组件源码，
   // 不渲染，也不执行。
   return /^\s*<[A-Z][\w.:-]*(\s|>|\/>)/m.test(markdown);
-}
-
-function slugify(value: string): string {
-  return value
-    .toLowerCase()
-    .trim()
-    .replace(/[`*_~[\]()]/g, "")
-    .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, "-")
-    .replace(/^-|-$/g, "");
 }
 
 function isRemoteOrEmbeddedImageSrc(src: string): boolean {

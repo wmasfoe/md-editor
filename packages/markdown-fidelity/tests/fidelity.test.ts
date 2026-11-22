@@ -85,8 +85,22 @@ describe("outline extraction", () => {
     expect(extractHeadingOutline("# A\n## B\n### B\n")).toEqual([
       { id: "a", level: 1, text: "A", line: 1 },
       { id: "b", level: 2, text: "B", line: 2 },
-      { id: "b-2", level: 3, text: "B", line: 3 },
+      { id: "b-1", level: 3, text: "B", line: 3 },
     ]);
+  });
+
+  it('非中英文标题的大纲 id 非空且唯一（旧实现产出 "" 与 "-2"）', () => {
+    const outline = extractHeadingOutline(
+      "## Привет мир\n\n## Привет мир\n\n## 한국어 문서\n\n## テスト手順\n\n## Über uns\n",
+    );
+    expect(outline.map((item) => item.id)).toEqual([
+      "привет-мир",
+      "привет-мир-1",
+      "한국어-문서",
+      "テスト手順",
+      "über-uns",
+    ]);
+    expect(outline.every((item) => item.id.length > 0)).toBe(true);
   });
 
   it("finds the active heading for a visible line", () => {
@@ -166,12 +180,13 @@ describe("heading anchor resolution", () => {
     });
   });
 
-  it("支持重复标题的 GitHub 后缀与既有大纲 id 后缀", () => {
+  it("重复标题只接受 GitHub 后缀（-1 起），旧的 -2 编号已失效", () => {
     const markdown = "# A\n\ntext\n\n## A\n";
 
     expect(resolveHeadingAnchor(markdown, "a")).toMatchObject({ line: 1 });
     expect(resolveHeadingAnchor(markdown, "a-1")).toMatchObject({ line: 5 });
-    expect(resolveHeadingAnchor(markdown, "a-2")).toMatchObject({ line: 5 });
+    // 单一实现：大纲与导出 HTML 都不再产出 `-2` 起编号，因此 `#a-2` 不再是有效锚点。
+    expect(resolveHeadingAnchor(markdown, "a-2")).toBeNull();
   });
 
   it("找不到锚点时返回 null（不猜相似标题）", () => {

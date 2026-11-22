@@ -20,9 +20,13 @@ import { closeMediaViewerFor, openMediaViewer } from "../media-viewer/index.ts";
 /**
  * 渲染器默认端口实现（延迟构造以利 tree-shake：未使用媒体查看器的宿主不会引入该模块）。
  */
-export function createDefaultSyntaxPluginHostPorts(): SyntaxPluginHostPorts {
+export function createDefaultSyntaxPluginHostPorts(
+  translate?: (key: string, fallback: string) => string,
+): SyntaxPluginHostPorts {
   return {
-    openMediaViewer: (options) => openMediaViewer(options),
+    translateEditorMessage: translate,
+    // 宿主语言经 translator 透传；插件契约本身不带语言，避免插件自行猜测 locale。
+    openMediaViewer: (options) => openMediaViewer({ ...options, translate }),
     closeMediaViewerFor: (host) => closeMediaViewerFor(host),
     createCalloutHeaderWidget: ({ type, title, recordId }) =>
       new CalloutHeaderWidget(type, title, recordId),

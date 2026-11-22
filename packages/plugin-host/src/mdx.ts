@@ -2,7 +2,7 @@ import type {
   MdxComponentDescriptor,
   MdxComponentPlugin,
   MdxComponentRegistry,
-} from "@md-editor/plugin-sdk/mdx";
+} from "@md-editor/shared/mdx";
 
 export function createMdxComponentRegistry(
   plugins: readonly MdxComponentPlugin[] = [],

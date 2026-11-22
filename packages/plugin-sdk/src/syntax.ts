@@ -490,3 +490,5 @@ export const syntaxPluginHostPortsFacet: Facet<SyntaxPluginHostPorts, SyntaxPlug
   Facet.define<SyntaxPluginHostPorts, SyntaxPluginHostPorts>({
     combine: (values) => values[0] ?? {},
   });
+
+export { SyntaxPluginRegistry, type PluginRegistrationOrigin } from "./syntax-registry.ts";

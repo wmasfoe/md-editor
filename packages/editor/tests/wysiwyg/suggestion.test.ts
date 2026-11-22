@@ -238,20 +238,20 @@ describe("AI Suggestion: Rewrite / Diff Edit", () => {
 });
 
 describe("AI Suggestion: i18n Labels", () => {
-  it("默认采用中文标签 'Tab 接受 · Esc 取消'", () => {
+  it("默认采用英文标签 'Tab Accept · Esc Dismiss'（库不假设宿主语言）", () => {
     expect(DEFAULT_AI_SUGGESTION_LABELS).toEqual({
-      accept: "接受",
-      dismiss: "取消",
+      accept: "Accept",
+      dismiss: "Dismiss",
       tabKey: "Tab",
       escKey: "Esc",
-      kindFix: "修正",
-      kindStyle: "风格",
+      kindFix: "Fix",
+      kindStyle: "Style",
     });
 
     const view = createTestView("hello world", 0);
     const facet = view.state.facet(aiSuggestionLabelsFacet);
-    expect(facet.accept).toBe("接受");
-    expect(facet.dismiss).toBe("取消");
+    expect(facet.accept).toBe("Accept");
+    expect(facet.dismiss).toBe("Dismiss");
     expect(facet.tabKey).toBe("Tab");
     expect(facet.escKey).toBe("Esc");
   });

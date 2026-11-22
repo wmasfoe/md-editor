@@ -25,16 +25,7 @@ import {
   type PluginStatusEvent,
   type StoredPlugin,
 } from "./storage";
-
-function syntaxNodeNames(plugin: MarkdownSyntaxPlugin): string[] {
-  const extension = plugin.markdownExtension;
-  const definitions = extension && !Array.isArray(extension) ? extension.defineNodes : undefined;
-  return [
-    ...(definitions ?? []).map((node) => (typeof node === "string" ? node : node.name)),
-    ...Object.keys(plugin.nodePolicies ?? {}),
-    ...(plugin.nodePolicy ? [plugin.nodePolicy.nodeName] : []),
-  ];
-}
+import { createSyntaxRegistrar } from "./syntax-conflict-validation.ts";
 
 let promotedPendingVersions = false;
 
@@ -47,7 +38,6 @@ export function useExternalPlugins(
   portsRef.current = ports;
   useEffect(() => {
     const builtins = [highlightPlugin, containerDirectivePlugin, mathPlugin, mermaidPlugin];
-    const registered = new Map<string, MarkdownSyntaxPlugin>();
     const validationErrors = new Map<string, string>();
     const activationTokens = new Map<string, object>();
     let records: StoredPlugin[] = [];
@@ -66,24 +56,11 @@ export function useExternalPlugins(
       validateKey: validateKeymapKey,
       onChange: () => publishStatus(),
     });
+    const syntaxRegistrar = createSyntaxRegistrar(builtins, (plugins) => {
+      setSyntax(plugins);
+    });
     const host = createPluginHost({
-      syntax: {
-        register(plugin) {
-          if (registered.has(plugin.id) || builtins.some((builtin) => builtin.id === plugin.id))
-            throw new Error(`Duplicate syntax: ${plugin.id}`);
-          const builtInNodes = new Set(builtins.flatMap(syntaxNodeNames));
-          if (syntaxNodeNames(plugin).some((name) => builtInNodes.has(name)))
-            throw new Error(`Syntax node conflicts with a built-in plugin: ${plugin.id}`);
-          registered.set(plugin.id, plugin);
-          setSyntax([...registered.values()]);
-          return {
-            dispose() {
-              registered.delete(plugin.id);
-              setSyntax([...registered.values()]);
-            },
-          };
-        },
-      },
+      syntax: syntaxRegistrar,
       commands: commandBindings.commands,
       keymaps: commandBindings.keymaps,
       editor: {

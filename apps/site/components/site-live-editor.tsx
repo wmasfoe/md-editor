@@ -261,7 +261,7 @@ export const SiteLiveEditor = React.memo(function SiteLiveEditor({
               <AppEditor
                 document={documentState}
                 plugins={activePlugins}
-                fontSize={15}
+                theme={{ typography: { fontSize: 15 } }}
                 codeBlockLineNumbers={true}
                 showInlineStyleMarkers={true}
                 mdxMode={mdxMode}
@@ -350,7 +350,7 @@ export const SiteLiveEditor = React.memo(function SiteLiveEditor({
                 <AppEditor
                   document={documentState}
                   plugins={activePlugins}
-                  fontSize={15}
+                  theme={{ typography: { fontSize: 15 } }}
                   codeBlockLineNumbers={true}
                   showInlineStyleMarkers={true}
                   mdxMode={mdxMode}

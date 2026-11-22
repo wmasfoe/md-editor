@@ -1,3 +1,5 @@
+import { markdownLintEngineFacet } from "../../lint/engine.ts";
+import type { MarkdownLintEngine } from "../../lint/engine.ts";
 /**
  * @file view-operations.ts
  * @description 视图轴开关与选区/滚动操作的协作器（只读写 `RendererViewAdapter`，不触碰协议状态）。
@@ -79,6 +81,13 @@ export function configureViewMarkdownLint(
   compartment: Compartment,
   enabled: boolean,
 ): void {
+  // 运行时开启也必须校验引擎：否则会进入「lint 已启用 + 引擎缺失」状态，
+  // 异常被 @codemirror/lint 的错误汇聚吞成「无诊断」——正是要消灭的静默失效。
+  if (enabled && !view.state.facet(markdownLintEngineFacet)) {
+    throw new Error(
+      "Cannot enable markdown lint: no `markdownlint` engine was injected when the editor was created.",
+    );
+  }
   const reconfigureEffect = compartment.reconfigure(createRealtimeMarkdownLintExtension(enabled));
   const clearEffects: readonly StateEffect<unknown>[] = enabled
     ? []
@@ -331,18 +340,20 @@ export function setFormattingViewKeymaps(
 export function runViewMarkdownLint(
   view: RendererViewAdapter,
   config?: Record<string, unknown>,
+  engine?: MarkdownLintEngine,
 ): MarkdownLintRunResult {
   const target = view.editorView ?? (view as unknown as EditorView);
-  return runMarkdownLintCommand(target, config);
+  return runMarkdownLintCommand(target, config, engine);
 }
 
 /** 执行 markdownlint 全部自动修复 */
 export function fixAllViewMarkdownLint(
   view: RendererViewAdapter,
   config?: Record<string, unknown>,
+  engine?: MarkdownLintEngine,
 ): MarkdownLintFixAllResult {
   const target = view.editorView ?? (view as unknown as EditorView);
-  return fixAllMarkdownLintIssues(target, config);
+  return fixAllMarkdownLintIssues(target, config, engine);
 }
 
 /** 清理 markdownlint 诊断结果 */

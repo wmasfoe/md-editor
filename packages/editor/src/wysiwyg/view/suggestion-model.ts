@@ -30,15 +30,17 @@ export interface AiSuggestionLabels {
   readonly escKey?: string;
 }
 
+/** @internal */
 export const DEFAULT_AI_SUGGESTION_LABELS: Required<AiSuggestionLabels> = Object.freeze({
-  accept: "接受",
-  dismiss: "取消",
-  kindFix: "修正",
-  kindStyle: "风格",
+  accept: "Accept",
+  dismiss: "Dismiss",
+  kindFix: "Fix",
+  kindStyle: "Style",
   tabKey: "Tab",
   escKey: "Esc",
 });
 
+/** @internal */
 export const aiSuggestionLabelsFacet = Facet.define<
   AiSuggestionLabels | undefined,
   Required<AiSuggestionLabels>
@@ -141,5 +143,8 @@ export interface AiSuggestionAcceptedEvent {
   readonly kind?: AiSuggestionKind;
 }
 
-/** 标记“这次文档变化来自采纳 AI 建议”的事务注解 */
+/**
+ * 标记“这次文档变化来自采纳 AI 建议”的事务注解
+ * @internal
+ */
 export const aiSuggestionAcceptedAnnotation = Annotation.define<AiSuggestionAcceptedEvent>();

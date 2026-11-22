@@ -22,7 +22,8 @@
     "katex": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "@md-editor/editor": "workspace:*"
+    "@md-editor/editor": "workspace:*",
+    "markdownlint": "^0.42.0"
   },
   "devDependencies": {
     "@babel/core": "^7.29.7",

@@ -55,3 +55,22 @@ extractHeadingOutline(content);
 pnpm test
 pnpm typecheck
 ```
+
+## Usage
+
+<!-- readme-check -->
+```ts
+import {
+  extractHeadingOutline,
+  resolveHeadingAnchor,
+  splitFrontmatter,
+} from "@md-editor/markdown-fidelity";
+
+const document = "---\ntitle: Note\n---\n\n## snake_case\n";
+
+const parts = splitFrontmatter(document);
+const outline = extractHeadingOutline(document);
+const target = resolveHeadingAnchor(document, outline[0]?.id ?? "");
+
+console.log(parts?.raw, outline, target?.line);
+```

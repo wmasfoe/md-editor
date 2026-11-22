@@ -1,4 +1,10 @@
-import type { BlockToken, InlineToken, ListItemToken, StaticToken } from "../tokens/types.ts";
+import type {
+  BlockToken,
+  HeadingToken,
+  InlineToken,
+  ListItemToken,
+  StaticToken,
+} from "../tokens/types.ts";
 import { escapeHtml, highlightCode } from "./highlight-code.ts";
 import { renderMathToString } from "./math-render.ts";
 import { getCalloutSvg } from "@md-editor/plugin-sdk/callout";
@@ -41,6 +47,20 @@ function isBlockToken(token: StaticToken): token is BlockToken {
 export function emitHtml(tokens: StaticToken[], options: EmitHtmlOptions = {}): string {
   const includeMarkers = options.includeMarkers ?? true;
   const custom = options.customRenderer;
+
+  /**
+   * 文档内所有标题的**真实** id。
+   *
+   * 用于 A-6「legacy 别名不得遮蔽新 id」：别名是给旧链接兜底的 `<a id>`，
+   * 一旦它与另一个标题的 `<hN id>` 同名，`#fragment` 会解析到别名所在的那个标题，
+   * 用户跳到错误的位置（实测 `## テスト手順` + `## 手順` 会产生两个 `id="手順"`）。
+   */
+  const realHeadingIds = new Set(
+    tokens
+      .filter((token): token is HeadingToken => isBlockToken(token) && token.type === "heading")
+      .map((token) => token.id)
+      .filter((id): id is string => Boolean(id)),
+  );
 
   function renderInline(token: InlineToken): string {
     switch (token.type) {
@@ -155,8 +175,9 @@ export function emitHtml(tokens: StaticToken[], options: EmitHtmlOptions = {}): 
           const plainText = token.text.replace(/<[^>]+>/g, "").trim();
           const idAttr = token.id ? ` id="${escapeHtml(token.id)}"` : "";
           const legacySlug = generateLegacyHeadingSlug(plainText);
+          // 只在「与自身 id 不同」且「不与任何标题的真实 id 冲突」时输出别名。
           const aliasTag =
-            legacySlug && legacySlug !== token.id
+            legacySlug && legacySlug !== token.id && !realHeadingIds.has(legacySlug)
               ? `<a id="${escapeHtml(legacySlug)}" class="heading-anchor-alias" aria-hidden="true"></a>`
               : "";
           return `<h${token.level}${idAttr} data-heading-text="${escapeHtml(plainText)}">${aliasTag}${inner}</h${token.level}>\n`;

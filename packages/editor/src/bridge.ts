@@ -29,7 +29,13 @@ import type {
   AiSuggestionValue,
   AiSuggestionAcceptedEvent,
 } from "./wysiwyg/view/suggestion-model.ts";
-import type { EditorMessageTranslator, MarkdownSyntaxPlugin } from "@md-editor/plugin-sdk/syntax";
+import type {
+  EditorMessageTranslator,
+  MarkdownSyntaxPlugin,
+  SyntaxPluginHostPorts,
+} from "@md-editor/plugin-sdk/syntax";
+import type { Disposable } from "@md-editor/plugin-sdk";
+import type { MarkdownLintEngine } from "./lint/engine.ts";
 import type { Diagnostic } from "@codemirror/lint";
 import type { DocumentLinterOptions } from "./lint/types.ts";
 import {
@@ -56,6 +62,13 @@ export interface CodeMirrorEditorPorts {
   setCodeBlockLineNumbers(enabled: boolean): CodeBlockLineNumberPortResult;
   setInlineStyleMarkers(enabled: boolean): InlineStyleMarkerPortResult;
   setMarkdownLint(enabled: boolean): MarkdownLintPortResult;
+  /**
+   * 运行期注入/替换 lint 引擎。
+   *
+   * 引擎改走动态 import 后，它通常比视图晚到；这条通道让宿主在引擎就绪时补上，
+   * 而不必重建视图（重建会丢选区、撤销栈与 IME 状态）。
+   */
+  setMarkdownLintEngine(engine: MarkdownLintEngine | undefined): MarkdownLintPortResult;
   recomputeMarkdownLint(): MarkdownLintPortResult;
   setLanguage(language: string | undefined): MarkdownLintPortResult;
   setHostVisibility(hidden: boolean): void;
@@ -117,8 +130,10 @@ export interface CodeMirrorEditorPorts {
   isComposing(): boolean;
   /** 将当前未提交的投影控件/表单（例如 WYSIWYG 表格单元格）同步刷新到底层文档 */
   flushPendingEdits(): boolean;
-  /** 全量替换并热重载 Markdown 语法扩展插件列表 */
-  setPlugins(plugins: readonly MarkdownSyntaxPlugin[]): void;
+  /** 全量替换声明式插件集合（不清除 `addSyntaxPlugin` 的注册）。 */
+  setSyntaxPlugins(plugins: readonly MarkdownSyntaxPlugin[]): void;
+  /** 增量安装一个插件，返回可卸载句柄（与 `plugin-sdk` 的 register 同语义）。 */
+  addSyntaxPlugin(plugin: MarkdownSyntaxPlugin): Disposable;
   /** 执行文档 MarkdownLint 与链接检查，将诊断结果同步分发至视口 */
   runDocumentLint(options?: DocumentLinterOptions): Promise<readonly Diagnostic[]>;
   /** 运行或切换 Markdown 规范检查，分发诊断并打开问题面板（若已开启则 Toggle Off 关闭） */
@@ -159,6 +174,20 @@ export interface MdxComponentsLookup {
 
 export interface CodeMirrorEditorBridgeOptions {
   readonly parent: HTMLElement;
+  /**
+   * 是否自动注入编辑器自带样式（默认 true）。
+   * 只在创建时读取：运行时改它需要重建编辑器。
+   */
+  readonly injectStyles?: boolean;
+  /** CSP nonce，透传给自动注入的 `<style nonce>`。只在创建时读取。 */
+  readonly styleNonce?: string;
+  /**
+   * 语法插件宿主端口（媒体查看器、callout widget 等）。
+   * 缺省用渲染器自带实现；传 `{}` 可让插件优雅降级。
+   */
+  readonly syntaxPluginHostPorts?: SyntaxPluginHostPorts;
+  /** 专注模式遮罩强度（0.30–0.50，越界会被夹紧）。 */
+  readonly focusDimOpacity?: number;
   /** Per-editor lint language; omitted values follow the host document. */
   readonly language?: string;
   readonly translateEditorMessage?: EditorMessageTranslator | undefined;
@@ -174,10 +203,10 @@ export interface CodeMirrorEditorBridgeOptions {
   readonly onCursorLineChange?: (line: number) => void;
   /** 是否开启实时 Markdown 规范检查（默认 false） */
   readonly enableMarkdownLint?: boolean;
-  /** 可选语法扩展插件列表 */
+  /** 宿主注入的 lint 引擎（`{ lint }` 来自 `markdownlint/sync`）。 */
+  readonly markdownlint?: MarkdownLintEngine;
+  /** 可选语法扩展插件列表（声明式） */
   readonly plugins?: readonly MarkdownSyntaxPlugin[];
-  /** 兼容别名：同 plugins */
-  readonly syntaxPlugins?: readonly MarkdownSyntaxPlugin[];
   readonly aiSuggestionLabels?: AiSuggestionLabels;
   readonly onAiSuggestionAccepted?: (event: AiSuggestionAcceptedEvent) => void;
   readonly onSyncError: (error: CodeMirrorEditorSyncError) => void;
@@ -266,6 +295,11 @@ export function createCodeMirrorEditorBridge(
 
   const rendererOptions: CodeMirrorRendererOptions = {
     parent: options.parent,
+    injectStyles: options.injectStyles,
+    styleNonce: options.styleNonce,
+    syntaxPluginHostPorts: options.syntaxPluginHostPorts,
+    focusDimOpacity: options.focusDimOpacity,
+    markdownlint: options.markdownlint,
     language: options.language,
     translateEditorMessage: options.translateEditorMessage,
     initialSnapshot: options.document.getSnapshot(),
@@ -277,7 +311,7 @@ export function createCodeMirrorEditorBridge(
     mdxComponents: options.mdxComponents,
     openLinkTarget: options.openLinkTarget,
     onCursorLineChange: options.onCursorLineChange,
-    plugins: options.plugins ?? options.syntaxPlugins,
+    plugins: options.plugins,
     aiSuggestionLabels: options.aiSuggestionLabels,
     onAiSuggestionAccepted: options.onAiSuggestionAccepted,
     enableMarkdownLint: options.enableMarkdownLint,
@@ -339,6 +373,8 @@ export function createCodeMirrorEditorBridge(
     setCodeBlockLineNumbers: (enabled: boolean) => renderer.setCodeBlockLineNumbers(enabled),
     setInlineStyleMarkers: (enabled: boolean) => renderer.setInlineStyleMarkers(enabled),
     setMarkdownLint: (enabled: boolean) => renderer.setMarkdownLint(enabled),
+    setMarkdownLintEngine: (engine: MarkdownLintEngine | undefined) =>
+      renderer.setMarkdownLintEngine(engine),
     recomputeMarkdownLint: () => renderer.recomputeMarkdownLint(),
     setLanguage: (language: string | undefined) => renderer.setLanguage(language),
     setHostVisibility: (hidden: boolean) => renderer.setHostVisibility(hidden),
@@ -361,7 +397,9 @@ export function createCodeMirrorEditorBridge(
     requestMeasure: () => renderer.requestMeasure(),
     isComposing: () => renderer.isComposing,
     flushPendingEdits: () => renderer.flushPendingEdits(),
-    setPlugins: (plugins: readonly MarkdownSyntaxPlugin[]) => renderer.setPlugins(plugins),
+    setSyntaxPlugins: (plugins: readonly MarkdownSyntaxPlugin[]) =>
+      renderer.setSyntaxPlugins(plugins),
+    addSyntaxPlugin: (plugin: MarkdownSyntaxPlugin) => renderer.addSyntaxPlugin(plugin),
     runDocumentLint: (opts?: DocumentLinterOptions) => renderer.runDocumentLint(opts),
     runMarkdownLint: (config?: Record<string, unknown>) => renderer.runMarkdownLintCommand(config),
     fixAllMarkdownLint: (config?: Record<string, unknown>) => renderer.fixAllMarkdownLint(config),

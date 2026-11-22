@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo } from "react";
 import { AppEditor, resolveCodeFontStack, resolveProseFontStack } from "@md-editor/app-ui";
+import { useMarkdownLintEngine } from "@md-editor/app-ui/markdownlint";
 import { type CodeMirrorEditorPorts } from "@md-editor/editor";
 import { useTranslation } from "@md-editor/i18n";
 import {
@@ -58,6 +59,8 @@ export function WebEditor({
     [resolveImageSrc, activeFilePath],
   );
 
+  const markdownlint = useMarkdownLintEngine();
+
   return (
     <div className="relative flex h-full w-full min-h-0 flex-1 flex-col overflow-hidden bg-[var(--theme-surface)]">
       <AppEditor
@@ -65,12 +68,17 @@ export function WebEditor({
         plugins={plugins}
         mdxMode={true}
         mdxComponents={mdxComponents}
-        fontSize={settings.fontSize}
-        proseFontFamily={resolveProseFontStack(settings.proseFontFamily)}
-        codeFontFamily={resolveCodeFontStack(settings.codeFontFamily)}
+        theme={{
+          typography: {
+            fontSize: settings.fontSize,
+            proseFontFamily: resolveProseFontStack(settings.proseFontFamily),
+            codeFontFamily: resolveCodeFontStack(settings.codeFontFamily),
+          },
+        }}
         codeBlockLineNumbers={settings.showCodeBlockLineNumbers}
         showInlineStyleMarkers={settings.showInlineStyleMarkers}
-        enableMarkdownLint={settings.enableMarkdownLint}
+        enableMarkdownLint={Boolean(markdownlint) && settings.enableMarkdownLint}
+        markdownlint={markdownlint}
         ariaLabel={t("sidebar.editorAria")}
         aiSuggestionLabels={aiSuggestionLabels}
         resolveImageSrc={handleResolveImageSrc}

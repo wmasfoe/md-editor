@@ -16,6 +16,7 @@ import {
   resolveCodeFontStack,
   resolveProseFontStack,
 } from "@md-editor/app-ui";
+import { useMarkdownLintEngine } from "@md-editor/app-ui/markdownlint";
 import { type CodeMirrorEditorPorts } from "@md-editor/editor";
 import { fileAccess } from "../utools/file-access";
 import type { EditorMode } from "../utools/types";
@@ -372,6 +373,8 @@ export function UtoolsApp() {
     toggleSourceMode,
   ]);
 
+  const markdownlint = useMarkdownLintEngine();
+
   return (
     <div className="flex flex-col h-full w-full overflow-hidden bg-[var(--theme-bg)] text-[var(--theme-text)]">
       {/* 顶部导流横幅 */}
@@ -405,12 +408,17 @@ export function UtoolsApp() {
               document={docState}
               codeBlockLineNumbers={settings.showCodeBlockLineNumbers}
               showInlineStyleMarkers={settings.showInlineStyleMarkers}
-              enableMarkdownLint={settings.enableMarkdownLint}
-              fontSize={settings.fontSize}
-              proseFontFamily={resolveProseFontStack(settings.proseFontFamily)}
-              codeFontFamily={resolveCodeFontStack(settings.codeFontFamily)}
+              enableMarkdownLint={Boolean(markdownlint) && settings.enableMarkdownLint}
+              markdownlint={markdownlint}
+              theme={{
+                typography: {
+                  fontSize: settings.fontSize,
+                  proseFontFamily: resolveProseFontStack(settings.proseFontFamily),
+                  codeFontFamily: resolveCodeFontStack(settings.codeFontFamily),
+                },
+              }}
               resolveImageSrc={resolveImage}
-              syntaxPlugins={UTOOLS_SYNTAX_PLUGINS}
+              plugins={UTOOLS_SYNTAX_PLUGINS}
               className="flex-1 min-h-0 w-full"
               ariaLabel="Inkpoint Markdown 编辑器"
               onRendererPortsChange={setRendererPorts}

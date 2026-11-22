@@ -14,7 +14,7 @@
 +-------------------------------------------------------------+
 |                  消费端 (apps/desktop, apps/web)             |
 |  - 自主在外部按需导入并组装插件                                   |
-|  - 例如: renderer.use(containerDirectivePlugin, mathPlugin) |
+|  - 例如: plugins={[containerDirectivePlugin, mathPlugin]}         |
 +-------------------------------------------------------------+
                               |
        +----------------------+----------------------+
@@ -71,8 +71,8 @@ export interface MarkdownSyntaxPlugin {
 }
 ```
 
-### 2.2 链式调用 API (`renderer.use`)
-渲染器实例与控制器暴露 Fluent API，支持单参、多参或链式安装：
+### 2.2 注册入口（声明式 / 命令式）
+`renderer` 上的链式 `use()` 入口已删除（无对称卸载、destroyed 后静默成功）。现在的入口是：
 
 ```ts
 // 构造选项传入
@@ -82,15 +82,16 @@ const renderer = createCodeMirrorRenderer({
   plugins: [containerDirectivePlugin],
 });
 
-// 或链式动态安装
-renderer
-  .use(containerDirectivePlugin)
-  .use(anotherPlugin);
+// 运行时全量替换（声明式命名空间）
+ports.setSyntaxPlugins([containerDirectivePlugin, anotherPlugin]);
+
+// 增量安装 + 可卸载句柄（命令式命名空间，全量替换不会清掉它）
+const handle = ports.addSyntaxPlugin(anotherPlugin);
 ```
 
 #### 动态 Compartment 重配机制
-当通过 `renderer.use(...)` 动态安装插件时，渲染器会：
-1. 自动过滤已安装的重复插件（幂等性保证）；
+注册新插件时，渲染器会：
+1. 对重复 id 抛错（单一 id 空间；同一数组实例重放才是 no-op）；
 2. 重新合成 `markdownExtension`，并通过 `Compartment.reconfigure` 实时重载 Lezer 语法扩展；
 3. 更新 `syntaxPluginRegistryFacet` Compartment；
 4. 调度 `refreshWysiwygProjectionEffect.of(null)` 触发当前视口所见即所得装饰即时重绘。
@@ -201,12 +202,12 @@ renderer
 
 ---
 
-## 7. 插件启用/禁用与动态热重载体系 (`setPlugins`)
+## 7. 插件启用/禁用与动态热重载体系 (`setSyntaxPlugins`)
 
 ### 7.1 核心交互层零破坏重配
 - **第一性原理**：用户在设置菜单切换插件开启/关闭时，严禁通过销毁重建 CodeMirror Editor DOM 节点实现。
 - **Compartment 动态重配**：
-  - 通过 `renderer.setPlugins(plugins)` 原子化替换 `SyntaxPluginRegistry` 内部已注册的插件列表；
+  - 通过 `ports.setSyntaxPlugins(plugins)` 原子化替换**声明式**命名空间里的插件列表（命令式注册的 `ports.addSyntaxPlugin()` 不受影响，二者共享同一 registry 与 id 空间）；
   - 触发 `markdownLanguageCompartment.reconfigure(...)` 注入重新组装的 Lezer Markdown 语法扩展，以及 `syntaxPluginRegistryCompartment.reconfigure(...)` 更新 Facet 映射；
   - 派发 `refreshMarkdownParseCoverageEffect` 触发底层 AST RangeIndex 增量重新解析，派发 `refreshWysiwygProjectionEffect` 即时原位重绘投影；
   - 彻底保留用户当前选区、光标位置与历史撤销记录。

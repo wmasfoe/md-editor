@@ -6,6 +6,7 @@ import type { LinkLintOptions } from "./types.ts";
 
 /**
  * 将外部传入的链接检查结果投影为 CM6 Diagnostic
+ * @internal
  */
 export async function runLinkValidation(
   state: EditorState,

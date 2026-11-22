@@ -2,13 +2,21 @@ import { describe, expect, it } from "vitest";
 import { EditorState } from "@codemirror/state";
 import { runMarkdownLint } from "../../src/lint/markdown-lint.ts";
 import { runLinkValidation } from "../../src/lint/link-lint.ts";
+import { lint as markdownlintLint } from "markdownlint/sync";
+import type { MarkdownLintResult } from "../../src/lint/engine.ts";
+import { markdownLintEngineFacet } from "../../src/lint/engine.ts";
+
+const MARKDOWNLINT = {
+  lint: (request: Parameters<typeof markdownlintLint>[0]) =>
+    markdownlintLint(request) as unknown as MarkdownLintResult,
+};
 
 describe("markdown-lint in editor", () => {
   it("detects markdown syntax style issues", () => {
     // 多个连续空行违反 MD012 (no-multiple-blanks)
     const doc = "# Heading\n\n\n\nParagraph text";
     const state = EditorState.create({ doc });
-    const diagnostics = runMarkdownLint(state);
+    const diagnostics = runMarkdownLint(state, undefined, MARKDOWNLINT);
 
     expect(diagnostics.length).toBeGreaterThan(0);
     const issue = diagnostics.find(
@@ -48,7 +56,7 @@ describe("markdown-lint in editor", () => {
     // 标题层级跳级违反 MD001 (heading-increment)
     const doc = "# H1\n\n### H3\n";
     const state = EditorState.create({ doc });
-    const diagnostics = runMarkdownLint(state);
+    const diagnostics = runMarkdownLint(state, undefined, MARKDOWNLINT);
 
     const md001 = diagnostics.find((d) => d.message.includes("MD001"));
     expect(md001).toBeDefined();
@@ -60,7 +68,7 @@ describe("markdown-lint in editor", () => {
     // MD018: 标题后缺少空格
     const doc = "#Heading without space\n";
     const state = EditorState.create({ doc });
-    const diagnostics = runMarkdownLint(state);
+    const diagnostics = runMarkdownLint(state, undefined, MARKDOWNLINT);
 
     const md018 = diagnostics.find((d) => d.message.includes("MD018"));
     expect(md018).toBeDefined();
@@ -73,7 +81,7 @@ describe("markdown-lint in editor", () => {
     // 验证 MD009 (no-trailing-spaces) 默认不产生骚扰性红线
     const doc = "# Heading\nParagraph with trailing space   \n";
     const state = EditorState.create({ doc });
-    const diagnostics = runMarkdownLint(state);
+    const diagnostics = runMarkdownLint(state, undefined, MARKDOWNLINT);
 
     const trailingSpaceIssue = diagnostics.find(
       (d) => d.message.includes("MD009") || d.message.includes("no-trailing-spaces"),
@@ -84,7 +92,7 @@ describe("markdown-lint in editor", () => {
   it("returns empty array for clean markdown", () => {
     const doc = "# Heading\n\nParagraph text with clean spacing.\n";
     const state = EditorState.create({ doc });
-    const diagnostics = runMarkdownLint(state);
+    const diagnostics = runMarkdownLint(state, undefined, MARKDOWNLINT);
     expect(diagnostics).toHaveLength(0);
   });
 
@@ -104,7 +112,7 @@ describe("markdown-lint in editor", () => {
       "",
     ].join("\n");
     const state = EditorState.create({ doc });
-    const diagnostics = runMarkdownLint(state);
+    const diagnostics = runMarkdownLint(state, undefined, MARKDOWNLINT);
     const md024 = diagnostics.find((d) => d.message.includes("MD024"));
     expect(md024).toBeUndefined();
   });
@@ -149,7 +157,7 @@ describe("markdown-lint in editor", () => {
 
       const doc = "# H1\n\n### H3\n";
       const state = EditorState.create({ doc });
-      const diagnostics = runMarkdownLint(state);
+      const diagnostics = runMarkdownLint(state, undefined, MARKDOWNLINT);
       const md001 = diagnostics.find((d) => d.message.includes("MD001"));
       const rendered = md001?.renderMessage?.({} as never) as unknown as {
         children: { className?: string }[];
@@ -179,7 +187,7 @@ describe("markdown-lint in editor", () => {
       // MD001 (heading-increment) + MD018 (no-missing-space-atx)
       const doc = "# H1\n\n### H3\n#Heading without space\n";
       const state = EditorState.create({ doc });
-      const diagnostics = runMarkdownLint(state);
+      const diagnostics = runMarkdownLint(state, undefined, MARKDOWNLINT);
 
       const md001 = diagnostics.find((d) => d.message.includes("MD001"));
       expect(md001).toBeDefined();
@@ -205,7 +213,7 @@ describe("markdown-lint in editor", () => {
       };
       const doc = "#Heading without space\n";
       const state = EditorState.create({ doc });
-      const diagnosticsEn = runMarkdownLint(state);
+      const diagnosticsEn = runMarkdownLint(state, undefined, MARKDOWNLINT);
       const md018En = diagnosticsEn.find((d) => d.message.includes("MD018"));
       expect(md018En?.message).toContain("No space after hash");
       expect(md018En?.message).toContain("Suggestion: Add a space here");
@@ -215,12 +223,29 @@ describe("markdown-lint in editor", () => {
       (globalThis as unknown as { document?: unknown }).document = {
         documentElement: { lang: "zh-Hant" },
       };
-      const diagnosticsHant = runMarkdownLint(state);
+      const diagnosticsHant = runMarkdownLint(state, undefined, MARKDOWNLINT);
       const md018Hant = diagnosticsHant.find((d) => d.message.includes("MD018"));
       expect(md018Hant?.message).toContain("建議：在此處補充一個空格");
       expect(md018Hant?.actions?.[0].name).toBe("修復");
     } finally {
       (globalThis as unknown as { document?: unknown }).document = origDoc;
     }
+  });
+});
+
+describe("引擎经 state facet 可达（实时 lint / 快速修复刷新走这条路）", () => {
+  it("state 上注入 facet 后，不传显式 engine 也能产出诊断", () => {
+    const state = EditorState.create({
+      doc: "# 标题\ntext\n",
+      extensions: [markdownLintEngineFacet.of(MARKDOWNLINT)],
+    });
+    // 关键：不传第三个参数——实时 lint 与修复后刷新都是这种调用形态。
+    const diagnostics = runMarkdownLint(state);
+    expect(diagnostics.length).toBeGreaterThan(0);
+  });
+
+  it("未注入引擎时抛错，而不是返回空数组", () => {
+    const state = EditorState.create({ doc: "# 标题\n" });
+    expect(() => runMarkdownLint(state)).toThrow(/not configured/u);
   });
 });

@@ -7,7 +7,6 @@ import {
   type CSSProperties,
 } from "react";
 import type { DocumentState } from "@md-editor/core";
-import type { EditorMessageTranslator, MarkdownSyntaxPlugin } from "@md-editor/plugin-sdk/syntax";
 import {
   createCodeMirrorEditorBridge,
   type CodeMirrorEditorBridge,
@@ -21,10 +20,33 @@ import type {
   AiSuggestionAcceptedEvent,
   AiSuggestionLabels,
 } from "../wysiwyg/view/suggestion-model.ts";
+import { compileEditorTheme } from "../theme/compile.ts";
+import type { EditorTheme } from "../theme/types.ts";
+import type {
+  EditorMessageTranslator,
+  MarkdownSyntaxPlugin,
+  SyntaxPluginHostPorts,
+} from "@md-editor/plugin-sdk/syntax";
+import type { MarkdownLintEngine } from "../lint/engine.ts";
 import "./CodeMirrorEditor.css";
 
 export interface CodeMirrorEditorProps {
   readonly document: DocumentState;
+  /**
+   * 官方主题通道：编译为 `--theme-*` 变量注入宿主元素。
+   *
+   * 与 `--theme-*` 直接写在 CSS 里的关系：`theme` 写在宿主元素上（element-level），
+   * 因此优先级高于祖先 `:root` 的变量；缺省由 CSS 的 `var(--x, fallback)` 兜底。
+   */
+  readonly theme?: EditorTheme;
+  /** 是否自动注入编辑器样式（默认 true）。仅创建时生效。 */
+  readonly injectStyles?: boolean;
+  /** CSP nonce，透传给自动注入的 `<style nonce>`。仅创建时生效。 */
+  readonly styleNonce?: string;
+  /** 语法插件宿主端口（媒体查看器 / callout widget）。缺省用渲染器自带实现。 */
+  readonly syntaxPluginHostPorts?: SyntaxPluginHostPorts;
+  /** 专注模式遮罩强度（0.30–0.50，越界夹紧）。 */
+  readonly focusDimOpacity?: number;
   /** Per-editor language for lint diagnostics. */
   readonly language?: string;
   readonly translateEditorMessage?: EditorMessageTranslator | undefined;
@@ -33,15 +55,19 @@ export interface CodeMirrorEditorProps {
   readonly showInlineStyleMarkers?: boolean;
   /** 是否开启实时 Markdown 规范检查（默认 false，移动端与官网保持纯净）。 */
   readonly enableMarkdownLint?: boolean;
-  readonly fontSize?: number;
-  readonly proseFontFamily?: string;
-  readonly codeFontFamily?: string;
-  readonly headingFontFamily?: string;
-  readonly lineHeight?: number;
-  readonly letterSpacing?: string;
-  readonly contentMaxWidth?: number | string;
-  readonly boldFontWeight?: number;
-  readonly headingFontWeight?: number;
+  /**
+   * 宿主注入的 lint 引擎；编辑器不再静态依赖 `markdownlint`。
+   *
+   * ```tsx
+   * import { lint } from "markdownlint/sync";
+   * <CodeMirrorEditor markdownlint={{ lint }} enableMarkdownLint />
+   * ```
+   * 可在运行中更换：引擎变化会就地补注（`ports.setMarkdownLintEngine`），**不会**重建编辑器。
+   * 比较依据是引擎上各函数的身份（`lint` / `readConfig` / `applyFixes`），因此内联字面量
+   * `markdownlint={{ lint }}` 不会在每次宿主渲染时重复重配 —— 前提是这些函数本身引用稳定
+   * （应用侧用 `useMarkdownLintEngine` 或 `useMemo` 即可）。
+   */
+  readonly markdownlint?: MarkdownLintEngine;
   readonly hidden?: boolean;
   readonly className?: string;
   readonly style?: CSSProperties;
@@ -55,10 +81,8 @@ export interface CodeMirrorEditorProps {
   /** 链接打开回调(宿主决策:文档内锚点跳转、内部 markdown 文件、资产与外部链接) */
   readonly openLinkTarget?: (url: string) => void;
   readonly onCursorLineChange?: (line: number) => void;
-  /** 可选语法扩展插件列表（纯增量加载） */
+  /** 声明式语法扩展插件列表（纯增量加载）。 */
   readonly plugins?: readonly MarkdownSyntaxPlugin[];
-  /** 兼容别名：同 plugins */
-  readonly syntaxPlugins?: readonly MarkdownSyntaxPlugin[];
   /** AI 建议徽标国际化标签配置 */
   readonly aiSuggestionLabels?: AiSuggestionLabels;
   /** 用户采纳一项 AI 建议后回调 */
@@ -70,24 +94,21 @@ export interface CodeMirrorEditorProps {
 
 export function CodeMirrorEditor({
   document,
+  theme,
+  injectStyles,
+  styleNonce,
+  syntaxPluginHostPorts,
+  focusDimOpacity,
   language,
   translateEditorMessage,
   codeBlockLineNumbers = false,
   showInlineStyleMarkers = false,
   enableMarkdownLint = false,
-  fontSize,
-  proseFontFamily,
-  codeFontFamily,
-  headingFontFamily,
-  lineHeight,
-  letterSpacing,
-  contentMaxWidth,
-  boldFontWeight,
-  headingFontWeight,
+  markdownlint,
   hidden = false,
   className,
   style,
-  ariaLabel = "Markdown 编辑器",
+  ariaLabel = "Markdown editor",
   resolveImageSrc,
   writeClipboardText,
   mdxMode = false,
@@ -95,7 +116,6 @@ export function CodeMirrorEditor({
   openLinkTarget,
   onCursorLineChange,
   plugins,
-  syntaxPlugins,
   aiSuggestionLabels,
   onAiSuggestionAccepted,
   onSyncError,
@@ -105,6 +125,9 @@ export function CodeMirrorEditor({
   const hostRef = useRef<HTMLDivElement | null>(null);
   const bridgeRef = useRef<CodeMirrorEditorBridge | null>(null);
   const callbacksRef = useRef({
+    markdownlint,
+    focusDimOpacity,
+    syntaxPluginHostPorts,
     onQueuedExternalEditResult,
     onRendererPortsChange,
     resolveImageSrc,
@@ -114,7 +137,6 @@ export function CodeMirrorEditor({
     openLinkTarget,
     onCursorLineChange,
     plugins,
-    syntaxPlugins,
     aiSuggestionLabels,
     onAiSuggestionAccepted,
     enableMarkdownLint,
@@ -123,6 +145,9 @@ export function CodeMirrorEditor({
     onSyncError,
   });
   callbacksRef.current = {
+    markdownlint,
+    focusDimOpacity,
+    syntaxPluginHostPorts,
     onQueuedExternalEditResult,
     onRendererPortsChange,
     resolveImageSrc,
@@ -132,7 +157,6 @@ export function CodeMirrorEditor({
     openLinkTarget,
     onCursorLineChange,
     plugins,
-    syntaxPlugins,
     aiSuggestionLabels,
     onAiSuggestionAccepted,
     enableMarkdownLint,
@@ -157,6 +181,11 @@ export function CodeMirrorEditor({
 
     const bridge = createCodeMirrorEditorBridge({
       parent,
+      injectStyles,
+      styleNonce,
+      syntaxPluginHostPorts: callbacksRef.current.syntaxPluginHostPorts,
+      focusDimOpacity: callbacksRef.current.focusDimOpacity,
+      markdownlint: callbacksRef.current.markdownlint,
       document,
       resolveImageSrc(source) {
         return callbacksRef.current.resolveImageSrc?.(source) ?? source;
@@ -186,7 +215,7 @@ export function CodeMirrorEditor({
       mdxMode: callbacksRef.current.mdxMode,
       mdxComponents: callbacksRef.current.mdxComponents,
       openLinkTarget: callbacksRef.current.openLinkTarget,
-      plugins: callbacksRef.current.plugins ?? callbacksRef.current.syntaxPlugins,
+      plugins: callbacksRef.current.plugins,
       aiSuggestionLabels: callbacksRef.current.aiSuggestionLabels,
       enableMarkdownLint: callbacksRef.current.enableMarkdownLint,
       language: callbacksRef.current.language,
@@ -201,7 +230,9 @@ export function CodeMirrorEditor({
       bridge.destroy();
       callbacksRef.current.onRendererPortsChange?.(null);
     };
-  }, [document, hasClipboardWriter]);
+    // 创建只依赖这些稳定输入。lint 引擎刻意不在其中：它走下面的补注 effect，
+    // 更换引擎不需要（也不应该）重建编辑器。
+  }, [document, hasClipboardWriter, injectStyles, styleNonce]);
 
   useLayoutEffect(() => {
     bridgeRef.current?.ports.setCodeBlockLineNumbers(codeBlockLineNumbers);
@@ -211,6 +242,18 @@ export function CodeMirrorEditor({
     bridgeRef.current?.ports.setInlineStyleMarkers(showInlineStyleMarkers);
   }, [showInlineStyleMarkers]);
 
+  // 引擎可能晚于视图到达（宿主动态 import）：就地补注，不重建视图。
+  //
+  // 依赖刻意取引擎上各**函数**的身份，而不是引擎对象身份：README 推荐的
+  // `markdownlint={{ lint }}` 每次宿主渲染都会产生新对象，用对象身份会每次都
+  // reconfigure 一次 compartment（开关开着时还会重跑整份 lint）。
+  useLayoutEffect(() => {
+    bridgeRef.current?.ports.setMarkdownLintEngine(markdownlint);
+    // 故意只依赖三个函数身份：`markdownlint` 对象本身每次渲染都可能变（内联字面量），
+    // 用对象身份会退化成"每次渲染都重配一次"。三个函数已完整覆盖引擎的可观察行为。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [markdownlint?.lint, markdownlint?.readConfig, markdownlint?.applyFixes]);
+
   useLayoutEffect(() => {
     bridgeRef.current?.ports.setMarkdownLint(enableMarkdownLint);
   }, [enableMarkdownLint]);
@@ -218,6 +261,12 @@ export function CodeMirrorEditor({
   useLayoutEffect(() => {
     bridgeRef.current?.ports.setLanguage(language);
   }, [language, document, hasClipboardWriter]);
+
+  // 主题变化会改变文本测量与坐标；用编译后变量的签名做依赖，避免同值对象抖动。
+  const themeSignature = JSON.stringify(compileEditorTheme(theme));
+  useLayoutEffect(() => {
+    bridgeRef.current?.ports.requestMeasure();
+  }, [themeSignature]);
 
   useLayoutEffect(() => {
     if (aiSuggestionLabels) {
@@ -228,24 +277,13 @@ export function CodeMirrorEditor({
   useLayoutEffect(() => {
     // 字体、字号、字重、字距、行高或版心变动会改变文本测量和坐标，通知 CodeMirror 丢弃旧测量缓存。
     bridgeRef.current?.ports.requestMeasure();
-  }, [
-    fontSize,
-    proseFontFamily,
-    codeFontFamily,
-    headingFontFamily,
-    lineHeight,
-    letterSpacing,
-    contentMaxWidth,
-    boldFontWeight,
-    headingFontWeight,
-  ]);
+  }, []);
 
   useLayoutEffect(() => {
-    const activePlugins = plugins ?? syntaxPlugins;
-    if (activePlugins !== undefined) {
-      bridgeRef.current?.ports.setPlugins(activePlugins);
+    if (plugins !== undefined) {
+      bridgeRef.current?.ports.setSyntaxPlugins(plugins);
     }
-  }, [plugins, syntaxPlugins]);
+  }, [plugins]);
 
   useLayoutEffect(() => {
     const host = hostRef.current;
@@ -266,39 +304,19 @@ export function CodeMirrorEditor({
   const hiddenStyle: CSSProperties | undefined = hidden
     ? { visibility: "hidden", pointerEvents: "none" }
     : undefined;
-  const fontSizeStyle: CSSProperties | undefined =
-    fontSize !== undefined && Number.isFinite(fontSize) && fontSize > 0 ? { fontSize } : undefined;
-  const fontStyles: CSSProperties | undefined =
-    proseFontFamily ||
-    codeFontFamily ||
-    headingFontFamily ||
-    lineHeight ||
-    letterSpacing ||
-    contentMaxWidth ||
-    boldFontWeight ||
-    headingFontWeight
-      ? ({
-          ...(proseFontFamily ? { "--theme-font": proseFontFamily } : {}),
-          ...(codeFontFamily ? { "--theme-mono-font": codeFontFamily } : {}),
-          ...(headingFontFamily ? { "--theme-heading-font": headingFontFamily } : {}),
-          ...(lineHeight ? { "--theme-editor-line-height": lineHeight } : {}),
-          ...(letterSpacing ? { "--theme-letter-spacing": letterSpacing } : {}),
-          ...(contentMaxWidth
-            ? {
-                "--theme-content-width":
-                  typeof contentMaxWidth === "number" ? `${contentMaxWidth}px` : contentMaxWidth,
-              }
-            : {}),
-          ...(boldFontWeight ? { "--theme-bold-font-weight": boldFontWeight } : {}),
-          ...(headingFontWeight ? { "--theme-heading-font-weight": headingFontWeight } : {}),
-        } as CSSProperties)
-      : undefined;
+  const themeStyle: CSSProperties | undefined =
+    theme === undefined
+      ? undefined
+      : ({
+          ...compileEditorTheme(theme),
+          ...(theme.base ? { colorScheme: theme.base } : {}),
+        } as CSSProperties);
 
   return (
     <div
       ref={hostRef}
       className={["code-mirror-editor-host", className].filter(Boolean).join(" ")}
-      style={{ ...style, ...fontSizeStyle, ...fontStyles, ...hiddenStyle }}
+      style={{ ...style, ...themeStyle, ...hiddenStyle }}
       aria-label={ariaLabel}
       aria-hidden={hidden || undefined}
       data-document-generation={snapshot.documentGeneration}

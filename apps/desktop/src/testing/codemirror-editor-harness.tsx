@@ -35,7 +35,9 @@ interface SubscriptionDiagnostics {
 
 interface HarnessControls {
   readonly setEditorMounted: (mounted: boolean) => void;
-  readonly setFontSize: (fontSize: number) => void;
+  /** M-5/E-0c：切换主题基底；null = 不传 theme。 */
+  readonly setThemeBase: (base: "light" | "dark" | null) => void;
+  readonly setFontSize: (fontSize: number | null) => void;
   readonly setCodeBlockLineNumbers: (enabled: boolean) => void;
   readonly setInlineStyleMarkers: (enabled: boolean) => void;
   readonly setPreviewVisible: (visible: boolean) => void;
@@ -60,7 +62,8 @@ export interface CodeMirrorEditorHarnessBridge {
   setMode(
     mode: EditorMode,
   ): ReturnType<typeof switchEditorModeSafely> | { readonly status: "unavailable" };
-  setFontSize(fontSize: number): void;
+  /** 传 null 表示“不传排版 props”，用于断言 CSS 继承基线。 */
+  setFontSize(fontSize: number | null): void;
   setCodeBlockLineNumbers(enabled: boolean): void;
   setInlineStyleMarkers(enabled: boolean): void;
   setPreviewVisible(visible: boolean): void;
@@ -93,6 +96,16 @@ export interface CodeMirrorEditorHarnessBridge {
   failNextClipboardWrite(message?: string): void;
   unmountEditor(): void;
   mountEditor(): void;
+  /** B-4：打开查找面板（真实 @codemirror/search，只有真 EditorView 才有 plugin）。 */
+  openFind(): boolean;
+  /** B-4：打开替换面板。 */
+  openReplace(): boolean;
+  /** B-4：当前是否存在搜索面板 DOM，以及焦点是否在面板内。 */
+  getSearchPanelState(): { readonly open: boolean; readonly focusedInside: boolean };
+  /** M-5/E-0c：切换主题基底（light/dark），不重建编辑器。 */
+  setThemeBase(base: "light" | "dark" | null): void;
+  /** M-5：撤销栈深度（主题切换前后应保持不变）。 */
+  getUndoDepth(): number;
   /** harness 完全就绪(React 挂载完成,controls 可用);E2E 轮询避免初始化竞态 */
   isReady(): boolean;
 }
@@ -230,7 +243,7 @@ export function installCodeMirrorEditorHarness(
         renderer: access.ports.mode,
       });
     },
-    setFontSize(fontSize: number) {
+    setFontSize(fontSize: number | null) {
       requireControls().setFontSize(fontSize);
     },
     setCodeBlockLineNumbers(enabled: boolean) {
@@ -254,6 +267,32 @@ export function installCodeMirrorEditorHarness(
         expectedContentRevision: snapshot.contentRevision,
         selection: "preserve-offset-clamped",
       });
+    },
+    openFind() {
+      const access = getRendererAccess();
+      return access.status === "available" ? access.ports.openFind() : false;
+    },
+    openReplace() {
+      const access = getRendererAccess();
+      return access.status === "available" ? access.ports.openReplace() : false;
+    },
+    getSearchPanelState() {
+      const panel = document.querySelector(".cm-search-liquid-panel");
+      const active = document.activeElement;
+      return {
+        open: panel !== null,
+        focusedInside: panel !== null && active !== null && panel.contains(active),
+      };
+    },
+    setThemeBase(base: "light" | "dark" | null) {
+      requireControls().setThemeBase(base);
+    },
+    getUndoDepth() {
+      // 复用已有 probe（`undoDepth` 已在 RendererTestingProbe 上），不新增端口。
+      // 不用 `this`：bridge 是 Object.freeze 字面量，方法里的 `this` 在严格模式下不可靠。
+      const access = getRendererAccess();
+      if (access.status !== "available") return 0;
+      return inspectCodeMirrorEditorForTesting(access.ports).undoDepth;
     },
     setSelection(from: number, to: number) {
       const access = getRendererAccess();
@@ -332,7 +371,8 @@ export function installCodeMirrorEditorHarness(
 
   function HarnessApp() {
     const [editorMounted, setEditorMounted] = useState(true);
-    const [fontSize, setFontSize] = useState(16);
+    const [fontSize, setFontSize] = useState<number | null>(16);
+    const [themeBase, setThemeBase] = useState<"light" | "dark" | null>(null);
     const [codeBlockLineNumbers, setCodeBlockLineNumbers] = useState(false);
     // E-7 冷启动：由 URL 参数决定首帧的开关值（不经过任何 toggle 事务）。
     const [inlineStyleMarkers, setInlineStyleMarkers] = useState(
@@ -344,6 +384,7 @@ export function installCodeMirrorEditorHarness(
     controls = {
       setEditorMounted,
       setFontSize,
+      setThemeBase,
       setCodeBlockLineNumbers,
       setInlineStyleMarkers,
       setPreviewVisible,
@@ -365,7 +406,14 @@ export function installCodeMirrorEditorHarness(
         {editorMounted ? (
           <EditorComponent
             document={runtime.document}
-            fontSize={fontSize}
+            theme={
+              fontSize === null && themeBase === null
+                ? undefined
+                : {
+                    ...(themeBase === null ? {} : { base: themeBase }),
+                    ...(fontSize === null ? {} : { typography: { fontSize } }),
+                  }
+            }
             codeBlockLineNumbers={codeBlockLineNumbers}
             showInlineStyleMarkers={inlineStyleMarkers}
             hidden={previewVisible}

@@ -11,6 +11,7 @@ import {
 } from "@codemirror/state";
 import { EditorView, keymap, type ViewUpdate } from "@codemirror/view";
 import { createLintBaseExtensions, createRealtimeMarkdownLintExtension } from "../../lint/index.ts";
+import { markdownLintEngineFacet } from "../../lint/engine.ts";
 
 import type { WysiwygDiagnostics } from "../../diagnostics.ts";
 import { provideWysiwygDiagnostics } from "../../diagnostics.ts";
@@ -29,7 +30,7 @@ import { createModeExtensions, editorModeField } from "../../mode.ts";
 import { normalizeLineEndings } from "@md-editor/shared";
 import type { DocumentSnapshot } from "@md-editor/core";
 
-import type { SyntaxPluginRegistry } from "../../plugins/syntax-registry.ts";
+import type { SyntaxPluginRegistry } from "@md-editor/plugin-sdk/syntax";
 import { createDefaultSyntaxPluginHostPorts } from "../../plugins/syntax-plugin-ports.ts";
 import { blockToolbarExtension } from "../../wysiwyg/blocks/block-toolbar.ts";
 import { codeBlockSelectionExtension } from "../../wysiwyg/editing/code-block-selection.ts";
@@ -53,6 +54,7 @@ import {
   aiSuggestionAcceptedAnnotation,
 } from "../../wysiwyg/view/suggestion-model.ts";
 
+import type { MarkdownLintEngine } from "../../lint/engine.ts";
 import type { CodeMirrorRendererOptions, ViewAxisState } from "../types.ts";
 
 /** Constructor-only extension assembly; no controller state is retained here. */
@@ -101,7 +103,8 @@ export function createRootExtensions(context: RootExtensionContext): readonly Ex
     context.syntaxRegistryCompartment.of(syntaxPluginRegistryFacet.of(context.syntaxRegistry)),
     // 语法插件宿主端口：以 facet 值注入渲染器能力，插件不再 import 渲染器。
     syntaxPluginHostPortsFacet.of(
-      context.options.syntaxPluginHostPorts ?? createDefaultSyntaxPluginHostPorts(),
+      context.options.syntaxPluginHostPorts ??
+        createDefaultSyntaxPluginHostPorts(context.options.translateEditorMessage),
     ),
     codeBlockTokenHighlighting,
     provideWysiwygDiagnostics(context.wysiwygDiagnostics),
@@ -174,6 +177,10 @@ export function createInitialEditorState(input: {
   readonly inlineStyleMarkers: boolean;
   readonly modeCompartment: Compartment;
   readonly markdownLintCompartment: Compartment;
+  /** 引擎 late-arrive 的 reconfigure 位。 */
+  readonly markdownLintEngineCompartment: Compartment;
+  /** 当前引擎（模式切换会重建 state，必须沿用运行期注入的那一个）。 */
+  readonly markdownLintEngine: MarkdownLintEngine | undefined;
   readonly markdownLintEnabled: boolean;
 }): EditorState {
   return EditorState.create({
@@ -187,6 +194,7 @@ export function createInitialEditorState(input: {
       input.markdownLintCompartment.of(
         createRealtimeMarkdownLintExtension(input.markdownLintEnabled),
       ),
+      input.markdownLintEngineCompartment.of(markdownLintEngineFacet.of(input.markdownLintEngine)),
       focusModeInitialFacet.of(input.viewAxis.focus),
       typewriterModeInitialFacet.of(input.viewAxis.typewriter),
     ],

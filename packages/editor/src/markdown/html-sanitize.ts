@@ -9,7 +9,9 @@
  * ② exclusiveFilter 兜底 → 未登记 allowedAttributes 的白名单标签（配置回归防御）整标签剔除；
  *    拒绝属性残留复检整标签剔除；data:image/svg+xml 等 scheme 层无法处理的载荷整标签剔除。
  */
-import sanitizeHtml from "sanitize-html";
+import type sanitizeHtmlFn from "sanitize-html";
+
+import { getOptionalModule, noteOptionalModuleDegraded } from "../module-loader.ts";
 
 import {
   ALLOWED_HTML_ATTRS,
@@ -45,21 +47,22 @@ const UNSUPPORTED_HTML_BLOCK_TAGS = new Set([
   "output",
 ]);
 
-const SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
+const SANITIZE_OPTIONS: SanitizeOptions = {
   allowedTags: [...ALLOWED_HTML_TAGS],
   allowedAttributes: ALLOWED_HTML_ATTRS as unknown as Record<string, string[]>,
   allowedSchemes: ["http", "https", "mailto"],
   allowedSchemesByTag: { img: ["http", "https", "asset", "data"] },
   allowProtocolRelative: false,
   disallowedTagsMode: "discard",
-  exclusiveFilter: (frame) => {
+  exclusiveFilter: (frame: { tag: string; attribs?: Record<string, string> }) => {
     // 兜底：白名单标签未登记 allowedAttributes（配置回归）→ fail-closed 整标签剔除
     if (!(frame.tag in ALLOWED_HTML_ATTRS)) return true;
     // 防御性复检（已登记标签在过滤后不应残留拒绝属性/危险 scheme；data-svg 类由 scheme 过滤管不到）
-    for (const key of Object.keys(frame.attribs ?? {})) {
+    const attribs = frame.attribs ?? {};
+    for (const key of Object.keys(attribs)) {
       if (isDeniedHtmlAttr(key)) return true;
-      if (key === "href" && !isAllowedLinkProtocol(frame.attribs[key])) return true;
-      if (key === "src" && !isAllowedImageSrc(frame.attribs[key])) return true;
+      if (key === "href" && !isAllowedLinkProtocol(attribs[key])) return true;
+      if (key === "src" && !isAllowedImageSrc(attribs[key])) return true;
     }
     return false;
   },
@@ -71,7 +74,12 @@ export interface SanitizedHtmlBlock {
 }
 
 /** 清洗 HTML 块源码 → 安全字符串；调用方以 isEmptySanitizedHtml 判定空结果（→ 占位） */
-export function sanitizeHtmlBlock(html: string): string {
+export function sanitizeHtmlBlock(html: string, scope?: object): string | null {
+  const sanitizeHtml = getOptionalModule<Sanitizer>("sanitize-html");
+  if (!sanitizeHtml) {
+    noteOptionalModuleDegraded(scope);
+    return null;
+  }
   return sanitizeHtml(html, SANITIZE_OPTIONS);
 }
 
@@ -79,11 +87,27 @@ export function sanitizeHtmlBlock(html: string): string {
  * 清洗并保留结构性降级元数据。table/form 系标签即使被 sanitize 丢弃，
  * 也不能把剩余文本拼成看似完整的 HTML widget，因此整块降级占位。
  */
-export function sanitizeHtmlBlockDetailed(html: string): SanitizedHtmlBlock {
+type Sanitizer = typeof sanitizeHtmlFn;
+type SanitizeOptions = NonNullable<Parameters<Sanitizer>[1]>;
+
+/**
+ * 清洗 HTML 块源码。返回 `null` 表示清洗器尚未就绪 —— 调用方必须渲染占位，
+ * 不得把未消毒内容交给渲染层（安全不变量）。
+ */
+export function sanitizeHtmlBlockDetailed(
+  html: string,
+  /** 降级记账 scope（通常是当前 `EditorState`）：就绪后只重算真正降级过的视图。 */
+  scope?: object,
+): SanitizedHtmlBlock | null {
+  const sanitizeHtml = getOptionalModule<Sanitizer>("sanitize-html");
+  if (!sanitizeHtml) {
+    noteOptionalModuleDegraded(scope);
+    return null;
+  }
   let hasUnsupportedBlockTag = false;
   const sanitized = sanitizeHtml(html, {
     ...SANITIZE_OPTIONS,
-    onOpenTag: (tagName) => {
+    onOpenTag: (tagName: string) => {
       if (UNSUPPORTED_HTML_BLOCK_TAGS.has(tagName)) {
         hasUnsupportedBlockTag = true;
       }

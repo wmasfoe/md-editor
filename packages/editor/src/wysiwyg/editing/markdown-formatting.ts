@@ -488,23 +488,41 @@ export const toggleTaskListCommand: StateCommand = ({ state, dispatch }) => {
 };
 
 // 导出包装好受保护守卫的标准格式命令
+/** @internal */
 export const toggleBold: StateCommand = guarded(toggleInlineMarkup("**"));
+/** @internal */
 export const toggleItalic: StateCommand = guarded(toggleInlineMarkup("*"));
+/** @internal */
 export const toggleStrikethrough: StateCommand = guarded(toggleInlineMarkup("~~"));
+/** @internal */
 export const toggleInlineCode: StateCommand = guarded(toggleInlineMarkup("`"));
+/** @internal */
 export const toggleHighlight: StateCommand = guarded(toggleInlineMarkup("=="));
+/** @internal */
 export const insertOrWrapLink: StateCommand = guarded(insertOrWrapLinkCommand);
+/** @internal */
 export const insertCodeBlock: StateCommand = guarded(insertCodeBlockCommand);
+/** @internal */
 export const toggleBlockquote: StateCommand = guarded(toggleBlockquoteCommand);
+/** @internal */
 export const toggleBulletList: StateCommand = guarded(toggleBulletListCommand);
+/** @internal */
 export const toggleOrderedList: StateCommand = guarded(toggleOrderedListCommand);
+/** @internal */
 export const toggleTaskList: StateCommand = guarded(toggleTaskListCommand);
+/** @internal */
 export const setParagraph: StateCommand = guarded(toggleHeadingLevel(0));
+/** @internal */
 export const setHeading1: StateCommand = guarded(toggleHeadingLevel(1));
+/** @internal */
 export const setHeading2: StateCommand = guarded(toggleHeadingLevel(2));
+/** @internal */
 export const setHeading3: StateCommand = guarded(toggleHeadingLevel(3));
+/** @internal */
 export const setHeading4: StateCommand = guarded(toggleHeadingLevel(4));
+/** @internal */
 export const setHeading5: StateCommand = guarded(toggleHeadingLevel(5));
+/** @internal */
 export const setHeading6: StateCommand = guarded(toggleHeadingLevel(6));
 
 export const FORMATTING_COMMAND_MAP: Record<string, StateCommand> = {
@@ -545,6 +563,7 @@ export function executeFormattingCommand(view: EditorView, commandId: string): b
  * 例如传入 "Mod-B" 会被解析为 Cmd+Shift+B，从而导致普通的 Cmd+B 无法匹配。
  * 本函数将键位组合中的字母按键（最后一段）规范化为小写，确保无论传入 "Mod-B" 还是 "Mod-b"
  * 均能被正确识别为无需按 Shift 的普通组合键；如需 Shift 则明确带有 Shift 修饰符（如 "Mod-Shift-s"）。
+ * @internal
  */
 export function normalizeCodeMirrorKey(chord: string): string {
   if (!chord) {
@@ -561,6 +580,7 @@ export function normalizeCodeMirrorKey(chord: string): string {
 
 /**
  * 创建 Markdown 常用格式化快捷键扩展，支持传入自定义键位映射
+ * @internal
  */
 export function createMarkdownFormattingKeymap(customKeymaps?: ReadonlyMap<string, string>) {
   const getKey = (commandId: string, defaultKey: string) => {

@@ -14,6 +14,7 @@
 
 import { markdown } from "@codemirror/lang-markdown";
 import type { Compartment, StateEffect } from "@codemirror/state";
+import type { Disposable } from "@md-editor/plugin-sdk";
 import type { WysiwygDiagnostics } from "../../diagnostics.ts";
 import { createMarkdownLanguageSupport } from "../../markdown/code-languages.ts";
 import { M1_MARKDOWN_EXTENSIONS } from "../../markdown/extensions.ts";
@@ -21,8 +22,7 @@ import {
   refreshMarkdownParseCoverageEffect,
   syntaxPluginRegistryFacet,
 } from "../../markdown/range-index.ts";
-import type { MarkdownSyntaxPlugin } from "@md-editor/plugin-sdk/syntax";
-import type { SyntaxPluginRegistry } from "../../plugins/syntax-registry.ts";
+import type { MarkdownSyntaxPlugin, SyntaxPluginRegistry } from "@md-editor/plugin-sdk/syntax";
 import { refreshWysiwygProjectionEffect } from "../../wysiwyg/state/types.ts";
 import type { RendererViewAdapter } from "../types.ts";
 
@@ -42,6 +42,7 @@ export interface SyntaxPluginContext {
 export function registerSyntaxPlugins(
   ctx: SyntaxPluginContext,
   plugins: readonly (MarkdownSyntaxPlugin | readonly MarkdownSyntaxPlugin[])[],
+  origin: "declarative" | "imperative" = "declarative",
 ): void {
   const flattened: MarkdownSyntaxPlugin[] = [];
   for (const plugin of plugins) {
@@ -60,7 +61,7 @@ export function registerSyntaxPlugins(
   // 判断是否有真正扩展 Lezer Markdown 语法/词法分析器的插件（带 markdownExtension）
   const isSyntaxPlugin = flattened.some((plugin) => Boolean(plugin.markdownExtension));
 
-  ctx.registry.registerAll(flattened);
+  ctx.registry.registerAll(flattened, origin);
 
   const effects: StateEffect<unknown>[] = [
     ctx.syntaxRegistryCompartment.reconfigure(syntaxPluginRegistryFacet.of(ctx.registry)),
@@ -90,6 +91,67 @@ export function registerSyntaxPlugins(
 }
 
 /**
+ * 命令式注册的工厂：注册一次，返回带身份守卫的卸载句柄。
+ *
+ * 放在协作器里而不是 controller：注册语义属于本模块，controller 只做转发，
+ * 也避免把销毁期判断写成两块重复代码。
+ */
+export function createImperativeSyntaxRegistration(
+  ctx: SyntaxPluginContext,
+  plugin: MarkdownSyntaxPlugin,
+  isDestroyed: () => boolean,
+): Disposable {
+  registerSyntaxPlugins(ctx, [plugin], "imperative");
+  return {
+    dispose: () => {
+      if (isDestroyed()) return;
+      unregisterSyntaxPlugin(ctx, plugin);
+    },
+  };
+}
+
+/**
+ * 反注册单个插件（`addSyntaxPlugin` 的 `Disposable` 走这条路径）。
+ *
+ * 身份守卫在 registry 内完成：若同名插件已被后来的注册替换，旧句柄不生效。
+ */
+export function unregisterSyntaxPlugin(
+  ctx: SyntaxPluginContext,
+  plugin: MarkdownSyntaxPlugin,
+): boolean {
+  const wasSyntaxPlugin = Boolean(plugin.markdownExtension);
+  if (!ctx.registry.dispose(plugin.id, plugin)) {
+    return false;
+  }
+
+  const effects: StateEffect<unknown>[] = [
+    ctx.syntaxRegistryCompartment.reconfigure(syntaxPluginRegistryFacet.of(ctx.registry)),
+  ];
+
+  if (wasSyntaxPlugin) {
+    const markdownExtensions = Object.freeze([
+      ...M1_MARKDOWN_EXTENSIONS,
+      ...ctx.registry.getMarkdownExtensions(),
+    ]);
+    effects.push(
+      ctx.markdownLanguageCompartment.reconfigure(
+        ctx.useNativeCodeLanguages
+          ? createMarkdownLanguageSupport(
+              { extensions: markdownExtensions, addKeymap: false },
+              ctx.diagnostics,
+            )
+          : markdown({ extensions: markdownExtensions, addKeymap: false }),
+      ),
+      refreshMarkdownParseCoverageEffect.of(null),
+    );
+  }
+
+  effects.push(refreshWysiwygProjectionEffect.of(null));
+  ctx.view.dispatch({ effects });
+  return true;
+}
+
+/**
  * 全量替换已激活插件集合：实例清单一致时幂等跳过，否则原子重建 Compartment 链。
  */
 export function replaceSyntaxPlugins(
@@ -113,7 +175,7 @@ export function replaceSyntaxPlugins(
   }
 
   // 全量原子替换注册中心插件
-  ctx.registry.setPlugins(flattened);
+  ctx.registry.replaceDeclarative(flattened);
 
   // 组装新的 Lezer Markdown 语法扩展（内置基础扩展 + 已启用插件扩展）
   const pluginExtensions = ctx.registry.getMarkdownExtensions();

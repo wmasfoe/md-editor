@@ -4,16 +4,24 @@ import { createRendererTestHarness, type RendererTestHarness } from "../../src/t
 import { describe, expect, it } from "vitest";
 import { lintLanguageField, setLintLanguageEffect } from "../../src/lint/markdown-lint-i18n.ts";
 import { runMarkdownLint } from "../../src/lint/markdown-lint.ts";
+import { lint as markdownlintLint } from "markdownlint/sync";
+import type { MarkdownLintResult } from "../../src/lint/engine.ts";
+
+const MARKDOWNLINT = {
+  lint: (request: Parameters<typeof markdownlintLint>[0]) =>
+    markdownlintLint(request) as unknown as MarkdownLintResult,
+};
 
 const createState = (language: string) =>
   EditorState.create({
     doc: "#title",
     extensions: [lintLanguageField.init(() => language)],
   });
-const messages = (state: EditorState) => runMarkdownLint(state);
+const messages = (state: EditorState) => runMarkdownLint(state, undefined, MARKDOWNLINT);
 const createHarness = (language: string) =>
   createRendererTestHarness({
     language,
+    markdownlint: MARKDOWNLINT,
     initialSnapshot: createDocumentState({ markdown: "#title", mode: "source" }).getSnapshot(),
     onEditorChange() {},
     onQueuedExternalEditReady() {},

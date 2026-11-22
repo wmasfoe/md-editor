@@ -24,6 +24,21 @@ Here the document is always the plain Markdown string. WYSIWYG mode adds decorat
 
 Syntax beyond CommonMark (math, Mermaid, directives, highlight) comes from plugins. The repository contains `@md-editor/syntax-plugins`, which is currently excluded from the npm release workflow; external hosts must supply compatible plugins separately.
 
+## Markdown lint
+
+Markdown lint is **not** bundled. `enableMarkdownLint` only works if the host injects an
+engine at creation time; otherwise the editor throws immediately instead of silently
+producing no diagnostics:
+
+```tsx
+import { lint } from "markdownlint/sync";
+
+<CodeMirrorEditor document={state} enableMarkdownLint markdownlint={{ lint }} />;
+```
+
+`markdownlint` is an optional peer dependency, so hosts that never enable lint do not
+install it (1.2 MB plus its transitive packages).
+
 ## AI suggestions
 
 The package shows suggestions produced elsewhere: ghost text, multi-line previews, `Tab` to accept, `Esc` to dismiss, and invalidation when the cursor moves. It consumes the plain data that `@md-editor/ai` returns and does not call any model.
@@ -48,6 +63,7 @@ they are not required to use the core editor.
 
 Most hosts use the React component `CodeMirrorEditor` from `@md-editor/editor/react`, which wraps the bridge below. To mount it yourself, create a bridge with a `DocumentState` from `@md-editor/core`:
 
+<!-- readme-check -->
 ```typescript
 import { createDocumentState } from "@md-editor/core";
 import { createCodeMirrorEditorBridge } from "@md-editor/editor";
@@ -76,6 +92,7 @@ Standalone React integration for `@md-editor/editor`. It exports `CodeMirrorEdit
 
 ### Usage
 
+<!-- readme-check -->
 ```tsx
 import { useState } from "react";
 import { createDocumentState } from "@md-editor/core";
@@ -125,14 +142,55 @@ createCodeMirrorEditorBridge({ parent, document: state, /* ... */ });
 // a single <style id="md-editor-renderer-style"> is appended to document.head
 ```
 
+<!-- readme-check -->
+```ts
+import { createDocumentState } from "@md-editor/core";
+import { createCodeMirrorEditorBridge } from "@md-editor/editor";
+
+// Opt out of injected styles and supply your own (e.g. under a strict CSP).
+const bridge = createCodeMirrorEditorBridge({
+  parent: document.body,
+  document: createDocumentState({ markdown: "" }),
+  injectStyles: false,
+  styleNonce: "nonce-from-your-csp",
+  onSyncError: (error) => console.error(error),
+  onQueuedExternalEditResult: () => {},
+});
+bridge.destroy();
+```
+
 Injection is idempotent — mounting several editors or hot-reloading never stacks
 duplicate rules. Pass `injectStyles: false` to opt out and bring your own CSS, or
-`styleNonce` when your CSP requires a nonce.
+`styleNonce` when your CSP requires a nonce — both are accepted by
+`createCodeMirrorEditorBridge` (and the React component) as of 0.5, not only by the
+low-level renderer. They are creation-time options: changing them remounts the editor.
+
+### Theming through the `theme` prop
+
+`CodeMirrorEditor` accepts a `theme` object that compiles to `--theme-*` variables on the
+host element, so it wins over a `:root` declaration from the page:
+
+```tsx
+<CodeMirrorEditor
+  document={state}
+  theme={{
+    base: "dark",                                        // maps to `color-scheme`
+    colors: { canvasBg: "#1c1b1a", primaryColor: "#2f81f7" },
+    typography: { fontSize: 17, proseFontFamily: "Charter", lineHeight: 1.8 },
+    geometry: { contentMaxWidth: 760 },
+  }}
+/>
+```
+
+`compileEditorTheme(theme)` is exported if you need the raw variable dictionary (for
+example to feed your own CSS pipeline). The nine typography props that older versions
+exposed (`fontSize`, `proseFontFamily`, `lineHeight`, …) were removed in 0.5; use
+`theme.typography` / `theme.geometry` instead.
 
 ### Theme variables
 
 Every color, font and spacing value is read as `var(--theme-xxx, <fallback>)`.
-All 70 variables carry a fallback, so an editor with no theme at all still looks
+All 71 variables carry a fallback, so an editor with no theme at all still looks
 right. Provide any subset on an ancestor element (usually `:root`) to theme it:
 
 ```css

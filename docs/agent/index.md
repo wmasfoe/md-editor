@@ -36,6 +36,7 @@
 - 及时更新对应的文档，文档和代码的状态要保持同步。
 
 - 编辑器三包职责、React 子入口、独立性护栏与保留依赖的 npm 分发约定：[编辑器包边界](./architecture/editor_package_boundaries.md)
+- 公开 API 自定义能力矩阵（三条通道、`/internals` 白名单与晋级规则、错误契约临时约定、导出面快照与身份棘轮）：[公开 API 矩阵](./architecture/public_api_extensibility_matrix.md)
 
 - npm 公开子包基于 Changesets 的自动化版本管理、变更集声明与发版规范：[npm Changesets 自动化发版](./release/npm_automated_release_changesets.md)
 - npm 实际发布结果、公开包范围、版本闭包、SDK 补丁兼容、定向 CI、宿主隔离与路径/文末块审查记录：[npm 分发收口](./release/npm_package_readiness.md)

@@ -7,6 +7,7 @@ import { getCalloutSvg, defaultCalloutTitle } from "@md-editor/plugin-sdk/syntax
 /**
  * 通用 Callout/Admonition 头部 Widget。
  * 用于所见即所得模式下将首行替换为带矢量图标与标题的视觉组件。
+ * @internal
  */
 export class CalloutHeaderWidget extends WidgetType {
   constructor(
@@ -82,6 +83,7 @@ export class CalloutHeaderWidget extends WidgetType {
 
 /**
  * 闭合标记占位 Widget（用于隐藏闭合标记）。
+ * @internal
  */
 export class CalloutFooterWidget extends WidgetType {
   override toDOM(view: EditorView): HTMLElement {

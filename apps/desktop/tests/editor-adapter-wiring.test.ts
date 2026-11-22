@@ -13,7 +13,15 @@ describe("desktop editor adapter wiring", () => {
     expect(appSource).not.toContain('snapshot.mode === "source"');
     expect(desktopCodeMirrorSource).toContain("<AppEditor");
     expect(desktopCodeMirrorSource).toContain("document={runtime.document}");
-    expect(desktopCodeMirrorSource).toContain("fontSize={settings.editor.wysiwygFontSize}");
+    // P3b：外部插件走命令式通道，声明式 prop 只带内置插件——
+    // 否则切换任一内置插件开关时的全量替换会静默注销全部外部插件。
+    // P3b：外部插件走命令式通道（G-8 的行为断言见 external-syntax-registration.test.ts）。
+    expect(desktopCodeMirrorSource).toContain(
+      "useExternalSyntaxRegistration(ports, externalPlugins)",
+    );
+    expect(desktopCodeMirrorSource).not.toContain("...externalPlugins,");
+    // P2：字号经官方 theme 通道透传（不再是独立排版 prop）。
+    expect(desktopCodeMirrorSource).toContain("fontSize: settings.editor.wysiwygFontSize,");
     expect(desktopCodeMirrorSource).toContain(
       "codeBlockLineNumbers={settings.editor.showCodeBlockLineNumbers}",
     );

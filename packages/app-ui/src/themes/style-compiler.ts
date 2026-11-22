@@ -9,6 +9,7 @@
  * [Layer 3: 用户增量自定义 CSS Incremental Custom CSS]
  */
 
+import { compileEditorTheme } from "@md-editor/editor";
 import { builtInThemeCss } from "./built-in-themes";
 import type { ThemeCustomizationSettings, ThemePackage } from "./theme-schema";
 
@@ -30,96 +31,50 @@ export function compileThemeCss(options: CompileThemeCssOptions): string {
 
   const overridesTokens: string[] = [];
 
-  // 1. 结构化配色 Token 派生
-  if (colorOverrides) {
-    if (colorOverrides.canvasBg) {
-      overridesTokens.push(`  --theme-bg: ${colorOverrides.canvasBg};`);
-      overridesTokens.push(`  --theme-surface: ${colorOverrides.canvasBg};`);
-    }
-    if (colorOverrides.chromeBg) {
-      overridesTokens.push(`  --theme-chrome: ${colorOverrides.chromeBg};`);
-      overridesTokens.push(`  --theme-bg-muted: ${colorOverrides.chromeBg};`);
-    }
-    if (colorOverrides.textColor) {
-      overridesTokens.push(`  --theme-text: ${colorOverrides.textColor};`);
-    }
-    if (colorOverrides.titleColor) {
-      overridesTokens.push(`  --theme-title: ${colorOverrides.titleColor};`);
-    }
-    if (colorOverrides.primaryColor) {
-      overridesTokens.push(`  --theme-primary: ${colorOverrides.primaryColor};`);
-      overridesTokens.push(`  --theme-primary-fill: ${colorOverrides.primaryColor};`);
-      overridesTokens.push(
-        `  --theme-primary-soft: color-mix(in srgb, ${colorOverrides.primaryColor} 12%, transparent);`,
-      );
-      overridesTokens.push(
-        `  --theme-primary-selected: color-mix(in srgb, ${colorOverrides.primaryColor} 26%, transparent);`,
-      );
-      overridesTokens.push(
-        `  --theme-control-hover: color-mix(in srgb, ${colorOverrides.primaryColor} 8%, transparent);`,
-      );
-    }
-    if (colorOverrides.codeBg) {
-      overridesTokens.push(`  --theme-code-bg: ${colorOverrides.codeBg};`);
-    }
-    if (colorOverrides.inlineCodeBg) {
-      overridesTokens.push(`  --theme-inline-code-bg: ${colorOverrides.inlineCodeBg};`);
-    }
-    if (colorOverrides.borderColor) {
-      overridesTokens.push(`  --theme-border: ${colorOverrides.borderColor};`);
-    }
+  // 1-2. 配色 / 排版 / 版心：统一走 `@md-editor/editor` 的公开映射。
+  //      `app-ui` 不再维护第二份 `--theme-*` 名字映射，否则两处必然漂移
+  //      （历史上 `--theme-editor-font-size` 就因此变成"有 writer 无消费者"）。
+  const typo = options.typographyOverrides;
+  const geo = options.geometryOverrides;
+  const sharedVariables = compileEditorTheme({
+    colors: colorOverrides,
+    typography: typo
+      ? {
+          boldFontWeight: typo.boldFontWeight,
+          codeFontFamily: typo.codeFontFamily,
+          fontSize: typo.fontSize,
+          headingFontFamily: typo.headingFontFamily,
+          headingFontWeight: typo.headingFontWeight,
+          letterSpacing: typo.letterSpacing,
+          lineHeight: typo.lineHeight,
+          proseFontFamily: typo.proseFontFamily,
+        }
+      : undefined,
+    geometry: geo ? { contentMaxWidth: geo.contentMaxWidth } : undefined,
+  });
+  for (const [name, value] of Object.entries(sharedVariables)) {
+    overridesTokens.push(`  ${name}: ${value};`);
   }
 
-  // 2. 结构化排版与字体 Token 派生
-  const typo = options.typographyOverrides;
-  if (typo) {
-    if (typo.uiFontFamily) {
-      overridesTokens.push(`  --theme-ui-font: ${typo.uiFontFamily};`);
-    }
-    if (typo.proseFontFamily) {
-      overridesTokens.push(`  --theme-font: ${typo.proseFontFamily};`);
-    }
-    if (typo.headingFontFamily) {
-      overridesTokens.push(`  --theme-heading-font: ${typo.headingFontFamily};`);
-    }
-    if (typo.codeFontFamily) {
-      overridesTokens.push(`  --theme-mono-font: ${typo.codeFontFamily};`);
-    }
-    if (typo.fontSize && Number.isFinite(typo.fontSize) && typo.fontSize > 0) {
-      overridesTokens.push(`  --theme-editor-font-size: ${typo.fontSize}px;`);
-    }
-    if (typo.sourceFontSize && Number.isFinite(typo.sourceFontSize) && typo.sourceFontSize > 0) {
-      overridesTokens.push(`  --theme-source-font-size: ${typo.sourceFontSize}px;`);
-    }
-    if (typo.lineHeight && Number.isFinite(typo.lineHeight) && typo.lineHeight > 0) {
-      overridesTokens.push(`  --theme-editor-line-height: ${typo.lineHeight};`);
-      overridesTokens.push(`  --theme-editor-line-height-em: ${typo.lineHeight}em;`);
-    }
-    if (typo.letterSpacing !== undefined) {
-      overridesTokens.push(`  --theme-letter-spacing: ${typo.letterSpacing};`);
-    }
-    if (typo.paragraphSpacing) {
-      overridesTokens.push(`  --theme-editor-paragraph-spacing: ${typo.paragraphSpacing};`);
-    }
-    if (typo.bodyFontWeight) {
-      overridesTokens.push(`  --theme-body-font-weight: ${typo.bodyFontWeight};`);
-    }
-    if (typo.headingFontWeight) {
-      overridesTokens.push(`  --theme-heading-font-weight: ${typo.headingFontWeight};`);
-    }
-    if (typo.boldFontWeight) {
-      overridesTokens.push(`  --theme-bold-font-weight: ${typo.boldFontWeight};`);
-    }
+  // 2b. app-ui 专有变量（`EditorTheme` 不覆盖的应用层视觉）
+  if (typo?.uiFontFamily) {
+    overridesTokens.push(`  --theme-ui-font: ${typo.uiFontFamily};`);
+  }
+  if (typo?.sourceFontSize && Number.isFinite(typo.sourceFontSize) && typo.sourceFontSize > 0) {
+    overridesTokens.push(`  --theme-source-font-size: ${typo.sourceFontSize}px;`);
+  }
+  if (typo?.lineHeight && Number.isFinite(typo.lineHeight) && typo.lineHeight > 0) {
+    overridesTokens.push(`  --theme-editor-line-height-em: ${typo.lineHeight}em;`);
+  }
+  if (typo?.paragraphSpacing) {
+    overridesTokens.push(`  --theme-editor-paragraph-spacing: ${typo.paragraphSpacing};`);
+  }
+  if (typo?.bodyFontWeight) {
+    overridesTokens.push(`  --theme-body-font-weight: ${typo.bodyFontWeight};`);
   }
 
   // 3. 结构化几何与块级变体 Token 派生
-  const geo = options.geometryOverrides;
   if (geo) {
-    if (geo.contentMaxWidth !== undefined) {
-      const widthVal =
-        typeof geo.contentMaxWidth === "number" ? `${geo.contentMaxWidth}px` : geo.contentMaxWidth;
-      overridesTokens.push(`  --theme-content-width: ${widthVal};`);
-    }
     if (geo.borderRadiusPreset) {
       const r =
         geo.borderRadiusPreset === "sharp"

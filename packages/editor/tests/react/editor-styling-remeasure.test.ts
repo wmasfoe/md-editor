@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EDITOR_STYLE_CSS } from "@md-editor/editor";
+import { EDITOR_STYLE_CSS } from "../../src/internals.ts";
 
 describe("Editor CSS Decoupling & Dynamic Style Variables", () => {
   // 这些规则已随「样式主权」迁入渲染器（renderer 产出 DOM ⇒ 拥有其渲染规则）。

@@ -1,7 +1,8 @@
+import { preloadOptionalModules } from "../../src/module-loader.ts";
 import { markdown } from "@codemirror/lang-markdown";
 import { EditorSelection, EditorState, type Extension } from "@codemirror/state";
 import { keymap, type EditorView, type KeyBinding } from "@codemirror/view";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { M1_MARKDOWN_EXTENSIONS } from "../../src/markdown/extensions.ts";
 import { markdownRangeIndexField, mdxModeFacet } from "../../src/markdown/range-index.ts";
 import { editorModeField } from "../../src/mode.ts";
@@ -84,6 +85,11 @@ function readBindings(state: EditorState): readonly KeyBinding[] {
  * I9 —— 仲裁顺序回归（组合式断言，严禁源码顺序 grep）。
  * 经 keymap facet 解析出的绑定顺序，钉死同 `Prec.highest` 下的注册顺序不变量。
  */
+beforeAll(async () => {
+  // MDX 解析器按需加载：先预热，保证断言看到的是真实解析结果而非"未就绪降级"。
+  await preloadOptionalModules();
+});
+
 describe("I9 仲裁顺序回归：统一 Tab arbiter 单点派发（D-MB）", () => {
   it("🔴 facet 内恰好只有**一个** Tab 绑定且就是统一 arbiter —— H3 由构造消失", () => {
     const state = buildState("正文", 2);

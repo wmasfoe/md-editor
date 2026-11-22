@@ -26,11 +26,13 @@ import { freezeRecord, lineRangeForSource } from "./common.ts";
 export function collectMdxElements(
   source: string,
   includeRanges: readonly SourceRange[] | null,
+  /** 降级记账 scope（当前 `EditorState`）：多实例时就绪重算按视图隔离。 */
+  degradedScope?: object,
 ): readonly MdxJsxElement[] {
   if (!/<\/?[A-Z]/.test(source)) {
     return [];
   }
-  const elements = parseMdxJsxElements(source);
+  const elements = parseMdxJsxElements(source, degradedScope);
   if (!includeRanges) {
     return elements;
   }
