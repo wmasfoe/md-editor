@@ -42,6 +42,31 @@ function defineNodeNames(plugin: MarkdownSyntaxPlugin): string[] {
   return (definitions ?? []).map((node) => (typeof node === "string" ? node : node.name));
 }
 
+/**
+ * 注册表的完整内部状态快照（**含注册代号**）。
+ *
+ * 用途只有一个：注册流程在"写注册表之后、视图接受之前"失败时把状态还原。
+ * 必须连代号一起还原——代号码变了，调用方手里已发出的句柄就会失效，
+ * 回滚时再 `dispose()` 就摘不掉自己刚注册的条目。
+ *
+ * @internal 编辑器内部件，不属于插件作者契约。
+ */
+export interface SyntaxPluginRegistrySnapshot {
+  readonly plugins: ReadonlyMap<string, MarkdownSyntaxPlugin>;
+  readonly nodePolicies: ReadonlyMap<string, MarkdownNodePolicy>;
+  readonly nodeToPlugin: ReadonlyMap<string, MarkdownSyntaxPlugin>;
+  readonly declaredNodes: ReadonlyMap<string, MarkdownSyntaxPlugin>;
+  readonly imperative: ReadonlySet<string>;
+  readonly tokens: ReadonlyMap<string, number>;
+  readonly nextToken: number;
+}
+
+/** 用快照内容整体替换一个 Map（`restore` 专用）。 */
+function replaceMap<V>(target: Map<string, V>, source: ReadonlyMap<string, V>): void {
+  target.clear();
+  for (const [key, value] of source) target.set(key, value);
+}
+
 /** 命令式注册句柄：`dispose()` 返回是否真的移除了本次注册（幂等）。 */
 export interface SyntaxPluginRegistrationHandle {
   dispose(): boolean;
@@ -139,7 +164,12 @@ export class SyntaxPluginRegistry {
   ): this {
     // Validate the full batch first so one conflict cannot leave a partial registration.
     const ids = new Set(this.#plugins.keys());
-    const nodes = new Set(this.#nodeToPlugin.keys());
+    // 节点名必须**同时**取自两张表，与单项 `register` 的预检保持一致。
+    //
+    // 只用 `#nodeToPlugin` 会漏掉"仅用 `defineNodes` 声明"的节点（它们登记在
+    // `#declaredNodes`）。那样批量预检放行、单项注册时才被拒 —— 于是批次里
+    // 第一个合法插件已经落表，调用方拿到异常却留下半批状态（实测复现）。
+    const nodes = new Set([...this.#nodeToPlugin.keys(), ...this.#declaredNodes.keys()]);
     for (const plugin of plugins) {
       if (!plugin?.id) continue;
       if (ids.has(plugin.id)) throw new Error(`Syntax plugin already registered: ${plugin.id}`);
@@ -244,6 +274,39 @@ export class SyntaxPluginRegistry {
   }
 
   /**
+   * 取当前状态的完整快照（用于失败回滚）。
+   *
+   * @internal 编辑器内部件，不属于插件作者契约。
+   */
+  snapshot(): SyntaxPluginRegistrySnapshot {
+    return {
+      plugins: new Map(this.#plugins),
+      nodePolicies: new Map(this.#nodePolicies),
+      nodeToPlugin: new Map(this.#nodeToPlugin),
+      declaredNodes: new Map(this.#declaredNodes),
+      imperative: new Set(this.#imperative),
+      tokens: new Map(this.#tokens),
+      nextToken: this.#nextToken,
+    };
+  }
+
+  /**
+   * 还原到 `snapshot()` 取到的状态（含代号，使已发出的句柄继续有效）。
+   *
+   * @internal 编辑器内部件，不属于插件作者契约。
+   */
+  restore(snapshot: SyntaxPluginRegistrySnapshot): void {
+    replaceMap(this.#plugins, snapshot.plugins);
+    replaceMap(this.#nodePolicies, snapshot.nodePolicies);
+    replaceMap(this.#nodeToPlugin, snapshot.nodeToPlugin);
+    replaceMap(this.#declaredNodes, snapshot.declaredNodes);
+    replaceMap(this.#tokens, snapshot.tokens);
+    this.#imperative.clear();
+    for (const id of snapshot.imperative) this.#imperative.add(id);
+    this.#nextToken = snapshot.nextToken;
+  }
+
+  /**
    * 命令式注册并返回**幂等**句柄。
    *
    * 句柄持有本次注册的代号，因此：
@@ -270,6 +333,26 @@ export class SyntaxPluginRegistry {
 
   get plugins(): readonly MarkdownSyntaxPlugin[] {
     return Object.freeze(Array.from(this.#plugins.values()));
+  }
+
+  /**
+   * **仅声明式**注册的插件（命令式 `addSyntaxPlugin` 的条目不在内）。
+   *
+   * 全量替换的幂等判断必须用它：拿"声明式输入"和**全部**已注册插件比较，
+   * 会在"同一插件对象先命令式注册、再作为声明式集合提交"时误判为无变化而提前返回，
+   * 于是该条目仍留在命令式命名空间里 —— 释放命令式句柄就会把它摘掉，
+   * 而调用方以为它已经是声明式清单的一员（实测：`add(p)` → `set([p])` 静默成功，
+   * 随后释放句柄，p 就消失了）。
+   *
+   * @internal 只供编辑器侧的"全量替换幂等判断"使用，不属于插件作者契约。
+   * 标为内部件而不是新增公开 API，因此本包只需 patch 版本。
+   */
+  get declarativePlugins(): readonly MarkdownSyntaxPlugin[] {
+    return Object.freeze(
+      Array.from(this.#plugins.entries())
+        .filter(([id]) => !this.#imperative.has(id))
+        .map(([, plugin]) => plugin),
+    );
   }
 
   getMarkdownExtensions(): readonly MarkdownConfig[] {

@@ -121,3 +121,46 @@ describe("addSyntaxPlugin 句柄只释放当次注册", () => {
     harness.renderer.destroy();
   });
 });
+
+/**
+ * 同一插件对象不得跨注册来源"静默切换"。
+ *
+ * 缺陷（PR #292 复审指出）：全量替换的幂等判断拿声明式输入和**全部**已注册插件
+ * 比较。于是 `addSyntaxPlugin(p)` 之后 `setSyntaxPlugins([p])` 被判定为无变化而
+ * 提前返回 —— p 仍留在命令式命名空间，调用方却以为它已是声明式清单的一员。
+ * 随后释放命令式句柄，p 就消失了（实测复现）。
+ *
+ * 修法：幂等判断只比对**声明式**清单，跨来源时进入 ID 冲突校验并如实报错。
+ */
+describe("同一对象跨注册来源必须报冲突，不得静默接受", () => {
+  it("addSyntaxPlugin(p) 后 setSyntaxPlugins([p]) 抛错，且 p 仍可用", () => {
+    const harness = createHarness();
+    const p = plugin("cross");
+    const handle = harness.renderer.addSyntaxPlugin(p);
+
+    // 关键：不能静默成功。
+    expect(() => harness.renderer.setSyntaxPlugins([p])).toThrow(/already registered/u);
+
+    // 命令式注册未被破坏：句柄仍能正常释放。
+    expect(() => handle.dispose()).not.toThrow();
+    harness.renderer.destroy();
+  });
+
+  it("释放命令式句柄后，同一对象可以正常作为声明式注册", () => {
+    const harness = createHarness();
+    const p = plugin("handover");
+    harness.renderer.addSyntaxPlugin(p).dispose();
+
+    // 此时声明式清单为空，提交 [p] 是真实变化，应当成功。
+    expect(() => harness.renderer.setSyntaxPlugins([p])).not.toThrow();
+    harness.renderer.destroy();
+  });
+
+  it("相同的声明式清单重复提交仍然是幂等的（不误判为变化）", () => {
+    const harness = createHarness();
+    const p = plugin("stable");
+    harness.renderer.setSyntaxPlugins([p]);
+    expect(() => harness.renderer.setSyntaxPlugins([p])).not.toThrow();
+    harness.renderer.destroy();
+  });
+});

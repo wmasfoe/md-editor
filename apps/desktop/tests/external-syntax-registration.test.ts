@@ -190,3 +190,60 @@ describe("G-11 生产 registrar 的 wiring（删掉校验调用会红）", () =>
     expect(changes).toEqual([["alpha"]]);
   });
 });
+
+/**
+ * 逐项注册失败时必须回滚已生效的注册。
+ *
+ * 宿主的接线是"按插件 id 逐个 `addSyntaxPlugin`"。第 n 个被拒时前 n-1 个已经
+ * 生效；若不回收，宿主留下"只启用了一半"的状态，而调用方只看到一次抛错。
+ */
+describe("registerExternalSyntaxPlugins 失败回滚", () => {
+  it("第 2 个被拒时释放第 1 个创建的句柄，并抛出原异常", async () => {
+    const disposed: string[] = [];
+    const ports = {
+      addSyntaxPlugin(p: { id: string }) {
+        if (p.id === "second") throw new Error("Syntax plugin already registered: second");
+        return { dispose: () => disposed.push(p.id) };
+      },
+    };
+
+    expect(() =>
+      registerExternalSyntaxPlugins(ports as never, [{ id: "first" }, { id: "second" }] as never),
+    ).toThrow(/second/u);
+    expect(disposed).toEqual(["first"]);
+  });
+
+  it("多个已生效的注册按逆序回收", async () => {
+    const disposed: string[] = [];
+    const ports = {
+      addSyntaxPlugin(p: { id: string }) {
+        if (p.id === "third") throw new Error("rejected");
+        return { dispose: () => disposed.push(p.id) };
+      },
+    };
+
+    expect(() =>
+      registerExternalSyntaxPlugins(
+        ports as never,
+        [{ id: "first" }, { id: "second" }, { id: "third" }] as never,
+      ),
+    ).toThrow(/rejected/u);
+    expect(disposed).toEqual(["second", "first"]);
+  });
+
+  it("全部成功时返回的退订函数释放全部句柄", async () => {
+    const disposed: string[] = [];
+    const ports = {
+      addSyntaxPlugin(p: { id: string }) {
+        return { dispose: () => disposed.push(p.id) };
+      },
+    };
+
+    const detach = registerExternalSyntaxPlugins(
+      ports as never,
+      [{ id: "a" }, { id: "b" }] as never,
+    );
+    detach();
+    expect(disposed).toEqual(["a", "b"]);
+  });
+});

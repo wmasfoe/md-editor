@@ -1,10 +1,4 @@
-import type {
-  BlockToken,
-  HeadingToken,
-  InlineToken,
-  ListItemToken,
-  StaticToken,
-} from "../tokens/types.ts";
+import type { BlockToken, InlineToken, ListItemToken, StaticToken } from "../tokens/types.ts";
 import { escapeHtml, highlightCode } from "./highlight-code.ts";
 import { renderMathToString } from "./math-render.ts";
 import { getCalloutSvg } from "@md-editor/plugin-sdk/callout";
@@ -44,6 +38,44 @@ function isBlockToken(token: StaticToken): token is BlockToken {
 /**
  * Emits semantic, style-aware HTML from structured tokens
  */
+/**
+ * 递归收集文档内**所有**标题的真实 id（含列表项、引用块、callout 内的嵌套标题）。
+ *
+ * 不能只遍历顶层 token：嵌套标题同样会输出 `<hN id>`，若别名收集漏掉它们，
+ * 别名就会与某个嵌套标题的 id 撞车 —— 实测 `# テスト手順` + `> # 手順`
+ * 产出两个 `id="手順"`（顶层标题的 legacy 别名 + 嵌套标题的真实 id）。
+ *
+ * 判定只看 `type === "heading"` 与 `tokens` 是否存在，因此对新增的块类型
+ * （callout、list_item、blockquote……）天然生效，不需要逐个登记。
+ */
+function collectHeadingIds(
+  nodes: readonly unknown[],
+  out: Set<string>,
+  seen: WeakSet<object> = new WeakSet(),
+): void {
+  for (const node of nodes) {
+    if (!node || typeof node !== "object") continue;
+    // 防御性去环：AST 由解析器产出，正常无环，但下面的遍历是宽口径。
+    if (seen.has(node)) continue;
+    seen.add(node);
+
+    const token = node as Record<string, unknown>;
+    if (token.type === "heading" && typeof token.id === "string" && token.id.length > 0) {
+      out.add(token.id);
+    }
+    // **遍历 token 上所有数组字段，不能只看 `tokens`。** 容器的子节点字段
+    // 并不统一：段落/引用块用 `tokens`，列表却把子节点放在 `items[].tokens`
+    // （`list` 自身没有 `tokens` 字段）。只跟 `tokens` 会漏掉列表项里的标题，
+    // 于是 `# テスト手順` + `- # 手順` 仍产出两个 `id="手順"`（实测）。
+    // 走全字段后，将来新增任何容器字段都天然生效。
+    for (const value of Object.values(token)) {
+      if (Array.isArray(value)) {
+        collectHeadingIds(value, out, seen);
+      }
+    }
+  }
+}
+
 export function emitHtml(tokens: StaticToken[], options: EmitHtmlOptions = {}): string {
   const includeMarkers = options.includeMarkers ?? true;
   const custom = options.customRenderer;
@@ -55,12 +87,8 @@ export function emitHtml(tokens: StaticToken[], options: EmitHtmlOptions = {}): 
    * 一旦它与另一个标题的 `<hN id>` 同名，`#fragment` 会解析到别名所在的那个标题，
    * 用户跳到错误的位置（实测 `## テスト手順` + `## 手順` 会产生两个 `id="手順"`）。
    */
-  const realHeadingIds = new Set(
-    tokens
-      .filter((token): token is HeadingToken => isBlockToken(token) && token.type === "heading")
-      .map((token) => token.id)
-      .filter((id): id is string => Boolean(id)),
-  );
+  const realHeadingIds = new Set<string>();
+  collectHeadingIds(tokens, realHeadingIds);
 
   /**
    * 已输出的 legacy 别名。

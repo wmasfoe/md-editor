@@ -226,6 +226,19 @@ export function restoreRawBlocksFromPreview(
   }, markdown);
 }
 
+/**
+ * 提取文档大纲（导航目录 + 文档内锚点解析的唯一来源）。
+ *
+ * **规则：只收录顶层标题。**
+ *
+ * 列表项（`- # 标题`）与引用块/callout（`> # 标题`）里的标题**不进大纲**，
+ * 也不参与 `resolveHeadingAnchor` 的解析。这是刻意保留的边界：
+ * 大纲是导航目录，收录嵌套标题会让 TOC 混入噪声（callout 正文里的标题尤其明显）。
+ *
+ * 但**导出 HTML 必须保证任何 `<hN id>` 在文档内唯一**——嵌套标题也占 ID，
+ * 否则 `#fragment` 会跳到错的位置。两条规则各自成立、互不替代：
+ * 唯一直到导出侧（compiler 的分配器与别名冲突判定），收录范围限于本函数。
+ */
 export function extractHeadingOutline(markdown: string): readonly HeadingOutlineItem[] {
   // 去重是文档级属性，用 shared 的分配器（与 HTML 导出共用同一语义）。
   const allocate = createHeadingSlugAllocator();
@@ -247,7 +260,7 @@ export function extractHeadingOutline(markdown: string): readonly HeadingOutline
     readonly length: number;
     readonly indent: number;
   } | null = null;
-  /** 当前是否处在列表项内部（缩进围栏的判定依据）。 */
+  /** 当前是否处在列表项内部（缩进围栏与嵌套标题的判定依据）。 */
   let insideListItem = false;
 
   for (let index = 0; index < lines.length; index += 1) {
@@ -282,14 +295,30 @@ export function extractHeadingOutline(markdown: string): readonly HeadingOutline
       insideListItem = false;
     }
 
-    const match = /^(#{1,6})\s+(.+?)\s*#*$/.exec(line);
+    // 剥离容器标记（引用块 `>`、列表标记）后再找标题。
+    //
+    // **必须为嵌套标题也分配 ID**，即使它不出现在大纲里：导出 HTML 会按文档顺序
+    // 给**所有**标题分配 ID（含列表项/引用块里的），大纲若只给顶层标题分配，
+    // 两者就会错位。实测 `- # A` / `# A` / `# A`：导出是 `a`、`a-1`、`a-2`，
+    // 而大纲给出 `a`（第 3 行）、`a-1`（第 5 行）—— `#a-1` 跳到第 5 行、
+    // `#a-2` 完全解析不到。
+    //
+    // 规则：**先按文档顺序给所有标题分配 ID，再只把顶层标题收进大纲**。
+    const stripped = stripHeadingContainerMarkers(line);
+    const match = /^(#{1,6})\s+(.+?)\s*#*$/.exec(stripped.rest);
     if (!match) {
       continue;
     }
 
     const text = match[2].trim();
+    const id = allocate(text);
+    // 缩进续行（`- item` 换行后缩进的 `# 标题`）也算嵌套：标记不在同一行。
+    const nested = stripped.nested || (insideListItem && /^ {2,}/u.test(line));
+    if (nested) {
+      continue;
+    }
     outline.push({
-      id: allocate(text),
+      id,
       level: match[1].length,
       text,
       line: index + 1,
@@ -455,6 +484,31 @@ function replaceOutsideMarkdownCodeFences(
   }
 
   return result + replaceSegment(markdown.slice(plainStart));
+}
+
+/**
+ * 剥离行首的容器标记（引用块 `>`、列表标记），返回剩余内容与"是否处于容器内"。
+ *
+ * 与导出侧的容器语义对齐：`- # A`、`> # A`、`> - # A` 里的标题都是**嵌套**标题。
+ */
+function stripHeadingContainerMarkers(line: string): { rest: string; nested: boolean } {
+  let rest = line;
+  let nested = false;
+  for (;;) {
+    const afterQuote = rest.replace(/^ {0,3}>[ \t]?/u, "");
+    if (afterQuote !== rest) {
+      rest = afterQuote;
+      nested = true;
+      continue;
+    }
+    const afterList = rest.replace(/^ {0,3}(?:[-*+]|\d{1,9}[.)])[ \t]+/u, "");
+    if (afterList !== rest) {
+      rest = afterList;
+      nested = true;
+      continue;
+    }
+    return { rest, nested };
+  }
 }
 
 function matchOpeningCodeFence(

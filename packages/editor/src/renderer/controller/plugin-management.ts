@@ -61,33 +61,45 @@ export function registerSyntaxPlugins(
   // 判断是否有真正扩展 Lezer Markdown 语法/词法分析器的插件（带 markdownExtension）
   const isSyntaxPlugin = flattened.some((plugin) => Boolean(plugin.markdownExtension));
 
-  ctx.registry.registerAll(flattened, origin);
+  // **失败回滚**：注册表必须先写（下面构建语言扩展要读它），而构建扩展与
+  // `dispatch` 都可能抛错 —— 视图解析新语言时若插件引用了不存在的 Lezer parser，
+  // 会抛 "Position specified relative to unknown parser"，且这是**惰性**的：
+  // 错误发生在 dispatch 期间的解析里，调用方拿不到句柄、桌面回滚也无从下手。
+  // 结果就是失败的插件永久占用 ID，修正后同 ID 重试直接报 "already registered"（实测）。
+  // 快照必须连注册代号一起还原，否则已发出的句柄在回滚后失效。
+  const snapshot = ctx.registry.snapshot();
+  try {
+    ctx.registry.registerAll(flattened, origin);
 
-  const effects: StateEffect<unknown>[] = [
-    ctx.syntaxRegistryCompartment.reconfigure(syntaxPluginRegistryFacet.of(ctx.registry)),
-  ];
+    const effects: StateEffect<unknown>[] = [
+      ctx.syntaxRegistryCompartment.reconfigure(syntaxPluginRegistryFacet.of(ctx.registry)),
+    ];
 
-  if (isSyntaxPlugin) {
-    // 语法层面插件：需要重配 Lezer 语言分析器，并调度 AST RangeIndex 全量重新解析
-    const pluginExtensions = ctx.registry.getMarkdownExtensions();
-    const markdownExtensions = Object.freeze([...M1_MARKDOWN_EXTENSIONS, ...pluginExtensions]);
-    effects.push(
-      ctx.markdownLanguageCompartment.reconfigure(
-        ctx.useNativeCodeLanguages
-          ? createMarkdownLanguageSupport(
-              { extensions: markdownExtensions, addKeymap: false },
-              ctx.diagnostics,
-            )
-          : markdown({ extensions: markdownExtensions, addKeymap: false }),
-      ),
-      refreshMarkdownParseCoverageEffect.of(null),
-    );
+    if (isSyntaxPlugin) {
+      // 语法层面插件：需要重配 Lezer 语言分析器，并调度 AST RangeIndex 全量重新解析
+      const pluginExtensions = ctx.registry.getMarkdownExtensions();
+      const markdownExtensions = Object.freeze([...M1_MARKDOWN_EXTENSIONS, ...pluginExtensions]);
+      effects.push(
+        ctx.markdownLanguageCompartment.reconfigure(
+          ctx.useNativeCodeLanguages
+            ? createMarkdownLanguageSupport(
+                { extensions: markdownExtensions, addKeymap: false },
+                ctx.diagnostics,
+              )
+            : markdown({ extensions: markdownExtensions, addKeymap: false }),
+        ),
+        refreshMarkdownParseCoverageEffect.of(null),
+      );
+    }
+
+    // 无论 UI 层面还是 AST 层面，均派发 refreshWysiwygProjectionEffect 触发投影层重新编译
+    effects.push(refreshWysiwygProjectionEffect.of(null));
+
+    ctx.view.dispatch({ effects });
+  } catch (error) {
+    ctx.registry.restore(snapshot);
+    throw error;
   }
-
-  // 无论 UI 层面还是 AST 层面，均派发 refreshWysiwygProjectionEffect 触发投影层重新编译
-  effects.push(refreshWysiwygProjectionEffect.of(null));
-
-  ctx.view.dispatch({ effects });
 }
 
 /**
@@ -172,7 +184,12 @@ export function replaceSyntaxPlugins(
   }
 
   // 更新版本可保留 ID，但其解析器、投影或闭包已变化，必须重配新实例。
-  const currentPlugins = ctx.registry.plugins;
+  //
+  // 只比对**声明式**清单（不是全部插件）：否则"同一对象先命令式注册、再作为
+  // 声明式集合提交"会被误判为无变化而提前返回，该条目仍留在命令式命名空间，
+  // 释放命令式句柄就把它摘掉了。改成比声明式清单后，这种情况会进入
+  // `replaceDeclarative` 的 ID 冲突校验并如实报错。
+  const currentPlugins = ctx.registry.declarativePlugins;
   if (
     currentPlugins.length === flattened.length &&
     currentPlugins.every((curr, idx) => curr === flattened[idx])
@@ -180,26 +197,34 @@ export function replaceSyntaxPlugins(
     return;
   }
 
-  // 全量原子替换注册中心插件
-  ctx.registry.replaceDeclarative(flattened);
+  // **失败回滚**，理由与 `registerSyntaxPlugins` 相同：替换注册表之后构建语言扩展
+  // 或 `dispatch` 期间的惰性解析都可能抛错，失败时不能让半替换的状态留在注册表里。
+  const snapshot = ctx.registry.snapshot();
+  try {
+    // 全量原子替换注册中心插件
+    ctx.registry.replaceDeclarative(flattened);
 
-  // 组装新的 Lezer Markdown 语法扩展（内置基础扩展 + 已启用插件扩展）
-  const pluginExtensions = ctx.registry.getMarkdownExtensions();
-  const markdownExtensions = Object.freeze([...M1_MARKDOWN_EXTENSIONS, ...pluginExtensions]);
+    // 组装新的 Lezer Markdown 语法扩展（内置基础扩展 + 已启用插件扩展）
+    const pluginExtensions = ctx.registry.getMarkdownExtensions();
+    const markdownExtensions = Object.freeze([...M1_MARKDOWN_EXTENSIONS, ...pluginExtensions]);
 
-  const effects: StateEffect<unknown>[] = [
-    ctx.syntaxRegistryCompartment.reconfigure(syntaxPluginRegistryFacet.of(ctx.registry)),
-    ctx.markdownLanguageCompartment.reconfigure(
-      ctx.useNativeCodeLanguages
-        ? createMarkdownLanguageSupport(
-            { extensions: markdownExtensions, addKeymap: false },
-            ctx.diagnostics,
-          )
-        : markdown({ extensions: markdownExtensions, addKeymap: false }),
-    ),
-    refreshMarkdownParseCoverageEffect.of(null),
-    refreshWysiwygProjectionEffect.of(null),
-  ];
+    const effects: StateEffect<unknown>[] = [
+      ctx.syntaxRegistryCompartment.reconfigure(syntaxPluginRegistryFacet.of(ctx.registry)),
+      ctx.markdownLanguageCompartment.reconfigure(
+        ctx.useNativeCodeLanguages
+          ? createMarkdownLanguageSupport(
+              { extensions: markdownExtensions, addKeymap: false },
+              ctx.diagnostics,
+            )
+          : markdown({ extensions: markdownExtensions, addKeymap: false }),
+      ),
+      refreshMarkdownParseCoverageEffect.of(null),
+      refreshWysiwygProjectionEffect.of(null),
+    ];
 
-  ctx.view.dispatch({ effects });
+    ctx.view.dispatch({ effects });
+  } catch (error) {
+    ctx.registry.restore(snapshot);
+    throw error;
+  }
 }

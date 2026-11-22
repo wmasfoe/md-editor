@@ -68,3 +68,45 @@ describe("SDK 预检覆盖 defineNodes", () => {
     expect(registry.plugins.map((p) => p.id)).toEqual(["a", "b"]);
   });
 });
+
+/**
+ * 批量预检必须与单项注册读**同一份**节点声明，否则会留下半批状态。
+ *
+ * 缺陷（PR #292 复审指出）：`registerAll` 的预检只读 `#nodeToPlugin`（装饰分派表），
+ * 而单项 `register` 读的是完整节点声明表（含仅 `defineNodes` 声明的节点）。
+ * 已有一个只声明 `defineNodes` 的插件时，提交 [合法插件, 撞该节点的插件]：
+ * 预检放行 → 第一个落表 → 第二个在 `register` 里被拒 → 抛错但注册表已多了一条。
+ */
+describe("批量预检覆盖 defineNodes-only 的既有插件", () => {
+  it("抛错后注册表与调用前完全一致（不得留半批）", () => {
+    const registry = new SyntaxPluginRegistry();
+    registry.register(defineNodesPlugin("existing", "X"));
+    const before = registry.plugins.map((p) => p.id);
+    expect(before).toEqual(["existing"]);
+
+    expect(() =>
+      registry.registerAll([defineNodesPlugin("ok", "OkNode"), defineNodesPlugin("bad", "X")]),
+    ).toThrow(/X/u);
+
+    // 关键：合法的那个也不能留下。
+    expect(registry.plugins.map((p) => p.id)).toEqual(before);
+  });
+
+  it("批内首项与既有 defineNodes-only 插件撞节点时也整批拒绝", () => {
+    const registry = new SyntaxPluginRegistry();
+    registry.register(defineNodesPlugin("existing", "X"));
+    expect(() => registry.registerAll([defineNodesPlugin("bad", "X")])).toThrow(/X/u);
+    expect(registry.plugins.map((p) => p.id)).toEqual(["existing"]);
+  });
+
+  it("批内两项互相撞 defineNodes 时同样整批拒绝", () => {
+    const registry = new SyntaxPluginRegistry();
+    expect(() =>
+      registry.registerAll([
+        defineNodesPlugin("a", "SameNode"),
+        defineNodesPlugin("b", "SameNode"),
+      ]),
+    ).toThrow(/SameNode/u);
+    expect(registry.plugins).toEqual([]);
+  });
+});
