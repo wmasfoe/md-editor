@@ -48,15 +48,30 @@ function isBlockToken(token: StaticToken): token is BlockToken {
  * 判定只看 `type === "heading"` 与 `tokens` 是否存在，因此对新增的块类型
  * （callout、list_item、blockquote……）天然生效，不需要逐个登记。
  */
-function collectHeadingIds(nodes: readonly unknown[], out: Set<string>): void {
+function collectHeadingIds(
+  nodes: readonly unknown[],
+  out: Set<string>,
+  seen: WeakSet<object> = new WeakSet(),
+): void {
   for (const node of nodes) {
     if (!node || typeof node !== "object") continue;
-    const token = node as { type?: unknown; id?: unknown; tokens?: unknown };
+    // 防御性去环：AST 由解析器产出，正常无环，但下面的遍历是宽口径。
+    if (seen.has(node)) continue;
+    seen.add(node);
+
+    const token = node as Record<string, unknown>;
     if (token.type === "heading" && typeof token.id === "string" && token.id.length > 0) {
       out.add(token.id);
     }
-    if (Array.isArray(token.tokens)) {
-      collectHeadingIds(token.tokens, out);
+    // **遍历 token 上所有数组字段，不能只看 `tokens`。** 容器的子节点字段
+    // 并不统一：段落/引用块用 `tokens`，列表却把子节点放在 `items[].tokens`
+    // （`list` 自身没有 `tokens` 字段）。只跟 `tokens` 会漏掉列表项里的标题，
+    // 于是 `# テスト手順` + `- # 手順` 仍产出两个 `id="手順"`（实测）。
+    // 走全字段后，将来新增任何容器字段都天然生效。
+    for (const value of Object.values(token)) {
+      if (Array.isArray(value)) {
+        collectHeadingIds(value, out, seen);
+      }
     }
   }
 }

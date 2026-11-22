@@ -105,6 +105,31 @@ describe("MDX 冷启动：被跳过的候选必须可识别", () => {
     expect(dispatched).toBe(0);
   });
 
+  it("围栏代码里的 <Foo 不算 MDX 候选（不触发无谓重建）", async () => {
+    resetOptionalModuleCache();
+    const state = EditorState.create({
+      doc: "```\n<Callout />\n```\n",
+      extensions: [
+        markdown({ extensions: M1_MARKDOWN_EXTENSIONS }),
+        mdxModeFacet.of(true),
+        markdownRangeIndexField,
+      ],
+    });
+    // 前提：围栏内容记录成 deferred-code，而不是 html/deferred-html。
+    expect(kinds(state)).toContain("deferred-code");
+    let dispatched = 0;
+    const view = {
+      state,
+      dispatch() {
+        dispatched += 1;
+      },
+    };
+
+    await preloadOptionalModules();
+    expect(refreshOptionalModuleProjection(view as never, "mdx-parser")).toBe(false);
+    expect(dispatched).toBe(0);
+  });
+
   it("非 MDX 模式下大写标签是合法 HTML，不触发刷新", async () => {
     resetOptionalModuleCache();
     const state = EditorState.create({

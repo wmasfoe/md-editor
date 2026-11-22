@@ -59,6 +59,10 @@ const MDX_CANDIDATE = /<\/?[A-Z]/u;
  * 索引的增量更新只重建脏区间、并复用其余历史记录，标记会在下一次按键后丢失。
  * 而"MDX 模式下还有非 mdx-jsx 的 `<Uppercase` 记录"这个判断在任何时刻都成立，
  * 且解析器就绪后重解析一次自然会消失（记录变成 `mdx-jsx`）。
+ *
+ * 匹配范围**限定在 `html` / `deferred-html`** 两类记录：它们是 MDX 候选在冷启动时
+ * 实际落到的类别（块级与行内都落这里）。放宽到所有记录会让围栏代码里的
+ * `<Foo` 也命中（`deferred-code`），在模块就绪时白白触发一次索引重建。
  */
 function hasPendingMdxBlocks(view: RendererViewAdapter): boolean {
   const index = view.state.field(markdownRangeIndexField, false);
@@ -71,7 +75,7 @@ function hasPendingMdxBlocks(view: RendererViewAdapter): boolean {
   if (!view.state.facet(mdxModeFacet)) return false;
   return index.records.some(
     (record) =>
-      record.kind !== "mdx-jsx" &&
+      (record.kind === "html" || record.kind === "deferred-html") &&
       MDX_CANDIDATE.test(view.state.sliceDoc(record.fullRange.from, record.fullRange.to)),
   );
 }

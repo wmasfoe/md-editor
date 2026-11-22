@@ -68,6 +68,24 @@ describe("引用块内的标题参与别名冲突判定", () => {
     expect(duplicates(allIds(html))).toEqual([]);
   });
 
+  it("# テスト手順 + - # 手順：列表项标题同样要与顶层别名判冲突", () => {
+    // 列表把子节点放在 `items[].tokens`（`list` 自身没有 `tokens` 字段），
+    // 只沿 `tokens` 递归的收集器会漏掉它，别名就与列表项标题的真实 id 撞车。
+    const html = render("# テスト手順\n\n- # 手順\n");
+    expect(duplicates(allIds(html))).toEqual([]);
+    expect(headingIds(html)).toContain("手順");
+  });
+
+  it("多层嵌套列表里的标题也参与别名冲突判定", () => {
+    const html = render("# テスト手順\n\n- item\n  - # 手順\n");
+    expect(duplicates(allIds(html))).toEqual([]);
+  });
+
+  it("callout 内的列表项标题也参与判定（容器字段层层嵌套）", () => {
+    const html = render("# テスト手順\n\n> [!NOTE]\n> - # 手順\n");
+    expect(duplicates(allIds(html))).toEqual([]);
+  });
+
   it("嵌套标题之间同名也去重", () => {
     const html = render("> # X\n\n> # X\n");
     expect(duplicates(allIds(html))).toEqual([]);

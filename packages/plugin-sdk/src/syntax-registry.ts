@@ -285,6 +285,9 @@ export class SyntaxPluginRegistry {
    * 于是该条目仍留在命令式命名空间里 —— 释放命令式句柄就会把它摘掉，
    * 而调用方以为它已经是声明式清单的一员（实测：`add(p)` → `set([p])` 静默成功，
    * 随后释放句柄，p 就消失了）。
+   *
+   * @internal 只供编辑器侧的"全量替换幂等判断"使用，不属于插件作者契约。
+   * 标为内部件而不是新增公开 API，因此本包只需 patch 版本。
    */
   get declarativePlugins(): readonly MarkdownSyntaxPlugin[] {
     return Object.freeze(
