@@ -13,10 +13,32 @@ export const PUBLISHED_PACKAGE_DIRS = new Set([
 ]);
 
 /**
+ * 从 `.changeset/config.json` 读取 `ignore` 列表。
+ *
+ * `@changesets/cli` 在 `changeset version` 阶段会**直接失败**：
+ * "Mixed changesets that contain both ignored and not ignored packages are not allowed"。
+ * 那条错误只在发版 CI（合并到 main 之后）才暴露，PR 阶段的校验若不复刻这个规则，
+ * 就会把"合并即失败"的 changeset 放进去（PR #292 已实际踩到）。
+ */
+export function readIgnoredPackages(root) {
+  try {
+    const raw = readFileSync(resolve(root, ".changeset/config.json"), "utf8");
+    const parsed = JSON.parse(raw);
+    return new Set(Array.isArray(parsed.ignore) ? parsed.ignore : []);
+  } catch {
+    return new Set();
+  }
+}
+
+/**
  * Given a list of changed file paths, determine which published packages were touched
  * and whether any new/modified changeset files accompany them in the same changeset diff.
  */
-export function evaluateChangesetRequirement({ changedFiles, changesetContents = {} }) {
+export function evaluateChangesetRequirement({
+  changedFiles,
+  changesetContents = {},
+  ignoredPackages = new Set(),
+}) {
   const touchedPackages = new Set();
   const touchedChangesets = [];
 
@@ -55,7 +77,31 @@ export function evaluateChangesetRequirement({ changedFiles, changesetContents =
     ? []
     : [...touchedPackages].filter((name) => !covered.has(name)).toSorted();
 
+  /**
+   * 一个 changeset 同时列出 ignore 与非 ignore 包 → `changeset version` 必然失败。
+   * 逐个 changeset 单独判定（不是看整个 PR 的并集）。
+   */
+  const mixedChangesets = [];
+  for (const file of touchedChangesets) {
+    const content = changesetContents[file] ?? "";
+    const frontmatter = content.match(/^---[ \t]*\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/)?.[1];
+    if (!frontmatter) continue;
+    const listed = new Set();
+    for (const line of frontmatter.split(/\r?\n/)) {
+      const entry = line.match(
+        /^\s*["']?(@md-editor\/[^"':\s]+)["']?\s*:\s*(patch|minor|major)\s*$/,
+      );
+      if (entry) listed.add(entry[1]);
+    }
+    const ignored = [...listed].filter((name) => ignoredPackages.has(name));
+    const released = [...listed].filter((name) => !ignoredPackages.has(name));
+    if (ignored.length > 0 && released.length > 0) {
+      mixedChangesets.push({ file, ignored: ignored.toSorted(), released: released.toSorted() });
+    }
+  }
+
   return {
+    mixedChangesets,
     missingPackages,
     noRelease,
     needsChangeset: touchedPackages.size > 0,
@@ -106,7 +152,29 @@ function run() {
       if (error.code !== "ENOENT") throw error; // Deleted changesets do not cover this PR.
     }
   }
-  const result = evaluateChangesetRequirement({ changedFiles, changesetContents });
+  const result = evaluateChangesetRequirement({
+    changedFiles,
+    changesetContents,
+    ignoredPackages: readIgnoredPackages(root),
+  });
+
+  if (result.mixedChangesets.length > 0) {
+    // 这条是**硬错误**，不是警告：`changeset version` 一定会失败，
+    // 放行等于把"合并即红"的 changeset 合进 main。
+    for (const mixed of result.mixedChangesets) {
+      console.error(
+        [
+          `❌ Mixed changeset ${mixed.file}: it lists both ignored and released packages.`,
+          `   ignored (in .changeset/config.json "ignore"): ${mixed.ignored.join(", ")}`,
+          `   released: ${mixed.released.join(", ")}`,
+          "   @changesets/cli rejects this at `changeset version` time.",
+          `   Fix: remove the ignored packages (${mixed.ignored.join(", ")}) from this changeset.`,
+          "        Ignored packages are never published, so they must not appear in a changeset.",
+        ].join("\n"),
+      );
+    }
+    process.exit(1);
+  }
 
   if (result.missingPackages.length > 0) {
     const msg = [

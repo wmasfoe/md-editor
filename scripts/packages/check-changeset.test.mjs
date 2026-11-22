@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { evaluateChangesetRequirement } from "./check-changeset.mjs";
+import { evaluateChangesetRequirement, readIgnoredPackages } from "./check-changeset.mjs";
 
 test("identifies published package changes requiring a changeset", () => {
   const result = evaluateChangesetRequirement({
@@ -116,4 +116,59 @@ test("does not treat malformed or deleted changesets as an opt-out", () => {
     assert.equal(result.noRelease, false);
     assert.deepEqual(result.missingPackages, ["@md-editor/core"]);
   }
+});
+
+/**
+ * 一个 changeset 同时列出 ignore 与非 ignore 包 → `changeset version` 必然失败。
+ *
+ * PR #292 实际踩到：changeset 里写了 `@md-editor/compiler`（在 config.json 的
+ * `ignore` 列表里）和 4 个要发版的包，本地校验没拦，合并到 main 后
+ * "Version or Publish NPM Packages" 直接红：
+ * "Mixed changesets that contain both ignored and not ignored packages are not allowed"。
+ */
+test("mixed changeset（ignored + released）必须被识别为硬错误", () => {
+  const ignoredPackages = new Set(["@md-editor/compiler"]);
+  const result = evaluateChangesetRequirement({
+    changedFiles: ["packages/editor/src/index.ts", ".changeset/mixed.md"],
+    changesetContents: {
+      "mixed.md": [
+        "---",
+        '"@md-editor/editor": minor',
+        '"@md-editor/compiler": minor',
+        "---",
+        "",
+      ].join("\n"),
+    },
+    ignoredPackages,
+  });
+
+  assert.deepEqual(result.mixedChangesets, [
+    { file: "mixed.md", ignored: ["@md-editor/compiler"], released: ["@md-editor/editor"] },
+  ]);
+});
+
+test("只含 ignored 包的 changeset 不算 mixed（空发版声明）", () => {
+  const ignoredPackages = new Set(["@md-editor/compiler"]);
+  const result = evaluateChangesetRequirement({
+    changedFiles: [".changeset/ignored-only.md"],
+    changesetContents: { "ignored-only.md": '---\n"@md-editor/compiler": patch\n---\n' },
+    ignoredPackages,
+  });
+  assert.deepEqual(result.mixedChangesets, []);
+});
+
+test("只含 released 包的 changeset 不算 mixed", () => {
+  const ignoredPackages = new Set(["@md-editor/compiler"]);
+  const result = evaluateChangesetRequirement({
+    changedFiles: [".changeset/ok.md"],
+    changesetContents: { "ok.md": '---\n"@md-editor/editor": minor\n---\n' },
+    ignoredPackages,
+  });
+  assert.deepEqual(result.mixedChangesets, []);
+});
+
+test("readIgnoredPackages 从 config.json 读出 ignore 列表", () => {
+  const ignored = readIgnoredPackages(new URL("..", import.meta.url).pathname + "/..");
+  assert.ok(ignored.has("@md-editor/compiler"), "compiler 应在 ignore 列表内");
+  assert.ok(!ignored.has("@md-editor/editor"), "editor 不应在 ignore 列表内");
 });
