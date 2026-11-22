@@ -21,13 +21,29 @@ export const PUBLISHED_PACKAGE_DIRS = new Set([
  * 就会把"合并即失败"的 changeset 放进去（PR #292 已实际踩到）。
  */
 export function readIgnoredPackages(root) {
+  let raw;
   try {
-    const raw = readFileSync(resolve(root, ".changeset/config.json"), "utf8");
-    const parsed = JSON.parse(raw);
-    return new Set(Array.isArray(parsed.ignore) ? parsed.ignore : []);
-  } catch {
-    return new Set();
+    raw = readFileSync(resolve(root, ".changeset/config.json"), "utf8");
+  } catch (error) {
+    // 只有"配置文件不存在"才能安全降级为空集合（本仓库一定有，缺失说明跑错目录）。
+    if (error.code === "ENOENT") return new Set();
+    throw error;
   }
+  // 解析失败必须硬失败：静默返回空集合会让 mixed 校验**失效**，
+  // 而 `changeset version` 面对同一个坏文件照样会失败——门禁就先骗了我们一次。
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    throw new Error(
+      `[check-changeset] .changeset/config.json is not valid JSON: ${error.message}`,
+      { cause: error },
+    );
+  }
+  // 注意：这里按**精确包名**匹配。changesets 的 `ignore` 还支持 glob
+  // （如 `@md-editor/app-*`）；本仓库当前全是精确名，若将来改成通配符，
+  // 这里的匹配逻辑需要同步升级，否则会漏判。
+  return new Set(Array.isArray(parsed.ignore) ? parsed.ignore : []);
 }
 
 /**

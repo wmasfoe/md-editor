@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { evaluateChangesetRequirement, readIgnoredPackages } from "./check-changeset.mjs";
 
 test("identifies published package changes requiring a changeset", () => {
@@ -168,7 +172,33 @@ test("只含 released 包的 changeset 不算 mixed", () => {
 });
 
 test("readIgnoredPackages 从 config.json 读出 ignore 列表", () => {
-  const ignored = readIgnoredPackages(new URL("..", import.meta.url).pathname + "/..");
+  const ignored = readIgnoredPackages(fileURLToPath(new URL("../..", import.meta.url)));
   assert.ok(ignored.has("@md-editor/compiler"), "compiler 应在 ignore 列表内");
   assert.ok(!ignored.has("@md-editor/editor"), "editor 不应在 ignore 列表内");
+});
+
+/**
+ * `config.json` 坏掉时必须硬失败，不能静默降级为空集合。
+ *
+ * 若吞掉解析异常，mixed 校验会悄悄失效（`ignore` 变成空集 ⇒ 什么都算 released），
+ * 而 `changeset version` 面对同一个坏文件照样会失败——门禁就先骗了我们一次。
+ */
+test("readIgnoredPackages 在 config.json 损坏时抛错（不得静默降级）", () => {
+  const dir = mkdtempSync(join(tmpdir(), "changeset-config-"));
+  try {
+    mkdirSync(join(dir, ".changeset"), { recursive: true });
+    writeFileSync(join(dir, ".changeset/config.json"), "{ not json");
+    assert.throws(() => readIgnoredPackages(dir), /not valid JSON/u);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("readIgnoredPackages 在配置缺失时降级为空集合", () => {
+  const dir = mkdtempSync(join(tmpdir(), "changeset-config-"));
+  try {
+    assert.deepEqual([...readIgnoredPackages(dir)], []);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
