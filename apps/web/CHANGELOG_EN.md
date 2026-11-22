@@ -1,5 +1,9 @@
 # Changelog - Web Playground
 
+## 0.4.1 - 2026-11-22 (#295)
+
+- Fix MDX components rendering as HTML when the parser loads after the document opens, which previously never recovered. Fix anchor links for nested headings inside list items and blockquotes jumping to the wrong place, and outline entries whose ids did not match the exported HTML.
+
 ## 0.4.0 - 2026-11-19 (#261, #265, #275)
 
 - Add graphical editing for Mermaid flowcharts and sequence diagrams. Drag to connect nodes, double-click to edit text or add nodes, and undo applied changes in one step.
