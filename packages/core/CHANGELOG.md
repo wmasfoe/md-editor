@@ -1,5 +1,12 @@
 # @md-editor/core
 
+## 0.5.1
+
+### Patch Changes
+
+- Updated dependencies [474f487]
+  - @md-editor/shared@0.3.0
+
 ## 0.5.0
 
 ### Minor Changes
