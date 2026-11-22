@@ -1,5 +1,6 @@
 ---
 "@md-editor/editor": patch
+"@md-editor/markdown-fidelity": patch
 "@md-editor/plugin-sdk": patch
 ---
 
@@ -33,6 +34,10 @@ The export-side alias guard also collected real heading ids from top-level token
 legacy alias could collide with a heading nested in a blockquote or callout. Both are fixed;
 outline extraction intentionally still lists top-level headings only, and that rule is now
 documented and asserted.
+
+`markdown-fidelity` gets a patch purely for documentation: `extractHeadingOutline` now states
+the "top-level headings only" rule explicitly, alongside the export-side uniqueness contract it
+relies on.
 
 The desktop host also rolls back partial external-plugin registration: if the n-th
 `addSyntaxPlugin` is rejected, the handles already created in that batch are disposed in
