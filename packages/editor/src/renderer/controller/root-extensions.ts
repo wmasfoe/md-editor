@@ -1,17 +1,18 @@
 import { lintLanguageField } from "../../lint/markdown-lint-i18n.ts";
-import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
+import { history } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { codeFolding } from "@codemirror/language";
-import { search, searchKeymap } from "@codemirror/search";
+import { search } from "@codemirror/search";
 import {
   EditorState,
   type EditorSelection,
   type Compartment,
   type Extension,
 } from "@codemirror/state";
-import { EditorView, keymap, type ViewUpdate } from "@codemirror/view";
+import { EditorView, type ViewUpdate } from "@codemirror/view";
 import { createLintBaseExtensions, createRealtimeMarkdownLintExtension } from "../../lint/index.ts";
 import { markdownLintEngineFacet } from "../../lint/engine.ts";
+import { createEditorKeymapExtension } from "./default-keymap-policy.ts";
 
 import type { WysiwygDiagnostics } from "../../diagnostics.ts";
 import { provideWysiwygDiagnostics } from "../../diagnostics.ts";
@@ -86,12 +87,8 @@ export function createRootExtensions(context: RootExtensionContext): readonly Ex
     EditorView.lineWrapping,
     codeFolding(),
     search({ top: true, createPanel: createLiquidSearchPanel }),
-    keymap.of([
-      { key: "Mod-Shift-Enter", run: context.editMermaid },
-      ...searchKeymap,
-      ...defaultKeymap,
-      ...historyKeymap,
-    ]),
+    // 搜索 / 准入后的 CM 默认键位 / 撤销重做；准入规则见 default-keymap-policy.ts。
+    createEditorKeymapExtension([{ key: "Mod-Shift-Enter", run: context.editMermaid }]),
     context.markdownLanguageCompartment.of(
       context.useNativeCodeLanguages
         ? createMarkdownLanguageSupport(

@@ -1,10 +1,11 @@
 import {
   EditorSelection,
+  Prec,
   Transaction,
   type EditorState,
   type StateCommand,
 } from "@codemirror/state";
-import { keymap, type Command, type EditorView } from "@codemirror/view";
+import { keymap, type Command, type EditorView, type KeyBinding } from "@codemirror/view";
 import { authorizeWysiwygProtectedChange } from "../state/change-authorization.ts";
 import { wysiwygProjectionField } from "../state/projection-field.ts";
 
@@ -579,10 +580,15 @@ export function normalizeCodeMirrorKey(chord: string): string {
 }
 
 /**
- * 创建 Markdown 常用格式化快捷键扩展，支持传入自定义键位映射
+ * 创建 Markdown 常用格式化快捷键的**绑定表**（不含优先级与 `keymap` 包装）。
+ *
+ * 单独导出的原因是测试需要拿到 binding 对象本身来断言"谁在整栈里先命中"，
+ * 而 `createMarkdownFormattingKeymap` 返回的是不透明的 `Extension`。
  * @internal
  */
-export function createMarkdownFormattingKeymap(customKeymaps?: ReadonlyMap<string, string>) {
+export function createMarkdownFormattingBindings(
+  customKeymaps?: ReadonlyMap<string, string>,
+): readonly KeyBinding[] {
   const getKey = (commandId: string, defaultKey: string) => {
     const raw = customKeymaps?.get(commandId) ?? defaultKey;
     return normalizeCodeMirrorKey(raw);
@@ -631,5 +637,26 @@ export function createMarkdownFormattingKeymap(customKeymaps?: ReadonlyMap<strin
     { key: getKey("format.heading6", "Mod-Alt-6"), run: viewFormattingCommand(setHeading6) },
   ];
 
-  return keymap.of(bindings.filter((b) => Boolean(b.key)));
+  return bindings.filter((b) => Boolean(b.key));
+}
+
+/**
+ * 创建 Markdown 常用格式化快捷键扩展，支持传入自定义键位映射。
+ *
+ * 为什么是 `Prec.high`（而不是默认优先级）：生产根扩展把 CodeMirror `defaultKeymap`
+ * 装在前面（`renderer/controller/root-extensions.ts`），而 `keymap` facet 先命中先赢。
+ * 不提权的话，`Mod-Shift-k` 会被上游 `deleteLine` 吃掉（实测：整行被删，而不是插代码块），
+ * `Mod-i` 会被 `selectParentSyntax` 吃掉。
+ *
+ * 为什么不是 `Prec.highest`：`highest` 已被本编辑器的 `Tab` 仲裁
+ * （`wysiwyg/input/tab-arbiter-command.ts`）与 HTML 源码块键位
+ * （`wysiwyg/projections/html-projection.ts`）占用，且库不该占最高层，
+ * 要给宿主 / 插件留出 `Prec.highest` 再盖一层的余地。
+ *
+ * 优先级写在函数内部，因此两处构造点（WYSIWYG 投影装配、`setFormattingKeymaps`
+ * 运行期 reconfigure）自动一致 —— 否则用户改一次快捷键后特权会掉回默认。
+ * @internal
+ */
+export function createMarkdownFormattingKeymap(customKeymaps?: ReadonlyMap<string, string>) {
+  return Prec.high(keymap.of(createMarkdownFormattingBindings(customKeymaps)));
 }
