@@ -127,18 +127,41 @@ Rust 侧不复制 JS 实现，而是在**构建期**读取同一份源，从根�
 
 ### 4.2 语料
 
-83 条，按关注点分组（`scripts/render-diff/corpus/`）：
+约 110 条，按关注点分组（`scripts/render-diff/corpus/`）：
 
 | 文件 | 覆盖 |
 |---|---|
 | `inline-and-cjk.mjs` | 行内语法、CJK 邻接边界（7 条 semantic） |
 | `blocks.mjs` | 标题 ID/去重/别名、嵌套标题、列表、表格、代码块、引用块 |
 | `plugins.mjs` | GFM Alert、`:::容器`、`==highlight==`、数学、mermaid |
-| `edge.mjs` | 空文档、frontmatter、围栏陷阱、组合文档 |
+| `edge.mjs` | 空文档、frontmatter、围栏陷阱、组合文档；另含两组回归集：<br>`PARITY_GAP_FIXTURES`（初次迁移后由审计发现的 16 条缺口）、`REAL_WORLD_FIXTURES`（用仓库真实文档跑差分发现的 13 条边界） |
 
 每条 fixture 必须声明 `mode` 与 `guards`（守护 `packages/compiler/tests/` 的哪条契约），否则 `validateCorpus` 失败。
 
-### 4.3 与 `packages/compiler/tests/` 的关系
+### 4.3 真实文档全量验证
+
+`scripts/render-diff/real-docs-parity.mjs` 用**仓库自己的全部 markdown 文档**
+（当前 364 份）跑同一套差分。
+
+为什么必须有它：人工构造的语料永远覆盖不到真实文档的写法。该脚本在初次迁移后
+一次就发现 10 类分叉，全部不在原始语料里：
+
+| 分叉 | 根因 |
+|---|---|
+| 标题 ID 在裸 `<` 处截断 | `strip_html_tags` 用深度计数器，孤立 `<` 让计数永久 >0 |
+| fence info 带属性时高亮错误 | 只取 info 首词；TS 用整个 info string |
+| `&copy;` 被解码为 `©` | comrak 解码实体，marked 不解码 |
+| 松散任务列表丢 `[x]` 字面量 | marked 只在 tight 列表剥前缀 |
+| 未知小写标签 HTML 块被转义 | comrak 只认 CommonMark blockTags 白名单 |
+| BOM 后首行被识别为标题 | comrak 跳过 BOM，marked 不跳 |
+| 引用定义行被吞掉 | comrak 消费为链接定义，marked 输出为可见文本 |
+| `$$x$$` 行内形态 | comrak 识别为 display math，marked 按容器退化 |
+| 行内代码 `:::info` 多空格 | 自定义扩展的 `start()` 命中行内位置 |
+| `name@version` 未自动链接 | comrak 要求域名含 `.` 且 TLD 为字母 |
+
+该脚本已纳入 `pnpm test:render-diff` 与 CI，退出码非 0 即失败。
+
+### 4.4 与 `packages/compiler/tests/` 的关系
 
 TS 侧的 11 个测试文件 / 130 个用例是**行为定义基线**。Rust 侧的等价性由差分测试保证——不是重写那 130 个用例，而是用同一批语料验证两个实现产出相同结果。
 

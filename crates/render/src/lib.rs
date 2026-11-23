@@ -21,6 +21,7 @@ mod escape;
 mod highlight;
 mod js_runtime;
 mod math;
+mod preprocess;
 mod slug;
 
 pub use document::{

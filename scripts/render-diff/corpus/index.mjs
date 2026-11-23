@@ -17,7 +17,7 @@
 import { INLINE_AND_CJK_FIXTURES } from "./inline-and-cjk.mjs";
 import { BLOCKS_FIXTURES } from "./blocks.mjs";
 import { PLUGINS_FIXTURES } from "./plugins.mjs";
-import { EDGE_FIXTURES } from "./edge.mjs";
+import { EDGE_FIXTURES, PARITY_GAP_FIXTURES, REAL_WORLD_FIXTURES } from "./edge.mjs";
 
 /** 全部差分语料。 */
 export const RENDER_FIXTURES = [
@@ -25,6 +25,8 @@ export const RENDER_FIXTURES = [
   ...BLOCKS_FIXTURES,
   ...PLUGINS_FIXTURES,
   ...EDGE_FIXTURES,
+  ...PARITY_GAP_FIXTURES,
+  ...REAL_WORLD_FIXTURES,
 ];
 
 /** 按 id 建索引，便于报错时反查守卫的契约。 */

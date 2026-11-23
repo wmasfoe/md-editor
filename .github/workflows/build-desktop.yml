@@ -305,7 +305,9 @@ jobs:
           cargo test --manifest-path crates/render-ffi/Cargo.toml
           cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
 
-      # 双实现一致性的守门设施：同一份语料同时跑 TS 与 Rust 渲染器。
+      # 双实现一致性的守门设施：
+      # 1) fixture 语料（约 110 条）逐条对比
+      # 2) 仓库全部 markdown 文档全量对比（真实写法覆盖，见 real-docs-parity.mjs）
       # 虽然 `test-unit` 里的 `pnpm test` 已包含它，这里再显式跑一次，
       # 让 parity 失败在 CI 上单独可见、不必翻整条测试日志。
       - name: Render parity (TS vs Rust)

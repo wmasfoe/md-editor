@@ -14,7 +14,7 @@
 //! 之所以不直接单遍发射：legacy 别名必须让位给「另一个标题的真实 id」，
 //! 而那需要先知道全文档所有真实 id。
 
-use comrak::nodes::{AstNode, ListType, NodeMath, NodeTableRow, NodeValue, TableAlignment};
+use comrak::nodes::{AstNode, ListType, NodeTableRow, NodeValue, TableAlignment};
 use comrak::{parse_document, Arena, Options};
 
 use crate::callout::{callout_svg, default_callout_title};
@@ -62,6 +62,10 @@ struct Cell {
 /// 列表项。
 struct ListItem {
     task: Option<bool>,
+    /// 任务标记的原始字符（`x` / `X` / 空格）。
+    ///
+    /// 松散列表需要把它还原成字面量 `[x] `——marked 只在 tight 列表里剥掉前缀。
+    task_symbol: Option<char>,
     blocks: Vec<Block>,
 }
 
@@ -100,7 +104,17 @@ enum Block {
         items: Vec<ListItem>,
     },
     ThematicBreak,
-    Html(String),
+    Html {
+        literal: String,
+        /// 源码中本块结束行与下一块起始行之间是否**没有空行**。
+        ///
+        /// marked 的 html token 保留块内换行；块与块之间是否保留换行取决于源码间距：
+        /// - 无空行分隔 → 保留换行（`<!-- c -->\n<pre>…`）
+        /// - 有空行分隔 → 去掉换行（`<!-- c --><pre>…`）
+        ///
+        /// comrak 的 HtmlBlock literal 总是带尾换行，因此必须用源码间距来决定去留。
+        tight_to_next: bool,
+    },
 }
 
 /// 构建 comrak 解析选项。
@@ -113,6 +127,7 @@ fn build_options() -> Options<'static> {
     options.extension.table = true;
     options.extension.tasklist = true;
     options.extension.autolink = true;
+    // GFM 裸链接：`name@version` 这类也会被识别为 mailto 链接（与 marked 一致）。
     options.extension.alerts = true;
     options.extension.cjk_friendly_emphasis = true;
     options.extension.math_dollars = true;
@@ -194,16 +209,56 @@ pub(crate) fn render(markdown: &str, options: &RenderOptions) -> String {
     }
 
     let markers = options.markers();
+
+    // 解析前把「comrak 会吃掉、但 TS 侧保留为可见文本」的片段保护起来
+    // （引用定义行、BOM 首行）。详见 preprocess.rs。
+    let preprocessed = crate::preprocess::preprocess(markdown);
+
     let mut allocator = HeadingSlugAllocator::default();
-    let blocks = build_document(markdown, &mut allocator);
+    let blocks = build_document(&preprocessed.markdown, &mut allocator);
 
     let real_ids = collect_heading_ids(&blocks);
     let mut emitted_aliases = std::collections::HashSet::new();
     let mut out = String::new();
-    for block in &blocks {
+    for block in blocks.iter() {
         emit_block(block, markers, &real_ids, &mut emitted_aliases, &mut out);
     }
-    out
+
+    restore_placeholders(out, &preprocessed.restore)
+}
+
+/// 把占位符还原为原始字面量。
+///
+/// 占位符会被转义吗？不会——它由私用区字符与 ASCII 数字组成，
+/// `escape_html` 不触碰它们，因此可以直接按字面量替换。
+fn restore_placeholders(mut html: String, restore: &[crate::preprocess::RestoreItem]) -> String {
+    for item in restore {
+        let replacement = if item.escape {
+            crate::escape::escape_html(&item.literal)
+        } else {
+            // 未知标签的 HTML 块：TS 侧原样透传，不做转义。
+            item.literal.clone()
+        };
+        // 按 item 声明的换行消费策略替换。
+        //
+        // comrak 会把占位符（块级 HTML）包在前后换行之间；是否保留这些换行
+        // 取决于被保护片段的类型（开标签行保留、闭标签行吞前、文档末尾整块吞后）。
+        let mut pattern = String::new();
+        if item.consume_leading_newline {
+            pattern.push('\n');
+        }
+        pattern.push_str(&item.placeholder);
+        if item.consume_trailing_newline {
+            pattern.push('\n');
+        }
+
+        if html.contains(&pattern) {
+            html = html.replace(&pattern, &replacement);
+        } else {
+            html = html.replace(&item.placeholder, &replacement);
+        }
+    }
+    html
 }
 
 /// 按 `:::` 分段构建整个文档。
@@ -301,12 +356,17 @@ fn build_block<'a>(
             out.push(Block::Paragraph(build_inlines(node, source)));
         }
         NodeValue::CodeBlock(code) => {
-            let lang = code
-                .info
-                .split_whitespace()
-                .next()
-                .map(str::to_string)
-                .filter(|value| !value.is_empty());
+            // TS 侧用 marked 的 `c.lang`，它是**整个** info string（去首尾空白），
+            // 不是第一个词。因此 ` ```js title="demo.js" ` 的 lang 是
+            // `js title="demo.js"`：别名解析失败 → 不高亮、语言标识原样保留。
+            let lang = {
+                let trimmed = code.info.trim();
+                if trimmed.is_empty() {
+                    None
+                } else {
+                    Some(trimmed.to_string())
+                }
+            };
             // comrak 的 CodeBlock literal 含结尾换行，TS 侧（marked）不含，
             // 直接 trim_end 会误删代码自身的空行，因此只去掉一个换行序列。
             let literal = code.literal.as_str();
@@ -320,7 +380,14 @@ fn build_block<'a>(
             });
         }
         NodeValue::Math(math) => {
-            out.push(Block::Math(math.literal.clone()));
+            // 跨行的 `$$ ... $$` 是块级数学；单行 `$$x$$` 在不同容器下语义不同
+            // （段落/引用块 → 字面量，列表项 → 行内数学），因此交给段落路径处理。
+            let position = node.data.borrow().sourcepos;
+            if position.start.line == position.end.line {
+                out.push(Block::Paragraph(vec![Inline::Math(math.literal.clone())]));
+            } else {
+                out.push(Block::Math(math.literal.clone()));
+            }
         }
         NodeValue::Alert(alert) => {
             // comrak 的 `alerts` 走 `> [!NOTE]` 语法，与 TS 侧 callout 同源。
@@ -394,7 +461,33 @@ fn build_block<'a>(
             });
         }
         NodeValue::ThematicBreak(_) => out.push(Block::ThematicBreak),
-        NodeValue::HtmlBlock(html) => out.push(Block::Html(html.literal.clone())),
+        NodeValue::HtmlBlock(html) => {
+            // comrak 的 HtmlBlock literal 与 marked 的 html token 只在**一种**情形
+            // 下不同：块后面还有内容时，comrak 保留尾部换行而 marked 去掉。
+            //
+            // 实测（`<div>\nx\n</div>` + 各种尾部）：
+            // - 后面有内容（段落/标题/代码块）→ TS 去掉尾换行，comrak 保留
+            // - 是文档最后一块（后面只有空行或什么都没有）→ 两者一致
+            //
+            // 因此这里只在「后面确实还有块」时去掉一个换行。
+            // 是否去掉尾部换行。实测 marked 的完整规则：
+            //
+            // | 本块之后的源码 | 是否保留尾换行 |
+            // |---|---|
+            // | 什么都没有（文档到本块即止） | 保留 |
+            // | 直接紧跟下一行内容（无空行） | **保留**（`<!-- c -->\n<pre>`） |
+            // | 隔一个及以上空行 | 去掉 |
+            //
+            // 因此「去掉」的条件是：后面仍有内容 **且** 中间存在空行。
+            let end_line = node.data.borrow().sourcepos.end.line;
+            let remaining: Vec<&str> = source.markdown.lines().skip(end_line).collect();
+            let has_next_block = !remaining.is_empty()
+                && remaining.first().map(|line| line.trim().is_empty()) == Some(true);
+            out.push(Block::Html {
+                literal: html.literal.clone(),
+                tight_to_next: has_next_block,
+            });
+        }
         // FrontMatter 不参与 HTML 输出（与 TS 侧一致：frontmatter 只作为元数据提取）。
         _ => {
             for child in node.children() {
@@ -414,9 +507,9 @@ fn build_list_item<'a>(
     allocator: &mut HeadingSlugAllocator,
     source: &SourceText<'_>,
 ) -> ListItem {
-    let task = match &node.data.borrow().value {
-        NodeValue::TaskItem(item) => Some(item.symbol.is_some()),
-        _ => None,
+    let (task, task_symbol) = match &node.data.borrow().value {
+        NodeValue::TaskItem(item) => (Some(item.symbol.is_some()), item.symbol),
+        _ => (None, None),
     };
 
     let mut blocks = Vec::new();
@@ -424,7 +517,11 @@ fn build_list_item<'a>(
         build_block(child, allocator, source, &mut blocks);
     }
 
-    ListItem { task, blocks }
+    ListItem {
+        task,
+        task_symbol,
+        blocks,
+    }
 }
 
 /// 取标题的**原文**行内文本（含 `**` 等标记，仅剥掉 HTML 标签前的原始切片）。
@@ -443,17 +540,33 @@ fn heading_raw_text<'a>(node: &'a AstNode<'a>, source: &SourceText<'_>) -> Strin
 }
 
 /// 剥离 HTML 标签。
+///
+/// 语义严格对齐 TS 侧的 `text.replace(/<[^>]+>/g, "")`：**成对**移除 `<` 到最近
+/// `>` 之间的片段，且 `<` 后必须至少有一个非 `>` 字符；找不到闭合 `>` 时保留 `<`。
+///
+/// 不能用「深度计数器」实现：标题里出现孤立 `<`（如 `# 性能 < 10ms 的场景`）会让
+/// 计数器永久停在 >0，把标题剩余文本整段吞掉，导致 id 与 `data-heading-text`
+/// 双双被截断（实测：TS `性能-10ms-的场景` vs Rust `性能`）。
 fn strip_html_tags(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
-    let mut depth = 0usize;
-    for ch in text.chars() {
-        match ch {
-            '<' => depth += 1,
-            '>' if depth > 0 => depth -= 1,
-            _ if depth == 0 => out.push(ch),
-            _ => {}
+    let mut index = 0usize;
+
+    while index < text.len() {
+        if !text[index..].starts_with('<') {
+            let ch = text[index..].chars().next().unwrap_or_default();
+            out.push(ch);
+            index += ch.len_utf8();
+            continue;
+        }
+        match text[index + 1..].find('>') {
+            Some(offset) if offset > 0 => index = index + 1 + offset + 1,
+            _ => {
+                out.push('<');
+                index += 1;
+            }
         }
     }
+
     out
 }
 
@@ -591,8 +704,32 @@ fn build_raw_inlines<'a>(node: &'a AstNode<'a>, source: &SourceText<'_>) -> Vec<
 fn build_inline<'a>(node: &'a AstNode<'a>, source: &SourceText<'_>, out: &mut Vec<Inline>) {
     let value = node.data.borrow().value.clone();
     match value {
-        NodeValue::Text(text) => out.push(Inline::Text(text.to_string())),
-        NodeValue::Code(code) => out.push(Inline::Code(code.literal.clone())),
+        NodeValue::Text(text) => {
+            // comrak 会把 `&copy;` 解码成 `©`、`&amp;` 解码成 `&`；TS 侧不解码实体
+            // （`&copy;` 输出 `&amp;copy;`，页面上显示字面量 `&copy;`）。
+            // 可见文本不同属于字节级差异，因此按 sourcepos 回查源码原文。
+            let position = node.data.borrow().sourcepos;
+            let raw = source.slice(position.start, position.end);
+            let value = if raw.is_empty() {
+                text.to_string()
+            } else {
+                // 原文上只做「反斜杠转义还原」，**不做**实体解码：
+                // - TS（marked）把 `\*` 还原为 `*`，但把 `&copy;` 保留为字面量；
+                // - comrak 反过来（不保留反斜杠、但解码实体）。
+                // 因此取原文 + 仅解转义，两边行为才对得上。
+                unescape_backslashes(raw)
+            };
+            out.push(Inline::Text(value));
+        }
+        NodeValue::Code(code) => {
+            // CommonMark 5.2：内容**同时**以空格开头和结尾、且不全为空格时，
+            // 首尾各去掉一个空格。
+            //
+            // comrak 的 literal 已按 CommonMark 5.2 处理完首尾空格规则
+            // （内容同时以空格开头和结尾且不全为空格时各去一个），
+            // 与 marked 在该规则上一致。不要再剥一层，否则会少一个空格。
+            out.push(Inline::Code(code.literal.clone()));
+        }
         NodeValue::HtmlInline(html) => {
             // 与 TS 侧一致：**行内** HTML 被当作文本转义（块级 HTML 才原样透传）。
             out.push(Inline::Text(html));
@@ -610,7 +747,35 @@ fn build_inline<'a>(node: &'a AstNode<'a>, source: &SourceText<'_>, out: &mut Ve
             alt: normalize_title(&collect_plain_text(node)),
             title: normalize_title(&link.title),
         }),
-        NodeValue::Math(NodeMath { literal, .. }) => out.push(Inline::Math(literal)),
+        NodeValue::Math(math) => {
+            let position = node.data.borrow().sourcepos;
+            // 列表项内的单行 `$$x$$` 走**行内数学**路径（TS 侧实测：
+            // `- a $$b$$ c` → `a $<katex>$ c`）；其余上下文（段落/引用块）把它
+            // 当字面量输出并插入换行。这是 marked 块级分词器在不同容器下的差异。
+            let single_line_display = math.display_math && position.start.line == position.end.line;
+
+            if single_line_display {
+                // 单行 `$$x$$`：comrak 识别为 display math，但 TS 侧的块级 math_block
+                // 扩展要求 `$$` 后紧跟换行，因此单行形态在不同容器下退化方式不同：
+                // - 列表项内 → `$` + 行内数学 + `$`
+                // - 段落 / 引用块 → 字面量 `\n$$body\n$$`
+                let raw = source.slice(position.start, position.end);
+                let body = raw
+                    .strip_prefix("$$")
+                    .and_then(|rest| rest.strip_suffix("$$"))
+                    .unwrap_or(raw);
+
+                if in_list_item(node) {
+                    out.push(Inline::Text("$".to_string()));
+                    out.push(Inline::Math(body.to_string()));
+                    out.push(Inline::Text("$".to_string()));
+                } else {
+                    out.push(Inline::Text(format!("\n$${body}\n$$")));
+                }
+            } else {
+                out.push(Inline::Math(math.literal));
+            }
+        }
         NodeValue::SoftBreak => out.push(Inline::Text("\n".to_string())),
         _ => {
             for child in node.children() {
@@ -677,7 +842,7 @@ fn emit_inlines(inlines: &[Inline], markers: bool, out: &mut String) {
 
 fn emit_inline(inline: &Inline, markers: bool, out: &mut String) {
     match inline {
-        Inline::Text(text) => out.push_str(&escape_html(text)),
+        Inline::Text(text) => emit_text_with_autolinks(text, out),
         Inline::Code(code) => {
             let escaped = escape_html(code);
             if markers {
@@ -970,7 +1135,22 @@ fn emit_block(
             out.push_str(">\n");
         }
         Block::ThematicBreak => out.push_str("<hr />\n"),
-        Block::Html(html) => out.push_str(html),
+        Block::Html {
+            literal,
+            tight_to_next: has_next_block,
+        } => {
+            // 后面还有块时去掉一个尾部换行（marked 的 html token 不含末尾换行）；
+            // 是文档最后一块时原样输出（此时 comrak 与 marked 已一致）。
+            if *has_next_block {
+                let trimmed = literal
+                    .strip_suffix("\r\n")
+                    .or_else(|| literal.strip_suffix('\n'))
+                    .unwrap_or(literal);
+                out.push_str(trimmed);
+            } else {
+                out.push_str(literal);
+            }
+        }
     }
 }
 
@@ -1012,7 +1192,29 @@ fn emit_list_item(
                 out.push_str(" disabled=\"\"");
             }
             out.push('>');
-            emit_list_item_body(&item.blocks, tight, markers, real_ids, emitted_aliases, out);
+
+            if tight {
+                emit_list_item_body(&item.blocks, tight, markers, real_ids, emitted_aliases, out);
+            } else {
+                // 松散列表：marked 保留 `[x] ` 字面量，并在 `<input>` 后留一个空格。
+                out.push(' ');
+                let symbol = item.task_symbol.unwrap_or(if checked { 'x' } else { ' ' });
+                let mut emitted_literal = false;
+                for block in &item.blocks {
+                    if let Block::Paragraph(inlines) = block {
+                        if !emitted_literal {
+                            out.push_str("<p>[");
+                            out.push(symbol);
+                            out.push_str("] ");
+                            emit_inlines(inlines, markers, out);
+                            out.push_str("</p>\n");
+                            emitted_literal = true;
+                            continue;
+                        }
+                    }
+                    emit_block(block, markers, real_ids, emitted_aliases, out);
+                }
+            }
             out.push_str("</li>\n");
         }
         None => {
@@ -1103,4 +1305,121 @@ fn sole_display_math<'a>(node: &'a AstNode<'a>) -> DisplayMath {
         }
         _ => DisplayMath::None,
     }
+}
+
+/// 还原反斜杠转义（`\*` → `*`），但保留实体字面量（`&copy;` 不动）。
+///
+/// CommonMark 规定反斜杠可转义的 ASCII 标点集合有限；其余位置的反斜杠按字面保留。
+fn unescape_backslashes(text: &str) -> String {
+    const ESCAPABLE: &str = "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~";
+    let mut out = String::with_capacity(text.len());
+    let mut chars = text.chars().peekable();
+
+    while let Some(ch) = chars.next() {
+        if ch == '\\' {
+            if let Some(&next) = chars.peek() {
+                if ESCAPABLE.contains(next) {
+                    out.push(next);
+                    chars.next();
+                    continue;
+                }
+            }
+        }
+        out.push(ch);
+    }
+
+    out
+}
+
+/// 发射文本节点，并把 GFM 裸邮箱自动链接为 `<a href="mailto:…">`。
+///
+/// ## 为什么需要
+///
+/// comrak 的 `autolink` 扩展只识别「域名含 `.` 且 TLD 为字母」的邮箱
+/// （`a@b.c`、`user@example.com`），而 marked 的 GFM url 规则更宽松：
+/// 只要 `@` 后含 `.` 且两段非空就成立，因此 `sanitize-html@2.17.6`、
+/// `@scope/pkg@1.0.0` 里的 `pkg@1.0.0` 都会被链接。
+///
+/// 真实文档（CHANGELOG、安全评审）里大量出现 `name@version` 形式，
+/// 不一致会让同一份文档在桌面导出与移动端渲染出不同内容。
+fn emit_text_with_autolinks(text: &str, out: &mut String) {
+    let bytes = text.as_bytes();
+    let mut cursor = 0usize;
+    let mut plain_start = 0usize;
+
+    while let Some(offset) = text[cursor..].find('@') {
+        let at = cursor + offset;
+
+        // 向左取本地部分：字母/数字/`.`/`_`/`+`/`-`
+        let mut local_start = at;
+        while local_start > 0 {
+            let ch = bytes[local_start - 1];
+            if ch.is_ascii_alphanumeric() || matches!(ch, b'.' | b'_' | b'+' | b'-') {
+                local_start -= 1;
+            } else {
+                break;
+            }
+        }
+
+        // 向右取域名部分：同样字符集
+        let mut domain_end = at + 1;
+        while domain_end < bytes.len() {
+            let ch = bytes[domain_end];
+            if ch.is_ascii_alphanumeric() || matches!(ch, b'.' | b'_' | b'+' | b'-') {
+                domain_end += 1;
+            } else {
+                break;
+            }
+        }
+
+        let local = &text[local_start..at];
+        let domain = &text[at + 1..domain_end];
+
+        // marked 的判定：两侧非空，且域名含 `.`、`.` 两侧都非空。
+        let valid = !local.is_empty()
+            && !domain.is_empty()
+            && domain.contains('.')
+            && !domain.starts_with('.')
+            && !domain.ends_with('.')
+            && !local.ends_with('.');
+
+        if !valid {
+            cursor = at + 1;
+            continue;
+        }
+
+        if plain_start < local_start {
+            out.push_str(&escape_html(&text[plain_start..local_start]));
+        }
+        let address = &text[local_start..domain_end];
+        out.push_str("<a href=\"mailto:");
+        out.push_str(&escape_html(address));
+        out.push_str("\">");
+        out.push_str(&escape_html(address));
+        out.push_str("</a>");
+
+        cursor = domain_end;
+        plain_start = domain_end;
+    }
+
+    if plain_start < text.len() {
+        out.push_str(&escape_html(&text[plain_start..]));
+    }
+}
+
+/// 节点是否位于列表项内。
+///
+/// marked 对 `$$x$$`（单行 display math）在不同容器下的处理不同：
+/// - 列表项内 → 退化为 `$` + 行内数学 + `$`
+/// - 段落 / 引用块 → 作为字面量输出并插入换行
+fn in_list_item<'a>(node: &'a AstNode<'a>) -> bool {
+    let mut current = node.parent();
+    while let Some(parent) = current {
+        let value = parent.data.borrow().value.clone();
+        if matches!(value, NodeValue::Item(_) | NodeValue::TaskItem(_)) {
+            return true;
+        }
+        current = parent.parent();
+    }
+    false
 }
