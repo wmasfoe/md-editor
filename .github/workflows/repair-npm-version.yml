@@ -1,0 +1,94 @@
+# 临时维护流水线：修复"元数据已写入但 tarball 未上传"的 npm 版本。
+#
+# 背景：2026-11-22 发布 @md-editor/core@0.6.0 时，registry 记录了版本元数据与 integrity，
+# 但 tarball 404，导致精确依赖它的 @md-editor/editor@0.7.0 无法安装。npm 不允许覆盖
+# 已存在的版本，因此只能在 72h 内 unpublish 后重发。本地无 npm 凭据，凭据仅存在于
+# Actions secret NPM_TOKEN，故用本流水线执行。
+#
+# 用途完成后请删除本文件（见后续 chore(ci) PR）。
+name: Repair NPM Version (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      package_name:
+        description: "包名（含 scope），例如 @md-editor/core"
+        required: true
+      package_dir:
+        description: "workspace 目录名，例如 core"
+        required: true
+      version:
+        description: "要修复的版本，例如 0.6.0"
+        required: true
+
+jobs:
+  repair:
+    name: Unpublish and republish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.6.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify npm authentication
+        run: npm whoami --registry https://registry.npmjs.org
+
+      - name: Report tarball status before repair
+        run: |
+          set -euo pipefail
+          tarball="$(npm view "${{ inputs.package_name }}@${{ inputs.version }}" dist.tarball --registry https://registry.npmjs.org || true)"
+          echo "metadata tarball: ${tarball:-<missing metadata>}"
+          if [ -n "${tarball}" ]; then
+            echo -n "tarball HTTP before: "
+            curl -s -o /dev/null -w "%{http_code}\n" "${tarball}" || true
+          fi
+
+      - name: Unpublish broken version
+        run: |
+          set -euo pipefail
+          npm unpublish "${{ inputs.package_name }}@${{ inputs.version }}" --force --registry https://registry.npmjs.org
+
+      - name: Build package
+        run: pnpm --filter "${{ inputs.package_name }}" build
+
+      - name: Publish package
+        working-directory: packages/${{ inputs.package_dir }}
+        run: |
+          set -euo pipefail
+          # pnpm 负责把 workspace:* 解析成具体版本号（npm publish 会因该协议失败）
+          pnpm publish --access public --no-git-checks --registry https://registry.npmjs.org
+
+      - name: Verify tarball and install
+        run: |
+          set -euo pipefail
+          tarball="$(npm view "${{ inputs.package_name }}@${{ inputs.version }}" dist.tarball --registry https://registry.npmjs.org)"
+          echo "tarball: ${tarball}"
+          status=$(curl -s -o /dev/null -w "%{http_code}" "${tarball}")
+          echo "tarball HTTP: ${status}"
+          test "${status}" = "200" || { echo "tarball still missing"; exit 1; }
+          echo "latest dist-tag: $(npm view "${{ inputs.package_name }}" dist-tags.latest --registry https://registry.npmjs.org)"
+
+          # 消费者视角冒烟：安装依赖该版本的下游包
+          work="$(mktemp -d)"
+          cd "${work}"
+          npm init -y > /dev/null
+          npm install @md-editor/editor@0.7.0 --no-audit --no-fund
+          node -e "require.resolve('@md-editor/core/package.json'); console.log('consumer install OK')"
