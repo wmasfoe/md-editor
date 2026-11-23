@@ -4,6 +4,8 @@ The editor's domain model: document state, the command and keymap registries, an
 
 It depends only on `@md-editor/shared` — including the shared MDX component vocabulary (`@md-editor/shared/mdx`), so core never has to depend on the plugin SDK. It does not import `@md-editor/ai`. AI results reach it as plain data or command arguments, and network and model handling stay in the AI package. See the [capability boundaries](https://github.com/wmasfoe/md-editor/blob/main/docs/agent/architecture/capability_boundary_design_principles.md).
 
+> **Using it:** see [`USAGE.md`](./USAGE.md) for a task-oriented guide — minimal setup, common recipes, and the full export map.
+
 ## Install
 
 ```bash

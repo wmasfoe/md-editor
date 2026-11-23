@@ -9,6 +9,8 @@ lightweight contracts; `/callout` provides plain data and helpers without DOM or
 CodeMirror dependencies. `/syntax` also provides executable syntax helpers and
 the host-ports facet. The package does not bundle the editor or its peer runtimes.
 
+> **Using it:** see [`USAGE.md`](./USAGE.md) for a task-oriented guide — minimal setup, common recipes, and the full export map.
+
 ## Install
 
 ```bash

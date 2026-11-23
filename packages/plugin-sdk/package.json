@@ -24,7 +24,8 @@
   "sideEffects": false,
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "USAGE.md"
   ],
   "exports": {
     ".": "./src/index.ts",

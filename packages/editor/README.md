@@ -2,6 +2,8 @@
 
 The editor view, built on [CodeMirror 6](https://codemirror.net/). It shows a Markdown document either rendered (WYSIWYG) or as source, using one `EditorView` for both.
 
+> **Using it:** see [`USAGE.md`](./USAGE.md) for a task-oriented guide — minimal setup, common recipes, and the full export map.
+
 ## One editor, two modes
 
 Many Markdown editors keep two editors, for example ProseMirror for rendering and CodeMirror for source, and convert between them. Conversion changes the text, moves the cursor and breaks the undo history.
