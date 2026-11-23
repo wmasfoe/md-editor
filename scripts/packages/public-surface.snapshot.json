@@ -6,8 +6,8 @@
   "entries": {
     "@md-editor/core": {
       "budget": {
-        "total": 107,
-        "values": 37
+        "total": 108,
+        "values": 38
       },
       "exports": [
         {
@@ -424,6 +424,10 @@
         },
         {
           "name": "synchronizeRendererEvent",
+          "kind": "value"
+        },
+        {
+          "name": "TOGGLE_SOURCE_SHORTCUT",
           "kind": "value"
         },
         {

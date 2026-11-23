@@ -39,6 +39,7 @@
 
 import { defaultKeymap, historyKeymap } from "@codemirror/commands";
 import { searchKeymap } from "@codemirror/search";
+import { TOGGLE_SOURCE_SHORTCUT } from "@md-editor/core";
 import type { Extension } from "@codemirror/state";
 import { keymap, type KeyBinding } from "@codemirror/view";
 
@@ -104,16 +105,47 @@ export function createEditorDefaultKeymapBindings(): readonly KeyBinding[] {
 }
 
 /**
- * 根键位扩展：搜索键位 + 准入后的默认键位 + 撤销重做键位。
+ * 编辑器内置键位需要的回调（由渲染器选项注入）。
+ *
+ * 用对象而不是位置参数数组：装配顺序、chord 取值、以及"哪个能力缺省就不装绑定"
+ * 全部由本模块决定，调用方只负责提供实现。
+ */
+export interface EditorKeymapHooks {
+  /** `Mod-Shift-Enter`：编辑 Mermaid 源码。 */
+  readonly editMermaid?: () => boolean;
+  /**
+   * `Mod-/`：切换源码 / 所见即所得（`view.toggleSource`）。
+   *
+   * 桥接层总会提供 —— 它同时持有 `DocumentState` 与渲染器，能独立完成两阶段切换，
+   * 因此宿主**不需要**再自己绑这个键。
+   */
+  readonly onToggleSourceMode?: () => boolean;
+  /**
+   * 覆盖 `view.toggleSource` 的生效 chord（缺省用 core 的 `TOGGLE_SOURCE_SHORTCUT`）。
+   *
+   * 宿主把用户自定义快捷键合并后传进来；空白串表示用户解绑了该命令，此时不安装绑定。
+   */
+  readonly toggleSourceKey?: string;
+}
+
+/**
+ * 根键位扩展：内置命令键位 + 搜索键位 + 准入后的默认键位 + 撤销重做键位。
  *
  * 装配集中在这里（而不是散在 `root-extensions.ts` 的数组字面量里），
- * 这样"哪些上游键位被剔除"只有一个事实来源，测试也断言的是生产用的那份装配。
- *
- * @param leading 需要排在所有内建键位之前的绑定（如 Mermaid 编辑入口）。
+ * 这样"哪些上游键位被剔除""内置命令占哪个 chord"只有一个事实来源，
+ * 测试断言的也是生产用的这份装配。
  */
-export function createEditorKeymapExtension(leading: readonly KeyBinding[] = []): Extension {
+export function createEditorKeymapExtension(hooks: EditorKeymapHooks = {}): Extension {
+  const builtIn: KeyBinding[] = [];
+  if (hooks.editMermaid) {
+    builtIn.push({ key: "Mod-Shift-Enter", run: hooks.editMermaid });
+  }
+  const toggleSourceKey = hooks.toggleSourceKey ?? TOGGLE_SOURCE_SHORTCUT;
+  if (hooks.onToggleSourceMode && toggleSourceKey.trim() !== "") {
+    builtIn.push({ key: toggleSourceKey, run: hooks.onToggleSourceMode });
+  }
   return keymap.of([
-    ...leading,
+    ...builtIn,
     ...searchKeymap,
     ...createEditorDefaultKeymapBindings(),
     ...historyKeymap,

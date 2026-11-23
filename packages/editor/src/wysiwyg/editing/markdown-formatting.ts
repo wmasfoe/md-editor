@@ -682,7 +682,7 @@ export function createMarkdownFormattingBindings(
  * （`wysiwyg/projections/html-projection.ts`）占用，且库不该占最高层，
  * 要给宿主 / 插件留出 `Prec.highest` 再盖一层的余地。
  *
- * 优先级写在函数内部，因此两处构造点（WYSIWYG 投影装配、`setFormattingKeymaps`
+ * 优先级写在函数内部，因此两处构造点（WYSIWYG 投影装配、`setKeymaps`
  * 运行期 reconfigure）自动一致 —— 否则用户改一次快捷键后特权会掉回默认。
  * @internal
  */

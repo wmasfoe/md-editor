@@ -81,7 +81,7 @@ export function DesktopCodeMirrorEditor({
       return;
     }
     const overrides = Object.fromEntries(settings.shortcuts.map((s) => [s.id, s.key]));
-    ports.setFormattingKeymaps(
+    ports.setKeymaps(
       resolveKeymaps(
         createBuiltInKeymaps().filter((keymap) => keymap.owner === "editor"),
         overrides,

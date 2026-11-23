@@ -66,6 +66,11 @@ export interface RootExtensionContext {
   readonly finishComposition: () => void;
   readonly editMermaid: () => boolean;
   readonly formattingKeymapCompartment: Compartment;
+  /**
+   * 内置命令键位（Mermaid 编辑、源码/所见即所得切换）的 compartment。
+   * 宿主改键（`setKeymaps`）时在这里 reconfigure，避免重建整个 state。
+   */
+  readonly editorKeymapCompartment: Compartment;
   readonly handleViewUpdate: (update: ViewUpdate) => void;
   readonly markdownLanguageCompartment: Compartment;
   readonly options: CodeMirrorRendererOptions;
@@ -87,8 +92,14 @@ export function createRootExtensions(context: RootExtensionContext): readonly Ex
     EditorView.lineWrapping,
     codeFolding(),
     search({ top: true, createPanel: createLiquidSearchPanel }),
-    // 搜索 / 准入后的 CM 默认键位 / 撤销重做；准入规则见 default-keymap-policy.ts。
-    createEditorKeymapExtension([{ key: "Mod-Shift-Enter", run: context.editMermaid }]),
+    // 内置命令键位 + 搜索 + 准入后的 CM 默认键位 + 撤销重做；准入规则见 default-keymap-policy.ts。
+    context.editorKeymapCompartment.of(
+      createEditorKeymapExtension({
+        editMermaid: context.editMermaid,
+        // 源码/所见即所得切换：由桥接层实现（owner: "editor"），宿主无需自己绑。
+        onToggleSourceMode: context.options.onToggleSourceMode,
+      }),
+    ),
     context.markdownLanguageCompartment.of(
       context.useNativeCodeLanguages
         ? createMarkdownLanguageSupport(

@@ -5,8 +5,9 @@
  *
  * 这里守护两类真实缺陷（都曾在真实浏览器里复现过）：
  *
- * 1. `Mod-/` 被上游 `toggleComment` 吃掉 → 用户按宿主约定的"切换源码/所见即所得"，
- *    结果文档里多出一段 `<!-- -->`。归属见 `core/src/index.ts` 的 `view.toggleSource`。
+ * 1. `Mod-/` 被上游 `toggleComment` 吃掉 → 用户按约定的"切换源码/所见即所得"，
+ *    结果文档里多出一段 `<!-- -->`。现在 `view.toggleSource` 归 `owner: "editor"`：
+ *    桥接层用 `onToggleSourceMode` 内置实现它，上游 `toggleComment` 被准入层剔除。
  * 2. `Mod-Shift-k` 被上游 `deleteLine` 吃掉 → 整行被删，而不是插入代码块
  *    （格式化表里它是 `insertCodeBlock` 的备用键）。
  *
@@ -45,6 +46,7 @@ import { createWysiwygProjectionExtensions } from "../../src/wysiwyg/index.ts";
  */
 function createProductionKeymapStack(
   projectionOptions: Parameters<typeof createWysiwygProjectionExtensions>[1] = {},
+  keymapHooks: Parameters<typeof createEditorKeymapExtension>[0] = {},
 ): EditorState {
   return EditorState.create({
     doc: "hello",
@@ -54,7 +56,7 @@ function createProductionKeymapStack(
       provideWysiwygDiagnostics(new WysiwygDiagnostics()),
       editorModeField,
       markdownRangeIndexField,
-      createEditorKeymapExtension(),
+      createEditorKeymapExtension(keymapHooks),
       createWysiwygProjectionExtensions(
         ["blocks", "headings", "inline-styles", "links"],
         projectionOptions,
@@ -122,16 +124,16 @@ describe("defaultKeymap 准入策略", () => {
     expect(admittedKeys).toEqual(upstreamOrder);
   });
 
-  it("生产整栈里不存在 Mod-/：宿主拿得回这个 chord", () => {
-    const state = createProductionKeymapStack();
-    const chords = flattenedBindings(state).flatMap((binding) =>
-      [binding.key, binding.mac, binding.win].filter(
-        (chord): chord is string => typeof chord === "string",
-      ),
-    );
-    for (const chord of SUPPRESSED_CODEMIRROR_KEYS) {
-      expect(chords, `${chord} 不该被编辑器绑走`).not.toContain(chord);
-    }
+  it("上游 toggleComment 被剔除：整栈里的 Mod-/ 只有编辑器自己的那一条", () => {
+    const withoutHandler = createProductionKeymapStack();
+    // 没有 onToggleSourceMode（自行组装渲染器）时，编辑器完全不占用 Mod-/
+    expect(bindingsForChord(withoutHandler, "Mod-/")).toHaveLength(0);
+
+    const withHandler = createProductionKeymapStack({}, { onToggleSourceMode: () => true });
+    const bound = bindingsForChord(withHandler, "Mod-/");
+    // 恰好一条：编辑器内置实现；上游 toggleComment 已被准入层剔除，不会出现第二条
+    expect(bound).toHaveLength(1);
+    expect(bound[0]).not.toBe(upstreamBinding("Mod-/"));
   });
 });
 
@@ -179,7 +181,7 @@ describe("格式化键位压过 CodeMirror 默认键位", () => {
     // 基线：默认键位的备用键已排在上游 deleteLine 之前
     expect(bindingsForChord(state, "Mod-Shift-k")[0]).not.toBe(upstream);
 
-    // 真正走一次生产用的重配路径（`setFormattingKeymaps` → compartment.reconfigure）
+    // 真正走一次生产用的重配路径（`setKeymaps` → compartment.reconfigure）
     const next = state.update({
       effects: compartment.reconfigure(
         createMarkdownFormattingKeymap(new Map([["format.codeBlock", "Mod-Shift-j"]])),

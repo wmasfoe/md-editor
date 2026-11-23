@@ -78,8 +78,8 @@ function createRendererFacade(controller: CodeMirrorRendererController): CodeMir
     executeFormatting: (commandId: string) => controller.executeFormatting(commandId),
     openFind: () => controller.openFind(),
     openReplace: () => controller.openReplace(),
-    setFormattingKeymaps: (customKeymaps: ReadonlyMap<string, string>) =>
-      controller.setFormattingKeymaps(customKeymaps),
+    setKeymaps: (customKeymaps: ReadonlyMap<string, string>) =>
+      controller.setKeymaps(customKeymaps),
     toggleFocusMode: () => controller.toggleFocusMode(),
     getViewModeState: () => controller.getViewModeState(),
     toggleTypewriterMode: () => controller.toggleTypewriterMode(),

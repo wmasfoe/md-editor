@@ -12,6 +12,7 @@ import {
   createKeymapRegistry,
   MARKDOWN_FORMATTING_KEYMAPS,
   resolveKeymaps,
+  TOGGLE_SOURCE_SHORTCUT,
   type KeymapDescriptor,
 } from "../src/index.ts";
 
@@ -44,12 +45,22 @@ describe("键位归属", () => {
     }
   });
 
-  it("内建表里除格式化命令外都归宿主：编辑器不得安装宿主语义的键位", () => {
-    const others = createBuiltInKeymaps().filter((entry) => !entry.id.startsWith("format."));
+  it("内建表里只有格式化命令 + view.toggleSource 归编辑器，其余归宿主", () => {
+    const others = createBuiltInKeymaps().filter(
+      (entry) => !entry.id.startsWith("format.") && entry.id !== "view.toggleSource",
+    );
     expect(others.length).toBeGreaterThan(0);
     for (const entry of others) {
       expect(entry.owner, `${entry.id} 不该由编辑器安装绑定`).toBeUndefined();
     }
+  });
+
+  it("view.toggleSource 归编辑器所有：桥接层能独立完成两阶段切换，宿主不必再绑 ⌘/", () => {
+    const entry = createBuiltInKeymaps().find((candidate) => candidate.id === "view.toggleSource");
+    expect(entry?.owner).toBe("editor");
+    // chord 只写在 TOGGLE_SOURCE_SHORTCUT 一处，注册表与编辑器共享同一个常量
+    expect(entry?.key).toBe(TOGGLE_SOURCE_SHORTCUT);
+    expect(TOGGLE_SOURCE_SHORTCUT).toBe("Mod-/");
   });
 
   it("同一 chord 不允许被两条条目占用（跨归属也一样）", () => {

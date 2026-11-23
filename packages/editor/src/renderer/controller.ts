@@ -29,7 +29,6 @@ import type {
   RendererSyncResult,
 } from "@md-editor/core";
 import { WysiwygDiagnostics } from "../diagnostics.ts";
-import { editorModeField } from "../mode.ts";
 import type { RendererTransactionOrigin } from "../origin.ts";
 import type { MarkdownSyntaxPlugin } from "@md-editor/plugin-sdk/syntax";
 import type { Disposable } from "@md-editor/plugin-sdk";
@@ -69,7 +68,8 @@ import {
   readViewModeState,
   runViewMarkdownLint,
   scrollViewToLine,
-  setFormattingViewKeymaps,
+  applyEditorKeymapOverrides,
+  readCurrentMode,
   setViewInlineStyleMarkers,
   setViewCodeBlockLineNumbers,
   setViewSelection,
@@ -137,6 +137,7 @@ export class CodeMirrorRendererController {
   readonly #syntaxRegistryCompartment = new Compartment();
   readonly #aiSuggestionLabelsCompartment = new Compartment();
   readonly #formattingKeymapCompartment = new Compartment();
+  readonly #editorKeymapCompartment = new Compartment();
   readonly #syntaxRegistry: SyntaxPluginRegistry;
   readonly #rootExtensions: readonly Extension[];
   readonly #view: RendererViewAdapter;
@@ -238,6 +239,7 @@ export class CodeMirrorRendererController {
       finishComposition: () => this.#finishComposition(),
       editMermaid: () => this.executeFormatting("edit.mermaid"),
       formattingKeymapCompartment: this.#formattingKeymapCompartment,
+      editorKeymapCompartment: this.#editorKeymapCompartment,
       handleViewUpdate: (update) => this.#handleViewUpdate(update),
       markdownLanguageCompartment: this.#markdownLanguageCompartment,
       options: {
@@ -425,10 +427,15 @@ export class CodeMirrorRendererController {
   openReplace(): boolean {
     return !this.#destroyed && openViewReplace(this.#view);
   }
-  setFormattingKeymaps(customKeymaps: ReadonlyMap<string, string>): void {
-    if (!this.#destroyed) {
-      setFormattingViewKeymaps(this.#view, this.#formattingKeymapCompartment, customKeymaps);
-    }
+  setKeymaps(customKeymaps: ReadonlyMap<string, string>): void {
+    if (this.#destroyed) return;
+    applyEditorKeymapOverrides(
+      this.#view,
+      [this.#formattingKeymapCompartment, this.#editorKeymapCompartment],
+      () => this.executeFormatting("edit.mermaid"),
+      this.#options.onToggleSourceMode,
+      customKeymaps,
+    );
   }
   dismissSuggestion(): boolean {
     return !this.#destroyed && dismissViewAiSuggestion(this.#view);
@@ -559,10 +566,6 @@ export class CodeMirrorRendererController {
     });
   }
 
-  #currentMode(): EditorMode {
-    return this.#view.state.field(editorModeField);
-  }
-
   #handleViewUpdate(update: ViewUpdate): void {
     handleViewUpdate(this.#documentProtocolContext(), update);
   }
@@ -578,7 +581,7 @@ export class CodeMirrorRendererController {
       modeCompartment: this.#modeCompartment,
       scrollTopsByMode: this.#modeScrollTopsByMode,
       cursorPosByMode: this.#modeCursorPosByMode,
-      currentMode: () => this.#currentMode(),
+      currentMode: () => readCurrentMode(this.#view),
       documentGeneration: () => this.#documentGeneration,
       isDestroyed: () => this.#destroyed,
       beginRestoreSequence: () => ++this.#modeScrollRestoreSequence,
@@ -613,7 +616,7 @@ export class CodeMirrorRendererController {
       },
       createState: (snapshot, alignment, selection) =>
         owner.#createState(snapshot, alignment, selection),
-      currentMode: () => owner.#currentMode(),
+      currentMode: () => readCurrentMode(owner.#view),
       get destroyed() {
         return owner.#destroyed;
       },

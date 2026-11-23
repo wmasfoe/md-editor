@@ -111,7 +111,8 @@ export function WebSettingsDialog({
   };
 
   // 快捷键列表配置（只读速查表）。
-  // chord 一律来自 core 的内建键位表，与真正派发的 if-chain 同源，避免"文档写的键没生效"。
+  // chord 一律来自 core 的内建键位表：宿主派发的用 HOST 表过滤，编辑器内置的（⌘/）也要显示，
+  // 所以这里用完整表查 chord —— 与真正生效的键位同源，避免"文档写的键没生效"。
   const shortcutsList = useMemo(() => {
     const builtIn = createBuiltInKeymaps();
     const chordOf = (id: string): string => {

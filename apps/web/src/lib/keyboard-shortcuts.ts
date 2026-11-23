@@ -2,7 +2,6 @@ import { createBuiltInKeymaps } from "@md-editor/core";
 import { matchesRuntimeKeymap } from "@md-editor/app-ui";
 
 export interface WebShortcutHandlers {
-  readonly onToggleMode: () => void;
   readonly onToggleSidebar: () => void;
   readonly onOpenSettings: () => void;
   readonly onSave: () => void;
@@ -33,6 +32,9 @@ export interface KeyboardEventTarget {
  * 此前本文件在 if-chain 里硬编码了 10 个 chord，其中 `Mod-b` 被用于"切换侧边栏"，
  * 与格式化表的"加粗"直接冲突 —— 于是同一个 ⌘B 在 web 是侧边栏、在 desktop 是加粗。
  * 现在 chord 一律从 core 取，两侧不可能再各自发明。
+ *
+ * 注意：`view.toggleSource`（⌘/）已归 `owner: "editor"` —— 编辑器内核自己安装并执行，
+ * 宿主既不绑也不需要写处理器，所以它不在本表里。
  */
 const HOST_KEYMAPS = createBuiltInKeymaps().filter((keymap) => keymap.owner !== "editor");
 
@@ -91,13 +93,6 @@ export function handleWebKeyboardEvent(
   if (matchesRuntimeKeymap(event, chordOf("view.toggleSidebarPrimary"))) {
     event.preventDefault?.();
     handlers.onToggleSidebar();
-    return true;
-  }
-
-  // 3. 切换源码 / 所见即所得
-  if (matchesRuntimeKeymap(event, chordOf("view.toggleSource"))) {
-    event.preventDefault?.();
-    handlers.onToggleMode();
     return true;
   }
 
