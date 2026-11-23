@@ -18,7 +18,7 @@ import { INLINE_AND_CJK_FIXTURES } from "./inline-and-cjk.mjs";
 import { BLOCKS_FIXTURES } from "./blocks.mjs";
 import { PLUGINS_FIXTURES } from "./plugins.mjs";
 import {
-  AUDIT_ROUND2_FIXTURES,
+  AUDIT_ROUND3_FIXTURES,
   EDGE_FIXTURES,
   PARITY_GAP_FIXTURES,
   REAL_WORLD_FIXTURES,
@@ -32,7 +32,7 @@ export const RENDER_FIXTURES = [
   ...EDGE_FIXTURES,
   ...PARITY_GAP_FIXTURES,
   ...REAL_WORLD_FIXTURES,
-  ...AUDIT_ROUND2_FIXTURES,
+  ...AUDIT_ROUND3_FIXTURES,
 ];
 
 /** 按 id 建索引，便于报错时反查守卫的契约。 */

@@ -1,8 +1,4 @@
 //! 单次片段渲染入口（供 desktop 集成测试调用真实 Rust 渲染）。
-//!
-//! stdin：`{ "markdown": "…", "includeMarkers": bool }`
-//! stdout：渲染后的 HTML 片段（纯文本）
-
 use std::io::Read;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

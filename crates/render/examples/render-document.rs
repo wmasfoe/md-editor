@@ -1,8 +1,4 @@
 //! 单次文档包装入口（对应宿主管线）。
-//!
-//! stdin：`{ "fragment": "…", "customCss": "…", "title": "…" }`
-//! stdout：包装后的完整文档（纯文本）
-
 use std::io::Read;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

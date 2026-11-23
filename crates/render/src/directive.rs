@@ -28,6 +28,8 @@ pub enum Segment<'a> {
         title: String,
         /// 指令正文（待递归解析）。
         body: String,
+        /// 该容器写在列表项内（`- :::note`），输出时需用 `<ul><li>` 包裹。
+        in_list_item: bool,
     },
 }
 
@@ -46,10 +48,16 @@ pub fn split_directives(markdown: &str) -> Vec<Segment<'_>> {
         let line = &markdown[index..line_end];
         let stripped = line.strip_suffix('\r').unwrap_or(line);
 
+        // 列表项内的 directive（`- :::note`）与「行首缩进的 directive」
+        // 在 TS 侧行为不同：前者识别为容器，后者是字面量。
+        // 因此这里额外允许「列表标记之后的 `:::`」。
+        let list_item_directive = list_item_prefix(stripped).and_then(parse_opening);
+        let is_list_item = list_item_directive.is_some();
+
         let directive = if at_block_boundary {
-            parse_opening(stripped)
+            parse_opening(stripped).or(list_item_directive)
         } else {
-            None
+            list_item_directive
         };
 
         if let Some((kind, title)) = directive {
@@ -76,14 +84,25 @@ pub fn split_directives(markdown: &str) -> Vec<Segment<'_>> {
                 continue;
             }
 
-            if let Some((body_end, after_close)) = find_closing(markdown, body_start) {
+            if let Some((body_end, after_close)) =
+                find_closing_with(markdown, body_start, is_list_item)
+            {
                 if plain_start < index {
                     segments.push(Segment::Markdown(&markdown[plain_start..index]));
                 }
+                let raw_body = strip_trailing_newline(&markdown[body_start..body_end]);
+                // 列表项内的正文带有列表缩进，需按公共缩进去除（与 marked 的
+                // 列表内容去缩进语义一致），否则内部 Markdown 会被当作缩进代码块。
+                let body = if is_list_item {
+                    dedent(raw_body)
+                } else {
+                    raw_body.to_string()
+                };
                 segments.push(Segment::Directive {
                     kind,
                     title,
-                    body: strip_trailing_newline(&markdown[body_start..body_end]).to_string(),
+                    body,
+                    in_list_item: is_list_item,
                 });
                 plain_start = after_close;
                 index = after_close;
@@ -149,7 +168,8 @@ fn parse_opening(line: &str) -> Option<(String, String)> {
 /// 从 `start` 起寻找恰好为 `:::` 的收尾行。
 ///
 /// 返回（正文结束偏移, 收尾行之后的首个偏移）。
-fn find_closing(markdown: &str, start: usize) -> Option<(usize, usize)> {
+/// 同 [`find_closing`]，但 `allow_indent` 为真时允许缩进的收尾行（列表项内）。
+fn find_closing_with(markdown: &str, start: usize, allow_indent: bool) -> Option<(usize, usize)> {
     let mut index = start;
     while index <= markdown.len() {
         let line_end = markdown[index..]
@@ -158,7 +178,12 @@ fn find_closing(markdown: &str, start: usize) -> Option<(usize, usize)> {
             .unwrap_or(markdown.len());
         let line = &markdown[index..line_end];
         let stripped = line.strip_suffix('\r').unwrap_or(line);
-        if stripped == ":::" {
+        let candidate = if allow_indent {
+            stripped.trim()
+        } else {
+            stripped
+        };
+        if candidate == ":::" {
             let after = if line_end < markdown.len() {
                 line_end + 1
             } else {
@@ -174,6 +199,55 @@ fn find_closing(markdown: &str, start: usize) -> Option<(usize, usize)> {
     None
 }
 
+/// 若该行是「列表标记 + `:::type`」，返回 `:::` 起的部分。
+///
+/// 只处理列表标记与 `:::` 在**同一行**的情形（`- :::note`），
+/// 缩进的续行 directive（`  :::note`）在 TS 侧是字面量，不在此列。
+fn list_item_prefix(line: &str) -> Option<&str> {
+    let trimmed = line.trim_start();
+    let after_marker = if let Some(rest) = trimmed.strip_prefix("- ") {
+        rest
+    } else if let Some(rest) = trimmed.strip_prefix("* ") {
+        rest
+    } else if let Some(rest) = trimmed.strip_prefix("+ ") {
+        rest
+    } else {
+        let digits = trimmed.chars().take_while(char::is_ascii_digit).count();
+        if digits == 0 {
+            return None;
+        }
+        let after = &trimmed[digits..];
+        after
+            .strip_prefix(". ")
+            .or_else(|| after.strip_prefix(") "))?
+    };
+    let candidate = after_marker.trim_start();
+    candidate.starts_with(":::").then_some(candidate)
+}
+
+/// 按所有非空行的公共前导空白去除缩进。
+fn dedent(text: &str) -> String {
+    let common = text
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| line.len() - line.trim_start().len())
+        .min()
+        .unwrap_or(0);
+    if common == 0 {
+        return text.to_string();
+    }
+    text.lines()
+        .map(|line| {
+            if line.trim().is_empty() {
+                String::new()
+            } else {
+                line.get(common..).unwrap_or(line).to_string()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -183,7 +257,9 @@ mod tests {
         let segments = split_directives(":::tip\n正文\n:::\n");
         assert_eq!(segments.len(), 1);
         match &segments[0] {
-            Segment::Directive { kind, title, body } => {
+            Segment::Directive {
+                kind, title, body, ..
+            } => {
                 assert_eq!(kind, "tip");
                 assert_eq!(title, "");
                 assert_eq!(body, "正文");

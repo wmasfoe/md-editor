@@ -131,6 +131,9 @@ fn build_options() -> Options<'static> {
     options.extension.alerts = true;
     options.extension.cjk_friendly_emphasis = true;
     options.extension.math_dollars = true;
+    // 独立成行的 `$$` 块（含跨空行）需要 block 变体；仅开 `math_dollars` 时
+    // comrak 会把 `$$\na\n\nb\n$$` 拆成两个段落。
+    options.extension.math_dollars_block = true;
     options.extension.front_matter_delimiter = Some("---".to_string());
     options.render.hardbreaks = false;
     options
@@ -224,13 +227,25 @@ pub(crate) fn render(markdown: &str, options: &RenderOptions) -> String {
         emit_block(block, markers, &real_ids, &mut emitted_aliases, &mut out);
     }
 
-    restore_placeholders(out, &preprocessed.restore)
+    let restored = restore_placeholders(out, &preprocessed.restore);
+    replicate_quad_dollar(&restored)
 }
 
 /// 把占位符还原为原始字面量。
 ///
 /// 占位符会被转义吗？不会——它由私用区字符与 ASCII 数字组成，
 /// `escape_html` 不触碰它们，因此可以直接按字面量替换。
+/// 复刻 TS 对行内 `$$$$` 的怪异切分。
+///
+/// marked 的 `math_block` 扩展 `start()` 命中行内的 `$$`，把文本切成
+/// `$` + `$` + `$$`（各占一行）。这是 TS 侧的既有行为，为字节级一致必须复刻。
+/// 只作用于**段落文本**，不影响代码块与已有公式。
+fn replicate_quad_dollar(html: &str) -> String {
+    // TS 输出 `a $$$$ b` → `a \n$\n$\n$$ b`：`$$$$` 前的空格保留，
+    // 且第一个 `$` 之前插入换行。
+    html.replace("$$$$", "\n$\n$\n$$")
+}
+
 fn restore_placeholders(mut html: String, restore: &[crate::preprocess::RestoreItem]) -> String {
     // 定义副本注释只服务于 comrak 的引用解析，不能出现在输出里。
     // 它独占一行（comrak 当作 HtmlBlock），移除后会残留一个换行，需一并清掉。
@@ -291,9 +306,14 @@ fn build_document(markdown: &str, allocator: &mut HeadingSlugAllocator) -> Vec<B
                 }
                 blocks.extend(parse_markdown_blocks(text, allocator));
             }
-            Segment::Directive { kind, title, body } => {
+            Segment::Directive {
+                kind,
+                title,
+                body,
+                in_list_item,
+            } => {
                 let inner = build_document(&body, allocator);
-                blocks.push(Block::Callout {
+                let callout = Block::Callout {
                     title: if title.is_empty() {
                         default_callout_title(&kind).to_string()
                     } else {
@@ -301,7 +321,23 @@ fn build_document(markdown: &str, allocator: &mut HeadingSlugAllocator) -> Vec<B
                     },
                     kind,
                     blocks: inner,
-                });
+                };
+                if in_list_item {
+                    // `- :::note` 写在列表项内：TS 输出 `<ul><li><callout></li></ul>`。
+                    blocks.push(Block::List {
+                        ordered: false,
+                        is_task_list: false,
+                        start: None,
+                        tight: true,
+                        items: vec![ListItem {
+                            task: None,
+                            task_symbol: None,
+                            blocks: vec![callout],
+                        }],
+                    });
+                } else {
+                    blocks.push(callout);
+                }
             }
         }
     }
@@ -416,15 +452,17 @@ fn build_block<'a>(
                     .unwrap_or(literal)
                     .to_string()
             } else {
-                // 缩进代码块：comrak 的 literal 恒带尾换行，但 TS 只在源码带尾换行时
-                // 才保留（`c.text` 是源码切片）。用 sourcepos 回查源码判断。
+                // 缩进代码块：comrak 的 literal 恒带尾换行，但 TS（marked `c.text`）
+                // **只在它是文档最后一个块时**才保留（中间块由后续块自身分隔）。
                 let position = node.data.borrow().sourcepos;
-                let bytes = source.markdown.as_bytes();
-                // `sourcepos.end` 指向块内**最后一个字符**，换行在它之后一格。
-                let after = source.offset(position.end) + 1;
-                let source_has_newline =
-                    bytes.get(after) == Some(&b'\n') || bytes.get(after) == Some(&b'\r');
-                if source_has_newline {
+                let is_last_block = source
+                    .markdown
+                    .lines()
+                    .skip(position.end.line)
+                    .all(|line| line.trim().is_empty());
+                // 还需源码本身以换行结尾（fixture 的缩进块虽在末尾但源码无尾换行）。
+                let source_has_trailing_newline = source.markdown.ends_with('\n');
+                if is_last_block && source_has_trailing_newline {
                     literal.to_string()
                 } else {
                     literal
@@ -438,6 +476,21 @@ fn build_block<'a>(
                 lang,
                 code: trimmed.to_string(),
             });
+        }
+        NodeValue::MathBlock(math) => {
+            // `math_dollars_block` 开启后，独立成行的 `$$ … $$`（含跨空行）
+            // 由 comrak 直接给成块级节点。
+            //
+            // 空内容有两种形态，TS 侧行为不同：
+            // - `$$\n$$`（紧邻）→ 普通段落文本
+            // - `$$\n\n$$`（隔空行）→ 空的块级公式容器
+            let position = node.data.borrow().sourcepos;
+            let raw = source.slice(position.start, position.end);
+            if math.literal.trim().is_empty() && !raw.contains("\n\n") {
+                out.push(Block::Paragraph(vec![Inline::Text(raw.to_string())]));
+            } else {
+                out.push(Block::Math(math.literal.clone()));
+            }
         }
         NodeValue::Math(math) => {
             // 跨行的 `$$ ... $$` 是块级数学；单行 `$$x$$` 在不同容器下语义不同
@@ -641,66 +694,69 @@ fn build_inlines<'a>(node: &'a AstNode<'a>, source: &SourceText<'_>) -> Vec<Inli
 /// 因此 `==带 **加粗** 的嵌套==` 里，`==带 ` 与 ` 的嵌套==` 是两段 Text、
 /// 中间夹着 Strong。只在单个 Text 内配对会漏掉这种嵌套形态。
 fn fold_highlights(inlines: Vec<Inline>) -> Vec<Inline> {
-    let mut result: Vec<Inline> = Vec::new();
-    // 已开启高亮时，收集尚未闭合的内部节点。
-    let mut pending: Option<Vec<Inline>> = None;
-
+    let mut atoms: Vec<Atom> = Vec::new();
     for inline in inlines {
         match inline {
             Inline::Text(text) => {
                 let mut rest = text.as_str();
-                while !rest.is_empty() {
-                    let delimiter = rest.find("==");
-                    let Some(position) = delimiter else {
-                        push_inline(&mut result, &mut pending, Inline::Text(rest.to_string()));
-                        rest = "";
-                        break;
-                    };
-
+                while let Some(position) = rest.find("==") {
                     let before = &rest[..position];
-                    let after = &rest[position + 2..];
+                    if !before.is_empty() {
+                        atoms.push(Atom::Text(before.to_string()));
+                    }
+                    atoms.push(Atom::Delim);
+                    rest = &rest[position + 2..];
+                }
+                if !rest.is_empty() {
+                    atoms.push(Atom::Text(rest.to_string()));
+                }
+            }
+            other => atoms.push(Atom::Node(other)),
+        }
+    }
 
-                    if pending.is_some() {
-                        // 闭合：闭合前一个字符必须非空白。
-                        if before.ends_with(|ch: char| ch.is_whitespace()) {
-                            // 不是有效闭合，把 `==` 当字面量继续。
-                            let literal = format!("{before}==");
-                            push_inline(&mut result, &mut pending, Inline::Text(literal));
-                            rest = after;
-                            continue;
-                        }
-                        if !before.is_empty() {
-                            push_inline(
-                                &mut result,
-                                &mut pending,
-                                Inline::Text(before.to_string()),
-                            );
-                        }
+    // 预先计算每个位置「下一个原子是否可作为高亮起始」，因为 atoms 会被消费。
+    let openable: Vec<bool> = atoms
+        .iter()
+        .enumerate()
+        .map(|(index, _)| {
+            atoms
+                .get(index + 1)
+                .map(atom_starts_highlightable)
+                .unwrap_or(false)
+        })
+        .collect();
+
+    let mut result: Vec<Inline> = Vec::new();
+    let mut pending: Option<Vec<Inline>> = None;
+
+    for (index, atom) in atoms.into_iter().enumerate() {
+        match atom {
+            Atom::Delim => {
+                if let Some(children) = pending.as_ref() {
+                    // 闭合条件：`==` 前一个字符必须非空白（CommonMark 侧翼规则）。
+                    let can_close = children
+                        .last()
+                        .map(inline_ends_with_non_whitespace)
+                        .unwrap_or(false);
+                    if can_close {
                         let children = pending.take().unwrap_or_default();
                         result.push(Inline::Highlight(children));
-                        rest = after;
-                        continue;
+                    } else {
+                        push_inline(&mut result, &mut pending, Inline::Text("==".to_string()));
                     }
-
-                    // 开启：`==` 之后必须是「非空白且非 `=`」。
-                    let next_char = after.chars().next();
-                    match next_char {
-                        Some(ch) if !ch.is_whitespace() && ch != '=' => {
-                            if !before.is_empty() {
-                                result.push(Inline::Text(before.to_string()));
-                            }
-                            pending = Some(Vec::new());
-                            rest = after;
-                        }
-                        _ => {
-                            let literal = format!("{before}==");
-                            result.push(Inline::Text(literal));
-                            rest = after;
-                        }
+                } else {
+                    // 开启条件：`==` 之后必须是非空白、非 `=`。
+                    let can_open = openable.get(index).copied().unwrap_or(false);
+                    if can_open {
+                        pending = Some(Vec::new());
+                    } else {
+                        result.push(Inline::Text("==".to_string()));
                     }
                 }
             }
-            other => push_inline(&mut result, &mut pending, other),
+            Atom::Text(text) => push_inline(&mut result, &mut pending, Inline::Text(text)),
+            Atom::Node(node) => push_inline(&mut result, &mut pending, node),
         }
     }
 
@@ -711,6 +767,49 @@ fn fold_highlights(inlines: Vec<Inline>) -> Vec<Inline> {
     }
 
     merge_adjacent_text(result)
+}
+
+/// 折叠 `==highlight==` 用的原子。
+///
+/// Text 在 `==` 处切分，其余节点保持完整。
+///
+/// 必须展平到原子级：`==**粗体**==` 里 `==` 是一个**独立的 Text 节点**
+/// （comrak 把 `**` 解析成 Strong 兄弟节点），只看 Text 内部无法判断
+/// 「`==` 之后是否紧跟非空白内容」。
+enum Atom {
+    Text(String),
+    Delim,
+    Node(Inline),
+}
+
+/// 原子是否可以作为高亮内容的起始（`==` 之后）。
+///
+/// - Text：首字符非空白、非 `=`
+/// - 其它节点（Strong/Emph/Code/Link/Math/Image）：源码里首字符是 `*`、`` ` ``、
+///   `[`、`$`、`!` 等，均为非空白非 `=`，因此总是可以
+fn atom_starts_highlightable(atom: &Atom) -> bool {
+    match atom {
+        Atom::Text(text) => text
+            .chars()
+            .next()
+            .map(|ch| !ch.is_whitespace() && ch != '=')
+            .unwrap_or(false),
+        Atom::Delim => false,
+        Atom::Node(_) => true,
+    }
+}
+
+/// 行内节点是否以非空白结尾（用于 `==` 的闭合判定）。
+fn inline_ends_with_non_whitespace(inline: &Inline) -> bool {
+    match inline {
+        Inline::Text(text) => text
+            .chars()
+            .last()
+            .map(|ch| !ch.is_whitespace())
+            .unwrap_or(false),
+        // 其它节点以 `*`、`` ` ``、`]` 等非空白字符结尾
+        _ => true,
+    }
 }
 
 /// 把节点压入当前容器：已开启高亮则进 pending，否则进结果。

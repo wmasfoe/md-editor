@@ -353,7 +353,7 @@ export const REAL_WORLD_FIXTURES = [
  * （仓库文档里恰好没出现），因此只能靠对抗性探测发现。
  * 每条都对应一个真实缺陷，且大部分会产生**非法 HTML**或**内容错位**。
  */
-export const AUDIT_ROUND2_FIXTURES = [
+export const AUDIT_ROUND3_FIXTURES = [
   {
     id: "email-autolink-in-paragraph",
     mode: "byte",
@@ -437,6 +437,79 @@ export const AUDIT_ROUND2_FIXTURES = [
     mode: "byte",
     guards: "MDX: 属性值含引号的标签不构成 HTML 块（按段落转义）",
     markdown: '<Tabs items={["a","b"]}>\n内容\n</Tabs>',
+  },
+
+  {
+    id: "highlight-nested-strong",
+    mode: "byte",
+    guards: "highlight: `==**粗体**==` 必须以 `==` 开启（文档明确声明支持）",
+    markdown: "==**粗体高亮**==",
+  },
+  {
+    id: "highlight-nested-italic",
+    mode: "byte",
+    guards: "highlight: `==*斜体*==` 同样以 `==` 开启",
+    markdown: "==*斜体高亮*==",
+  },
+  {
+    id: "highlight-nested-code",
+    mode: "byte",
+    guards: "highlight: `==` 后紧跟行内代码",
+    markdown: "==`npm i`==",
+  },
+  {
+    id: "highlight-nested-link",
+    mode: "byte",
+    guards: "highlight: `==` 后紧跟链接",
+    markdown: "==[文档](u)==",
+  },
+  {
+    id: "highlight-nested-del",
+    mode: "byte",
+    guards: "highlight: `==` 后紧跟删除线",
+    markdown: "==~~d~~==",
+  },
+  {
+    id: "highlight-nested-math",
+    mode: "byte",
+    guards: "highlight: `==` 后紧跟行内数学",
+    markdown: "==$b$==",
+  },
+  {
+    id: "math-display-block-with-blank-line",
+    mode: "byte",
+    guards: "数学: 块级公式内部含空行仍是块级公式",
+    markdown: "$$\na\n\nb\n$$",
+  },
+  {
+    id: "math-adjacent-single-line-blocks",
+    mode: "byte",
+    guards: "数学: 空行分隔的两个 `$$x$$` 的怪异切分（TS 既有行为）",
+    markdown: "$$a$$\n\n$$b$$\n",
+  },
+  {
+    id: "math-quad-dollar-inline",
+    mode: "byte",
+    guards: "数学: 行内 `$$$$` 的怪异切分（TS 既有行为）",
+    markdown: "a $$$$ b",
+  },
+  {
+    id: "directive-inside-list-item",
+    mode: "byte",
+    guards: "Directive: 列表项内的 `- :::note` 识别为容器并保留 `<ul><li>` 包装",
+    markdown: "- :::note\n  内容\n  :::",
+  },
+  {
+    id: "mdx-html-block-eof-trailing-newline",
+    mode: "byte",
+    guards: "HTML 块: 末块且源码带尾换行时保留换行",
+    markdown: "<Chart data={[1]} />\n",
+  },
+  {
+    id: "reference-definition-eof-trailing-newline",
+    mode: "byte",
+    guards: "定义行: 末行且源码带尾换行时段落保留换行",
+    markdown: "[foo]: /u\n",
   },
   {
     id: "mdx-self-closing-with-braces",

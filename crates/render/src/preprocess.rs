@@ -59,13 +59,105 @@ pub struct Preprocessed {
     pub restore: Vec<RestoreItem>,
 }
 
+/// 复刻 TS 对「相邻单行 `$$x$$` 块 + 空行」的怪异切分。
+///
+/// marked 的 `math_block` 扩展 `start()` 命中第一行末尾的 `$$`，跨过空行去匹配
+/// 第二行的开头 `$$`，因此 `$$a$$\n\n$$b$$` 被切成：
+/// `<p>$$a</p>` + 空块级公式 + `<p>b\n$$</p>`。
+///
+/// 只在该精确形态下改写，其余 `$$` 用法不受影响。
+fn rewrite_adjacent_single_line_blocks(markdown: &str) -> String {
+    // 快速路径：不包含该形态时原样返回，避免重建字符串改变尾换行语义。
+    if !markdown.contains("$$") {
+        return markdown.to_string();
+    }
+    let lines: Vec<&str> = markdown.lines().collect();
+    let mut changed = false;
+    let mut out: Vec<String> = Vec::with_capacity(lines.len());
+    let mut index = 0usize;
+
+    while index < lines.len() {
+        let line = lines[index];
+        let trimmed = line.trim();
+        // 形态：`$$内容$$`（单行、非空、整行独占）
+        let is_single = trimmed.len() > 4
+            && trimmed.starts_with("$$")
+            && trimmed.ends_with("$$")
+            && !trimmed[2..trimmed.len() - 2].contains("$$");
+        if is_single && index + 2 < lines.len() && lines[index + 1].trim().is_empty() {
+            let next = lines[index + 2].trim();
+            let next_is_single = next.len() > 4
+                && next.starts_with("$$")
+                && next.ends_with("$$")
+                && !next[2..next.len() - 2].contains("$$");
+            if next_is_single {
+                // 切成三段：`$$a` / 空块 / `b$$`
+                let first = &trimmed[..trimmed.len() - 2];
+                let second = &next[2..];
+                // 还原 TS 的三段结构：
+                //   <p>$$a</p> / 空块级公式 / <p>b\n$$</p>
+                // 空块级公式需要 `$$` 与 `$$` 之间隔一个空行（`$$\n\n$$`），
+                // comrak 才会给出空 MathBlock；`b` 与 `$$` 之间不能有空行，
+                // 才能落在同一段落里形成软换行。
+                out.push(first.to_string());
+                out.push(String::new());
+                out.push("$$".to_string());
+                out.push(String::new());
+                out.push("$$".to_string());
+                out.push(String::new());
+                // 结尾的 `$$` 在 TS 侧是**段落内的文本**（软换行后跟字面 `$$`）。
+                // 若直接写 `$$` 独占一行，comrak 会识别为块级公式，
+                // 因此这里用固定标记，由 preprocess 替换为行内占位符。
+                let second_trimmed = second.trim_end_matches("$$");
+                out.push(second_trimmed.to_string());
+                out.push(QUAD_TAIL_MARKER.to_string());
+                changed = true;
+                index += 3;
+                continue;
+            }
+        }
+        out.push(line.to_string());
+        index += 1;
+    }
+
+    if !changed {
+        return markdown.to_string();
+    }
+    let mut result = out.join("\n");
+    // `lines()` 会丢弃末尾换行，这里按原文补回，保持 has_newline 语义不变。
+    if original_ends_with_newline(markdown) && !result.ends_with('\n') {
+        result.push('\n');
+    }
+    result
+}
+
+/// 「相邻单行 `$$x$$` 块」改写时用于标记「段落内的字面 `$$`」。
+const QUAD_TAIL_MARKER: &str = "\u{E001}QUAD_TAIL\u{E001}";
+
+/// 原文是否以换行结尾。
+fn original_ends_with_newline(text: &str) -> bool {
+    text.ends_with('\n')
+}
+
 /// 预处理 Markdown。
-pub fn preprocess(markdown: &str) -> Preprocessed {
+pub fn preprocess(original: &str) -> Preprocessed {
     let mut restore: Vec<RestoreItem> = Vec::new();
     let mut definitions: Vec<String> = Vec::new();
-    let mut out = String::with_capacity(markdown.len());
     let mut counter = 0usize;
 
+    // 先做「相邻单行 `$$x$$` 块」改写，再把改写标记换成行内占位符
+    // （它必须作为普通文本参与解析）。
+    let rewritten = rewrite_adjacent_single_line_blocks(original);
+    let rewritten = if rewritten.contains(QUAD_TAIL_MARKER) {
+        let placeholder = inline_placeholder_for(&mut counter);
+        restore.push(restore_item(placeholder.clone(), "$$".to_string(), true));
+        rewritten.replace(QUAD_TAIL_MARKER, &placeholder)
+    } else {
+        rewritten
+    };
+    let markdown: &str = &rewritten;
+
+    let mut out = String::with_capacity(markdown.len());
     let lines: Vec<&str> = markdown.split_inclusive('\n').collect();
     let mut skip_until = 0usize;
     // 当前所处的代码围栏（marker 字符, 长度）。`None` 表示不在围栏内。
@@ -133,7 +225,18 @@ pub fn preprocess(markdown: &str) -> Preprocessed {
             //   2) 一个行内占位符（渲染时还原为该行的可见文本）
             // 顺序上注释在前，保证定义先生效。
             let placeholder = inline_placeholder_for(&mut counter);
-            restore.push(restore_item(placeholder.clone(), body.to_string(), true));
+            // 段落文本的尾换行由后续内容决定：只有本行是文档最后一行时
+            // TS 才保留它（`[foo]: /u\n` → `<p>[foo]: /u\n</p>`）。
+            let is_last_line = lines
+                .iter()
+                .skip(index + 1)
+                .all(|rest| rest.trim().is_empty());
+            let literal = if has_newline && is_last_line {
+                format!("{body}\n")
+            } else {
+                body.to_string()
+            };
+            restore.push(restore_item(placeholder.clone(), literal, true));
             // 原位只留占位符（渲染为可见文本）；
             // 定义副本收集到 definitions，稍后统一放到文档开头供 comrak 解析。
             definitions.push(body.trim().to_string());
@@ -261,16 +364,26 @@ pub fn preprocess(markdown: &str) -> Preprocessed {
                 }
 
                 let placeholder = placeholder_for(&mut counter);
-                // 文档末尾的整块：marked 的 html token 不含末尾换行，
-                // 因此 literal 去尾换行，并连带吞掉占位符后的换行。
+                // 文档末尾的整块：是否保留尾换行取决于**源码**是否有尾换行
+                // （marked 的 html token 保留块内换行，块尾是否带换行跟随源码）。
                 let is_last_block = lines.iter().skip(cursor).all(|rest| rest.trim().is_empty());
-                let literal = if is_last_block {
+                // 注意：不能用 `has_newline`（那是**开标签行**的换行），
+                // 必须看整块**最后一行**是否带换行。
+                let block_ends_with_newline = lines
+                    .get(cursor.saturating_sub(1))
+                    .map(|last| last.ends_with('\n'))
+                    .unwrap_or(false);
+                let keep_trailing = is_last_block && block_ends_with_newline;
+                let literal = if keep_trailing {
+                    block
+                } else if is_last_block {
                     block.strip_suffix('\n').unwrap_or(&block).to_string()
                 } else {
                     block
                 };
                 let mut item = restore_item(placeholder.clone(), literal, false);
-                item.consume_trailing_newline = is_last_block;
+                // 仅当 literal 已去尾换行时，才需要吞掉占位符后的换行。
+                item.consume_trailing_newline = is_last_block && !block_ends_with_newline;
                 restore.push(item);
                 out.push_str(&placeholder);
                 if has_newline {

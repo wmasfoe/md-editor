@@ -134,7 +134,7 @@ Rust 侧不复制 JS 实现，而是在**构建期**读取同一份源，从根�
 | `inline-and-cjk.mjs` | 行内语法、CJK 邻接边界（7 条 semantic） |
 | `blocks.mjs` | 标题 ID/去重/别名、嵌套标题、列表、表格、代码块、引用块 |
 | `plugins.mjs` | GFM Alert、`:::容器`、`==highlight==`、数学、mermaid |
-| `edge.mjs` | 空文档、frontmatter、围栏陷阱、组合文档；另含三组回归集：<br>`PARITY_GAP_FIXTURES`（首轮审计发现的 16 条缺口）<br>`REAL_WORLD_FIXTURES`（用仓库真实文档跑差分发现的 13 条边界）<br>`AUDIT_ROUND2_FIXTURES`（第二轮对抗性探测发现的 15 条，含嵌套锚点、定义行错位、相邻 `$$` 块、MDX 属性等） |
+| `edge.mjs` | 空文档、frontmatter、围栏陷阱、组合文档；另含四组回归集：<br>`PARITY_GAP_FIXTURES`（首轮审计发现的 16 条缺口）<br>`REAL_WORLD_FIXTURES`（用仓库真实文档跑差分发现的 13 条边界）<br>`AUDIT_ROUND2_FIXTURES`（第二轮对抗性探测发现的 15 条，含嵌套锚点、定义行错位、相邻 `$$` 块、MDX 属性等）<br>`AUDIT_ROUND3_FIXTURES`（第三轮：`==**粗体**==` 等 6 种 highlight 嵌套、块级公式含空行、列表内 directive 等 12 条） |
 
 每条 fixture 必须声明 `mode` 与 `guards`（守护 `packages/compiler/tests/` 的哪条契约），否则 `validateCorpus` 失败。
 
@@ -177,6 +177,17 @@ Rust 侧不复制 JS 实现，而是在**构建期**读取同一份源，从根�
 
 修复方式：`emit_inlines_with(…, inside_link)` 传递链接上下文；定义行改为
 「原位占位符 + 文档开头裸定义副本」（副本被 comrak 消费，不产生输出）。
+
+第三轮审计（本轮）发现的**最严重**一条：`==**粗体高亮**==` —— 文档明确声明
+支持该嵌套（`markdown_syntax_plugin_architecture.md` 与 `highlight.test.ts`），
+编辑器也正确显示高亮，但导出时 `==` 变成字面量。
+
+根因：`fold_highlights` 只在 `Inline::Text` 内部识别 `==`；comrak 把 `**粗体**`
+解析为独立的 `Strong` 兄弟节点，`==` 因此是一个**单独的 Text 节点**，
+其后的 `Strong` 从未进入 pending 状态。
+
+修复：把行内序列展平为「原子」（Text 在 `==` 处切分 + 其它节点原样），
+再按原子序列判断开闭，使 `==` 后紧跟任意行内元素都能正确开启。
 
 ### 4.4 与 `packages/compiler/tests/` 的关系
 
