@@ -212,6 +212,19 @@ Editor-owned chords (`format.*`, `view.toggleSource`) are applied through one au
 
 <!-- readme-check -->
 ```ts
+import { createBuiltInKeymaps, resolveKeymaps } from "@md-editor/core";
+import type { CodeMirrorEditorPorts } from "@md-editor/editor";
+
+// `ports` arrives from `onRendererPortsChange` (React) or `bridge.ports` (vanilla).
+declare const ports: CodeMirrorEditorPorts;
+
+const effective = resolveKeymaps(createBuiltInKeymaps(), {
+  "format.bold": "Mod-Shift-b",
+  "view.toggleSource": null, // unbind Mod-/
+});
+
+ports.setKeymaps(effective);
+```ts
 import { createBuiltInKeymaps, createKeymapRegistry, resolveKeymaps } from "@md-editor/core";
 import { createCodeMirrorEditorBridge } from "@md-editor/editor";
 import { createDocumentState } from "@md-editor/core";

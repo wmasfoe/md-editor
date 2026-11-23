@@ -66,24 +66,72 @@ The options object is your platform, injected:
 
 Sketch of the wiring (platform-specific parts omitted):
 
+<!-- readme-check -->
 ```ts
+import { createDocumentState } from "@md-editor/core";
+import type { CodeMirrorEditorPorts } from "@md-editor/editor";
 import { createPluginHost } from "@md-editor/plugin-host";
-import * as state from "@codemirror/state";
-import * as view from "@codemirror/view";
-import * as markdown from "@lezer/markdown";
-import * as common from "@lezer/common";
+import type { PluginEditRequest, PluginEditResult, PluginEditorSnapshot } from "@md-editor/plugin-sdk";
 
-const host = createPluginHost({
-  syntax: mySyntaxRegistry,
-  commands: myCommandRegistry,
-  keymaps: myKeymapRegistry,
+type HostOptions = Parameters<typeof createPluginHost>[0];
+
+// Placeholders for the host's own objects; the sample focuses on the two adapters
+// that are easy to get wrong.
+declare const docState: ReturnType<typeof createDocumentState>;
+declare const ports: CodeMirrorEditorPorts;
+declare const syntax: HostOptions["syntax"];
+declare const commands: HostOptions["commands"];
+declare const keymaps: HostOptions["keymaps"];
+declare const dependencies: HostOptions["dependencies"];
+declare const styles: HostOptions["styles"];
+declare const readSettings: HostOptions["settings"]["get"];
+declare const writeSettings: HostOptions["settings"]["update"];
+declare const nextOperationId: () => string;
+
+export const host = createPluginHost({
+  syntax,
+  commands,
+  keymaps,
+  dependencies,
   editor: {
-    getSnapshot: () => ({ markdown: document.getSnapshot().markdown }),
-    applyEdit: (edit) => ports.applyExternalEdit({ ...edit, operationId: nextId() }),
+    // Return the *whole* snapshot. Dropping documentGeneration/contentRevision makes
+    // every plugin edit look stale, so applyEdit always fails.
+    getSnapshot: (): PluginEditorSnapshot => {
+      const snapshot = docState.getSnapshot();
+      const selection = ports.getSelectionSnapshot();
+      return {
+        markdown: snapshot.markdown,
+        selection: { anchor: selection.anchor, head: selection.head },
+        documentGeneration: snapshot.documentGeneration,
+        contentRevision: snapshot.contentRevision,
+      };
+    },
+    // Plugins send full Markdown plus the revisions they expect; hand that to the
+    // editor's external-edit protocol and translate the result back.
+    applyEdit: async (edit: PluginEditRequest): Promise<PluginEditResult> => {
+      const result = ports.applyExternalEdit({
+        operationId: nextOperationId(),
+        markdown: edit.markdown,
+        expectedGeneration: edit.expectedGeneration,
+        expectedContentRevision: edit.expectedContentRevision,
+        selection: edit.selection ?? "preserve-offset-clamped",
+      });
+      switch (result.status) {
+        case "applied":
+        case "noop":
+        case "queued-composition":
+        case "stale":
+        case "cancelled":
+        case "reconcile-required":
+          return { status: result.status };
+        default:
+          // busy / rejected: the host protocol refused this edit, so it did not apply.
+          return { status: "cancelled" };
+      }
+    },
   },
-  dependencies: { codemirrorState: state, codemirrorView: view, lezerMarkdown: markdown, lezerCommon: common },
   settings: { get: readSettings, update: writeSettings },
-  styles: { mount: (id, css) => mountStyle(`${id}.css`, css) },
+  styles,
 });
 ```
 

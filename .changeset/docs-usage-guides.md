@@ -15,7 +15,7 @@ images and links, turn on lint, remap shortcuts, build a toolbar, write a plugin
 package), then a grouped export map so you can find an entry point without reading the source.
 
 The samples are compiled, not typed by hand: the documentation gate now checks `USAGE.md` files
-alongside READMEs, and every marked block is type-checked against the workspace sources. Eight
+alongside READMEs, and every marked block is type-checked against the workspace sources. Fifteen
 blocks failed on the first run — `applyEdit({ text })` does not exist, `restoreMarkdownImageSources`
 takes a source map, `plugin-host` has `/github` and `/mdx` subpaths — and were corrected against the
 real signatures.
