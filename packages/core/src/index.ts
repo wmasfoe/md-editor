@@ -353,6 +353,15 @@ export function createFeatureRegistry(): FeatureRegistry {
  */
 export const OPEN_FOLDER_SHORTCUT = "Mod-Alt-O";
 
+/**
+ * 切换源码 / 所见即所得（`view.toggleSource`）的默认键位。
+ *
+ * 与 `OPEN_FOLDER_SHORTCUT` 同一范式：把 chord 暴露给需要"自己实现这个命令"的接入层，
+ * 避免各处再抄一遍字面量。编辑器包用它安装内置绑定（桥接层同时持有 DocumentState 与
+ * 渲染器，能独立完成两阶段切换），宿主不再需要自己绑这个键。
+ */
+export const TOGGLE_SOURCE_SHORTCUT = "Mod-/";
+
 export function createBuiltInEditorFeature(): FeatureDescriptor {
   return {
     id: "editor.built-in",
@@ -520,8 +529,10 @@ export function createBuiltInEditorFeature(): FeatureDescriptor {
 
       context.keymaps.register({
         id: "view.toggleSource",
-        key: "Mod-/",
+        key: TOGGLE_SOURCE_SHORTCUT,
         commandId: "view.toggleSource",
+        // 编辑器内核自己装这个绑定：桥接层同时持有文档状态与渲染器，两阶段切换能自洽完成。
+        owner: "editor",
       });
       context.keymaps.register({
         id: "view.toggleSidebarPrimary",

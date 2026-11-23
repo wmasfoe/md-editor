@@ -498,9 +498,6 @@ function MainWebEditorApp({
   // 绑定全局键盘快捷键
   useEffect(() => {
     return bindWebKeyboardShortcuts({
-      onToggleMode: () => {
-        handleChangeMode(mode === "wysiwyg" ? "source" : "wysiwyg");
-      },
       onToggleSidebar: () => {
         setIsSidebarVisible((prev) => !prev);
       },

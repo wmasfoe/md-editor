@@ -62,16 +62,24 @@ if-chain、web 设置面板速查表、app-ui 的展示层）。其中 desktop �
    - `MARKDOWN_FORMATTING_KEYMAPS`（格式化命令，形状 = `KeymapDescriptor & { title }`）；
    - 其余内建命令的默认键位通过 `createBuiltInKeymaps()` 读取（它把内建 Feature 装进一次性注册表后返回 `list()`）。
 2. **每个 chord 必须声明归属** `KeymapDescriptor.owner`：
-   - `"editor"`：编辑器内核自己安装 keydown 监听（CodeMirror keymap）；
+   - `"editor"`：编辑器内核自己安装 keydown 监听（CodeMirror keymap），并且**自己完成语义**。
+     目前是 `format.*` 全部命令 + `view.toggleSource`；
    - 缺省 = `"host"`：宿主安装监听并派发。编辑器**不得**为宿主语义的 chord 安装任何绑定，
-     否则宿主在 bubble 阶段监听时会被静默吞掉（历史缺陷：`Mod-/` 被 CodeMirror `toggleComment` 吃掉）。
-3. **默认值与用户覆盖只按一套规则合并**：`resolveKeymaps(base, overrides)`。
+     否则宿主在 bubble 阶段监听时会被静默吞掉（历史缺陷：`Mod-/` 被 CodeMirror
+     `toggleComment` 吃掉）。
+3. **内置快捷键开箱可用，宿主不写键盘代码**：凡是编辑器能独立完成的编辑器语义命令，
+   绑定必须内置。`view.toggleSource`（`⌘/`）就是标准案例 —— 桥接层同时持有 `DocumentState`
+   与渲染器，能完成「渲染器先应用 → 核心 CAS 提交 → 失败回滚」的两阶段切换，
+   因此通过 `createCodeMirrorEditorBridge` / `<CodeMirrorEditor>` 接入的宿主**不需要**再绑这个键。
+   宿主自己做（capture 阶段）也不会重复执行：CM 的 keymap 在 `defaultPrevented` 时直接放行。
+4. **默认值与用户覆盖只按一套规则合并**：`resolveKeymaps(base, overrides)`。
    `null` 或空白串 = 显式解绑（该 id 不出现在结果里）；未知 id 忽略。
-   宿主把合并结果传给编辑器端口 `setFormattingKeymaps()` 时，该表是**权威表**：
-   结果里没有的 id 即视为解绑，编辑器不会再回退到默认值。
-4. **固定别名不算默认值**：如 `Mod-Shift-k` 之于 `format.codeBlock`。它们在编辑器内维护，
+   宿主把合并结果传给编辑器端口 `setKeymaps()` 时，该表是**权威表**：
+   结果里没有的 id 即视为解绑，编辑器不会再回退到默认值；内置命令（`view.toggleSource`）
+   的 chord 也从这张表里取，所以设置面板改键会真实生效。
+5. **固定别名不算默认值**：如 `Mod-Shift-k` 之于 `format.codeBlock`。它们在编辑器内维护，
    但必须与所属命令**同生共死**（命令解绑后别名一并消失）。
-5. **新增/调整内建快捷键时**：改 `packages/core/src/keymap.ts` 一处，然后
+6. **新增/调整内建快捷键时**：改 `packages/core/src/keymap.ts` 一处，然后
    - 若新增的是格式化命令，编辑器的命令映射表（`createMarkdownFormattingBindings`）需要加执行体；
    - 桌面端原生菜单加速器（`app_menu.rs`）与前端保持 1:1；
    - `pnpm test` 里的 `packages/core/tests/keymap.test.ts` 会校验 id / chord 不重复、

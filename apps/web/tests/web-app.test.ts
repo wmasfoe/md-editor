@@ -115,8 +115,7 @@ function createKeyEvent(overrides: Partial<KeyboardEvent>): KeyboardEvent {
 }
 
 describe("Web Keyboard Shortcuts System", () => {
-  it("handles shortcuts for mode toggle, sidebar, settings, save to storage, and AI", () => {
-    const onToggleMode = vi.fn();
+  it("handles shortcuts for sidebar, settings, save to storage, and AI", () => {
     const onToggleSidebar = vi.fn();
     const onOpenSettings = vi.fn();
     const onSave = vi.fn();
@@ -124,7 +123,6 @@ describe("Web Keyboard Shortcuts System", () => {
     const onCloseOverlay = vi.fn();
 
     const handlers = {
-      onToggleMode,
       onToggleSidebar,
       onOpenSettings,
       onSave,
@@ -132,11 +130,10 @@ describe("Web Keyboard Shortcuts System", () => {
       onCloseOverlay,
     };
 
-    // 1. Mod-/ (Toggle Mode)
+    // 1. Mod-/ 归编辑器内置（owner: "editor"）：web 的派发器必须放行，不能抢
     expect(handleWebKeyboardEvent(createKeyEvent({ code: "Slash", key: "/" }), handlers)).toBe(
-      true,
+      false,
     );
-    expect(onToggleMode).toHaveBeenCalledTimes(1);
 
     // 2. Mod-Shift-B (Toggle Sidebar —— core 的 view.toggleSidebarPrimary)
     expect(
@@ -226,7 +223,6 @@ describe("Web Keyboard Shortcuts System", () => {
 
     const cleanup = bindWebKeyboardShortcuts(
       {
-        onToggleMode: vi.fn(),
         onToggleSidebar: vi.fn(),
         onOpenSettings: vi.fn(),
         onSave: vi.fn(),

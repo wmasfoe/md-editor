@@ -1,14 +1,17 @@
 import type { DocumentMetrics } from "./markdown/document-metrics.ts";
 import {
+  switchEditorModeSafely,
   synchronizeRendererEvent,
   type DocumentMutationResult,
   type DocumentState,
   type DocumentSnapshot,
+  type EditorMode,
   type ExternalEditFinalizeReceipt,
   type ExternalEditReservationResult,
   type ModeReceipt,
   type ModeRequest,
   type ModeRendererPort,
+  type ModeSwitchResult,
   type MutationBusyResult,
   type MutationRejectedResult,
   type RendererSyncDeliveryResult,
@@ -115,7 +118,7 @@ export interface CodeMirrorEditorPorts {
   /** 打开文档内替换面板 */
   openReplace(): boolean;
   /** 动态更新格式化快捷键映射 */
-  setFormattingKeymaps(customKeymaps: ReadonlyMap<string, string>): void;
+  setKeymaps(customKeymaps: ReadonlyMap<string, string>): void;
   /** D-2 视图模式：切换专注模式，返回切换后状态 */
   toggleFocusMode(): boolean;
   /** D-2 视图模式：切换打字机模式，返回切换后状态 */
@@ -171,6 +174,11 @@ export type CodeMirrorEditorSyncError =
   | {
       readonly kind: "local-change-rejected";
       readonly result: Exclude<DocumentMutationResult, { readonly status: "applied" | "noop" }>;
+    }
+  | {
+      /** 内置 `Mod-/` 的两阶段模式切换失败（渲染器拒绝或核心 CAS 失败）。 */
+      readonly kind: "mode-switch";
+      readonly result: Extract<ModeSwitchResult, { readonly ok: false }>;
     };
 
 /**
@@ -304,6 +312,10 @@ export function createCodeMirrorEditorBridge(
     }
   };
 
+  // 内置 view.toggleSource：实现定义在 renderer 创建之后（它需要 renderer 与 mode 端口），
+  // 用可回填的引用持有，避免先有鸡还是先有蛋。
+  const toggleSourceMode = { current: (): boolean => false };
+
   const rendererOptions: CodeMirrorRendererOptions = {
     parent: options.parent,
     injectStyles: options.injectStyles,
@@ -339,6 +351,8 @@ export function createCodeMirrorEditorBridge(
     onQueuedExternalEditCancelled(result) {
       options.onQueuedExternalEditResult(result);
     },
+    // 编辑器自己完成"切换源码/所见即所得"：这是内置键位，宿主不需要再绑 ⌘/。
+    onToggleSourceMode: () => toggleSourceMode.current(),
   };
   const renderer = createCodeMirrorRenderer(rendererOptions);
 
@@ -353,6 +367,26 @@ export function createCodeMirrorEditorBridge(
     applyMode: (request: ModeRequest) => renderer.applyMode(request),
     rollbackMode: (receipt: ModeReceipt) => renderer.rollbackMode(receipt),
   });
+
+  // 两阶段切换：渲染器先应用 → 核心做 CAS 提交 → 失败自动回滚。
+  // 宿主自己绑这个键时也得走同一条路径，所以把它内置在这里更安全。
+  toggleSourceMode.current = () => {
+    if (destroyed) return false;
+    const snapshot = options.document.getSnapshot();
+    const nextMode: EditorMode = snapshot.mode === "wysiwyg" ? "source" : "wysiwyg";
+    // 先把渲染器里尚未提交的输入刷给核心，避免切换时丢字
+    renderer.flushPendingEdits();
+    const result = switchEditorModeSafely(options.document, nextMode, {
+      operationId: `bridge:mode:${Date.now()}`,
+      renderer: mode,
+      origin: { kind: "command", commandId: "view.toggleSource" },
+    });
+    if (!result.ok) {
+      // 不再静默失败：宿主可以通过既有的 onSyncError 通道提示用户。
+      reportSyncError({ kind: "mode-switch", result });
+    }
+    return result.ok;
+  };
   const ports: CodeMirrorEditorPorts = Object.freeze({
     clientId: renderer.clientId,
     mode,
@@ -376,8 +410,7 @@ export function createCodeMirrorEditorBridge(
     executeFormatting: (commandId: string) => renderer.executeFormatting(commandId),
     openFind: () => renderer.openFind(),
     openReplace: () => renderer.openReplace(),
-    setFormattingKeymaps: (customKeymaps: ReadonlyMap<string, string>) =>
-      renderer.setFormattingKeymaps(customKeymaps),
+    setKeymaps: (customKeymaps: ReadonlyMap<string, string>) => renderer.setKeymaps(customKeymaps),
     toggleFocusMode: () => renderer.toggleFocusMode(),
     toggleTypewriterMode: () => renderer.toggleTypewriterMode(),
     getViewModeState: () => renderer.getViewModeState(),

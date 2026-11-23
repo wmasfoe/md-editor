@@ -13,8 +13,25 @@ const rendererMock = vi.hoisted(() => {
         sync: vi.fn(() => ({ status: "applied" as const })),
         reconcile: vi.fn(() => ({ status: "applied" as const })),
         applyReservedExternalEdit: vi.fn(() => ({ status: "noop" as const })),
-        applyMode: vi.fn(() => ({ ok: true as const })),
+        applyMode: vi.fn(
+          (request: {
+            operationId: string;
+            mode: "wysiwyg" | "source";
+            expectedGeneration: number;
+            expectedStateRevision: number;
+          }) => ({
+            status: "applied" as const,
+            receipt: {
+              operationId: request.operationId,
+              documentGeneration: request.expectedGeneration,
+              expectedStateRevision: request.expectedStateRevision,
+              previousMode: request.mode === "source" ? "wysiwyg" : "source",
+              appliedMode: request.mode,
+            },
+          }),
+        ),
         rollbackMode: vi.fn(),
+        flushPendingEdits: vi.fn(() => true),
         setCodeBlockLineNumbers: vi.fn(() => ({ status: "noop" as const })),
         setMarkdownLint: vi.fn(() => ({ status: "noop" as const })),
         setMarkdownLintEngine: vi.fn(),
@@ -54,6 +71,30 @@ describe("CodeMirrorEditor clipboard bridge", () => {
     const options = rendererMock.calls.at(-1) as { isDocumentBusy: () => boolean };
     expect(options.isDocumentBusy()).toBe(true);
     expect(document.getSnapshot().markdown).toBe("Legacy custom state");
+    bridge.destroy();
+  });
+
+  it("内置 Mod-/：桥接层自己完成源码/所见即所得切换，宿主不必再绑键", () => {
+    const document = createDocumentState({ markdown: "# Hello" });
+    const bridge = createCodeMirrorEditorBridge({
+      parent: createParent(),
+      document,
+      onSyncError: vi.fn(),
+      onQueuedExternalEditResult: vi.fn(),
+    });
+
+    // 渲染器拿到的选项里必须带内置实现（renderer 是 mock，所以直接调用它验证协议）
+    const options = rendererMock.calls.at(-1) as { onToggleSourceMode?: () => boolean };
+    expect(typeof options.onToggleSourceMode).toBe("function");
+
+    expect(document.getSnapshot().mode).toBe("wysiwyg");
+    expect(options.onToggleSourceMode?.()).toBe(true);
+    expect(document.getSnapshot().mode).toBe("source");
+    expect(options.onToggleSourceMode?.()).toBe(true);
+    expect(document.getSnapshot().mode).toBe("wysiwyg");
+
+    // 两阶段协议：渲染器先应用 → 核心再 CAS 提交
+    expect(rendererMock.calls.length).toBeGreaterThan(0);
     bridge.destroy();
   });
 

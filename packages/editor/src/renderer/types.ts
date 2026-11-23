@@ -74,6 +74,16 @@ export interface CodeMirrorRendererOptions {
    */
   readonly syntaxPluginHostPorts?: SyntaxPluginHostPorts;
   readonly translateEditorMessage?: EditorMessageTranslator | undefined;
+  /**
+   * 内置的「切换源码 / 所见即所得」（`view.toggleSource`）实现。
+   *
+   * 桥接层（`createCodeMirrorEditorBridge`）总会提供它 —— 它同时持有 `DocumentState`
+   * 与渲染器，能独立完成两阶段模式切换，因此宿主**不需要**再自己绑这个键。
+   * 直接用 `createCodeMirrorRenderer` 自行组装的宿主若不提供，该键位不会被安装。
+   *
+   * 返回 `false` 表示本次不处理（例如渲染器尚未就绪），按键继续按默认路径流转。
+   */
+  readonly onToggleSourceMode?: () => boolean;
   readonly onEditorChange: (change: {
     readonly markdown: Markdown;
     readonly origin: {
@@ -208,7 +218,7 @@ export interface CodeMirrorRenderer {
   /** 打开文档内替换面板 */
   openReplace(): boolean;
   /** 动态更新格式化快捷键映射 */
-  setFormattingKeymaps(customKeymaps: ReadonlyMap<string, string>): void;
+  setKeymaps(customKeymaps: ReadonlyMap<string, string>): void;
   /** D-2：切换专注模式，返回切换后状态（供 host 镜像到菜单勾选态） */
   toggleFocusMode(): boolean;
   /** 回读视图轴（专注/打字机）真实开关态，供宿主核对菜单镜像一致性（S1(b)/MED-4） */

@@ -1,4 +1,6 @@
+import type { EditorMode } from "@md-editor/core";
 import { markdownLintEngineFacet } from "../../lint/engine.ts";
+import { editorModeField } from "../../mode.ts";
 import type { MarkdownLintEngine } from "../../lint/engine.ts";
 /**
  * @file view-operations.ts
@@ -44,6 +46,7 @@ import {
   createMarkdownFormattingKeymap,
   executeFormattingCommand,
 } from "../../wysiwyg/editing/markdown-formatting.ts";
+import { createEditorKeymapExtension } from "./default-keymap-policy.ts";
 import {
   moveBlockUp as moveCmBlockUp,
   moveBlockDown as moveCmBlockDown,
@@ -322,18 +325,47 @@ export function deleteViewBlock(view: RendererViewAdapter): boolean {
   return Boolean(cmView && deleteCmBlock(cmView));
 }
 
-/** 动态重配格式化快捷键 */
-export function setFormattingViewKeymaps(
+/**
+ * 重配宿主可改写的全部键位（一次 dispatch，避免两次 reconfigure 叠加两帧）：
+ *
+ * - 格式化命令：来自 `createMarkdownFormattingKeymap(customKeymaps)`；
+ * - 内置命令（`view.toggleSource` 等）：来自 `createEditorKeymapExtension(hooks)`，
+ *   chord 也从同一张覆盖表里取，所以设置面板改键会真实生效。
+ */
+export function applyEditorKeymapOverrides(
   view: RendererViewAdapter,
-  compartment: Compartment,
+  /** `[格式化命令, 内置命令]`：一次 dispatch 同时重配两处，避免叠加两帧。 */
+  compartments: readonly [formatting: Compartment, editor: Compartment],
+  editMermaid: () => boolean,
+  onToggleSourceMode: (() => boolean) | undefined,
   customKeymaps: ReadonlyMap<string, string>,
 ): void {
   const cmView = view as unknown as EditorView | null;
-  if (cmView) {
-    cmView.dispatch({
-      effects: compartment.reconfigure(createMarkdownFormattingKeymap(customKeymaps)),
-    });
-  }
+  if (!cmView) return;
+  cmView.dispatch({
+    effects: [
+      compartments[0].reconfigure(createMarkdownFormattingKeymap(customKeymaps)),
+      compartments[1].reconfigure(
+        createEditorKeymapExtension({
+          editMermaid,
+          onToggleSourceMode,
+          // 覆盖表是**权威表**：查不到该 id 就是"用户解绑了"，必须传空串（不回退默认）。
+          toggleSourceKey: customKeymaps.get("view.toggleSource") ?? "",
+        }),
+      ),
+    ],
+  });
+}
+
+/**
+ * 当前编辑器模式（源码 / 所见即所得）。
+ *
+ * 视图尚未建立时返回 `"wysiwyg"`：`createDocumentState()` 的默认模式就是它，
+ * 而且这条分支只出现在构造期（probe 早于 `#view` 赋值被读取），不参与任何决策。
+ */
+export function readCurrentMode(view: RendererViewAdapter): EditorMode {
+  const cmView = view as unknown as EditorView | null;
+  return cmView ? cmView.state.field(editorModeField) : "wysiwyg";
 }
 
 /** 执行 markdownlint 诊断分析 */

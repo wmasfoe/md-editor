@@ -107,7 +107,7 @@ function makeSettings(backgroundProcessing: boolean) {
 }
 
 const ports = {
-  setFormattingKeymaps: vi.fn(),
+  setKeymaps: vi.fn(),
   dismissSuggestion: vi.fn(),
   getSuggestion: vi.fn(() => null),
   getSelectionSnapshot: vi.fn(() => ({ from: 40, to: 40, head: 40 })),
