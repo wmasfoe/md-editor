@@ -1,6 +1,6 @@
 {
   "name": "@md-editor/plugin-host",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "license": "GPL-3.0-or-later",
   "type": "module",
   "exports": {
@@ -15,7 +15,7 @@
     "prepack": "pnpm build"
   },
   "dependencies": {
-    "@md-editor/plugin-sdk": "workspace:^0.8.0",
+    "@md-editor/plugin-sdk": "workspace:^0.8.2",
     "@md-editor/shared": "workspace:*"
   },
   "devDependencies": {
