@@ -7,5 +7,5 @@
 mod commands;
 mod typeset_view;
 
-pub use commands::{BlockFormat, HostCommand, InlineFormat};
-pub use typeset_view::{Copy, Cut, Paste, PasteTarget, TypesetView};
+pub use commands::{BlockFormat, HostCommand, InlineFormat, format_shortcuts};
+pub use typeset_view::{Copy, Cut, ImagePaste, Paste, PasteTarget, TypesetTypography, TypesetView};

@@ -76,24 +76,34 @@ impl LeafIndex {
         Some(geometry.index_for_position(point))
     }
 
-    /// The leaf whose bounds contain `point`, else the vertically nearest one.
+    /// The leaf whose bounds contain `point`, else the nearest one by weighted distance.
     fn nearest(&self, point: Point<Pixels>) -> Option<(u64, &LeafGeometry)> {
-        let mut fallback: Option<(u64, &LeafGeometry, Pixels)> = None;
+        let mut fallback: Option<(u64, &LeafGeometry, f32)> = None;
         for (key, geometry) in &self.leaves {
             let bounds = geometry.bounds();
             if bounds.contains(&point) {
                 return Some((*key, geometry));
             }
-            let vertical = if point.y < bounds.origin.y {
-                bounds.origin.y - point.y
-            } else if point.y > bounds.origin.y + bounds.size.height {
-                point.y - (bounds.origin.y + bounds.size.height)
+            let dx = if point.x < bounds.origin.x {
+                (bounds.origin.x - point.x).as_f32()
+            } else if point.x > bounds.origin.x + bounds.size.width {
+                (point.x - (bounds.origin.x + bounds.size.width)).as_f32()
             } else {
-                Pixels::ZERO
+                0.0
             };
-            let better = fallback.is_none_or(|(_, _, best)| vertical < best);
+            let dy = if point.y < bounds.origin.y {
+                (bounds.origin.y - point.y).as_f32()
+            } else if point.y > bounds.origin.y + bounds.size.height {
+                (point.y - (bounds.origin.y + bounds.size.height)).as_f32()
+            } else {
+                0.0
+            };
+            // Vertical distance is primary, horizontal distance disambiguates leaves
+            // on the same line (such as table cells in the same row).
+            let dist = dy * 1000.0 + dx;
+            let better = fallback.as_ref().is_none_or(|(_, _, best)| dist < *best);
             if better {
-                fallback = Some((*key, geometry, vertical));
+                fallback = Some((*key, geometry, dist));
             }
         }
         fallback.map(|(key, geometry, _)| (key, geometry))

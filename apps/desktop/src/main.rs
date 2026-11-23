@@ -3,6 +3,7 @@ mod document;
 mod folder;
 mod image_assets;
 mod local_ai;
+pub(crate) mod session;
 mod settings;
 mod workspace;
 
@@ -17,6 +18,53 @@ use workspace::{
     CloseDocument, ContinueWithLocalAi, NewDocument, OpenDocument, OpenFolder, SaveAs,
     SaveDocument, Workspace,
 };
+
+// Host bindings are also used to build the settings shortcut list.
+mod shortcuts {
+    pub type Shortcut = (&'static str, &'static str, &'static str);
+    pub const NEW: Shortcut = ("New document", "cmd-n", "ctrl-n");
+    pub const OPEN: Shortcut = ("Open document", "cmd-o", "ctrl-o");
+    pub const OPEN_FOLDER: Shortcut = ("Open folder", "cmd-alt-o", "ctrl-alt-o");
+    pub const SAVE: Shortcut = ("Save", "cmd-s", "ctrl-s");
+    pub const SAVE_AS: Shortcut = ("Save as", "cmd-shift-s", "ctrl-shift-s");
+    pub const CLOSE: Shortcut = ("Close document", "cmd-w", "ctrl-w");
+    pub const QUIT: Shortcut = ("Quit", "cmd-q", "ctrl-q");
+    pub const OUTLINE: Shortcut = ("Show outline", "cmd-shift-b", "ctrl-shift-b");
+    pub const SETTINGS: Shortcut = ("Settings", "cmd-,", "ctrl-,");
+    pub const ALL: [Shortcut; 8] = [
+        NEW,
+        OPEN,
+        OPEN_FOLDER,
+        SAVE,
+        SAVE_AS,
+        CLOSE,
+        OUTLINE,
+        SETTINGS,
+    ];
+
+    pub fn key(shortcut: Shortcut) -> &'static str {
+        if cfg!(target_os = "macos") {
+            shortcut.1
+        } else {
+            shortcut.2
+        }
+    }
+
+    pub fn display_key(binding: &str) -> String {
+        binding
+            .split('-')
+            .map(|part| match part {
+                "cmd" => "⌘".to_owned(),
+                "ctrl" => "Ctrl".to_owned(),
+                "alt" if cfg!(target_os = "macos") => "⌥".to_owned(),
+                "alt" => "Alt".to_owned(),
+                "shift" => "Shift".to_owned(),
+                other => other.to_uppercase(),
+            })
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+}
 
 const APP_NAME: &str = "Inkpoint";
 
@@ -43,30 +91,43 @@ fn main() {
         // Without this the view never receives them and typing moves nothing.
         TypesetView::bind_keys(cx);
         cx.bind_keys([
-            KeyBinding::new("cmd-n", NewDocument, Some("Inkpoint")),
-            KeyBinding::new("cmd-o", OpenDocument, Some("Inkpoint")),
-            KeyBinding::new("cmd-alt-o", OpenFolder, Some("Inkpoint")),
-            KeyBinding::new("cmd-s", SaveDocument, Some("Inkpoint")),
-            KeyBinding::new("cmd-shift-s", SaveAs, Some("Inkpoint")),
-            KeyBinding::new("cmd-w", CloseDocument, Some("Inkpoint")),
-            KeyBinding::new("cmd-q", CloseDocument, Some("Inkpoint")),
-            KeyBinding::new("cmd-/", ToggleSourceMode, Some("Inkpoint")),
-            KeyBinding::new("cmd-shift-b", ToggleOutline, Some("Inkpoint")),
             KeyBinding::new(
-                if cfg!(target_os = "macos") {
-                    "cmd-,"
-                } else {
-                    "ctrl-,"
-                },
-                OpenSettings,
-                None,
-            ),
-            KeyBinding::new("cmd-b", FormatInline(InlineFormat::Bold), Some("Inkpoint")),
-            KeyBinding::new(
-                "cmd-i",
-                FormatInline(InlineFormat::Italic),
+                shortcuts::key(shortcuts::NEW),
+                NewDocument,
                 Some("Inkpoint"),
             ),
+            KeyBinding::new(
+                shortcuts::key(shortcuts::OPEN),
+                OpenDocument,
+                Some("Inkpoint"),
+            ),
+            KeyBinding::new(
+                shortcuts::key(shortcuts::OPEN_FOLDER),
+                OpenFolder,
+                Some("Inkpoint"),
+            ),
+            KeyBinding::new(
+                shortcuts::key(shortcuts::SAVE),
+                SaveDocument,
+                Some("Inkpoint"),
+            ),
+            KeyBinding::new(shortcuts::key(shortcuts::SAVE_AS), SaveAs, Some("Inkpoint")),
+            KeyBinding::new(
+                shortcuts::key(shortcuts::CLOSE),
+                CloseDocument,
+                Some("Inkpoint"),
+            ),
+            KeyBinding::new(
+                shortcuts::key(shortcuts::QUIT),
+                CloseDocument,
+                Some("Inkpoint"),
+            ),
+            KeyBinding::new(
+                shortcuts::key(shortcuts::OUTLINE),
+                ToggleOutline,
+                Some("Inkpoint"),
+            ),
+            KeyBinding::new(shortcuts::key(shortcuts::SETTINGS), OpenSettings, None),
         ]);
         cx.set_menus([
             Menu::new(APP_NAME).items([MenuItem::action("Quit Inkpoint", CloseDocument)]),
@@ -118,6 +179,8 @@ fn main() {
                 let mut workspace = Workspace::new(window, cx);
                 if let Some(path) = startup_path {
                     workspace.load_document(path, window, cx);
+                } else {
+                    workspace.check_initial_session(window, cx);
                 }
                 workspace
             })
