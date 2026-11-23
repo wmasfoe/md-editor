@@ -134,7 +134,7 @@ Rust 侧不复制 JS 实现，而是在**构建期**读取同一份源，从根�
 | `inline-and-cjk.mjs` | 行内语法、CJK 邻接边界（7 条 semantic） |
 | `blocks.mjs` | 标题 ID/去重/别名、嵌套标题、列表、表格、代码块、引用块 |
 | `plugins.mjs` | GFM Alert、`:::容器`、`==highlight==`、数学、mermaid |
-| `edge.mjs` | 空文档、frontmatter、围栏陷阱、组合文档；另含两组回归集：<br>`PARITY_GAP_FIXTURES`（初次迁移后由审计发现的 16 条缺口）、`REAL_WORLD_FIXTURES`（用仓库真实文档跑差分发现的 13 条边界） |
+| `edge.mjs` | 空文档、frontmatter、围栏陷阱、组合文档；另含三组回归集：<br>`PARITY_GAP_FIXTURES`（首轮审计发现的 16 条缺口）<br>`REAL_WORLD_FIXTURES`（用仓库真实文档跑差分发现的 13 条边界）<br>`AUDIT_ROUND2_FIXTURES`（第二轮对抗性探测发现的 15 条，含嵌套锚点、定义行错位、相邻 `$$` 块、MDX 属性等） |
 
 每条 fixture 必须声明 `mode` 与 `guards`（守护 `packages/compiler/tests/` 的哪条契约），否则 `validateCorpus` 失败。
 
@@ -160,6 +160,23 @@ Rust 侧不复制 JS 实现，而是在**构建期**读取同一份源，从根�
 | `name@version` 未自动链接 | comrak 要求域名含 `.` 且 TLD 为字母 |
 
 该脚本已纳入 `pnpm test:render-diff` 与 CI，退出码非 0 即失败。
+
+**但「364/364」不等于完备**：第二轮审计用对抗性探测又找出 15 条真实分叉，
+它们恰好没出现在仓库文档里。因此语料与真实文档**两者都必需**：
+
+| 手段 | 覆盖 |
+|---|---|
+| fixture 语料（127 条） | 人工构造的边界与反例（裸 `<`、MDX 属性、嵌套锚点…） |
+| 真实文档全量（364 份） | 实际写法与结构组合 |
+
+第二轮修复的 15 条中最危险的两条会产生**非法 HTML**：
+
+- 邮箱自动链接被重复包裹 → `<a href="mailto:x"><a href="mailto:x">…</a></a>`
+  （嵌套锚点；且 `[a@b.com](url)` 会破坏链接目标）
+- 链接定义行被提升到文档开头 → 可见文本错位到 H1 之前
+
+修复方式：`emit_inlines_with(…, inside_link)` 传递链接上下文；定义行改为
+「原位占位符 + 文档开头裸定义副本」（副本被 comrak 消费，不产生输出）。
 
 ### 4.4 与 `packages/compiler/tests/` 的关系
 

@@ -345,3 +345,103 @@ export const REAL_WORLD_FIXTURES = [
     markdown: "Updated dependencies: sanitize-html@2.17.6",
   },
 ];
+
+/**
+ * 审计第二轮发现的对齐缺口（全部已修复）。
+ *
+ * 这些场景的共同点：初次迁移的语料里完全没有，`real-docs-parity` 也覆盖不到
+ * （仓库文档里恰好没出现），因此只能靠对抗性探测发现。
+ * 每条都对应一个真实缺陷，且大部分会产生**非法 HTML**或**内容错位**。
+ */
+export const AUDIT_ROUND2_FIXTURES = [
+  {
+    id: "email-autolink-in-paragraph",
+    mode: "byte",
+    guards: "自动链接: 段落内的邮箱不得被重复包裹成嵌套锚点",
+    markdown: "联系 a@b.com 获取支持",
+  },
+  {
+    id: "email-autolink-inside-link",
+    mode: "byte",
+    guards: "自动链接: 链接内部不得再生成 `<a>`（非法嵌套锚点）",
+    markdown: "[a@b.com](https://x.com)",
+  },
+  {
+    id: "email-autolink-inside-strong",
+    mode: "byte",
+    guards: "自动链接: 强调内部的邮箱同样不得嵌套",
+    markdown: "**a@b.com** 与 *c@d.org*",
+  },
+  {
+    id: "email-autolink-in-table-cell",
+    mode: "byte",
+    guards: "自动链接: 表格单元格内的邮箱",
+    markdown: "| 联系人 |\n| --- |\n| a@b.com |",
+  },
+  {
+    id: "footnote-definition-in-place",
+    mode: "byte",
+    guards: "定义行: 脚注定义 `[^1]:` 原位输出，不得被提升到文档开头",
+    markdown: "# 发布说明\n\n感谢 alice\n\n[^1]: 在 M2 完成",
+  },
+  {
+    id: "link-definition-in-place",
+    mode: "byte",
+    guards: "定义行: 链接定义原位输出可见文本，同时 `[foo]` 仍解析",
+    markdown: "# 标题\n\n正文\n\n[foo]: https://example.com\n\n见 [foo]",
+  },
+  {
+    id: "math-adjacent-display-blocks",
+    mode: "byte",
+    guards: "数学: 相邻的两个 `$$` 块各自成为块级公式（不得退化为行内）",
+    markdown: "$$\na\n$$\n$$\nb\n$$",
+  },
+  {
+    id: "math-multiline-inline-is-literal",
+    mode: "byte",
+    guards: "数学: 跨行的 `$…$` 是普通文本（TS 的 math_inline 不跨行）",
+    markdown: "$a +\nb$",
+  },
+  {
+    id: "math-escaped-dollar-closes-early",
+    mode: "byte",
+    guards: "数学: `$\\$5$` 在第一个 `$` 处闭合，内容为反斜杠",
+    markdown: "$\\$5$",
+  },
+  {
+    id: "math-empty-display-is-literal",
+    mode: "byte",
+    guards: "数学: 空 `$$` 块退化为普通段落文本",
+    markdown: "$$\n$$",
+  },
+  {
+    id: "directive-empty-body-is-literal",
+    mode: "byte",
+    guards: "Directive: 空容器 `:::note\\n:::` 是普通段落文本，不是 callout",
+    markdown: ":::note\n:::",
+  },
+  {
+    id: "code-indented-eof-trailing-newline",
+    mode: "byte",
+    guards: "代码块: 缩进代码块在文档末尾保留源码的尾换行",
+    markdown: "para\n\n    code line\n",
+  },
+  {
+    id: "image-alt-keeps-inline-markup",
+    mode: "byte",
+    guards: "图片: alt 保留原始行内标记（`*示意图*` 不被剥离）",
+    markdown: "![架构 *示意图*](x.png)",
+  },
+  {
+    id: "mdx-tag-with-quoted-attribute",
+    mode: "byte",
+    guards: "MDX: 属性值含引号的标签不构成 HTML 块（按段落转义）",
+    markdown: '<Tabs items={["a","b"]}>\n内容\n</Tabs>',
+  },
+  {
+    id: "mdx-self-closing-with-braces",
+    mode: "byte",
+    guards: "MDX: 自闭合且裸值属性构成 HTML 块（原样透传）",
+    markdown: "<Chart data={[1,2,3]} />",
+  },
+];

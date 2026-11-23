@@ -124,8 +124,18 @@ pub fn preprocess(markdown: &str) -> Preprocessed {
         // 同时收集定义，稍后**在文末追加一份副本**供 comrak 消费。
         // 副本位于文档末尾，其自身不会产生可见输出（定义不渲染）。
         if is_reference_definition(body) {
+            // 双重需求：
+            // - TS 把该行**原位**输出为可见文本（`<p>[foo]: url</p>`）；
+            // - 但 `[foo]` 仍要能解析为链接，而 comrak 需要定义行参与解析。
+            //
+            // 解法：原位同时放两样东西——
+            //   1) 一个 HTML 注释形式的定义副本（供 comrak 解析引用，渲染时不可见）
+            //   2) 一个行内占位符（渲染时还原为该行的可见文本）
+            // 顺序上注释在前，保证定义先生效。
             let placeholder = inline_placeholder_for(&mut counter);
             restore.push(restore_item(placeholder.clone(), body.to_string(), true));
+            // 原位只留占位符（渲染为可见文本）；
+            // 定义副本收集到 definitions，稍后统一放到文档开头供 comrak 解析。
             definitions.push(body.trim().to_string());
             out.push_str(&placeholder);
             if has_newline {
@@ -277,17 +287,19 @@ pub fn preprocess(markdown: &str) -> Preprocessed {
         }
     }
 
-    // 定义副本放在**文档最前**，保证 `[foo]` 仍能解析为链接。
-    // 不能放末尾：末尾紧跟空行会让定义退化成普通段落（实测会输出可见文本）。
+    // 定义副本以 HTML 注释形式放在**文档开头**：comrak 能解析引用，
+    // 渲染后由 restore_placeholders 清除，不产生可见内容。
     let markdown = if definitions.is_empty() {
         out
     } else {
-        let mut combined = String::with_capacity(out.len() + definitions.len() * 32);
+        let mut combined = String::with_capacity(out.len() + definitions.len() * 48);
+        // 定义行必须是「裸」的才能被 comrak 解析为链接定义（放进 HTML 注释无效）。
+        // 放在文档最前、后面紧跟占位符（中间不空行），comrak 会消费掉定义、
+        // 只渲染占位符，因此不产生可见文本。
         for definition in &definitions {
             combined.push_str(definition);
             combined.push('\n');
         }
-        combined.push('\n');
         combined.push_str(&out);
         combined
     };
@@ -337,8 +349,10 @@ fn is_reference_definition(line: &str) -> bool {
     let Some(close) = trimmed.find("]:") else {
         return false;
     };
-    // 标签非空
-    if close <= 1 {
+    let label = &trimmed[1..close];
+    // 标签非空，且**不是脚注定义**（`[^1]:`）。
+    // 脚注定义 comrak 不消费，会按普通段落输出，与 marked 一致，无需保护。
+    if label.is_empty() || label.starts_with('^') {
         return false;
     }
     let rest = trimmed[close + 2..].trim_start();
@@ -354,6 +368,7 @@ fn standalone_opening_tag(line: &str) -> Option<String> {
         return None;
     }
     let rest = &trimmed[1..];
+
     let name_len = rest
         .char_indices()
         .take_while(|(_, ch)| ch.is_ascii_alphanumeric() || *ch == '-' || *ch == '_')
@@ -363,17 +378,99 @@ fn standalone_opening_tag(line: &str) -> Option<String> {
         return None;
     }
     let name = &rest[..name_len];
-    // 标签名后必须紧接空白、`>` 或 `/>`
     let after = &rest[name_len..];
-    if !(after.starts_with(char::is_whitespace) || after.starts_with('>') || after.starts_with('/'))
-    {
-        return None;
+    let bytes = after.as_bytes();
+    let mut cursor = 0usize;
+
+    loop {
+        // 结束标记：`>` 或 `/>`，其后只能是空白
+        if bytes.get(cursor) == Some(&b'>') {
+            return after[cursor + 1..]
+                .trim()
+                .is_empty()
+                .then(|| name.to_ascii_lowercase());
+        }
+        if bytes.get(cursor) == Some(&b'/') && bytes.get(cursor + 1) == Some(&b'>') {
+            return after[cursor + 2..]
+                .trim()
+                .is_empty()
+                .then(|| name.to_ascii_lowercase());
+        }
+
+        // 属性之间必须有空白分隔
+        if !matches!(bytes.get(cursor), Some(b' ') | Some(b'\t')) {
+            return None;
+        }
+        while matches!(bytes.get(cursor), Some(b' ') | Some(b'\t')) {
+            cursor += 1;
+        }
+        if bytes.get(cursor) == Some(&b'>')
+            || (bytes.get(cursor) == Some(&b'/') && bytes.get(cursor + 1) == Some(&b'>'))
+        {
+            continue;
+        }
+
+        // 属性名：`[a-zA-Z:_][\w.:-]*`
+        match bytes.get(cursor) {
+            Some(ch) if ch.is_ascii_alphabetic() || *ch == b'_' || *ch == b':' => cursor += 1,
+            _ => return None,
+        }
+        while matches!(
+            bytes.get(cursor),
+            Some(ch) if ch.is_ascii_alphanumeric() || *ch == b'_' || *ch == b'.' || *ch == b':' || *ch == b'-'
+        ) {
+            cursor += 1;
+        }
+
+        // 可选 `= value`
+        let mut probe = cursor;
+        while matches!(bytes.get(probe), Some(b' ') | Some(b'\t')) {
+            probe += 1;
+        }
+        if bytes.get(probe) != Some(&b'=') {
+            cursor = probe;
+            continue;
+        }
+        probe += 1;
+        while matches!(bytes.get(probe), Some(b' ') | Some(b'\t')) {
+            probe += 1;
+        }
+        match bytes.get(probe) {
+            Some(&quote @ (b'"' | b'\'')) => {
+                probe += 1;
+                while let Some(ch) = bytes.get(probe) {
+                    if *ch == quote {
+                        break;
+                    }
+                    if *ch == b'\n' {
+                        return None;
+                    }
+                    probe += 1;
+                }
+                if bytes.get(probe) != Some(&quote) {
+                    return None;
+                }
+                probe += 1;
+            }
+            Some(ch)
+                if !matches!(ch, b'"' | b'\'' | b'`' | b'<' | b'>' | b'=')
+                    && !ch.is_ascii_whitespace() =>
+            {
+                // 裸值：不允许含引号/反引号/尖括号/等号/空白。
+                // 含 `"` 时 marked 不把它当 HTML 块（如 `{["a","b"]}`）。
+                while let Some(ch) = bytes.get(probe) {
+                    if matches!(ch, b'"' | b'\'' | b'`' | b'<' | b'>' | b'=')
+                        || ch.is_ascii_whitespace()
+                    {
+                        break;
+                    }
+                    probe += 1;
+                }
+            }
+            _ => return None,
+        }
+        cursor = probe;
     }
-    let close = after.find('>')?;
-    if !after[close + 1..].trim().is_empty() {
-        return None;
-    }
-    Some(name.to_ascii_lowercase())
 }
 
 /// CommonMark 的 HTML 块标签白名单（comrak 内置识别的集合）。
@@ -571,5 +668,29 @@ mod tests {
         assert!(!is_reference_definition("[foo]:"));
         assert!(is_reference_definition("[foo]: https://example.com"));
         assert!(is_reference_definition("   [a b]: /path"));
+    }
+}
+
+#[cfg(test)]
+mod tag_tests {
+    use super::standalone_opening_tag;
+
+    #[test]
+    fn rejects_attribute_values_containing_quotes() {
+        // marked 的裸属性值不允许含 `"`，因此这不是 HTML 块
+        assert_eq!(standalone_opening_tag("<Tabs items={[\"a\",\"b\"]}>"), None);
+    }
+
+    #[test]
+    fn accepts_simple_bare_and_quoted_values() {
+        assert_eq!(standalone_opening_tag("<Tabs a={1}>"), Some("tabs".into()));
+        assert_eq!(
+            standalone_opening_tag("<Tabs a=\"b\">"),
+            Some("tabs".into())
+        );
+        assert_eq!(
+            standalone_opening_tag("<use_when>"),
+            Some("use_when".into())
+        );
     }
 }

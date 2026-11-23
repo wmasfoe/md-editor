@@ -232,6 +232,22 @@ pub(crate) fn render(markdown: &str, options: &RenderOptions) -> String {
 /// 占位符会被转义吗？不会——它由私用区字符与 ASCII 数字组成，
 /// `escape_html` 不触碰它们，因此可以直接按字面量替换。
 fn restore_placeholders(mut html: String, restore: &[crate::preprocess::RestoreItem]) -> String {
+    // 定义副本注释只服务于 comrak 的引用解析，不能出现在输出里。
+    // 它独占一行（comrak 当作 HtmlBlock），移除后会残留一个换行，需一并清掉。
+    while let Some(start) = html.find("<!--md-def:") {
+        match html[start..].find("-->") {
+            Some(offset) => {
+                let end = start + offset + 3;
+                let mut strip_to = end;
+                if html[end..].starts_with('\n') {
+                    strip_to += 1;
+                }
+                html.replace_range(start..strip_to, "");
+            }
+            None => break,
+        }
+    }
+
     for item in restore {
         let replacement = if item.escape {
             crate::escape::escape_html(&item.literal)
@@ -336,9 +352,26 @@ fn build_block<'a>(
         NodeValue::Paragraph => {
             // 独占一行的 `$$...$$` 在 comrak 里是「只含一个 display math 的段落」，
             // TS 侧则归约为块级数学。这里做同样的提升。
+            // 段落内可能有**多个** display math（相邻 `$$..$$` 块被 comrak 合并进
+            // 同一个 Paragraph）。TS 侧把它们各自识别为独立块级公式。
+            let display_literals = collect_display_maths(node);
+            if !display_literals.is_empty() {
+                for literal in display_literals {
+                    out.push(Block::Math(literal));
+                }
+                return;
+            }
+
             match sole_display_math(node) {
                 DisplayMath::Block(literal) => {
-                    out.push(Block::Math(literal));
+                    // 空内容（`$$\n$$`）在 TS 侧退化为普通段落文本，不是块级公式。
+                    if literal.trim().is_empty() {
+                        let position = node.data.borrow().sourcepos;
+                        let raw = source.slice(position.start, position.end);
+                        out.push(Block::Paragraph(vec![Inline::Text(raw.to_string())]));
+                    } else {
+                        out.push(Block::Math(literal));
+                    }
                     return;
                 }
                 DisplayMath::SingleLineText(literal) => {
@@ -370,10 +403,37 @@ fn build_block<'a>(
             // comrak 的 CodeBlock literal 含结尾换行，TS 侧（marked）不含，
             // 直接 trim_end 会误删代码自身的空行，因此只去掉一个换行序列。
             let literal = code.literal.as_str();
-            let trimmed = literal
-                .strip_suffix("\r\n")
-                .or_else(|| literal.strip_suffix('\n'))
-                .unwrap_or(literal);
+            // TS（marked 的 `c.text`）**保留**源码的结尾换行；comrak 的 literal
+            // 也带一个尾换行。两者只在「源码无尾换行」时不同，因此按源码判断。
+            // 围栏代码块：TS（marked）的 `c.text` **不含**尾换行，而 comrak 的 literal
+            // 带一个 → 去掉。
+            // 缩进代码块：TS 保留源码的尾换行，comrak 也给带换行的 literal → 保留。
+            let trimmed = if code.fenced {
+                // 围栏代码块：TS 的 `c.text` 不含尾换行
+                literal
+                    .strip_suffix("\r\n")
+                    .or_else(|| literal.strip_suffix('\n'))
+                    .unwrap_or(literal)
+                    .to_string()
+            } else {
+                // 缩进代码块：comrak 的 literal 恒带尾换行，但 TS 只在源码带尾换行时
+                // 才保留（`c.text` 是源码切片）。用 sourcepos 回查源码判断。
+                let position = node.data.borrow().sourcepos;
+                let bytes = source.markdown.as_bytes();
+                // `sourcepos.end` 指向块内**最后一个字符**，换行在它之后一格。
+                let after = source.offset(position.end) + 1;
+                let source_has_newline =
+                    bytes.get(after) == Some(&b'\n') || bytes.get(after) == Some(&b'\r');
+                if source_has_newline {
+                    literal.to_string()
+                } else {
+                    literal
+                        .strip_suffix("\r\n")
+                        .or_else(|| literal.strip_suffix('\n'))
+                        .unwrap_or(literal)
+                        .to_string()
+                }
+            };
             out.push(Block::Code {
                 lang,
                 code: trimmed.to_string(),
@@ -742,17 +802,71 @@ fn build_inline<'a>(node: &'a AstNode<'a>, source: &SourceText<'_>, out: &mut Ve
             title: normalize_title(&link.title),
             children: build_inlines(node, source),
         }),
-        NodeValue::Image(link) => out.push(Inline::Image {
-            src: link.url.clone(),
-            alt: normalize_title(&collect_plain_text(node)),
-            title: normalize_title(&link.title),
-        }),
+        NodeValue::Image(link) => {
+            // TS 的 `token.alt` 是**原始行内文本**（保留 `*`、`**` 等标记），
+            // 而 collect_plain_text 会剥掉它们。这里按 sourcepos 取原文。
+            let position = node.data.borrow().sourcepos;
+            let raw = source.slice(position.start, position.end);
+            let alt = raw
+                .strip_prefix("![")
+                .and_then(|rest| rest.find("]").map(|close| &rest[..close]))
+                .map(str::to_string)
+                .unwrap_or_else(|| collect_plain_text(node));
+            out.push(Inline::Image {
+                src: link.url.clone(),
+                alt: normalize_title(&alt),
+                title: normalize_title(&link.title),
+            })
+        }
         NodeValue::Math(math) => {
             let position = node.data.borrow().sourcepos;
             // 列表项内的单行 `$$x$$` 走**行内数学**路径（TS 侧实测：
             // `- a $$b$$ c` → `a $<katex>$ c`）；其余上下文（段落/引用块）把它
             // 当字面量输出并插入换行。这是 marked 块级分词器在不同容器下的差异。
-            let single_line_display = math.display_math && position.start.line == position.end.line;
+            // TS 的 math_inline 规则：`/^\$([^$\r\n]+?)\$/` —— 不跨行、内容非空、
+            // 首尾非空白。跨行的 `$…$` 在 TS 侧只是普通文本。
+            if !math.display_math {
+                let is_valid_inline = position.start.line == position.end.line
+                    && !math.literal.trim().is_empty()
+                    && !math.literal.starts_with(char::is_whitespace)
+                    && !math.literal.ends_with(char::is_whitespace);
+                if !is_valid_inline {
+                    let raw = source.slice(position.start, position.end);
+                    out.push(Inline::Text(raw.to_string()));
+                } else {
+                    // 用原文按 TS 的 math_inline 规则重新求内容与闭合位置。
+                    //
+                    // TS 的正则是 `/^\$([^$\r\n]+?)\$/`：遇到第一个 `$` 就闭合。
+                    // `$\$5$` 因此内容是 `\`（渲染为 katex-error），闭合在第二个 `$`。
+                    // comrak 的 Math 节点只覆盖 `$\$`，剩余 `5$` 是兄弟 Text，
+                    // 必须在这里一并消费掉，否则会丢文本。
+                    // comrak 的 Math 节点覆盖整个 `$...$`，但 literal 是**解码后**的
+                    // （`\$5` 里的反斜杠被保留、`$` 也被吞进 literal）。TS 的规则是
+                    // 遇到第一个 `$` 就闭合，因此要从**原文**重新求内容。
+                    let raw = source.slice(position.start, position.end);
+                    let body = raw.strip_prefix('$').unwrap_or(raw);
+                    let content = body.split('$').next().unwrap_or(body);
+                    out.push(Inline::Math(content.to_string()));
+
+                    // TS 在第一个 `$` 处闭合，其后的内容（如 `$\$5$` 里的 `5$`）
+                    // 是普通文本。comrak 的 Math 节点覆盖了整个 `$...$`，
+                    // 因此这里要把闭合位置之后的部分补回为文本。
+                    let consumed = 1 + content.len() + 1; // `$` + content + `$`
+                    if consumed < raw.len() {
+                        out.push(Inline::Text(raw[consumed..].to_string()));
+                    }
+                }
+                return;
+            }
+
+            // 空内容（`$$\n$$`）在 TS 侧退化为普通段落文本。
+            if math.literal.trim().is_empty() {
+                let raw = source.slice(position.start, position.end);
+                out.push(Inline::Text(raw.to_string()));
+                return;
+            }
+
+            let single_line_display = position.start.line == position.end.line;
 
             if single_line_display {
                 // 单行 `$$x$$`：comrak 识别为 display math，但 TS 侧的块级 math_block
@@ -835,14 +949,27 @@ fn collect_ids_recursive(blocks: &[Block], ids: &mut std::collections::HashSet<S
 
 /// 发射行内节点。
 fn emit_inlines(inlines: &[Inline], markers: bool, out: &mut String) {
+    emit_inlines_with(inlines, markers, out, false);
+}
+
+/// 发射行内序列，`inside_link` 表示当前处于 `<a>` 内部。
+///
+/// 链接内**不得**再生成 `<a>`（HTML 不允许嵌套锚点，且 marked 也不会这样做）。
+fn emit_inlines_with(inlines: &[Inline], markers: bool, out: &mut String, inside_link: bool) {
     for inline in inlines {
-        emit_inline(inline, markers, out);
+        emit_inline(inline, markers, out, inside_link);
     }
 }
 
-fn emit_inline(inline: &Inline, markers: bool, out: &mut String) {
+fn emit_inline(inline: &Inline, markers: bool, out: &mut String, inside_link: bool) {
     match inline {
-        Inline::Text(text) => emit_text_with_autolinks(text, out),
+        Inline::Text(text) => {
+            if inside_link {
+                out.push_str(&escape_html(text));
+            } else {
+                emit_text_with_autolinks(text, out);
+            }
+        }
         Inline::Code(code) => {
             let escaped = escape_html(code);
             if markers {
@@ -857,9 +984,10 @@ fn emit_inline(inline: &Inline, markers: bool, out: &mut String) {
                 out.push_str("</code>");
             }
         }
-        Inline::Bold(children) => emit_wrapped(
+        Inline::Bold(children) => emit_wrapped_ctx(
             children,
             markers,
+            inside_link,
             &WrapSpec {
                 kind: "bold",
                 marker: "**",
@@ -869,9 +997,10 @@ fn emit_inline(inline: &Inline, markers: bool, out: &mut String) {
             },
             out,
         ),
-        Inline::Italic(children) => emit_wrapped(
+        Inline::Italic(children) => emit_wrapped_ctx(
             children,
             markers,
+            inside_link,
             &WrapSpec {
                 kind: "italic",
                 marker: "*",
@@ -881,9 +1010,10 @@ fn emit_inline(inline: &Inline, markers: bool, out: &mut String) {
             },
             out,
         ),
-        Inline::Strike(children) => emit_wrapped(
+        Inline::Strike(children) => emit_wrapped_ctx(
             children,
             markers,
+            inside_link,
             &WrapSpec {
                 kind: "strikethrough",
                 marker: "~~",
@@ -893,9 +1023,10 @@ fn emit_inline(inline: &Inline, markers: bool, out: &mut String) {
             },
             out,
         ),
-        Inline::Highlight(children) => emit_wrapped(
+        Inline::Highlight(children) => emit_wrapped_ctx(
             children,
             markers,
+            inside_link,
             &WrapSpec {
                 kind: "highlight",
                 marker: "==",
@@ -919,7 +1050,7 @@ fn emit_inline(inline: &Inline, markers: bool, out: &mut String) {
                 out.push('"');
             }
             out.push('>');
-            emit_inlines(children, markers, out);
+            emit_inlines_with(children, markers, out, true);
             out.push_str("</a>");
         }
         Inline::Image { src, alt, title } => {
@@ -968,7 +1099,14 @@ struct WrapSpec {
     bare_tag: &'static str,
 }
 
-fn emit_wrapped(children: &[Inline], markers: bool, spec: &WrapSpec, out: &mut String) {
+/// 带链接上下文的包裹型发射。
+fn emit_wrapped_ctx(
+    children: &[Inline],
+    markers: bool,
+    inside_link: bool,
+    spec: &WrapSpec,
+    out: &mut String,
+) {
     let WrapSpec {
         kind,
         marker,
@@ -982,7 +1120,7 @@ fn emit_wrapped(children: &[Inline], markers: bool, spec: &WrapSpec, out: &mut S
             "<span class=\"cm-md-marker cm-md-marker--{kind}\">{marker}</span>"
         ));
         out.push_str(marked_open);
-        emit_inlines(children, markers, out);
+        emit_inlines_with(children, markers, out, inside_link);
         out.push_str(marked_close);
         out.push_str(&format!(
             "<span class=\"cm-md-marker cm-md-marker--{kind}\">{marker}</span>"
@@ -992,7 +1130,7 @@ fn emit_wrapped(children: &[Inline], markers: bool, spec: &WrapSpec, out: &mut S
         out.push('<');
         out.push_str(bare_tag);
         out.push('>');
-        emit_inlines(children, markers, out);
+        emit_inlines_with(children, markers, out, inside_link);
         out.push_str("</");
         out.push_str(bare_tag);
         out.push('>');
@@ -1042,7 +1180,7 @@ fn emit_block(
             emit_inlines(inlines, markers, out);
             out.push_str("</p>\n");
         }
-        Block::Code { lang, code } => {
+        Block::Code { lang, code, .. } => {
             let highlighted = highlight_code(code, lang.as_deref());
             out.push_str("<pre><code class=\"hljs");
             if !highlighted.language.is_empty() {
@@ -1051,6 +1189,9 @@ fn emit_block(
             }
             out.push_str("\">");
             out.push_str(&highlighted.html);
+            // highlight.js 会吞掉代码末尾的换行。缩进代码块在 TS 侧保留尾换行，
+            // 因此这里按 literal 是否以换行结尾补回。
+            // 缩进代码块的尾换行由顶层循环按「是否末块」统一处理。
             out.push_str("</code></pre>\n");
         }
         Block::Math(source) => {
@@ -1422,4 +1563,28 @@ fn in_list_item<'a>(node: &'a AstNode<'a>) -> bool {
         current = parent.parent();
     }
     false
+}
+
+/// 收集段落内所有 display math 的字面量（用于「相邻块级公式被合并」的场景）。
+///
+/// 仅当段落**只由** display math 与空白文本构成时才返回；否则返回空，
+/// 让调用方走普通段落路径（例如 `文字 $$x$$ 文字` 里的 display math 应保留在段落内）。
+fn collect_display_maths<'a>(node: &'a AstNode<'a>) -> Vec<String> {
+    let children: Vec<&AstNode<'_>> = node.children().collect();
+    if children.len() < 2 {
+        return Vec::new();
+    }
+
+    let mut literals = Vec::new();
+    for child in &children {
+        let value = child.data.borrow().value.clone();
+        match value {
+            NodeValue::Math(math) if math.display_math => literals.push(math.literal),
+            // 允许公式之间的空白文本（comrak 会插入换行文本节点）
+            NodeValue::Text(text) if text.trim().is_empty() => {}
+            NodeValue::LineBreak | NodeValue::SoftBreak => {}
+            _ => return Vec::new(),
+        }
+    }
+    literals
 }

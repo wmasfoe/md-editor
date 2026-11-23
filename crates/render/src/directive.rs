@@ -59,6 +59,23 @@ pub fn split_directives(markdown: &str) -> Vec<Segment<'_>> {
             } else {
                 markdown.len()
             };
+            // 空容器（开标签行后**立即**是收尾行）不构成 directive：
+            // TS 的正则 `[\r\n]+([\s\S]*?)[\r\n]+:::` 要求 body 前后各有一个换行，
+            // 空 body 无法同时满足，因此 `:::note\n:::` 在 TS 侧只是普通段落文本。
+            let body_is_empty = markdown[body_start..]
+                .lines()
+                .next()
+                .map(|line| line.trim_end_matches('\r') == ":::")
+                .unwrap_or(false);
+            if body_is_empty {
+                at_block_boundary = false;
+                if line_end >= markdown.len() {
+                    break;
+                }
+                index = line_end + 1;
+                continue;
+            }
+
             if let Some((body_end, after_close)) = find_closing(markdown, body_start) {
                 if plain_start < index {
                     segments.push(Segment::Markdown(&markdown[plain_start..index]));
