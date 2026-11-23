@@ -17,9 +17,10 @@
  * 直接断言顺序既精确又不依赖事件模拟。
  */
 import { defaultKeymap } from "@codemirror/commands";
+import { createBuiltInKeymaps, resolveKeymaps } from "@md-editor/core";
 import { markdown } from "@codemirror/lang-markdown";
 import { searchKeymap } from "@codemirror/search";
-import { Compartment, EditorState } from "@codemirror/state";
+import { Compartment, EditorState, type StateEffect } from "@codemirror/state";
 import { keymap } from "@codemirror/view";
 import { describe, expect, it } from "vitest";
 import { provideWysiwygDiagnostics, WysiwygDiagnostics } from "../../src/diagnostics.ts";
@@ -32,6 +33,7 @@ import {
   createEditorKeymapExtension,
   SUPPRESSED_CODEMIRROR_KEYS,
 } from "../../src/renderer/controller/default-keymap-policy.ts";
+import { applyEditorKeymapOverrides } from "../../src/renderer/controller/view-operations.ts";
 import {
   createMarkdownFormattingBindings,
   createMarkdownFormattingKeymap,
@@ -82,6 +84,41 @@ function upstreamBinding(chord: string) {
       chordsMatch(binding.mac, chord) ||
       chordsMatch(binding.win, chord),
   );
+}
+
+/**
+ * 直接驱动生产的 `applyEditorKeymapOverrides()`（即 `ports.setKeymaps()` 的实现）：
+ * 假 view 只实现 `dispatch`，把一组 effects 应用到 state 上，等价于真实 dispatch。
+ */
+function applyKeymaps(overrides: Record<string, string | null>) {
+  const formatting = new Compartment();
+  const editorCompartment = new Compartment();
+  const editorKeymapHooks = { editMermaid: () => false, onToggleSourceMode: () => true };
+  let state = EditorState.create({
+    doc: "hello",
+    extensions: [
+      markdown({ extensions: M1_MARKDOWN_EXTENSIONS, addKeymap: false }),
+      provideWysiwygDiagnostics(new WysiwygDiagnostics()),
+      editorModeField,
+      markdownRangeIndexField,
+      formatting.of(createMarkdownFormattingKeymap()),
+      editorCompartment.of(createEditorKeymapExtension(editorKeymapHooks)),
+    ],
+  });
+  const fakeView = {
+    dispatch(spec: { effects: StateEffect<unknown> }) {
+      state = state.update({ effects: spec.effects }).state;
+    },
+  };
+  applyEditorKeymapOverrides(
+    fakeView as unknown as Parameters<typeof applyEditorKeymapOverrides>[0],
+    [formatting, editorCompartment],
+    editorKeymapHooks.editMermaid,
+    editorKeymapHooks.onToggleSourceMode,
+    // 生产里宿主传的是"全部内建键位 + 用户覆盖"的权威表（含 view.toggleSource）
+    resolveKeymaps(createBuiltInKeymaps(), overrides),
+  );
+  return { state };
 }
 
 describe("defaultKeymap 准入策略", () => {
@@ -197,6 +234,17 @@ describe("格式化键位压过 CodeMirror 默认键位", () => {
     expect(afterReconfigure).toHaveLength(2);
     expect(afterReconfigure[0]).not.toBe(upstream);
     expect(afterReconfigure[1]).toBe(upstream);
+  });
+
+  it("setKeymaps 解绑 view.toggleSource 后 ⌘/ 不再有绑定（覆盖表是权威表）", () => {
+    const { state } = applyKeymaps({ "view.toggleSource": null });
+    expect(bindingsForChord(state, "Mod-/")).toHaveLength(0);
+  });
+
+  it("setKeymaps 改键到其它 chord 后，旧 chord 不再触发、新 chord 生效", () => {
+    const { state } = applyKeymaps({ "view.toggleSource": "Mod-Shift-p" });
+    expect(bindingsForChord(state, "Mod-/")).toHaveLength(0);
+    expect(bindingsForChord(state, "Mod-Shift-p")).toHaveLength(1);
   });
 
   it("格式化表不得占用 Tab / Escape / Mod-Enter 这类结构性键位", () => {

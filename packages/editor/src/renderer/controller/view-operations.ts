@@ -349,14 +349,20 @@ export function applyEditorKeymapOverrides(
         createEditorKeymapExtension({
           editMermaid,
           onToggleSourceMode,
-          toggleSourceKey: customKeymaps.get("view.toggleSource"),
+          // 覆盖表是**权威表**：查不到该 id 就是"用户解绑了"，必须传空串（不回退默认）。
+          toggleSourceKey: customKeymaps.get("view.toggleSource") ?? "",
         }),
       ),
     ],
   });
 }
 
-/** 当前编辑器模式（源码 / 所见即所得）。 */
+/**
+ * 当前编辑器模式（源码 / 所见即所得）。
+ *
+ * 视图尚未建立时返回 `"wysiwyg"`：`createDocumentState()` 的默认模式就是它，
+ * 而且这条分支只出现在构造期（probe 早于 `#view` 赋值被读取），不参与任何决策。
+ */
 export function readCurrentMode(view: RendererViewAdapter): EditorMode {
   const cmView = view as unknown as EditorView | null;
   return cmView ? cmView.state.field(editorModeField) : "wysiwyg";

@@ -185,7 +185,12 @@ export function DesktopCodeMirrorEditor({
         showToast(t("toasts.delayedEditFailed", { status: result.status }));
       }}
       onSyncError={(error) => {
-        const detail = error.kind === "renderer-sync" ? error.delivery.status : error.result.status;
+        const detail =
+          error.kind === "renderer-sync"
+            ? error.delivery.status
+            : error.kind === "mode-switch"
+              ? error.result.error
+              : error.result.status;
         showToast(t("toasts.editorSyncFailed", { detail }));
       }}
     />

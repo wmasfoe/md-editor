@@ -11,6 +11,7 @@ import {
   type ModeReceipt,
   type ModeRequest,
   type ModeRendererPort,
+  type ModeSwitchResult,
   type MutationBusyResult,
   type MutationRejectedResult,
   type RendererSyncDeliveryResult,
@@ -173,6 +174,11 @@ export type CodeMirrorEditorSyncError =
   | {
       readonly kind: "local-change-rejected";
       readonly result: Exclude<DocumentMutationResult, { readonly status: "applied" | "noop" }>;
+    }
+  | {
+      /** 内置 `Mod-/` 的两阶段模式切换失败（渲染器拒绝或核心 CAS 失败）。 */
+      readonly kind: "mode-switch";
+      readonly result: Extract<ModeSwitchResult, { readonly ok: false }>;
     };
 
 /**
@@ -375,6 +381,10 @@ export function createCodeMirrorEditorBridge(
       renderer: mode,
       origin: { kind: "command", commandId: "view.toggleSource" },
     });
+    if (!result.ok) {
+      // 不再静默失败：宿主可以通过既有的 onSyncError 通道提示用户。
+      reportSyncError({ kind: "mode-switch", result });
+    }
     return result.ok;
   };
   const ports: CodeMirrorEditorPorts = Object.freeze({

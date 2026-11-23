@@ -121,9 +121,11 @@ export interface EditorKeymapHooks {
    */
   readonly onToggleSourceMode?: () => boolean;
   /**
-   * 覆盖 `view.toggleSource` 的生效 chord（缺省用 core 的 `TOGGLE_SOURCE_SHORTCUT`）。
+   * `view.toggleSource` 的生效 chord。
    *
-   * 宿主把用户自定义快捷键合并后传进来；空白串表示用户解绑了该命令，此时不安装绑定。
+   * - **缺省（`undefined`）**：用 core 的 `TOGGLE_SOURCE_SHORTCUT` —— 只在构造期（尚无宿主覆盖）出现；
+   * - **空白串**：用户解绑了该命令，不安装绑定。运行期 `setKeymaps()` 传的是**权威表**，
+   *   查不到该 id 即解绑，绝不能再回退成默认 chord（否则"解绑"永远解不掉）。
    */
   readonly toggleSourceKey?: string;
 }

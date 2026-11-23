@@ -20,3 +20,14 @@ alias; call sites move to the new name.
 Renderer option `onToggleSourceMode` is added for hosts that assemble
 `createCodeMirrorRenderer` directly; without it the chord is not bound at all (the renderer
 has no `DocumentState`, so it cannot switch modes on its own).
+
+Two consequences worth knowing:
+
+- The chord now only fires while the editor has focus. A host that listened on `window` used to
+  toggle the mode from the sidebar or a toolbar; inside the editor it is CodeMirror's keymap that
+  dispatches, so focus decides. Hosts that want the old reach should keep their own listener — it
+  still wins over the built-in one (their `preventDefault` makes CodeMirror skip the event).
+- A failed switch is no longer silent. `CodeMirrorEditorSyncError` gains a `"mode-switch"` variant
+  carrying the failed `ModeSwitchResult`, reported through the existing `onSyncError` channel, so a
+  host can surface the same toast it used to show. Exhaustive `switch` statements over the union
+  need one more case.
