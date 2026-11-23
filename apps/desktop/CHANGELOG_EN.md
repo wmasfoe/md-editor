@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.25.2 - 2026-11-23 (#298)
+
+- Shortcut defaults are now derived from the single @md-editor/core keymap table (fixing case drift between the settings panel and the core registry), and formatting chords reach the editor through resolveKeymaps so remapping, unbinding and backup aliases behave consistently.
+
 ## 0.25.1 - 2026-11-22 (#295)
 
 - Fix MDX components rendering as HTML when the parser loads after the document opens, which previously never recovered. A plugin that fails to register can now be retried with the same id. Fix anchor links for nested headings inside list items and blockquotes jumping to the wrong place, and outline entries whose ids did not match the exported HTML.
