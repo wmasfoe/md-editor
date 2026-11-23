@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import path from "node:path";
+import { createRequire } from "node:module";
+import type { execFileSync as ExecFileSyncType } from "node:child_process";
 import { copyDocumentAsHtml } from "../src/app/controller/export-controller";
 
 const { mockInvoke, mockSave } = vi.hoisted(() => ({
@@ -7,31 +10,64 @@ const { mockInvoke, mockSave } = vi.hoisted(() => ({
 }));
 
 /**
- * 让 `mockInvoke` 对 Rust 渲染命令返回可用的 HTML，其余命令按测试自身设定。
+ * 让 `mockInvoke` 对 Rust 渲染命令走**真实渲染实现**，其余命令由测试自行设定。
  *
- * 渲染已迁到 Rust（`render_markdown_fragment` / `render_markdown_document_from_fragment`），
- * 前端只负责 mermaid/图片后处理与文档包装，因此这里模拟 Rust 的返回。
+ * 为什么不用手写 HTML stub：手写 stub 会让「导出丢失行内强调」「标题硬编码为
+ * Untitled」这类回归在测试里完全不可见（历史教训）。这里把渲染命令转发给
+ * `crates/render`（经 `scripts/render-diff` 的同一个 Rust 入口），
+ * 保证断言的是真实管线行为。
  */
 function stubRenderCommands() {
   mockInvoke.mockImplementation(async (command: string, args?: Record<string, unknown>) => {
     if (command === "render_markdown_fragment") {
-      const markdown = String(args?.markdown ?? "");
-      // 只保留段落与标题的最小可辨识输出，足以断言后处理行为
-      const heading = /^#\s+(.+)$/m.exec(markdown)?.[1]?.trim();
-      const body = markdown
-        .split("\n")
-        .filter((line) => line.trim() && !line.startsWith("#"))
-        .map((line) => `<p>${line.trim()}</p>`)
-        .join("");
-      return `${heading ? `<h1 id="t" data-heading-text="${heading}">${heading}</h1>` : ""}${body}`;
+      return renderRustFragment(String(args?.markdown ?? ""), args?.includeMarkers === true);
     }
     if (command === "render_markdown_document_from_fragment") {
       const fragment = String(args?.fragment ?? "");
       const customCss = String(args?.customCss ?? "");
-      return `<!doctype html><html><head><style>${customCss}</style></head><body><div id="content">${fragment}</div></body></html>`;
+      const title = String(args?.title ?? "Untitled");
+      return renderRustDocument(fragment, customCss, title);
     }
     return undefined;
   });
+}
+
+/**
+ * 通过 Rust 渲染核心产出片段。
+ *
+ * 直接调用 `cargo run --example` 太慢，这里复用 `render-fixtures` 的批量入口太重；
+ * 因此用一个精简的 example（`render-fragment`）做单次调用。
+ */
+function renderRustFragment(markdown: string, includeMarkers: boolean): string {
+  return runRustExample("render-fragment", {
+    markdown,
+    includeMarkers,
+  });
+}
+
+/** 通过 Rust 渲染核心包装文档。 */
+function renderRustDocument(fragment: string, customCss: string, title: string): string {
+  return runRustExample("render-document", { fragment, customCss, title });
+}
+
+/** 调用 crates/render 的 example，返回 stdout。 */
+function runRustExample(example: string, payload: unknown): string {
+  const { execFileSync } = createRequire(import.meta.url)("node:child_process") as {
+    execFileSync: typeof ExecFileSyncType;
+  };
+  const repoRoot = path.resolve(__dirname, "../../..");
+  return execFileSync(
+    "cargo",
+    [
+      "run",
+      "--quiet",
+      "--manifest-path",
+      path.join(repoRoot, "crates/render/Cargo.toml"),
+      "--example",
+      example,
+    ],
+    { cwd: repoRoot, input: JSON.stringify(payload), encoding: "utf8" },
+  );
 }
 
 vi.mock("@tauri-apps/api/core", () => ({
@@ -217,5 +253,43 @@ describe("export-controller", () => {
         html: expect.stringMatching(/--theme-font:\s*LXGW WenKai/),
       }),
     );
+  });
+
+  it("导出的 HTML 保留行内强调语义（导出路径用 includeMarkers:false）", async () => {
+    // 回归背景：Rust 侧曾在该模式下丢掉 <strong>/<em>/<del>/<mark>，
+    // 导致「复制为富文本 / 导出 HTML / 导出 PDF」全部丢失行内强调。
+    const md = "# 项目说明\n\n这段包含 **加粗**、*斜体*、~~删除线~~ 与 ==高亮==。";
+
+    mockSave.mockResolvedValueOnce("/Users/test/Documents/emphasis.html");
+    const { exportDocumentAsHtml } = await import("../src/app/controller/export-controller");
+    const result = await exportDocumentAsHtml(null, md);
+    expect(result.success).toBe(true);
+
+    const writeCall = mockInvoke.mock.calls.find(([command]) => command === "write_exported_files");
+    expect(writeCall).toBeDefined();
+    const written = Object.values(writeCall![1].files as Record<string, string>)[0];
+
+    expect(written).toContain("<strong>加粗</strong>");
+    expect(written).toContain("<em>斜体</em>");
+    expect(written).toContain("<del>删除线</del>");
+    expect(written).toContain("<mark>高亮</mark>");
+    // 正文里不应出现编辑器语法标记的 span（注意：内联 CSS 里保留
+    // `.cm-md-marker` 样式规则是既有行为，与 TS 侧一致，不算泄漏）。
+    const content = written.slice(written.indexOf('<div id="content">'));
+    expect(content).not.toContain('class="cm-md-marker');
+  });
+
+  it("导出的 HTML 标题取自正文 H1，而不是硬编码 Untitled", async () => {
+    // 回归背景：render_markdown_document_from_fragment 曾硬编码 "Untitled"，
+    // 且前端不传 title，导致所有导出文件的 <title> 都是 Untitled。
+    mockSave.mockResolvedValueOnce("/Users/test/Documents/title.html");
+    const { exportDocumentAsHtml } = await import("../src/app/controller/export-controller");
+    await exportDocumentAsHtml(null, "# 项目说明\n\n正文。");
+
+    const writeCall = mockInvoke.mock.calls.find(([command]) => command === "write_exported_files");
+    const written = Object.values(writeCall![1].files as Record<string, string>)[0];
+
+    expect(written).toContain("<title>项目说明</title>");
+    expect(written).not.toContain("<title>Untitled</title>");
   });
 });

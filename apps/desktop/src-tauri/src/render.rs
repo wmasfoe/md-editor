@@ -50,11 +50,17 @@ pub(crate) fn render_markdown_document(
 pub(crate) fn render_markdown_document_from_fragment(
     fragment: String,
     custom_css: Option<String>,
+    title: Option<String>,
 ) -> Result<String, String> {
+    // 标题由前端传入（从正文第一个 H1 提取）：导出文件的 `<title>` 必须与 TS 侧
+    // 一致。此处不得硬编码兜底值，否则所有导出都会显示 `Untitled`。
+    let resolved = title
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| "Untitled".to_string());
     Ok(md_render::wrap_document_fragment(
         &fragment,
         &custom_css.unwrap_or_default(),
-        "Untitled",
+        &resolved,
     ))
 }
 
@@ -98,11 +104,52 @@ mod tests {
     }
 
     #[test]
+    fn from_fragment_uses_caller_supplied_title() {
+        let html = render_markdown_document_from_fragment(
+            "<p>x</p>".to_string(),
+            None,
+            Some("项目说明".to_string()),
+        )
+        .unwrap();
+        assert!(html.contains("<title>项目说明</title>"));
+        assert!(!html.contains("<title>Untitled</title>"));
+    }
+
+    #[test]
+    fn from_fragment_falls_back_only_when_title_missing() {
+        let html =
+            render_markdown_document_from_fragment("<p>x</p>".to_string(), None, None).unwrap();
+        assert!(html.contains("<title>Untitled</title>"));
+    }
+
+    #[test]
+    fn clean_html_keeps_emphasis_semantics() {
+        // 导出路径统一用 includeMarkers=false；此处必须保留 <strong> 等语义标签，
+        // 只去掉 cm-md-marker 语法标记。
+        let html = render_markdown_fragment(
+            "**加粗** *斜体* ~~删除~~ ==高亮== `代码`".to_string(),
+            Some(false),
+        )
+        .unwrap();
+        assert!(!html.contains("cm-md-marker"));
+        assert!(html.contains("<strong>加粗</strong>"));
+        assert!(html.contains("<em>斜体</em>"));
+        assert!(html.contains("<del>删除</del>"));
+        assert!(html.contains("<mark>高亮</mark>"));
+        assert!(html.contains("<code>代码</code>"));
+    }
+
+    #[test]
     fn fragment_without_markers_drops_cm_md_marker() {
         let with_markers = render_markdown_fragment("**加粗**".to_string(), Some(true)).unwrap();
         let without_markers =
             render_markdown_fragment("**加粗**".to_string(), Some(false)).unwrap();
         assert!(with_markers.contains("cm-md-marker"));
         assert!(!without_markers.contains("cm-md-marker"));
+
+        // 关键断言：去掉 marker **不等于**去掉语义标签。
+        // 历史上这里只断言了 marker 缺失，把「<strong> 也一起没了」的 bug 锁了进去。
+        assert!(without_markers.contains("<strong>"));
+        assert!(!without_markers.contains("cm-md-inline"));
     }
 }

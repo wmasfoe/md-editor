@@ -695,37 +695,49 @@ fn emit_inline(inline: &Inline, markers: bool, out: &mut String) {
         Inline::Bold(children) => emit_wrapped(
             children,
             markers,
-            "bold",
-            "**",
-            "<strong class=\"cm-md-inline cm-md-bold\">",
-            "</strong>",
+            &WrapSpec {
+                kind: "bold",
+                marker: "**",
+                marked_open: "<strong class=\"cm-md-inline cm-md-bold\">",
+                marked_close: "</strong>",
+                bare_tag: "strong",
+            },
             out,
         ),
         Inline::Italic(children) => emit_wrapped(
             children,
             markers,
-            "italic",
-            "*",
-            "<em class=\"cm-md-inline cm-md-italic\">",
-            "</em>",
+            &WrapSpec {
+                kind: "italic",
+                marker: "*",
+                marked_open: "<em class=\"cm-md-inline cm-md-italic\">",
+                marked_close: "</em>",
+                bare_tag: "em",
+            },
             out,
         ),
         Inline::Strike(children) => emit_wrapped(
             children,
             markers,
-            "strikethrough",
-            "~~",
-            "<del class=\"cm-md-inline cm-md-strikethrough\">",
-            "</del>",
+            &WrapSpec {
+                kind: "strikethrough",
+                marker: "~~",
+                marked_open: "<del class=\"cm-md-inline cm-md-strikethrough\">",
+                marked_close: "</del>",
+                bare_tag: "del",
+            },
             out,
         ),
         Inline::Highlight(children) => emit_wrapped(
             children,
             markers,
-            "highlight",
-            "==",
-            "<mark class=\"cm-md-inline cm-md-highlight\">",
-            "</mark>",
+            &WrapSpec {
+                kind: "highlight",
+                marker: "==",
+                marked_open: "<mark class=\"cm-md-inline cm-md-highlight\">",
+                marked_close: "</mark>",
+                bare_tag: "mark",
+            },
             out,
         ),
         Inline::Link {
@@ -771,28 +783,54 @@ fn emit_inline(inline: &Inline, markers: bool, out: &mut String) {
     }
 }
 
-/// 发射带语法标记的包裹型行内节点（加粗/斜体/删除线共用一个模板）。
-fn emit_wrapped(
-    children: &[Inline],
-    markers: bool,
-    kind: &str,
-    marker: &str,
-    open_tag: &str,
-    close_tag: &str,
-    out: &mut String,
-) {
+/// 发射带语法标记的包裹型行内节点（加粗/斜体/删除线/高亮共用一个模板）。
+///
+/// `markers` 只决定是否额外输出 `cm-md-marker` 语法标记 span，**绝不**决定是否
+/// 输出语义标签本身。导出路径统一使用 `include_markers: false`（干净 HTML），
+/// 若在这里连带丢掉 `<strong>` / `<em>` / `<del>` / `<mark>`，导出结果会丢失全部
+/// 行内强调——与 TS 侧 `return `<strong>${inner}</strong>`` 的行为直接冲突。
+/// 包裹型行内节点的输出规格。
+struct WrapSpec {
+    /// `cm-md-marker--{kind}` 里的种类名。
+    kind: &'static str,
+    /// 语法标记字面量（`**` / `*` / `~~` / `==`）。
+    marker: &'static str,
+    /// 带标记模式的完整开标签（含 `cm-md-inline` 类名）。
+    marked_open: &'static str,
+    /// 带标记模式的闭标签。
+    marked_close: &'static str,
+    /// 干净模式的裸语义标签名（`strong` / `em` / `del` / `mark`）。
+    bare_tag: &'static str,
+}
+
+fn emit_wrapped(children: &[Inline], markers: bool, spec: &WrapSpec, out: &mut String) {
+    let WrapSpec {
+        kind,
+        marker,
+        marked_open,
+        marked_close,
+        bare_tag,
+    } = *spec;
+
     if markers {
         out.push_str(&format!(
             "<span class=\"cm-md-marker cm-md-marker--{kind}\">{marker}</span>"
         ));
-        out.push_str(open_tag);
+        out.push_str(marked_open);
         emit_inlines(children, markers, out);
-        out.push_str(close_tag);
+        out.push_str(marked_close);
         out.push_str(&format!(
             "<span class=\"cm-md-marker cm-md-marker--{kind}\">{marker}</span>"
         ));
     } else {
+        // 干净 HTML：只去掉标记 span，语义标签照常输出。
+        out.push('<');
+        out.push_str(bare_tag);
+        out.push('>');
         emit_inlines(children, markers, out);
+        out.push_str("</");
+        out.push_str(bare_tag);
+        out.push('>');
     }
 }
 

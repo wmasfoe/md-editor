@@ -207,10 +207,12 @@ async function renderDocumentHtmlWithRust(
 
   const withMermaid = await inlineMermaidSvg(fragment, options.renderMermaidSvg);
 
+  const title = extractDocumentTitle(markdown);
   const renderDocument = (contentHtml: string) =>
     invoke<string>("render_markdown_document_from_fragment", {
       fragment: contentHtml,
       customCss,
+      title,
     });
 
   // linked：保留原始相对图片路径
@@ -220,7 +222,6 @@ async function renderDocumentHtmlWithRust(
   const inlinedContent = await inlineImagesInDataUrls(withMermaid, options.resolveImageDataUrl);
   const standaloneHtml = await renderDocument(inlinedContent);
 
-  const title = extractDocumentTitle(markdown);
   return { standaloneHtml, linkedHtml, title };
 }
 

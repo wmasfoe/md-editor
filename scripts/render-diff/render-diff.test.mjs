@@ -72,11 +72,16 @@ async function renderDocumentWithJs(markdown) {
  *
  * 约定：`crates/render` 提供一个 `render-fixtures` bin，从 stdin 读
  * `{ fixtures: [{ id, markdown }] }`，向 stdout 写
- * `{ results: { id: html }, documents: { id: standaloneHtml } }`。
+ * `{ results, clean_results, documents, host_documents }`（均以 fixture id 为键）。
  * 一次进程调用渲染全部语料，避免逐条启动的开销。
  *
  * @param {readonly { id: string, markdown: string }[]} fixtures
- * @returns {{ results: Record<string, string>, documents: Record<string, string> }}
+ * @returns {{
+ *   results: Record<string, string>,
+ *   cleanResults: Record<string, string>,
+ *   documents: Record<string, string>,
+ *   hostDocuments: Record<string, string>,
+ * }}
  */
 function renderWithRust(fixtures) {
   if (!hasCargo()) {
@@ -96,10 +101,17 @@ function renderWithRust(fixtures) {
   if (!parsed || typeof parsed.results !== "object" || parsed.results === null) {
     throw new Error("Rust 渲染器输出缺少 results 字段");
   }
-  if (typeof parsed.documents !== "object" || parsed.documents === null) {
-    throw new Error("Rust 渲染器输出缺少 documents 字段");
+  for (const field of ["clean_results", "documents", "host_documents"]) {
+    if (typeof parsed[field] !== "object" || parsed[field] === null) {
+      throw new Error(`Rust 渲染器输出缺少 ${field} 字段`);
+    }
   }
-  return { results: parsed.results, documents: parsed.documents };
+  return {
+    results: parsed.results,
+    cleanResults: parsed.clean_results,
+    documents: parsed.documents,
+    hostDocuments: parsed.host_documents,
+  };
 }
 
 test("差分语料自身合法（无重复 id、mode/guards 齐备）", () => {
@@ -203,5 +215,89 @@ test("standalone 文档骨架与 JS 侧一致", async (t) => {
     failures,
     [],
     `standalone 文档差分失败 ${failures.length} 条：\n\n${failures.join("\n\n")}`,
+  );
+});
+
+/**
+ * 桌面导出的实际模式：`renderStaticHtml({includeMarkers: false})`。
+ *
+ * 三个导出入口（复制为富文本 / 导出 HTML / 导出 PDF）都用这个模式。
+ * 该测试存在的直接原因：Rust 侧曾在这个分支里**丢掉全部语义标签**
+ * （`<strong>` / `<em>` / `<del>` / `<mark>`），导致导出结果丢失所有行内强调，
+ * 而当时所有 fixture 都只跑 `includeMarkers: true`，CI 因此全绿。
+ */
+test("clean 模式（includeMarkers:false）与 JS 侧一致", async (t) => {
+  if (!existsSync(rustCargoToml)) {
+    t.diagnostic("阶段 0：crates/render 尚未建立，跳过 clean 模式对比。");
+    return;
+  }
+  if (!hasCargo()) {
+    assert.fail("crates/render 已存在，但当前环境找不到 cargo，无法对比 clean 模式。");
+  }
+
+  const actual = renderWithRust(RENDER_FIXTURES);
+  const { renderStaticHtml } = await import("../../packages/compiler/src/index.ts");
+
+  const failures = [];
+  for (const fixture of RENDER_FIXTURES) {
+    const expected = renderStaticHtml(fixture.markdown, { includeMarkers: false }).html;
+    const received = actual.cleanResults[fixture.id];
+    if (typeof received !== "string") {
+      failures.push(`${fixture.id}: Rust 侧未返回 clean 结果`);
+      continue;
+    }
+    const result = compareRenderedHtml(expected, received, fixture.mode);
+    if (!result.ok) {
+      failures.push(`${fixture.id}（${fixture.mode}，守护 ${fixture.guards}）\n${result.message}`);
+    }
+  }
+
+  assert.deepEqual(
+    failures,
+    [],
+    `clean 模式差分失败 ${failures.length} 条：\n\n${failures.join("\n\n")}`,
+  );
+});
+
+/**
+ * 宿主管线：clean 片段 + 标题 → `wrap_document_fragment`。
+ *
+ * 对应桌面 `render_markdown_fragment(false)` → 后处理 →
+ * `render_markdown_document_from_fragment(fragment, css, title)` 的真实调用序列。
+ *
+ * 该测试存在的直接原因：`render_markdown_document_from_fragment` 曾把 title 硬编码为
+ * `"Untitled"`，且当时只对比 `render_document`（自己提取标题），因此那个 bug 不可见。
+ */
+test("宿主管线（片段 + 标题包装）与 JS 侧一致", async (t) => {
+  if (!existsSync(rustCargoToml)) {
+    t.diagnostic("阶段 0：crates/render 尚未建立，跳过宿主管线对比。");
+    return;
+  }
+  if (!hasCargo()) {
+    assert.fail("crates/render 已存在，但当前环境找不到 cargo，无法对比宿主管线。");
+  }
+
+  const actual = renderWithRust(RENDER_FIXTURES);
+
+  const failures = [];
+  for (const fixture of RENDER_FIXTURES) {
+    // JS 参照：导出器同样先取 clean 片段，再包装成文档（标题由正文提取）。
+    const { renderStaticDocument } = await import("../../packages/compiler/src/index.ts");
+    const expected = renderStaticDocument(fixture.markdown, { includeMarkers: false });
+    const received = actual.hostDocuments[fixture.id];
+    if (typeof received !== "string") {
+      failures.push(`${fixture.id}: Rust 侧未返回宿主管线文档`);
+      continue;
+    }
+    const result = compareRenderedHtml(expected, received, "byte");
+    if (!result.ok) {
+      failures.push(`${fixture.id}\n${result.message}`);
+    }
+  }
+
+  assert.deepEqual(
+    failures,
+    [],
+    `宿主管线差分失败 ${failures.length} 条：\n\n${failures.join("\n\n")}`,
   );
 });
