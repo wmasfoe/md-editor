@@ -1,5 +1,9 @@
 # Changelog - Web Playground
 
+## 0.5.0 - 2026-11-23 (#298)
+
+- Shortcuts now come from the single @md-editor/core keymap table: Cmd+B is bold again and the sidebar is Cmd+Shift+B (Cmd+B used to toggle the sidebar, which disagreed with the desktop app). The cheat sheet and the dispatcher read the same table instead of hard-coded chords.
+
 ## 0.4.1 - 2026-11-22 (#295)
 
 - Fix MDX components rendering as HTML when the parser loads after the document opens, which previously never recovered. Fix anchor links for nested headings inside list items and blockquotes jumping to the wrong place, and outline entries whose ids did not match the exported HTML.
