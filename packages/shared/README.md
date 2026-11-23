@@ -2,6 +2,8 @@
 
 Small utilities and types used by the other Inkpoint packages. It has no runtime dependencies.
 
+> **Using it:** see [`USAGE.md`](./USAGE.md) for a task-oriented guide — minimal setup, common recipes, and the full export map.
+
 ## Install
 
 ```bash

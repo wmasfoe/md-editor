@@ -36,6 +36,9 @@ const MARKER = "<!-- readme-check -->";
  */
 export const README_TARGETS = [
   ...PUBLIC_PACKAGES.map((pkg) => join("packages", pkg, "README.md")),
+  // 子包的实战指南与 README 同等对待：标记过的示例必须能编译，
+  // 引用的子入口必须真实存在 —— 否则"文档教已删 API"会从 README 漏到 USAGE。
+  ...PUBLIC_PACKAGES.map((pkg) => join("packages", pkg, "USAGE.md")),
   "README.md",
   "README_ZH.md",
 ];
@@ -93,6 +96,8 @@ const PATHS = {
   "@md-editor/shared/mdx": ["packages/shared/src/mdx.ts"],
   "@md-editor/plugin-sdk/callout": ["packages/plugin-sdk/src/callout-data.ts"],
   "@md-editor/plugin-host": ["packages/plugin-host/src/index.ts"],
+  "@md-editor/plugin-host/github": ["packages/plugin-host/src/github.ts"],
+  "@md-editor/plugin-host/mdx": ["packages/plugin-host/src/mdx.ts"],
   "@md-editor/markdown-fidelity": ["packages/markdown-fidelity/src/index.ts"],
   "@md-editor/shared": ["packages/shared/src/index.ts"],
 };

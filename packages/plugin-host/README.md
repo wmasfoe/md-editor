@@ -8,6 +8,8 @@ to manage plugins and their contributions.
 npm install @md-editor/plugin-host
 ```
 
+> **Using it:** see [`USAGE.md`](./USAGE.md) for a task-oriented guide — minimal setup, common recipes, and the full export map.
+
 ## Validate a catalog
 
 `validateCatalog` checks an unknown value and returns a typed catalog. It throws

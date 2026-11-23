@@ -2,6 +2,8 @@
 
 Functions for preserving Markdown source through preview and editing. They protect front matter and MDX blocks, map image paths for preview and back, and build a heading outline without DOM or CodeMirror dependencies.
 
+> **Using it:** see [`USAGE.md`](./USAGE.md) for a task-oriented guide — minimal setup, common recipes, and the full export map.
+
 ## Why it exists
 
 Rendering and saving Markdown can alter front matter, raw HTML or image paths. This package provides the transforms Inkpoint uses to preserve those parts. Preview rewrites have corresponding restore functions; `serializeRoundTrip` deliberately normalizes line endings and adds a final newline.
