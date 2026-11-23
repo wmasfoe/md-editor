@@ -9,7 +9,7 @@ describe("macOS Quick Look App Extension", () => {
   const tauriConfigPath = path.resolve(__dirname, "../src-tauri/tauri.conf.json");
   const tauriMacosConfigPath = path.resolve(__dirname, "../src-tauri/tauri.macos.conf.json");
 
-  it("should have valid PreviewProvider.swift with size limit, JavaScriptCore and static engine invocation", () => {
+  it("PreviewProvider.swift 通过 C ABI 调用 Rust 渲染核心，不再依赖 JavaScriptCore", () => {
     const swiftFile = path.join(extensionDir, "PreviewProvider.swift");
     expect(fs.existsSync(swiftFile)).toBe(true);
 
@@ -17,9 +17,18 @@ describe("macOS Quick Look App Extension", () => {
     expect(content).toContain("class PreviewProvider: QLPreviewProvider");
     expect(content).toContain("QLPreviewReply(fileURL:");
     expect(content).toContain("maxPreviewBytes");
-    expect(content).toContain("QuickLookEngine");
-    expect(content).toContain("InkpointStaticRenderer");
-    expect(content).toContain("JavaScriptCore");
+
+    // 渲染委托给 crates/render-ffi 导出的 C 符号
+    expect(content).toContain('@_silgen_name("md_render_document")');
+    expect(content).toContain('@_silgen_name("md_render_free_string")');
+    expect(content).toContain("RustRenderer");
+
+    // 旧的内嵌 JS 引擎必须彻底移除（否则就是双实现残留）。
+    // 注释里允许提及历史（解释为什么不能用 JSC），因此只断言**代码**层面：
+    // import 语句、JSContext 类型使用、引擎对象引用。
+    expect(content).not.toMatch(/^import JavaScriptCore$/m);
+    expect(content).not.toMatch(/\bJSContext\b(?!.*\/\/)/);
+    expect(content).not.toContain("InkpointStaticRenderer");
   });
 
   it("should have main.swift entry point calling NSExtensionMain", () => {
@@ -44,18 +53,27 @@ describe("macOS Quick Look App Extension", () => {
     expect(content).toContain("public.plain-text");
   });
 
-  it("should contain bundled quicklook-engine.js compiled from @md-editor/compiler", () => {
+  it("不再随包内嵌 JS 渲染引擎（渲染已迁到 Rust）", () => {
+    // 扩展的 Resources 目录里不应再有 quicklook-engine.js。
+    // 渲染核心现在是链接进二进制的 Rust 静态库。
     const engineJs = path.join(resourcesDir, "quicklook-engine.js");
-    expect(fs.existsSync(engineJs)).toBe(true);
+    expect(fs.existsSync(engineJs)).toBe(false);
 
-    const stat = fs.statSync(engineJs);
-    expect(stat.size).toBeGreaterThan(100000); // Bundled engine with compiler, KaTeX, marked, and highlight.js
+    // 构建脚本也必须停止生成它，且改为链接 Rust 静态库。
+    const buildScript = fs.readFileSync(buildScriptPath, "utf-8");
+    expect(buildScript).not.toContain("build-quicklook-engine.mjs");
+    expect(buildScript).toContain("crates/render-ffi");
+    expect(buildScript).toContain("libmd_render_ffi.a");
+    expect(buildScript).toContain("-lmd_render_ffi");
+    // 不允许链接 JavaScriptCore（本扩展没有 allow-jit，且渲染已原生化）
+    expect(buildScript).not.toContain("-framework JavaScriptCore");
+  });
 
-    const content = fs.readFileSync(engineJs, "utf-8");
-    expect(content).toContain("InkpointStaticRenderer");
-    expect(content).toContain("renderStaticDocument");
-    expect(content).toContain("prefers-color-scheme: dark");
-    expect(content).toContain("katex");
+  it("Rust 静态库的 deployment target 与 Swift 扩展一致", () => {
+    const buildScript = fs.readFileSync(buildScriptPath, "utf-8");
+    // 两者不一致会导致「built for newer macOS than being linked」并可能用到旧系统没有的符号
+    expect(buildScript).toContain("MACOSX_DEPLOYMENT_TARGET=12.0");
+    expect(buildScript).toContain("arm64-apple-macos12.0");
   });
 
   it("should have executable build-quicklook.sh targeting arm64-apple-macos12.0", () => {

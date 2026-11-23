@@ -52,6 +52,13 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      # `pnpm test` 包含 test:render-diff（TS/Rust 双实现一致性守门），需要 cargo。
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
       - name: Tests
         run: pnpm test
 

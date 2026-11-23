@@ -1,92 +1,194 @@
-# 独立无头编译器 (`@md-editor/compiler`) 架构规范
+# Markdown 渲染核心架构规范（TS `@md-editor/compiler` + Rust `md-render`）
 
-用途：记录 `@md-editor/compiler` 独立子包的设计初衷、架构分层、Token 数据模型（AST）、HTML 发射器、离线 KaTeX/Callout 渲染以及开放 `StaticCustomRenderer` 的设计规范。
+用途：记录 Markdown → HTML 渲染的**双实现**边界、各自职责、等价性契约与差分测试守门机制。
 
----
-
-## 1. 架构定位与第一性原理
-
-在引入 `@md-editor/compiler` 之前，静态渲染与 HTML 导出逻辑混杂在 `packages/editor/src/static` 中。这造成了多维度的设计倒挂：
-1. **依赖倒置**：`editor` 的核心职责是 Live 交互式 CodeMirror 6 编辑器引擎，而静态渲染只需要纯字符串变换，不应强行捆绑在沉重的编辑器引擎包中；
-2. **环境受限**：macOS Finder QuickLook（通过 JavaScriptCore 运行）与移动端首屏预加载需要纯 Headless 运行环境（0 DOM、0 CM6 依赖）；
-3. **能力收敛**：从第一性原理出发，将 Markdown/MDX 解析为结构化 Token 流并统一发射为高保真 HTML，是所有只读消费方（QuickLook、移动端阅读态、HTML 导出、打印、第三方扩展）的核心公共基石。
+> **重要**：仓库长期存在**两套**渲染实现，这是**终态**而非过渡态。
+> 任何修改渲染行为的改动都必须同时通过 `scripts/render-diff` 的差分测试。
 
 ---
 
-## 2. 模块拓扑与目录结构
+## 1. 为什么有两套实现
 
-```
-packages/compiler/
-├── package.json               # 声明 @md-editor/compiler，依赖 @md-editor/shared, katex, marked, highlight.js
-├── tsconfig.json
-├── src/
-│   ├── index.ts               # 统一对外 API：compileToTokens, renderStaticHtml, renderStaticDocument
-│   ├── tokens/
-│   │   ├── types.ts           # 结构化 Token AST 类型（HeadingToken, CalloutToken, MathBlockToken 等）
-│   │   └── index.ts
-│   ├── parser/
-│   │   └── tokenizer.ts       # 负责 Markdown -> StaticToken[] 转换，提取 Frontmatter 与 Title
-│   ├── emitter/
-│   │   ├── html-emitter.ts    # 负责 StaticToken[] -> 语义 HTML 发射
-│   │   ├── custom-renderer.ts # 开放的 StaticCustomRenderer 拦截钩子接口
-│   │   ├── math-render.ts     # 纯 JS 离线 KaTeX 公式渲染 (katex.renderToString)
-│   │   └── highlight-code.ts  # highlight.js 代码着色
-│   ├── data/
-│   │   ├── callout-data.ts    # 纯数据层：Callout 矢量 SVG 图标与默认标题
-│   │   └── language-names.ts  # 纯数据层：代码语言别名解析器
-│   └── templates/
-│       ├── document.ts        # 组装完整自包含 HTML 文档
-│       └── styles.ts          # 内联 Light/Dark 模式 60+ 主题 CSS 变量与排版规则
-└── tests/
-    ├── compile-tokens.test.ts # Token 结构化抽取单测
-    ├── render-html.test.ts    # HTML 渲染与 CustomRenderer 单测
-    └── katex-offline.test.ts  # 无 DOM 环境 KaTeX 离线公式渲染单测
-```
+| 宿主 | 实现 | 原因 |
+|---|---|---|
+| **移动端**（iOS / Android WebView） | TS `@md-editor/compiler` | 无 Rust 运行时；WebView 内跑 JS |
+| **桌面端**（Tauri 主窗口） | Rust `md-render` | 原生侧统一渲染语义，减少 JS↔Rust 往返 |
+| **macOS QuickLook**（`.appex`） | Rust `md-render`（经 `md-render-ffi` 的 C ABI） | 扩展无 `allow-jit`，不能跑 WASM；原生机器码不受限 |
+
+移动端不在迁移范围内，因此 **TS 实现永久保留**。既然两套实现都活着，一致性就不能靠人工纪律。
 
 ---
 
-## 3. 核心 API 契约
+## 2. 双实现边界
 
-### 3.1 结构化 Token 抽取：`compileToTokens`
-```ts
-export function compileToTokens(
-  markdown: string,
-  options?: TokenizeOptions,
-): CompileResult;
-
-export interface CompileResult {
-  readonly tokens: StaticToken[];
-  readonly title: string;
-  readonly frontmatterRaw?: string;
-}
 ```
-调用方可获得与 marked/unified 类似但更加强类型的结构化 AST，便于进行大模型内容提取、目录索引或第三方排版。
-
-### 3.2 高保真 HTML 渲染：`renderStaticHtml`
-```ts
-export function renderStaticHtml(
-  markdown: string,
-  options?: StaticRenderOptions,
-): StaticRenderResult;
+                    Markdown 源码
+                          │
+          ┌───────────────┴───────────────┐
+          ▼                               ▼
+  packages/compiler/                crates/render/
+  （TS，移动端）                     （Rust，桌面 + QuickLook）
+  marked + marked-cjk-friendly      comrak（仅解析）+ 自研 emitter
+  highlight.js                      highlight.js（内嵌 QuickJS）
+  katex                             katex（内嵌 QuickJS）
+          │                               │
+          └───────────────┬───────────────┘
+                          ▼
+              scripts/render-diff 差分测试
+              （83 条语料，byte / semantic 双模式）
 ```
-支持：
-- `includeMarkers: boolean`（默认为 true，发射 `.cm-md-marker` 标签，完美对齐 `CodeMirrorEditor` 的弱化语法标记）；
-- `customRenderer?: StaticCustomRenderer`（允许拦截或重写任意节点）。
 
-### 3.3 离线独立 HTML 文档：`renderStaticDocument`
-```ts
-export function renderStaticDocument(
-  markdown: string,
-  options?: StaticDocumentOptions,
-): string;
+### 2.1 TS 侧：`packages/compiler`
+
+保留完整的解析 → 发射 → 模板流水线，供移动端与任何纯 JS 环境使用：
+
 ```
-输出包含完整 `<!doctype html>`、内联 CSS（含 KaTeX 样式与主题变量）的单文件 HTML，供 QuickLook、导出与打印使用。
+packages/compiler/src/
+├── index.ts               # compileToTokens / renderStaticHtml / renderStaticDocument
+├── parser/tokenizer.ts    # marked + CJK 友好扩展 + math/highlight/directive 自定义 tokenizer
+├── emitter/
+│   ├── html-emitter.ts    # StaticToken[] → 语义 HTML（含 .cm-md-marker 标记）
+│   ├── math-render.ts     # katex.renderToString
+│   └── highlight-code.ts  # highlight.js
+├── data/                  # callout 图标、语言别名（纯数据）
+└── templates/             # document.ts（骨架）、styles.ts（约 400 行主题 CSS）
+```
+
+**`templates/` 是两份资产的唯一事实源**：Rust 侧在构建期从这里读取 CSS 与文档骨架（见 §3.3），不做手工复制。
+
+### 2.2 Rust 侧：`crates/render`
+
+```
+crates/render/
+├── build.rs               # 构建期从 node_modules 与 packages/compiler 提取资产
+└── src/
+    ├── lib.rs             # render_html / render_document 入口
+    ├── emit.rs            # comrak AST → IR → HTML（逐字节对齐 TS emitter）
+    ├── slug.rs            # 标题 ID / 去重 / legacy 别名（移植 @md-editor/shared）
+    ├── directive.rs       # :::容器 分段（comrak 无此语法）
+    ├── callout.rs         # callout 图标 SVG（移植 packages/plugin-sdk/callout-data.ts）
+    ├── math.rs            # 经 QuickJS 调用 katex.renderToString
+    ├── highlight.rs       # 经 QuickJS 调用 hljs.highlight + 语言别名表
+    ├── js_runtime.rs      # QuickJS 单例运行时（每线程一份）
+    ├── document.rs        # standalone 文档包装
+    └── escape.rs          # HTML 转义（与 TS escapeHtml 逐字符一致）
+```
+
+**关键设计：comrak 只用于解析。** 它内置的 HTML 渲染器产不出 `cm-md-marker` 标记，也无法复刻本项目的标题 ID / legacy 别名规则，因此 HTML 由 `emit.rs` 手写发射。
 
 ---
 
-## 4. 零兼容性 Re-export 原则
+## 3. 三个「同一份资产」原则
 
-严格遵守 `AGENTS.md` 规则 9：
-- 抽取 `@md-editor/compiler` 后，彻底物理删除了 `packages/editor/src/static`；
-- 旧调用方（`build-quicklook-engine.mjs`、`apps/mobile/core`、单元测试）100% 直连新包 `@md-editor/compiler`；
-- 杜绝为了历史向后兼容保留任何空壳 re-export 转发文件。
+Rust 侧不复制 JS 实现，而是在**构建期**读取同一份源，从根上消除漂移。
+
+### 3.1 数学与代码高亮：内嵌 QuickJS
+
+| 能力 | 为什么不能 Rust 原生重写 |
+|---|---|
+| 数学（KaTeX） | 输出结构复杂（多层 `<span class="katex-*">` + 内联 style），Rust 移植无法保证一致；改用 MathML 会破坏「编辑器所见 = 导出所得」 |
+| 代码高亮（highlight.js） | 用**手写正则**分词并映射固定类名（`hljs-keyword`）；`syntect` 用 Sublime `.tmLanguage` 作用域栈，**分词边界本身就不同**，写类名映射表不够 |
+
+因此直接跑**同一份 JS**：`build.rs` 从 `node_modules` 读取 `katex.min.js` 与 `highlight.js`，用 QuickJS 执行。
+
+- 版本**自动锁定**：升级 `pnpm` 依赖即生效，不需要手工同步版本号（`katex_version()` / `highlight_version()` 可在运行期断言）。
+- QuickJS 是**纯解释器**，不需要 JIT，因此可在 App Sandbox 的 QuickLook 扩展里正常工作。
+- `highlight.js` 的 `lib/index.js` 是 CommonJS（194 个 `require`），构建期用仓库已有的 esbuild（vite 传递依赖）打成 IIFE，不新增依赖。
+
+### 3.2 语言别名表
+
+`crates/render/src/highlight.rs` 的 `LANGUAGE_ALIASES` 与 `packages/compiler/src/data/language-names.ts` 的 `SUPPORTED_LANGUAGE_METAS` **逐字对齐**（含顺序——同一个 token 命中多条时取第一条）。
+
+### 3.3 静态文档模板与 CSS
+
+`crates/render/build.rs` 在构建期从 `packages/compiler/src/templates/` 提取 `STATIC_DOCUMENT_BASE_CSS` 与文档骨架，内联进 Rust 二进制。
+
+提取时需还原 JS 模板字符串的转义（`\\p` → `\p`），否则内联脚本里的正则会多一层反斜杠。
+
+---
+
+## 4. 等价性契约与分级
+
+`scripts/render-diff` 用同一份语料同时跑两个实现并对比。**每条 fixture 显式声明比较模式**：
+
+| 模式 | 含义 | 适用 |
+|---|---|---|
+| `byte` | 逐字节一致 | 标题 ID/去重/legacy 别名、callout、`==highlight==`、代码高亮、KaTeX 公式、整体 HTML 骨架 |
+| `semantic` | 规范化投影一致 | CJK 强调/删除线边界（comrak 的 `cjk_friendly_emphasis` 与 `marked-cjk-friendly` 是两套独立实现） |
+
+`semantic` 的投影规则：属性排序、文本节点折叠空白并裁剪两端、**不放宽标签结构**（`<strong>` vs `<em>` 仍判失败）。
+
+### 4.1 自收紧规则
+
+避免「永久跳过」退化成永久漏测：
+
+- `crates/render/Cargo.toml` **不存在** → 阶段 0，跳过 Rust 侧并显式报告
+- 存在但渲染器跑不起来 → **测试失败**
+
+### 4.2 语料
+
+83 条，按关注点分组（`scripts/render-diff/corpus/`）：
+
+| 文件 | 覆盖 |
+|---|---|
+| `inline-and-cjk.mjs` | 行内语法、CJK 邻接边界（7 条 semantic） |
+| `blocks.mjs` | 标题 ID/去重/别名、嵌套标题、列表、表格、代码块、引用块 |
+| `plugins.mjs` | GFM Alert、`:::容器`、`==highlight==`、数学、mermaid |
+| `edge.mjs` | 空文档、frontmatter、围栏陷阱、组合文档 |
+
+每条 fixture 必须声明 `mode` 与 `guards`（守护 `packages/compiler/tests/` 的哪条契约），否则 `validateCorpus` 失败。
+
+### 4.3 与 `packages/compiler/tests/` 的关系
+
+TS 侧的 11 个测试文件 / 130 个用例是**行为定义基线**。Rust 侧的等价性由差分测试保证——不是重写那 130 个用例，而是用同一批语料验证两个实现产出相同结果。
+
+---
+
+## 5. 宿主接入
+
+### 5.1 桌面端（Tauri command）
+
+`apps/desktop/src-tauri/src/render.rs`：
+
+| 命令 | 用途 |
+|---|---|
+| `render_markdown_fragment` | 渲染 HTML 片段（富文本剪贴板） |
+| `render_markdown_document` | 渲染完整 standalone 文档 |
+| `render_markdown_document_from_fragment` | 把**已后处理**的片段包装成文档 |
+
+**职责分工**（`apps/desktop/src/app/controller/export-controller.ts`）：
+
+- **Rust**：Markdown → HTML（标题 ID、callout、highlight、代码高亮、数学公式）
+- **宿主 JS**：mermaid → SVG、图片 → Data URL、字体/打印 CSS 拼装、文档包装
+
+### 5.2 QuickLook（C ABI 静态库）
+
+`crates/render-ffi` 导出 4 个符号：`md_render_document`、`md_render_fragment`、`md_render_free_string`、`md_render_katex_version`。Swift 侧用 `@_silgen_name` 声明并通过 `swiftc -lmd_render_ffi` 链接。
+
+详见 [macOS Quick Look 预览扩展架构](./macos_quicklook_preview_architecture.md)。
+
+---
+
+## 6. Mermaid 契约（方式 a）
+
+Rust 渲染核心**不感知 mermaid**：` ```mermaid ` 原样输出为 `<pre><code class="language-mermaid">`，由宿主用 `inlineMermaidSvg()` 替换为 SVG。
+
+**不得**把 mermaidSvgs 映射塞进 Rust 入参——那会让 Rust 接口依赖宿主后处理结果，破坏「纯 `markdown -> html`」的边界。
+
+---
+
+## 7. 修改渲染行为时的检查清单
+
+1. 改 TS 侧 → 跑 `pnpm --filter @md-editor/compiler test`（130 用例）
+2. 改 Rust 侧 → 跑 `cargo test --manifest-path crates/render/Cargo.toml`
+3. **无论改哪侧** → 跑 `pnpm test:render-diff`；若新增语法，先在 `corpus/` 加 fixture
+4. 若两侧行为**有意**分叉 → 不能直接改 `semantic` 模式蒙混过关，必须在 fixture 的 `guards` 里说明理由
+
+---
+
+## 8. 零兼容性 Re-export 原则
+
+严格遵守 `AGENTS.md`：
+- 抽取子包后彻底物理删除旧实现，不留空壳 re-export；
+- 桌面端不再依赖 `@md-editor/compiler`（已从 `apps/desktop/package.json` 移除）；
+- 唯一保留的消费方是移动端 `apps/mobile/core/src/components/ReaderCanvas.tsx`。

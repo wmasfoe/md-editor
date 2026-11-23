@@ -1,10 +1,38 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { copyDocumentAsHtml } from "../src/app/controller/export-controller";
 
 const { mockInvoke, mockSave } = vi.hoisted(() => ({
   mockInvoke: vi.fn(),
   mockSave: vi.fn(),
 }));
+
+/**
+ * 让 `mockInvoke` 对 Rust 渲染命令返回可用的 HTML，其余命令按测试自身设定。
+ *
+ * 渲染已迁到 Rust（`render_markdown_fragment` / `render_markdown_document_from_fragment`），
+ * 前端只负责 mermaid/图片后处理与文档包装，因此这里模拟 Rust 的返回。
+ */
+function stubRenderCommands() {
+  mockInvoke.mockImplementation(async (command: string, args?: Record<string, unknown>) => {
+    if (command === "render_markdown_fragment") {
+      const markdown = String(args?.markdown ?? "");
+      // 只保留段落与标题的最小可辨识输出，足以断言后处理行为
+      const heading = /^#\s+(.+)$/m.exec(markdown)?.[1]?.trim();
+      const body = markdown
+        .split("\n")
+        .filter((line) => line.trim() && !line.startsWith("#"))
+        .map((line) => `<p>${line.trim()}</p>`)
+        .join("");
+      return `${heading ? `<h1 id="t" data-heading-text="${heading}">${heading}</h1>` : ""}${body}`;
+    }
+    if (command === "render_markdown_document_from_fragment") {
+      const fragment = String(args?.fragment ?? "");
+      const customCss = String(args?.customCss ?? "");
+      return `<!doctype html><html><head><style>${customCss}</style></head><body><div id="content">${fragment}</div></body></html>`;
+    }
+    return undefined;
+  });
+}
 
 vi.mock("@tauri-apps/api/core", () => ({
   isTauri: () => true,
@@ -16,6 +44,12 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({
 }));
 
 describe("export-controller", () => {
+  beforeEach(() => {
+    mockInvoke.mockReset();
+    mockSave.mockReset();
+    stubRenderCommands();
+  });
+
   it("copies rich text html to clipboard using ClipboardItem", async () => {
     let writtenItems: unknown[] = [];
     const writeMock = vi.fn(async (items: unknown[]) => {
@@ -80,24 +114,33 @@ describe("export-controller", () => {
 
   it("exports PDF directly to selected path when save dialog is confirmed", async () => {
     mockSave.mockResolvedValueOnce("/Users/test/Documents/my-doc.pdf");
-    mockInvoke.mockResolvedValueOnce(undefined);
 
     const { exportDocumentAsPdf } = await import("../src/app/controller/export-controller");
     const result = await exportDocumentAsPdf("/Users/test/Documents/my-doc.md", "# Valid Doc");
 
     expect(result.success).toBe(true);
     expect(result.filePath).toBe("/Users/test/Documents/my-doc.pdf");
-    expect(mockInvoke).toHaveBeenCalledWith("export_html_to_pdf", {
-      html: expect.stringContaining("Valid Doc"),
-      outputPath: "/Users/test/Documents/my-doc.pdf",
-      pageSize: "A4",
-      orientation: "portrait",
-    });
+    expect(mockInvoke).toHaveBeenCalledWith(
+      "export_html_to_pdf",
+      expect.objectContaining({
+        html: expect.stringContaining("Valid Doc"),
+        outputPath: "/Users/test/Documents/my-doc.pdf",
+        pageSize: "A4",
+        orientation: "portrait",
+      }),
+    );
   });
 
   it("falls back to print preview when backend PDF export fails", async () => {
     mockSave.mockResolvedValueOnce("/Users/test/Documents/fallback.pdf");
-    mockInvoke.mockRejectedValueOnce(new Error("Native engine error"));
+    // 只让落盘命令失败，渲染命令仍走正常 stub
+    const base = mockInvoke.getMockImplementation();
+    mockInvoke.mockImplementation(async (command: string, args?: Record<string, unknown>) => {
+      if (command === "export_html_to_pdf") {
+        throw new Error("Native engine error");
+      }
+      return base?.(command, args);
+    });
 
     vi.stubGlobal("document", {
       createElement: () => ({
@@ -156,7 +199,6 @@ describe("export-controller", () => {
 
   it("passes styling and fonts into generated PDF export HTML", async () => {
     mockSave.mockResolvedValueOnce("/Users/test/Documents/styled.pdf");
-    mockInvoke.mockResolvedValueOnce(undefined);
 
     const { exportDocumentAsPdf } = await import("../src/app/controller/export-controller");
     const result = await exportDocumentAsPdf("/Users/test/Documents/styled.md", "# Styled Doc", {

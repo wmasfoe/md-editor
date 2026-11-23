@@ -103,6 +103,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # `pnpm test` 包含 test:render-diff（TS/Rust 双实现一致性守门），
+      # 它需要 cargo 才能跑 Rust 侧。因此本 job 必须装 Rust 工具链，
+      # 否则差分测试会因「crate 存在但找不到 cargo」而失败。
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
       - name: Run unit tests
         run: pnpm test
 
@@ -291,7 +300,16 @@ jobs:
         run: cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets -- -D warnings
 
       - name: Test Rust
-        run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
+        run: |
+          cargo test --manifest-path crates/render/Cargo.toml
+          cargo test --manifest-path crates/render-ffi/Cargo.toml
+          cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
+
+      # 双实现一致性的守门设施：同一份语料同时跑 TS 与 Rust 渲染器。
+      # 虽然 `test-unit` 里的 `pnpm test` 已包含它，这里再显式跑一次，
+      # 让 parity 失败在 CI 上单独可见、不必翻整条测试日志。
+      - name: Render parity (TS vs Rust)
+        run: pnpm test:render-diff
 
   # The manual matrix below stays workflow_dispatch-only. Pull requests still have
   # to build the real x86_64 AppImage: validate-appimage.mjs runs inside

@@ -9,6 +9,7 @@ import {
   resolveSentrySourcemapTarget,
   shouldUploadDesktopSourcemaps,
 } from "./src/app/error-reporting/sentry-release.ts";
+import { dropLegacyFontFormatsPlugin } from "./scripts/drop-legacy-font-formats.mjs";
 
 /**
  * 工作区包（`@md-editor/*`）不在此声明 Vite alias：
@@ -38,6 +39,9 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
+    // KaTeX 为每个字体声明 woff2 + woff + ttf 三格式，而桌面端 WebView 全部支持 woff2，
+    // 后两段永远不会命中，却占约 800 KB 安装包体积。只修声明与孤儿资产，见脚本内说明。
+    dropLegacyFontFormatsPlugin(),
     // 必须放在其它插件之后，Debug ID 才能打进最终产物。
     // 没有 token 时不挂载插件，上传整个跳过。
     ...(uploadSourcemaps

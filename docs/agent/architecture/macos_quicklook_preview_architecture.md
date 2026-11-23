@@ -1,59 +1,89 @@
 # macOS Quick Look Preview Extension 架构与规范
 
-用途：记录 macOS 系统级 Quick Look (快速查看 / 空格预览) App Extension 的系统接入边界、基于 JavaScriptCore 的离线渲染沙盒架构、与 `@md-editor/compiler` 共享静态渲染能力的复用设计以及构建流水线规范。
+用途：记录 macOS 系统级 Quick Look（空格预览）App Extension 的系统接入边界、**基于 Rust 静态库的原生渲染架构**、构建流水线与降级策略。
+
+> **迁移说明**：本扩展曾内嵌 1.3 MB 的 `quicklook-engine.js` 并用 JavaScriptCore 执行。
+> 渲染核心已迁到 Rust（`crates/render-ffi`），与桌面导出共用同一套实现，
+> 由 `scripts/render-diff` 的差分测试守护等价性。旧 JS 引擎已彻底删除。
 
 ---
 
 ## 1. 架构定位与职责边界
 
-Quick Look 扩展属于 **macOS 操作系统平台接入层**（Platform Integration），严格遵从项目架构边界原则：
-1. **职责单一性**：仅负责响应系统 `quicklookd` 进程的预览请求，通过沙盒离线管道将 Markdown 文本渲染为高保真、只读的静态 HTML。
-2. **零运行时依赖**：不唤起 Inkpoint 编辑器主进程，不引入重型 Webview 或 Node.js 运行时，保证内存开销极小且 <30ms 秒级弹出。
-3. **沙盒安全性**：扩展运行在受限的系统沙盒中，100% 离线自包含，不发起任何外部网络请求，不执行任何未知/不受信任的客户端脚本。
-4. **渲染能力收敛**：渲染规则不硬编码在 Swift 扩展中，而是复用独立子包 `@md-editor/compiler` 导出的静态渲染流水线，与主 App 共享同一套 Markdown 语法与排版事实源。
+Quick Look 扩展属于 **macOS 操作系统平台接入层**（Platform Integration）：
+
+1. **职责单一性**：仅响应系统 `quicklookd` 进程的预览请求，把 Markdown 渲染为只读静态 HTML。
+2. **零运行时依赖**：不唤起 Inkpoint 主进程，不引入 Webview 或 Node.js 运行时。
+3. **沙盒安全性**：运行在受限系统沙盒中，100% 离线自包含，不发起网络请求，不执行不受信任的客户端脚本。
+4. **渲染能力收敛**：渲染规则不硬编码在 Swift 中，而是复用 `crates/render`（与桌面端同一份 Rust 实现）。
 
 ---
 
-## 2. 跨层复用架构
+## 2. 为什么是 Rust 静态库，而不是 JavaScriptCore
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ packages/compiler/ (@md-editor/compiler 独立无头编译器)          │
-├─────────────────────────────────────────────────────────────────┤
-│ 静态渲染与 Token 流水线 (Static Headless)                       │
-│ - ./src/index.ts                                                │
-│ - 纯函数: compileToTokens (抽取结构化 AST)                       │
-│ - 纯函数: renderStaticHtml (语义 HTML 发射)                      │
-│ - 纯函数: renderStaticDocument (自包含完整 HTML 骨架)            │
-├─────────────────────────────────────────────────────────────────┤
-│ 离线原生能力（直接内置）：                                       │
-│ - language-names.ts (代码高亮语言与别名)                         │
-│ - callout-data.ts (Callout 提示框图标与默认标题)                 │
-│ - math-render.ts (纯 JS 离线 KaTeX 公式渲染)                     │
-│ - styles.ts (内联 Light/Dark 模式 60+ 主题变量与 KaTeX 排版样式)  │
-└────────────────────────────────┬────────────────────────────────┘
-                                 │
-                   (构建时 Vite lib iife 打包为自包含单文件)
-                                 │
-                                 ▼
-       apps/desktop/src-tauri/extensions/quicklook/
-       ├── Resources/
-       │   └── quicklook-engine.js     <-- 由 @md-editor/compiler 编译输出的轻量无依赖 JS 引擎
-       └── PreviewProvider.swift       <-- 纯原生接入：
-                                           读取文件 -> engine.renderDocument() -> 写入 temp preview.html -> QLPreviewReply
+这是本扩展最关键的技术约束。
+
+### 2.1 约束来源
+
+扩展的 entitlements（`extensions/quicklook/entitlements.plist`）只有：
+
+```xml
+<key>com.apple.security.app-sandbox</key><true/>
+<key>com.apple.security.files.user-selected.read-only</key><true/>
 ```
 
-### 复用收益与应用场景
-`@md-editor/compiler` 是所有**非交互式 Markdown 消费场景**的基石：
-- **macOS Quick Look 快速预览**：直接以静态 HTML 响应 Finder 空格预览；
-- **移动端沉浸即览**：移动端以纯静态 HTML 快速展示首屏，轻量省电；
-- **导出为 HTML**：保存为带完整样式的自包含 `.html` 文件；
-- **导出为 PDF / 图片**：送入无头打印或离线 Canvas 绘制；
-- **复制为富文本**：渲染为可粘贴至外部富文本编辑器的语义 HTML。
+**没有** `com.apple.security.cs.allow-jit`。这意味着：
+
+| 方案 | 可行性 | 原因 |
+|---|---|---|
+| HTML 内 `<script>` 动态解析 | ❌ | Finder 预览浮窗严格限制 WebContent 脚本执行，会黑屏 |
+| WebAssembly（Rust → wasm） | ❌ | JSC 的 WASM 依赖 JIT，无 entitlement 基本不可用 |
+| JavaScriptCore 跑打包 JS | ⚠️ 可用但已废弃 | 需随包 1.3 MB JS，且与桌面端形成第二套渲染实现 |
+| **Rust 原生机器码 + C ABI** | ✅ **当前方案** | 原生代码不需要 JIT；内部 QuickJS 是纯解释器，同样不需要 JIT |
+
+### 2.2 关键点：QuickJS 不需要 JIT
+
+Rust 侧用 QuickJS 执行数学（KaTeX）与代码高亮（highlight.js）——这两块必须与 JS 侧字节级一致（原因见 [compiler_architecture.md](./compiler_architecture.md) §3.1）。
+
+**QuickJS 是解释器，不是 JIT**，因此在无 `allow-jit` 的沙盒里正常工作。
 
 ---
 
-## 3. 系统接入架构
+## 3. 跨层复用架构
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│ crates/render（Rust 渲染核心，与桌面端共用）                  │
+├──────────────────────────────────────────────────────────────┤
+│ comrak 解析 → 自研 emitter → HTML                            │
+│ 内嵌 QuickJS：katex.min.js（数学）+ highlight.js（代码高亮）  │
+│ 构建期从 node_modules 与 packages/compiler/templates 提取资产 │
+└──────────────────────────┬───────────────────────────────────┘
+                           │
+                           ▼
+┌──────────────────────────────────────────────────────────────┐
+│ crates/render-ffi（C ABI 封装，唯一消费者是本扩展）           │
+├──────────────────────────────────────────────────────────────┤
+│ md_render_document(markdown, title, customCSS) -> *mut c_char │
+│ md_render_fragment(markdown)                    -> *mut c_char │
+│ md_render_free_string(pointer)                                │
+│ md_render_katex_version()                       -> *const c_char│
+└──────────────────────────┬───────────────────────────────────┘
+                           │ swiftc -lmd_render_ffi（静态链接）
+                           ▼
+   apps/desktop/src-tauri/extensions/quicklook/
+   └── PreviewProvider.swift   ← 纯原生接入：
+                                   读取文件 → RustRenderer.renderDocument()
+                                   → 写 temp preview.html → QLPreviewReply
+```
+
+### 内存约定
+
+所有返回 `*mut c_char` 的函数，调用方**必须**用 `md_render_free_string` 释放；返回 `NULL` 表示失败，此时 Swift 侧回退为纯文本预览（保证 Finder 里始终有内容，而不是空白）。
+
+---
+
+## 4. 系统接入架构
 
 ```
 Inkpoint.app/
@@ -64,42 +94,65 @@ Inkpoint.app/
         └── InkpointQuickLook.appex/
             ├── Contents/
             │   ├── Info.plist (com.apple.quicklook.preview, QLIsDataBasedPreview: true)
-            │   ├── MacOS/InkpointQuickLook (Swift 原生 arm64 二进制)
-            │   └── Resources/
-            │       └── quicklook-engine.js (由 editor/static 打包的纯 JS 引擎)
+            │   ├── MacOS/InkpointQuickLook   ← Swift 二进制，静态链接 Rust 渲染核心
+            │   └── Resources/                ← 空（不再需要 JS 引擎资产）
 ```
 
-### 扩展通信与安全执行模型
-- 遵守 macOS 12+ `QLPreviewProvider` 与 `QLPreviewingController` 协议；
-- **为什么在 Swift 内部采用 JavaScriptCore 预渲染？**
-  macOS Finder 的 `QuickLookUIService` 为防止沙盒逃逸和 XSS，在预览浮窗中严格限制 WebContent 动态脚本执行。如果在 HTML 内部使用 `<script>` 动态解析 Markdown，会导致黑屏。
-  因此，扩展在 Swift 原生进程内部拉起系统内置的 `JavaScriptCore` 解释器，在后台几毫秒内调用 `InkpointStaticRenderer.renderStaticDocument(...)` 将 Markdown 转为自带内联样式（Light/Dark Theme、Highlight.js 语法着色、Callout 矢量图）的完整静态 HTML 字符串，并直接以文件形式传递给 `QLPreviewReply(fileURL:)` 渲染静态 DOM，完全避开 WebKit 前台脚本沙箱限制。
+### 执行模型
+
+1. 遵守 macOS 12+ `QLPreviewProvider` 与 `QLPreviewingController` 协议；
+2. 读取 Markdown 文件（超过 2 MB 截断并追加提示）；
+3. 调用 `md_render_document(...)` 得到自包含 HTML 字符串；
+4. 写入临时目录的 `preview.html`；
+5. 用 `QLPreviewReply(fileURL:)` 交付——系统渲染静态 DOM，完全避开 WebKit 前台脚本沙箱。
 
 ---
 
-## 4. 渲染能力与降级策略
+## 5. 渲染能力与降级策略
 
-与 Inkpoint 主应用保持能力一致：
+与 Inkpoint 主应用保持一致（同一份 Rust 实现）：
+
 1. **标准 GFM**：标题、段落、粗体、斜体、删除线、引用块、列表、任务复选框、表格、分割线；
-2. **代码块语法高亮**：复用 `language-names.ts` 与 `highlight.js`，支持主流编程语言；
-3. **GitHub Callouts 提示块**：复用 `callout-data.ts`，原生渲染 Note/Tip/Important/Warning/Caution 提示容器与矢量 SVG；
-4. **外观自适应**：利用 `@media (prefers-color-scheme: dark)` 完美匹配 macOS 系统的 Light / Dark Appearance；
-5. **MDX 与未知组件**：严禁执行交互代码，统一降级为格式化代码块，杜绝安全隐患；
-6. **超大文件保护**：单文件超过 2MB 时自动截断并呈现友好提示，防止快速查看因内存溢出被系统击杀。
+2. **代码块语法高亮**：内嵌 highlight.js，支持 190+ 语言；
+3. **GFM Alert 与 `:::容器`**：Note/Tip/Important/Warning/Caution，内联矢量 SVG 图标；
+4. **数学公式**：内嵌 KaTeX（版本由构建期锁定，与 JS 侧一致）；
+5. **`==highlight==`**：Typora/Obsidian 事实标准；
+6. **外观自适应**：`@media (prefers-color-scheme: dark)` 匹配 macOS Light/Dark Appearance；
+7. **MDX 与未知组件**：不执行交互代码，降级为格式化代码块；
+8. **超大文件保护**：单文件超过 2 MB 自动截断并提示，防止快速查看因内存溢出被系统击杀。
+
+> **注意**：mermaid 图表在 QuickLook 中**不渲染为 SVG**（宿主侧无 mermaid 运行时），
+> 按契约显示为代码块。这是与桌面导出的已知差异。
 
 ---
 
-## 5. 构建流水线与打包规范
+## 6. 构建流水线与打包规范
 
-1. **引擎打包脚本**：`apps/desktop/scripts/build-quicklook-engine.mjs`
-   - 使用 Vite programmatic build (iife 格式) 将 `packages/editor/src/static/index.ts` 打包为纯纯独立的 `quicklook-engine.js`，无任何 DOM 或浏览器全局对象依赖；
-   - 包含 marked 解析、highlight.js 代码着色和内联主题 CSS。
+1. **Rust 静态库**：`crates/render-ffi`
+   - `cargo build --release` 产出 `libmd_render_ffi.a`
+   - **必须**设置 `MACOSX_DEPLOYMENT_TARGET=12.0`，与 Swift 的 `-target arm64-apple-macos12.0` 一致；
+     不一致会导致链接期告警「built for newer macOS than being linked」，且可能用到旧系统不存在的符号
+
 2. **扩展编译脚本**：`apps/desktop/scripts/build-quicklook.sh`
-   - 先执行 `build-quicklook-engine.mjs` 确保引擎最新；
-   - 使用系统内置 `swiftc` 针对 `arm64-apple-macos12.0` 编译；
-   - 链接 `QuickLookUI`, `UniformTypeIdentifiers`, `Foundation`, `JavaScriptCore`；
-   - 组装 `.appex` 目录并执行 `codesign --sign -` ad-hoc 签名。
-3. **Tauri 集成**：
-   - `tauri.conf.json` 配置 `bundle.fileAssociations` 声明 `.md`, `.markdown`, `.mdown`, `.mkd` 文件关联；
-   - `tauri.macos.conf.json` 配置 `bundle.macOS.files` 将 `InkpointQuickLook.appex` 自动映射注入至 `Contents/PlugIns/`。
+   - 编译 `crates/render-ffi` 静态库
+   - `swiftc -target arm64-apple-macos12.0` 编译 `PreviewProvider.swift` + `main.swift`
+   - 链接 `QuickLookUI`、`UniformTypeIdentifiers`、`Foundation` + `-lmd_render_ffi`
+   - **不链接 `JavaScriptCore`**（回归测试会断言这一点）
+   - 组装 `.appex` 目录并 `codesign --sign -` ad-hoc 签名
 
+3. **Tauri 集成**：
+   - `tauri.conf.json` 的 `bundle.fileAssociations` 声明 `.md`, `.markdown`, `.mdown`, `.mkd`
+   - `tauri.macos.conf.json` 的 `bundle.macOS.files` 把 `.appex` 注入 `Contents/PlugIns/`
+
+---
+
+## 7. 回归测试
+
+`apps/desktop/tests/quicklook-preview.test.ts` 断言：
+
+- `PreviewProvider.swift` 使用 `@_silgen_name("md_render_document")` 等 C 符号，**不含** `import JavaScriptCore`
+- `Resources/quicklook-engine.js` **不存在**
+- 构建脚本引用 `crates/render-ffi` / `libmd_render_ffi.a` / `-lmd_render_ffi`，**不含** `-framework JavaScriptCore`
+- 构建脚本同时设置 `MACOSX_DEPLOYMENT_TARGET=12.0` 与 `arm64-apple-macos12.0`
+
+渲染结果的等价性由 `scripts/render-diff` 保证（QuickLook 与桌面共用 `crates/render`）。
