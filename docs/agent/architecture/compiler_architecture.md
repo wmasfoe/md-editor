@@ -35,7 +35,7 @@
           └───────────────┬───────────────┘
                           ▼
               scripts/render-diff 差分测试
-              （83 条语料，byte / semantic 双模式）
+              （177 条语料，byte / semantic 双模式）
 ```
 
 ### 2.1 TS 侧：`packages/compiler`
@@ -127,7 +127,7 @@ Rust 侧不复制 JS 实现，而是在**构建期**读取同一份源，从根�
 
 ### 4.2 语料
 
-约 110 条，按关注点分组（`scripts/render-diff/corpus/`）：
+共 177 条（170 条 byte 级 + 7 条 semantic 级），按关注点分组（`scripts/render-diff/corpus/`）：
 
 | 文件 | 覆盖 |
 |---|---|

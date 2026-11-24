@@ -80,7 +80,19 @@ scripts/render-diff/
   lib.mjs                HTML 投影与比较（纯函数）
   lib.test.mjs           比较逻辑单测
   render-diff.test.mjs   差分测试本体
+  real-docs-parity.mjs   仓库内全部 markdown 的真实文档对比
+  fuzz.mjs               组合式 fuzz（固定种子，6 个套件约 1258 例）
 ```
+
+**三层防线**，覆盖「想到的」之外还覆盖「没想到的」：
+
+1. `corpus/` —— 手写语料，每条声明 `mode` 与所守护的 TS 契约（精确、可读）；
+2. `real-docs-parity.mjs` —— 仓库里 364 份真实 markdown（贴近生产写法）；
+3. `fuzz.mjs` —— 笛卡尔积 + 固定种子随机组合（1.2k 例，30 秒）。
+
+fuzz 与 `KNOWN_DIVERGENCES.md` 联动：命中已登记项的不计入失败但会单独列出，
+避免「绿测掩盖未登记差异」。历史上半数以上分叉是通过 fuzz 发现的
+（highlight 嵌套、容器内定义行、列表续行缩进等）。
 
 语料新增时：`mode` 必须显式声明，`guards` 必须写明守护 `packages/compiler/tests/` 里的哪条契约，
 否则 `validateCorpus` 会失败。
