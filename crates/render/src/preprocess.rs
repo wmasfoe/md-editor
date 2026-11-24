@@ -143,11 +143,8 @@ fn original_ends_with_newline(text: &str) -> bool {
 pub fn preprocess(original: &str) -> Preprocessed {
     let mut restore: Vec<RestoreItem> = Vec::new();
     let mut definitions: Vec<String> = Vec::new();
-    // 已见过的定义 label（用于复刻 marked「重复定义只保留第一条」的行为）。
+    // 已见过的定义 label（用于复刻 marked「重复定义只保留第一条可见文本」的行为）。
     let mut seen_definitions: std::collections::HashSet<String> = std::collections::HashSet::new();
-    // 脚注定义 label → 内容。TS 把 `[^label]` 当作**链接**，href 就是定义内容。
-    let mut footnote_targets: std::collections::HashMap<String, String> =
-        std::collections::HashMap::new();
     let mut counter = 0usize;
 
     // 先做「相邻单行 `$$x$$` 块」改写，再把改写标记换成行内占位符
@@ -234,69 +231,83 @@ pub fn preprocess(original: &str) -> Preprocessed {
             continue;
         }
 
-        // ---- 2) 引用定义行 ----
+        // ---- 2) 引用定义行（`[label]: dest` 与脚注写法 `[^label]: dest` 同构）----
         //
-        // 双重需求：
-        // - TS 侧把该行**作为可见文本**输出（`<p>[foo]: url</p>`），所以原文必须保留；
-        // - 但 `[foo]` 引用仍要能解析成链接，而 comrak 依赖定义行才能解析。
+        // 三重需求：
+        // - marked 把整条定义（含写在下一行的 dest / title）消费成一个 `def` token，
+        //   而 TS 的渲染管线没有 `def` 分支，token 落进「默认按段落渲染」的分支，
+        //   于是**定义原文成为可见段落**——原文必须原位保留；
+        // - `[label]` 引用仍要解析成链接，而 comrak 依赖定义行才能解析——
+        //   因此定义副本要注入文首（定义本身不产生可见输出）；
+        // - comrak 会把定义行彻底吞掉，所以原位必须换成占位符，否则可见文本消失。
         //
-        // 因此这里把原文换成占位符（渲染时还原为可见文本），
-        // 同时收集定义，稍后**在文末追加一份副本**供 comrak 消费。
-        // 副本位于文档末尾，其自身不会产生可见输出（定义不渲染）。
-        // `[b]:` 单独一行、目标在下一行：comrak 会把两行合并成一个定义消费掉，
-        // 可见文本整段消失。TS 侧保留可见文本并解析引用，因此这里只保护第一行，
-        // 第二行按普通文本留在原位（两行同属一个段落），定义副本合并成一行注入。
-        if let Some(combined) = multiline_definition_target(body, lines.get(index + 1).copied()) {
-            let label = body.trim().to_string();
-            if seen_definitions.insert(format!("ref{label}")) {
-                let (prefix, content) = split_container_prefix(body);
-                let placeholder = inline_placeholder_for(&mut counter);
-                restore.push(restore_item(placeholder.clone(), content.to_string(), true));
-                definitions.push(combined);
-                out.push_str(prefix);
-                out.push_str(&placeholder);
-                if has_newline {
-                    out.push('\n');
-                }
+        // 另有三个 marked 细节必须复刻：
+        // 1. 重复 label（小写 + 折叠空白后比较）整行丢弃，但它的换行会留在上一条
+        //    定义的可见文本里（marked 的 `blockTokens` 在丢弃时仍推进源码位置）；
+        // 2. 定义段落独占一个块，后面紧跟内容时另起段落；
+        // 3. 脚注写法在 marked 里就是普通链接定义（label 为 `^1`），因此两种写法走
+        //    同一条分支，`[^1]` / `[^1][]` / 大小写差异全部交给 comrak 按引用链接解析。
+        let (prefix, content) = split_container_prefix(body);
+        let next_line =
+            definition_continuation(lines.get(index + 1).copied().map(strip_line_ending));
+        if let Some(head) = parse_definition(content, next_line) {
+            let mut covered = 1 + head.extra_lines;
+            // label 已登记：marked 整行丢弃，不产生任何可见文本
+            // （与「紧邻的重复定义」不同，它连换行也不会留下）。
+            if !seen_definitions.insert(head.label.clone()) {
+                skip_until = index + covered;
                 continue;
             }
+            let mut visible = definition_visible_text(&lines, index, content, head.extra_lines);
+            if definition_keeps_trailing_newline(&lines, index + covered - 1) {
+                visible.push('\n');
+            }
+            // 紧随其后的重复定义行：marked 丢弃其文本，只保留换行。
+            while let Some(duplicate) =
+                duplicate_definition_at(&lines, index + covered, &seen_definitions)
+            {
+                covered += 1 + duplicate.extra_lines;
+                let newlines = duplicate.extra_lines
+                    + usize::from(definition_keeps_trailing_newline(
+                        &lines,
+                        index + covered - 1,
+                    ));
+                for _ in 0..newlines {
+                    visible.push('\n');
+                }
+            }
+            // 定义副本：去掉缩进与尾部空白的裸定义行（容器前缀会让 comrak 生成
+            // 额外的空 blockquote / 空列表项，因此副本必须是顶层裸定义）。
+            definitions.push(visible.trim().to_string());
+            let placeholder = inline_placeholder_for(&mut counter);
+            restore.push(restore_item(placeholder.clone(), visible, true));
+            out.push_str(prefix);
+            out.push_str(&placeholder);
+            if lines
+                .get(index + covered - 1)
+                .is_some_and(|line| line.ends_with('\n'))
+            {
+                out.push('\n');
+            }
+            // 定义段落独占一个块：紧跟普通内容（含缩进续行、下一条定义）时补一个
+            // 空行，否则 comrak 会把占位符和后续内容并成同一个段落。
+            // 容器内的定义行（`- [b]: /u`）不能补空行：那会改变列表的紧密性。
+            if prefix.is_empty() && definition_followed_by_content(&lines, index + covered - 1) {
+                out.push('\n');
+            }
+            skip_until = index + covered;
+            continue;
         }
 
-        if is_reference_definition(body) {
-            // 同一 label 的重复定义：marked 只保留第一条可见，其余被消费。
-            let label = body.trim().split("]:").next().unwrap_or("").to_string();
-            if !seen_definitions.insert(format!("ref{label}")) {
-                continue;
-            }
-            // 双重需求：
-            // - TS 把该行**原位**输出为可见文本（`<p>[foo]: url</p>`）；
-            // - 但 `[foo]` 仍要能解析为链接，而 comrak 需要定义行参与解析。
-            //
-            // 解法：原位同时放两样东西——
-            //   1) 一个 HTML 注释形式的定义副本（供 comrak 解析引用，渲染时不可见）
-            //   2) 一个行内占位符（渲染时还原为该行的可见文本）
-            // 顺序上注释在前，保证定义先生效。
-            let (prefix, content) = split_container_prefix(body);
+        // ---- 2.01) 「像定义但目标为空」的行 ----
+        //
+        // `[^1]: ` / `[b]:` 这类行 marked 不认（`def` 要求目标非空），退化成普通段落
+        // 文本；comrak 同样拒绝，但会**吞掉行尾空白**（`[^1]: ` → `[^1]:`），
+        // 因此整行保护成字面量。
+        if incomplete_definition_line(content) {
             let placeholder = inline_placeholder_for(&mut counter);
-            // 段落文本的尾换行由后续内容决定：只有本行是文档最后一行时
-            // TS 才保留它（`[foo]: /u\n` → `<p>[foo]: /u\n</p>`）。
-            let is_last_line = lines
-                .iter()
-                .skip(index + 1)
-                .all(|rest| rest.trim().is_empty());
-            let literal = if has_newline && is_last_line {
-                format!("{content}\n")
-            } else {
-                content.to_string()
-            };
-            restore.push(restore_item(placeholder.clone(), literal, true));
-            // 容器前缀必须原样保留。
+            restore.push(restore_item(placeholder.clone(), content.to_string(), true));
             out.push_str(prefix);
-            // 定义副本收集到 definitions，稍后统一放到文档开头供 comrak 解析。
-            // 定义副本必须**去掉容器前缀**：它只是供 comrak 解析引用用的
-            // 顶层裸定义行（不产生可见输出）。若保留 `> ` / `- ` 前缀，
-            // 它会变成额外的空 blockquote / 空列表项（实测出现重复容器）。
-            definitions.push(content.trim().to_string());
             out.push_str(&placeholder);
             if has_newline {
                 out.push('\n');
@@ -346,49 +357,6 @@ pub fn preprocess(original: &str) -> Preprocessed {
             let placeholder = inline_placeholder_for(&mut counter);
             restore.push(restore_item(placeholder.clone(), marker_text, true));
             out.push_str(&prefix);
-            out.push_str(&placeholder);
-            if has_newline {
-                out.push('\n');
-            }
-            continue;
-        }
-
-        // ---- 2.2) 脚注定义行 ----
-        //
-        // comrak 即使未启用 `footnotes` 也会把 `[^1]: …` 消费为定义（不产生输出），
-        // 而 TS（marked）把它当普通段落文本。这里保护为占位符。
-        if is_footnote_definition(body) {
-            // 同一 label 的重复定义：marked 只保留第一条可见，其余被消费。
-            if !seen_definitions.insert(body.trim().to_string()) {
-                continue;
-            }
-            let (prefix, content) = split_container_prefix(body);
-            // 记录 label → 定义内容（href 不能含空白，与 marked 的 def 正则一致）。
-            if let Some(rest) = content.trim_start().strip_prefix("[^") {
-                if let Some(close) = rest.find("]:") {
-                    let label = &rest[..close];
-                    let target = rest[close + 2..].trim();
-                    if !label.is_empty()
-                        && !target.is_empty()
-                        && !target.contains(char::is_whitespace)
-                    {
-                        footnote_targets.insert(label.to_string(), target.to_string());
-                    }
-                }
-            }
-            let placeholder = inline_placeholder_for(&mut counter);
-            let is_last_line = lines
-                .iter()
-                .skip(index + 1)
-                .all(|rest| rest.trim().is_empty());
-            let literal = if has_newline && is_last_line {
-                format!("{content}\n")
-            } else {
-                content.to_string()
-            };
-            restore.push(restore_item(placeholder.clone(), literal, true));
-            // 容器前缀必须原样保留，comrak 才会把它算进同一个容器。
-            out.push_str(prefix);
             out.push_str(&placeholder);
             if has_newline {
                 out.push('\n');
@@ -573,14 +541,6 @@ pub fn preprocess(original: &str) -> Preprocessed {
         combined
     };
 
-    // 把 `[^label]` 变成 `[^label](定义内容)`，让 comrak 解析为链接
-    // （TS 的 marked 把脚注引用当 reflink 处理，输出 `<a href="…">^label</a>`）。
-    let markdown = if footnote_targets.is_empty() {
-        markdown
-    } else {
-        rewrite_footnote_references(&markdown, &footnote_targets)
-    };
-
     Preprocessed { markdown, restore }
 }
 
@@ -658,78 +618,241 @@ fn split_container_prefix(line: &str) -> (&str, &str) {
     }
 }
 
-fn is_reference_definition(line: &str) -> bool {
-    let (_, content) = split_container_prefix(line);
-    let trimmed = content.trim_start();
-    let indent = content.len() - trimmed.len();
-    if indent > 3 || !trimmed.starts_with('[') {
-        return false;
-    }
-    let Some(close) = trimmed.find("]:") else {
-        return false;
-    };
-    let label = &trimmed[1..close];
-    // 标签非空，且**不是脚注定义**（`[^1]:`）。
-    // 脚注定义 comrak 不消费，会按普通段落输出，与 marked 一致，无需保护。
-    if label.is_empty() || label.starts_with('^') {
-        return false;
-    }
-    definition_target_is_valid(&trimmed[close + 2..])
+/// 一条引用定义的解析结果（对齐 marked 的 `def` 规则）。
+struct DefinitionHead {
+    /// 规范化 label（小写 + 折叠空白），与 marked 的 `tag` 一致。
+    ///
+    /// `[^1]` 这类脚注写法在 marked 里就是普通标签 `^1`，因此一并规范化。
+    label: String,
+    /// 该定义额外占用的后续行数（dest 或 title 写在下一行时为 1）。
+    extra_lines: usize,
 }
 
-/// 校验 `]:` 之后的部分是否符合 marked 的定义目标语法。
+/// 解析 `[label]: dest "title"`，容忍 dest / title 写在下一行。
 ///
-/// marked 的 def 正则要求：可选空格与最多一个换行后是 `<dest>` 或非空白串，
-/// 之后只能是行尾，或「空白 + 带引号/括号的标题」。
-/// 只判断「非空」会把 `[b]: /u v`、`[b]: /u |` 误判为定义——
-/// 随后注入的裸副本被 comrak 当成普通段落，在文首**重复输出一遍可见文本**。
-fn definition_target_is_valid(rest: &str) -> bool {
-    let mut cursor = rest;
-    // 行首空白
-    cursor = cursor.trim_start_matches([' ', '\t']);
-    // 最多一个换行 + 续行缩进（`[b]:\n  /u`）
-    if let Some(after) = cursor.strip_prefix('\n') {
-        cursor = after.trim_start_matches([' ', '\t']);
-        cursor = cursor.strip_suffix('\r').unwrap_or(cursor);
-    }
-
-    // 目标：`<...>` 或非空白串
-    if let Some(after) = cursor.strip_prefix('<') {
-        let Some(end) = after.find('>') else {
-            return false;
-        };
-        if end == 0 {
-            return false;
+/// `content` 是去掉容器标记后的行内容，`next` 是下一行的内容（容器标记已去掉）。
+/// 返回 `None` 表示 marked 不会把这一行当定义（目标是空、缺引号的 title、
+/// 行尾还有多余文字等），此时该行只是普通段落文本。
+fn parse_definition(content: &str, next: Option<&str>) -> Option<DefinitionHead> {
+    // 定义可以跨行，因此把两行拼起来按游标扫描。
+    let joined;
+    let text: &str = match next {
+        Some(next) => {
+            joined = format!("{content}\n{next}");
+            &joined
         }
-        cursor = &after[end + 1..];
-    } else {
-        let length = cursor
-            .find(|c: char| c.is_whitespace() || c == '>')
-            .unwrap_or(cursor.len());
-        if length == 0 {
-            return false;
-        }
-        cursor = &cursor[length..];
-    }
-
-    // 之后只能是行尾，或「空白 + 标题」
-    if cursor.trim().is_empty() {
-        return true;
-    }
-    if !cursor.starts_with([' ', '\t', '\n']) {
-        return false;
-    }
-    let title = cursor.trim();
-    if title.len() < 2 {
-        return false;
-    }
-    let (open, close) = match title.chars().next() {
-        Some('"') => ('"', '"'),
-        Some('\'') => ('\'', '\''),
-        Some('(') => ('(', ')'),
-        _ => return false,
+        None => content,
     };
-    title.starts_with(open) && title.ends_with(close) && title.len() >= 2
+
+    // 行首缩进最多 3 个空格，然后是 `[label]:`
+    let trimmed = text.trim_start_matches([' ', '\t']);
+    if text.len() - trimmed.len() > 3 {
+        return None;
+    }
+    let after_bracket = trimmed.strip_prefix('[')?;
+    let close = after_bracket.find(']')?;
+    let raw_label = &after_bracket[..close];
+    if raw_label.is_empty() {
+        return None;
+    }
+    let mut rest = after_bracket[close + 1..].strip_prefix(':')?;
+    let mut lines = 1usize;
+
+    // 目标：`<dest>` 或裸 token；缺少目标时 marked 不认这是定义。
+    rest = rest.trim_start_matches([' ', '\t']);
+    if rest.starts_with('\n') {
+        rest = skip_to_next_line(rest);
+        lines += 1;
+    }
+    let after_dest = if let Some(inner) = rest.strip_prefix('<') {
+        let end = inner.find('>')?;
+        if end == 0 {
+            return None;
+        }
+        &inner[end + 1..]
+    } else {
+        let length = rest
+            .find(|c: char| c.is_whitespace() || c == '>')
+            .unwrap_or(rest.len());
+        if length == 0 {
+            return None;
+        }
+        &rest[length..]
+    };
+
+    // 之后只能是行尾，或「空白 + title」（title 也可以写在下一行）。
+    rest = after_dest.trim_start_matches([' ', '\t']);
+    if !rest.is_empty() && !rest.starts_with('\n') {
+        // 同一行的 title 必须一路占到行尾
+        rest = parse_definition_title(rest)?;
+        rest = rest.trim_start_matches([' ', '\t']);
+        if !rest.is_empty() && !rest.starts_with('\n') {
+            return None;
+        }
+        return Some(DefinitionHead {
+            label: normalize_definition_label(raw_label),
+            extra_lines: lines - 1,
+        });
+    }
+    // 行尾：下一行可能只是 title
+    if let Some(next_line) = rest.strip_prefix('\n') {
+        let candidate = next_line.trim_start_matches([' ', '\t']);
+        if parse_definition_title(candidate).is_some_and(|after| after.trim().is_empty()) {
+            lines += 1;
+        }
+    }
+    Some(DefinitionHead {
+        label: normalize_definition_label(raw_label),
+        extra_lines: lines - 1,
+    })
+}
+
+/// 解析引号 / 括号形式的 title，返回其后的剩余文本。
+fn parse_definition_title(text: &str) -> Option<&str> {
+    let mut chars = text.char_indices();
+    let (_, open) = chars.next()?;
+    let close = match open {
+        '"' => '"',
+        '\'' => '\'',
+        '(' => ')',
+        _ => return None,
+    };
+    let mut escaped = false;
+    for (index, ch) in chars {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        match ch {
+            '\\' if close != ')' => escaped = true,
+            // marked 的括号式 title 不允许嵌套
+            '(' if close == ')' => return None,
+            ch if ch == close => return Some(&text[index + ch.len_utf8()..]),
+            _ => {}
+        }
+    }
+    None
+}
+
+/// 跳过换行与下一行的缩进。
+fn skip_to_next_line(rest: &str) -> &str {
+    let after = rest.strip_prefix('\n').unwrap_or(rest);
+    after.trim_start_matches([' ', '\t'])
+}
+
+/// 规范化定义 label，与 marked 的 `tag` 一致：小写 + 折叠内部空白。
+///
+/// 这是「重复定义」与「引用解析」共用的 key：`[^A]: /u` 与 `[^a]` 必须命中同一条。
+fn normalize_definition_label(raw: &str) -> String {
+    raw.to_lowercase()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// 去掉行尾换行与 CR。
+fn strip_line_ending(line: &str) -> &str {
+    let line = line.strip_suffix('\n').unwrap_or(line);
+    line.strip_suffix('\r').unwrap_or(line)
+}
+
+/// 取「定义续行」的内容：容器标记变化说明那是另一块内容，不算续行。
+fn definition_continuation(line: Option<&str>) -> Option<&str> {
+    let line = line?;
+    let (prefix, content) = split_container_prefix(line);
+    prefix.is_empty().then_some(content)
+}
+
+/// 定义覆盖的源码行拼成的可见原文（保留缩进，行间用 `\n` 连接）。
+fn definition_visible_text(
+    lines: &[&str],
+    index: usize,
+    content: &str,
+    extra_lines: usize,
+) -> String {
+    let mut visible = String::from(content);
+    for offset in 1..=extra_lines {
+        let line = lines
+            .get(index + offset)
+            .copied()
+            .map(strip_line_ending)
+            .unwrap_or("");
+        visible.push('\n');
+        visible.push_str(split_container_prefix(line).1);
+    }
+    visible
+}
+
+/// directive / callout 的闭围栏行（`:::`）。
+///
+/// 容器体在 TS 侧是 **trim 之后**再交给 marked 解析的，因此体末尾不会留下换行。
+fn is_directive_closing_fence(line: &str) -> bool {
+    let trimmed = line.trim_end_matches([' ', '\t']);
+    trimmed.len() >= 3 && trimmed.chars().all(|ch| ch == ':')
+}
+
+/// 定义行之后是否紧跟「普通内容」——既不是空行，也不是容器闭围栏。
+///
+/// 这两个边界决定了定义原文要不要带尾换行，以及要不要另起段落：
+/// 空行会被 lexer 切成独立的空白 token（换行不进定义原文），
+/// 而 directive / callout 的容器体是 trim 后再解析的（同理不留换行）。
+fn definition_followed_by_content(lines: &[&str], index: usize) -> bool {
+    match lines.get(index + 1) {
+        Some(next) => {
+            let next = strip_line_ending(next);
+            !next.trim().is_empty() && !is_directive_closing_fence(next)
+        }
+        None => false,
+    }
+}
+
+/// 定义行的可见文本是否带尾换行。
+///
+/// marked 的 `def` token 原文包含紧随其后的换行，只有后面是空行 / 容器闭围栏时
+/// 例外，因此 `[b]: /u\n\n` 的可见文本是 `[b]: /u`，
+/// 而 `[b]: /u\n正文` 与 `[b]: /u\n`（文档末尾）都是 `[b]: /u\n`。
+fn definition_keeps_trailing_newline(lines: &[&str], index: usize) -> bool {
+    let Some(line) = lines.get(index) else {
+        return false;
+    };
+    line.ends_with('\n')
+        && (lines.get(index + 1).is_none() || definition_followed_by_content(lines, index))
+}
+
+/// 「像定义但目标为空」的行（`[^1]: ` / `[b]:   `）。
+///
+/// marked 的 `def` 要求目标非空，因此这些行退化成普通段落文本；comrak 同样拒绝，
+/// 但会**吞掉行尾空白**（`[^1]: ` → `[^1]:`），与 TS 的可见文本不一致。
+/// 因此调用方把整行保护成字面量。
+fn incomplete_definition_line(content: &str) -> bool {
+    let trimmed_end = content.trim_end_matches([' ', '\t']);
+    // 行尾没有空白：comrak 与 marked 结果一致，无需保护
+    if trimmed_end.len() == content.len() {
+        return false;
+    }
+    let trimmed = trimmed_end.trim_start_matches([' ', '\t']);
+    if trimmed_end.len() - trimmed.len() > 3 {
+        return false;
+    }
+    let Some(rest) = trimmed.strip_prefix('[') else {
+        return false;
+    };
+    let Some(close) = rest.find(']') else {
+        return false;
+    };
+    rest[close + 1..].trim_matches([' ', '\t']) == ":"
+}
+
+/// 取 `index` 处「label 已登记」的重复定义行。
+fn duplicate_definition_at(
+    lines: &[&str],
+    index: usize,
+    seen: &std::collections::HashSet<String>,
+) -> Option<DefinitionHead> {
+    let (_, content) = split_container_prefix(strip_line_ending(lines.get(index).copied()?));
+    let next_line = definition_continuation(lines.get(index + 1).copied().map(strip_line_ending));
+    let head = parse_definition(content, next_line)?;
+    seen.contains(&head.label).then_some(head)
 }
 
 /// 若整行只有一个开标签（`<tagname ...>` 后除空白外无内容），返回标签名。
@@ -995,22 +1118,6 @@ fn is_list_item_line(line: &str) -> bool {
     !rest.trim().is_empty()
 }
 
-/// 是否为脚注定义行（`[^label]: …`）。
-fn is_footnote_definition(line: &str) -> bool {
-    let (_, content) = split_container_prefix(line);
-    let trimmed = content.trim_start();
-    let indent = content.len() - trimmed.len();
-    if indent > 3 {
-        return false;
-    }
-    let Some(rest) = trimmed.strip_prefix("[^") else {
-        return false;
-    };
-    // comrak 把 `[^]:`（空 label）也当定义消费掉，整段静默消失。
-    // TS 侧则按普通段落输出，因此这里必须保护（label 为空时不登记为脚注目标）。
-    rest.find("]:").is_some()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1053,10 +1160,92 @@ mod tests {
     #[test]
     fn does_not_treat_links_as_definitions() {
         // `[foo](url)` 是行内链接，不是定义
-        assert!(!is_reference_definition("[foo](https://example.com)"));
-        assert!(!is_reference_definition("[foo]:"));
-        assert!(is_reference_definition("[foo]: https://example.com"));
-        assert!(is_reference_definition("   [a b]: /path"));
+        assert!(parse_definition("[foo](https://example.com)", None).is_none());
+        assert!(parse_definition("[foo]:", None).is_none());
+        assert!(parse_definition("[foo]: https://example.com", None).is_some());
+        assert!(parse_definition("   [a b]: /path", None).is_some());
+        // `[b]: /u v` 的尾巴不是合法的 title，marked 不当定义
+        assert!(parse_definition("[b]: /u v", None).is_none());
+    }
+
+    #[test]
+    fn parses_definitions_that_span_two_lines() {
+        // 目标在下一行
+        let head = parse_definition("[b]:", Some("/u")).expect("跨行目标应识别为定义");
+        assert_eq!(head.label, "b");
+        assert_eq!(head.extra_lines, 1);
+
+        // title 在下一行
+        let head = parse_definition("[b]: /u", Some("   \"multi line title\""))
+            .expect("跨行 title 应识别为定义");
+        assert_eq!(head.extra_lines, 1);
+
+        // 同一行的 title
+        let head = parse_definition("[b]: /u (t)", None).expect("同行 title 应识别为定义");
+        assert_eq!(head.extra_lines, 0);
+    }
+
+    #[test]
+    fn normalizes_definition_labels_like_marked() {
+        // 重复定义判定与引用解析共用同一个 key：小写 + 折叠空白
+        assert_eq!(normalize_definition_label("^A"), "^a");
+        assert_eq!(normalize_definition_label("a   b"), "a b");
+    }
+
+    #[test]
+    fn keeps_definition_visible_text_with_indent() {
+        // title 写在下一行：可见文本保留原始缩进，且整条定义成为可见段落
+        let result = preprocess("[b]: /u\n   \"multi line title\"\n");
+        assert_eq!(result.restore.len(), 1);
+        assert_eq!(
+            result.restore[0].literal,
+            "[b]: /u\n   \"multi line title\"\n"
+        );
+        // 注入给 comrak 的副本必须带 title，否则 `[a][b]` 少了 title 属性
+        assert!(
+            result.markdown.contains("[b]: /u\n   \"multi line title\""),
+            "定义副本应保留 title，实际：{:?}",
+            result.markdown
+        );
+    }
+
+    #[test]
+    fn drops_duplicate_definitions_but_keeps_their_newline() {
+        // 重复 label 整行丢弃，换行留在上一条定义的可见文本里
+        let result = preprocess("[b]: /u\n[b]: /v\n");
+        assert_eq!(result.restore.len(), 1);
+        assert_eq!(result.restore[0].literal, "[b]: /u\n\n");
+        // 只有第一条被注入给 comrak
+        assert!(!result.markdown.contains("[b]: /v"));
+
+        // 中间隔着空行时，重复定义整行消失（不留下可见文本）
+        let result = preprocess("[b]: /u\n\n[b]: /v\n");
+        assert_eq!(result.restore.len(), 1);
+        assert_eq!(result.restore[0].literal, "[b]: /u");
+        assert!(!result.markdown.contains("[b]: /v"));
+    }
+
+    #[test]
+    fn separates_definition_paragraph_from_following_block() {
+        // 定义段落独占一个块：后面的四空格续行在 TS 侧是缩进代码块
+        let result = preprocess("[^1]: /u\n    续行内容\n");
+        assert_eq!(result.restore[0].literal, "[^1]: /u\n");
+        assert!(
+            result.markdown.contains(&format!(
+                "{}\n\n    续行内容",
+                result.restore[0].placeholder
+            )),
+            "定义段落与续行之间应补空行，实际：{:?}",
+            result.markdown
+        );
+    }
+
+    #[test]
+    fn protects_incomplete_definition_lines() {
+        // `[^1]: ` 目标是空：marked 当普通段落（保留行尾空格），comrak 会吞掉空白
+        let result = preprocess("[^1]: \n");
+        assert_eq!(result.restore.len(), 1);
+        assert_eq!(result.restore[0].literal, "[^1]: ");
     }
 }
 
@@ -1189,133 +1378,6 @@ fn split_leading_frontmatter(markdown: &str) -> (&str, &str) {
     ("", markdown)
 }
 
-/// 把正文里的 `[^label]` 改写为 `[^label](target)`（跳过代码围栏内的内容）。
-fn rewrite_footnote_references(
-    markdown: &str,
-    targets: &std::collections::HashMap<String, String>,
-) -> String {
-    let mut out = String::with_capacity(markdown.len());
-    let mut open_fence: Option<(char, usize)> = None;
-
-    for (index, raw) in markdown.split_inclusive('\n').enumerate() {
-        let body = raw.strip_suffix('\n').unwrap_or(raw);
-        let body = body.strip_suffix('\r').unwrap_or(body);
-        let has_newline = raw.ends_with('\n');
-
-        // 围栏内原样输出
-        if let Some((marker, length)) = open_fence {
-            if is_closing_fence(body, marker, length) {
-                open_fence = None;
-            }
-            out.push_str(raw);
-            continue;
-        }
-        if let Some((marker, length)) = opening_fence(body) {
-            open_fence = Some((marker, length));
-            out.push_str(raw);
-            continue;
-        }
-        let _ = index;
-
-        out.push_str(&replace_footnote_tokens(body, targets));
-        if has_newline {
-            out.push('\n');
-        }
-    }
-    out
-}
-
-/// 单行内的 `[^label]` 替换。
-///
-/// 跳过行内代码跨度：代码里的 `[^1]` 是字面量，改写会把 `<code>` 内容变成链接。
-/// 跳过定义行本身（`[^label]: …`）。
-fn replace_footnote_tokens(
-    line: &str,
-    targets: &std::collections::HashMap<String, String>,
-) -> String {
-    // 定义行不替换
-    if line.trim_start().starts_with("[^") && line.contains("]:") {
-        return line.to_string();
-    }
-
-    let mut out = String::with_capacity(line.len());
-    let mut cursor = 0usize;
-
-    while cursor < line.len() {
-        // 行内代码：从一段 N 个反引号到下一段同样长度的反引号，整体原样复制。
-        if let Some(run) = backtick_run_at(line, cursor) {
-            let fence = "`".repeat(run);
-            match line[cursor + run..].find(&fence) {
-                Some(offset) => {
-                    let end = cursor + run + offset + run;
-                    out.push_str(&line[cursor..end]);
-                    cursor = end;
-                }
-                None => {
-                    out.push_str(&line[cursor..]);
-                    return out;
-                }
-            }
-            continue;
-        }
-
-        // 非代码段：一直处理到下一个反引号
-        let stop = line[cursor..]
-            .find('`')
-            .map(|offset| cursor + offset)
-            .unwrap_or(line.len());
-        out.push_str(&replace_footnote_tokens_plain(&line[cursor..stop], targets));
-        cursor = stop;
-    }
-    out
-}
-
-/// 当前偏移处反引号游程的长度。
-fn backtick_run_at(line: &str, index: usize) -> Option<usize> {
-    if !line[index..].starts_with('`') {
-        return None;
-    }
-    Some(line[index..].chars().take_while(|c| *c == '`').count())
-}
-
-/// 纯文本片段内的 `[^label]` 替换（不含代码跨度）。
-fn replace_footnote_tokens_plain(
-    text: &str,
-    targets: &std::collections::HashMap<String, String>,
-) -> String {
-    let mut out = String::with_capacity(text.len());
-    let mut rest = text;
-
-    while let Some(start) = rest.find("[^") {
-        out.push_str(&rest[..start]);
-        let after = &rest[start + 2..];
-        let Some(close) = after.find(']') else {
-            out.push_str(&rest[start..]);
-            return out;
-        };
-        let label = &after[..close];
-        let tail = &after[close + 1..];
-        // `[^label](...)` 已经是链接，原样保留
-        if tail.starts_with('(') {
-            out.push_str(&rest[start..start + 2 + close + 1]);
-            rest = tail;
-            continue;
-        }
-        match targets.get(label) {
-            Some(target) => {
-                out.push_str(&format!("[^{label}]({target})"));
-                rest = tail;
-            }
-            None => {
-                out.push_str(&rest[start..start + 2 + close + 1]);
-                rest = tail;
-            }
-        }
-    }
-    out.push_str(rest);
-    out
-}
-
 /// 定位行内 `[!TYPE]` 标记里的 `!`，仅当 `]` 之后是非空白字符时返回其字节偏移。
 ///
 /// TS 的 callout 正则要求 `]` 之后是行尾或「空白 + 标题」；
@@ -1386,35 +1448,4 @@ fn inline_alert_marker_offset(line: &str, has_newline: bool) -> Option<usize> {
         return has_newline.then_some(prefix_len + 1);
     }
     Some(prefix_len + 1)
-}
-
-/// 识别「`[label]:` 在上一行、目标在下一行」的跨行定义。
-///
-/// 返回合并后的单行定义（`[b]: /u`），供 comrak 解析引用。
-/// 不返回可见文本：调用方保留原行，让两行按普通段落渲染。
-fn multiline_definition_target(line: &str, next: Option<&str>) -> Option<String> {
-    let (_, content) = split_container_prefix(line);
-    let trimmed = content.trim_start();
-    if content.len() - trimmed.len() > 3 {
-        return None;
-    }
-    let rest = trimmed.strip_prefix('[')?;
-    let close = rest.find("]:")?;
-    let label = &rest[..close];
-    if label.is_empty() || label.starts_with('^') {
-        return None;
-    }
-    // 本行必须在 `]:` 之后没有任何内容
-    if !rest[close + 2..].trim().is_empty() {
-        return None;
-    }
-    let next = next?;
-    if next.trim().is_empty() {
-        return None;
-    }
-    let target = next.trim();
-    if !definition_target_is_valid(target) {
-        return None;
-    }
-    Some(format!("[{}]: {}", label, target))
 }
