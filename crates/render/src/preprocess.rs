@@ -1225,17 +1225,66 @@ fn rewrite_footnote_references(
     out
 }
 
-/// 单行内的 `[^label]` 替换（不含已带 `(` 的链接、跳过定义行）。
+/// 单行内的 `[^label]` 替换。
+///
+/// 跳过行内代码跨度：代码里的 `[^1]` 是字面量，改写会把 `<code>` 内容变成链接。
+/// 跳过定义行本身（`[^label]: …`）。
 fn replace_footnote_tokens(
     line: &str,
     targets: &std::collections::HashMap<String, String>,
 ) -> String {
-    // 定义行（`[^label]: …`）不替换
+    // 定义行不替换
     if line.trim_start().starts_with("[^") && line.contains("]:") {
         return line.to_string();
     }
+
     let mut out = String::with_capacity(line.len());
-    let mut rest = line;
+    let mut cursor = 0usize;
+
+    while cursor < line.len() {
+        // 行内代码：从一段 N 个反引号到下一段同样长度的反引号，整体原样复制。
+        if let Some(run) = backtick_run_at(line, cursor) {
+            let fence = "`".repeat(run);
+            match line[cursor + run..].find(&fence) {
+                Some(offset) => {
+                    let end = cursor + run + offset + run;
+                    out.push_str(&line[cursor..end]);
+                    cursor = end;
+                }
+                None => {
+                    out.push_str(&line[cursor..]);
+                    return out;
+                }
+            }
+            continue;
+        }
+
+        // 非代码段：一直处理到下一个反引号
+        let stop = line[cursor..]
+            .find('`')
+            .map(|offset| cursor + offset)
+            .unwrap_or(line.len());
+        out.push_str(&replace_footnote_tokens_plain(&line[cursor..stop], targets));
+        cursor = stop;
+    }
+    out
+}
+
+/// 当前偏移处反引号游程的长度。
+fn backtick_run_at(line: &str, index: usize) -> Option<usize> {
+    if !line[index..].starts_with('`') {
+        return None;
+    }
+    Some(line[index..].chars().take_while(|c| *c == '`').count())
+}
+
+/// 纯文本片段内的 `[^label]` 替换（不含代码跨度）。
+fn replace_footnote_tokens_plain(
+    text: &str,
+    targets: &std::collections::HashMap<String, String>,
+) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
 
     while let Some(start) = rest.find("[^") {
         out.push_str(&rest[..start]);
@@ -1245,8 +1294,8 @@ fn replace_footnote_tokens(
             return out;
         };
         let label = &after[..close];
-        // `[^label](...)` 已经是链接，原样保留
         let tail = &after[close + 1..];
+        // `[^label](...)` 已经是链接，原样保留
         if tail.starts_with('(') {
             out.push_str(&rest[start..start + 2 + close + 1]);
             rest = tail;
