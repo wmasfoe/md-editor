@@ -283,6 +283,23 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev file unzip squashfs-tools desktop-file-utils xvfb icewm x11-utils xdotool libegl1 libgl1 libgles2 libglx-mesa0 libgl1-mesa-dri libosmesa6 mesa-utils gcc appstream zsync
           sudo apt-get install -y libfuse2t64 || sudo apt-get install -y libfuse2
 
+      # `crates/render/build.rs` 在构建期从 `packages/compiler/node_modules` 提取
+      # `katex.min.js` 与 highlight.js（版本随 package.json 自动锁定，不手写版本号）。
+      # 因此这个 Rust job 也必须先装 Node 依赖，否则 clippy 阶段 build script 会直接 panic。
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.6.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
