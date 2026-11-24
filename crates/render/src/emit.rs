@@ -1247,7 +1247,32 @@ fn build_raw_inlines<'a>(node: &'a AstNode<'a>, source: &SourceText<'_>) -> Vec<
                         && gap.chars().all(|c| c == ' ' || c == '\t')
                 })
                 .unwrap_or_default();
-            inlines.push(Inline::Text(format!("{trailing}\n")));
+            // 续行行首空白：comrak 的 Text 节点从第一个非空白字符开始，
+            // marked 则保留缩进（`- a\n b` → `<li>a\n b</li>`）。
+            // 规则实测（见 lists lane）：缩进 ≥ 列表项内容缩进时减去内容缩进，
+            // 否则原样保留；顶层段落（无列表祖先）内容缩进视为 0，即原样保留。
+            let leading = children
+                .get(index + 1)
+                .map(|next| {
+                    let start = next.data.borrow().sourcepos.start;
+                    let line_start = source.line_start(start.line);
+                    let offset = source.offset(start);
+                    source
+                        .markdown
+                        .get(line_start..offset)
+                        .filter(|gap| gap.chars().all(|c| c == ' ' || c == '\t'))
+                        .map(str::to_string)
+                        .unwrap_or_default()
+                })
+                .unwrap_or_default();
+            // 只在列表项内调整：顶层段落的行首空白 comrak 已经按 marked 的
+            // 方式处理过，再补会重复叠加（实测 headings +37、inline-text +6）。
+            let leading = match list_item_content_indent(node, source) {
+                Some(indent) if leading.len() >= indent => " ".repeat(leading.len() - indent),
+                Some(_) => leading,
+                None => String::new(),
+            };
+            inlines.push(Inline::Text(format!("{trailing}\n{leading}")));
             continue;
         }
 
@@ -2434,4 +2459,42 @@ fn append_trailing_line_whitespace<'a>(
     if let Some(Inline::Text(text)) = inlines.last_mut() {
         text.push_str(tail);
     }
+}
+
+/// 计算包含 `node` 的列表项的内容缩进（列表标记之后的列数）。
+///
+/// 不在列表项内时返回 `None`（调用方按 0 处理，即保留原始行首空白）。
+fn list_item_content_indent<'a>(node: &'a AstNode<'a>, source: &SourceText<'_>) -> Option<usize> {
+    let mut current = node.parent();
+    while let Some(item) = current {
+        if matches!(item.data.borrow().value, NodeValue::Item(_)) {
+            let start = item.data.borrow().sourcepos.start;
+            let line_start = source.line_start(start.line);
+            let line_end = source.markdown[line_start..]
+                .find('\n')
+                .map(|offset| line_start + offset)
+                .unwrap_or(source.markdown.len());
+            let line = &source.markdown[line_start..line_end];
+            let body = line.trim_start();
+            let leading = line.len() - body.len();
+            // 有序列表：数字 + `.` / `)` + 空白；无序列表：单个标记 + 空白。
+            let marker_len = body
+                .find(|c: char| !c.is_ascii_digit())
+                .filter(|_| body.starts_with(|c: char| c.is_ascii_digit()))
+                .map(|digits| {
+                    let rest = &body[digits..];
+                    if rest.starts_with('.') || rest.starts_with(')') {
+                        digits + 1
+                    } else {
+                        digits
+                    }
+                })
+                .unwrap_or(1);
+            let after_marker = &body[marker_len.min(body.len())..];
+            let spaces = after_marker.len() - after_marker.trim_start().len();
+            return Some(leading + marker_len + spaces.max(1));
+        }
+        current = item.parent();
+    }
+    None
 }
