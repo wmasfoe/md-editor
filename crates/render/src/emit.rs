@@ -2298,14 +2298,16 @@ fn extra_alert_parts<'a>(
     node: &'a AstNode<'a>,
     source: &SourceText<'_>,
 ) -> Option<(String, Option<String>, String)> {
-    // 只处理「整块是一个 blockquote、且首段文本以 [!INFO]/[!DANGER] 开头」
-    let first = node.first_child()?;
-    if !matches!(first.data.borrow().value, NodeValue::Paragraph) {
-        return None;
-    }
-    let position = first.data.borrow().sourcepos;
+    // 用整个 blockquote 的源码，而不是首个子节点的源码。
+    // 早期实现只看第一个段落，导致 `> [!INFO]` 后面的段落、列表、表格被整块丢弃
+    // （`> [!INFO]\n> a\n>\n> b` 只输出 `a`）。
+    let position = node.data.borrow().sourcepos;
     let raw = source.slice(position.start, position.end);
-    let trimmed = raw.trim_start();
+    let stripped = strip_blockquote_markers(raw);
+
+    let mut lines = stripped.lines();
+    let first = lines.next()?;
+    let trimmed = first.trim_start();
     let lower = trimmed.to_ascii_lowercase();
     let kind = if lower.starts_with("[!info]") {
         "info"
@@ -2315,19 +2317,12 @@ fn extra_alert_parts<'a>(
         return None;
     };
 
-    // 剥掉标记，得到首行的可选标题与其后正文
-    let rest = &trimmed["[!".len() + kind.len() + 1..];
-    let (first_line, body) = match rest.find('\n') {
-        Some(index) => (&rest[..index], &rest[index + 1..]),
-        None => (rest, ""),
-    };
-    let title = first_line.trim();
+    let title = crate::slug::js_trim(&trimmed["[!".len() + kind.len() + 1..]);
+    let body = lines.collect::<Vec<_>>().join("\n");
     Some((
         kind.to_string(),
         (!title.is_empty()).then(|| title.to_string()),
-        // sourcepos 切片保留了 `> ` 容器标记，需剥离后再当正文解析，
-        // 否则内部会被二次识别为 blockquote（实测 `<blockquote>` 嵌套进 callout）。
-        strip_blockquote_markers(body),
+        body,
     ))
 }
 
