@@ -431,7 +431,7 @@ fn build_block<'a>(
                 level: heading.level,
                 id,
                 plain,
-                inlines: build_inlines(node, source),
+                inlines: trim_inline_edges(build_inlines(node, source)),
             });
         }
         NodeValue::Paragraph => {
@@ -745,7 +745,9 @@ fn heading_raw_text<'a>(node: &'a AstNode<'a>, source: &SourceText<'_>) -> Strin
     };
     let start = first.data.borrow().sourcepos.start;
     let end = last.data.borrow().sourcepos.end;
-    source.slice(start, end).to_string()
+    // 与 Text 节点同理：`# \#a` 的首个子节点 sourcepos 会右移一位，
+    // 直接切片会让 `data-heading-text` 丢掉开头的反斜杠。
+    source.slice_keeping_escaped_prefix(start, end).to_string()
 }
 
 /// 剥离 HTML 标签。
@@ -2042,4 +2044,34 @@ fn truncate_at_newline(text: String) -> String {
         Some(index) => text[..=index].to_string(),
         None => text,
     }
+}
+
+/// 裁掉行内序列首尾的 JS 空白。
+///
+/// marked 对标题文本做 `.trim()`（JS 语义），因此 `# \u{00a0}a` 的可见文本是 `a`；
+/// comrak 保留该空白，直接输出会多出前导 NBSP。
+/// 只裁边界：中间的空白是标题内容的一部分。
+fn trim_inline_edges(mut inlines: Vec<Inline>) -> Vec<Inline> {
+    let is_js_space = |c: char| {
+        matches!(
+            c,
+            '\t' | '\n' | '\x0b' | '\x0c' | '\r' | ' ' | '\u{a0}' | '\u{1680}' | '\u{2000}'
+                ..='\u{200a}'
+                    | '\u{2028}'
+                    | '\u{2029}'
+                    | '\u{202f}'
+                    | '\u{205f}'
+                    | '\u{3000}'
+                    | '\u{feff}'
+        )
+    };
+
+    if let Some(Inline::Text(text)) = inlines.first_mut() {
+        *text = text.trim_start_matches(is_js_space).to_string();
+    }
+    if let Some(Inline::Text(text)) = inlines.last_mut() {
+        *text = text.trim_end_matches(is_js_space).to_string();
+    }
+    inlines.retain(|inline| !matches!(inline, Inline::Text(text) if text.is_empty()));
+    inlines
 }
