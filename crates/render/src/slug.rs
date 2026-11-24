@@ -98,7 +98,7 @@ fn re_legacy_trim_hyphens() -> &'static Regex {
 const JS_SPACE_CLASS: &str = r"[\t\n\x0b\x0c\r \x{a0}\x{1680}\x{2000}-\x{200a}\x{2028}\x{2029}\x{202f}\x{205f}\x{3000}\x{feff}]";
 
 /// 按 JS `trim()` 语义去掉首尾空白。
-fn js_trim(text: &str) -> &str {
+pub(crate) fn js_trim(text: &str) -> &str {
     text.trim_matches(|c: char| {
         matches!(
             c,

@@ -310,7 +310,7 @@ pub fn preprocess(original: &str) -> Preprocessed {
         // 因此 TS 侧退化为普通引用块并保留字面 `[!NOTE]-`；
         // comrak 的 alerts 更宽松会识别为 callout。
         // 这里把 `!` 换成行内占位符，打断 comrak 的 alert 识别。
-        if let Some(marker_offset) = inline_alert_marker_offset(body) {
+        if let Some(marker_offset) = inline_alert_marker_offset(body, has_newline) {
             let placeholder = inline_placeholder_for(&mut counter);
             restore.push(restore_item(placeholder.clone(), "!".to_string(), true));
             out.push_str(&body[..marker_offset]);
@@ -1320,7 +1320,7 @@ fn replace_footnote_tokens_plain(
 ///
 /// TS 的 callout 正则要求 `]` 之后是行尾或「空白 + 标题」；
 /// `> [!NOTE]-` 不满足，因此不能交给 comrak 的 alerts 扩展识别。
-fn inline_alert_marker_offset(line: &str) -> Option<usize> {
+fn inline_alert_marker_offset(line: &str, has_newline: bool) -> Option<usize> {
     let trimmed = line.trim_start();
     let indent = line.len() - trimmed.len();
     // 允许引用块前缀
@@ -1345,9 +1345,22 @@ fn inline_alert_marker_offset(line: &str) -> Option<usize> {
         return None;
     }
     let after = &content[2..];
-    // 类型名必须是大写字母
-    let type_len = after.chars().take_while(char::is_ascii_uppercase).count();
+    // comrak 对类型名大小写不敏感，TS 的正则带 `i` 标志同样不敏感；
+    // 只认全大写会漏掉 `> [!note]-` 这类写法（实测 Rust 会误判成 callout）。
+    let type_len = after.chars().take_while(char::is_ascii_alphabetic).count();
     if type_len == 0 {
+        return None;
+    }
+    let known = [
+        "note",
+        "tip",
+        "important",
+        "warning",
+        "caution",
+        "info",
+        "danger",
+    ];
+    if !known.contains(&after[..type_len].to_ascii_lowercase().as_str()) {
         return None;
     }
     let rest = &after[type_len..];
@@ -1355,9 +1368,22 @@ fn inline_alert_marker_offset(line: &str) -> Option<usize> {
         return None;
     }
     let after_close = &rest[1..];
-    // `]` 之后必须是「行尾」或「空白 + 标题」才算 callout
-    if after_close.is_empty() || after_close.starts_with(' ') || after_close.starts_with('\t') {
+
+    // TS 正则：`(?:[ \t]+([^\r\n]+))?` —— `]` 之后只能是
+    //   (a) 行尾（无标题）
+    //   (b) 空白 + **至少一个**非换行字符（标题）
+    // 因此「空白后直接行尾」和「非空白非行尾字符」都不成立。
+    if after_close.is_empty() {
         return None;
+    }
+    if after_close.starts_with([' ', '\t']) {
+        if !after_close.trim().is_empty() {
+            return None;
+        }
+        // 空白后为空：取决于后面还有没有内容。
+        // - 还有下一行（`> [!NOTE] \n> body`）：marked 的 `[^\r\n]+` 匹配失败 → 不是 callout；
+        // - 已是文档末行（`> [!NOTE] ` EOF）：marked 会裁掉末行尾随空白 → 是 callout。
+        return has_newline.then_some(prefix_len + 1);
     }
     Some(prefix_len + 1)
 }

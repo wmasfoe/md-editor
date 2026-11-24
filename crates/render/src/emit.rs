@@ -567,11 +567,10 @@ fn build_block<'a>(
             for child in node.children() {
                 build_block(child, allocator, source, true, &mut inner);
             }
+            // comrak 会对标题做反斜杠反转义与 HTML 实体解码，TS 用正则原样捕获。
+            // 因此标题必须从源码取原文，不能用 `alert.title`。
             out.push(Block::Callout {
-                title: alert
-                    .title
-                    .clone()
-                    .filter(|value| !value.is_empty())
+                title: alert_title_from_source(node, source)
                     .unwrap_or_else(|| default_callout_title(&kind).to_string()),
                 kind,
                 blocks: inner,
@@ -937,6 +936,26 @@ fn build_raw_inlines<'a>(node: &'a AstNode<'a>, source: &SourceText<'_>) -> Vec<
     for (index, child) in children.iter().enumerate() {
         // 硬换行需要「前一兄弟结束 → 后一兄弟开始」之间的原文，才能还原
         // marked 保留的字面量（`两个空格 + 换行` / `反斜杠 + 换行`）。
+        // 软换行：TS 保留换行前的行尾空白（`a \nb` → `<p>a \nb</p>`），
+        // comrak 把它从 Text 节点里剥掉了。按兄弟节点的 sourcepos 缝隙取回来。
+        if matches!(child.data.borrow().value, NodeValue::SoftBreak) {
+            let trailing = index
+                .checked_sub(1)
+                .map(|prev| {
+                    let from = children[prev].data.borrow().sourcepos.end;
+                    let to = child.data.borrow().sourcepos.start;
+                    slice_between(source, from, to)
+                })
+                .filter(|gap| {
+                    !gap.is_empty()
+                        && !gap.contains('\n')
+                        && gap.chars().all(|c| c == ' ' || c == '\t')
+                })
+                .unwrap_or_default();
+            inlines.push(Inline::Text(format!("{trailing}\n")));
+            continue;
+        }
+
         if matches!(child.data.borrow().value, NodeValue::LineBreak) {
             let from = index
                 .checked_sub(1)
@@ -2074,4 +2093,29 @@ fn trim_inline_edges(mut inlines: Vec<Inline>) -> Vec<Inline> {
     }
     inlines.retain(|inline| !matches!(inline, Inline::Text(text) if text.is_empty()));
     inlines
+}
+
+/// 从源码取出 alert 标记之后的原始标题文本（不做反转义、不解码实体）。
+///
+/// TS 的正则是 `/^\[!(TYPE)\](?:[ \t]+([^\r\n]+))?/`，捕获组就是原文，
+/// 因此 `> [!NOTE] a\*b` 的标题是 `a\*b` 而不是 `a*b`。
+fn alert_title_from_source<'a>(node: &'a AstNode<'a>, source: &SourceText<'_>) -> Option<String> {
+    let position = node.data.borrow().sourcepos;
+    let raw = source.slice(position.start, position.end);
+    let first_line = raw.lines().next().unwrap_or("");
+    let trimmed = first_line.trim_start();
+    let content = trimmed.strip_prefix('>').unwrap_or(trimmed);
+    let content = content
+        .strip_prefix([' ', '\t'])
+        .unwrap_or(content)
+        .trim_end();
+
+    let close = content.find(']')?;
+    let after = &content[close + 1..];
+    // 标记后必须是「空白 + 标题」
+    if !after.starts_with([' ', '\t']) {
+        return None;
+    }
+    let title = crate::slug::js_trim(after);
+    (!title.is_empty()).then(|| title.to_string())
 }
