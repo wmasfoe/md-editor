@@ -545,6 +545,7 @@ pub fn preprocess(original: &str) -> Preprocessed {
         combined
     };
 
+    let markdown = normalize_atx_marker_spacing(&markdown);
     let markdown = protect_table_delimiters(&markdown);
 
     Preprocessed { markdown, restore }
@@ -1548,4 +1549,44 @@ fn split_table_cells(line: &str) -> Vec<String> {
         cells.pop();
     }
     cells
+}
+
+/// 把 ATX 标题 `#` 之后的 Unicode 空白归一成普通空格。
+///
+/// marked 的标题正则用 JS 的 `\s`，`#\u{00a0}标题`、`#\u{3000}标题` 都算标题；
+/// comrak 只认空格与制表符，于是整行退化成段落。
+/// 归一成空格后 comrak 能识别，且标题文本本来就会被裁掉首尾空白，输出不变。
+///
+/// 排除 U+2028 / U+2029：它们是行分隔符，marked 在这种情况下并不产生标题
+/// （正则的 `.` 不匹配它们），归一化反而会制造错误。
+fn normalize_atx_marker_spacing(markdown: &str) -> String {
+    const MARKER_SPACE: &[char] = &[
+        '\u{a0}', '\u{1680}', '\u{2000}', '\u{2001}', '\u{2002}', '\u{2003}', '\u{2004}',
+        '\u{2005}', '\u{2006}', '\u{2007}', '\u{2008}', '\u{2009}', '\u{200a}', '\u{202f}',
+        '\u{205f}', '\u{3000}', '\u{feff}',
+    ];
+
+    let mut out = String::with_capacity(markdown.len());
+    for (index, line) in markdown.split('\n').enumerate() {
+        if index > 0 {
+            out.push('\n');
+        }
+        let indent = line.len() - line.trim_start_matches(' ').len();
+        let body = &line[indent..];
+        let hashes = body.chars().take_while(|c| *c == '#').count();
+        if hashes == 0 || hashes > 6 {
+            out.push_str(line);
+            continue;
+        }
+        let rest = &body[hashes..];
+        match rest.chars().next() {
+            Some(ch) if MARKER_SPACE.contains(&ch) => {
+                out.push_str(&line[..indent + hashes]);
+                out.push(' ');
+                out.push_str(&rest[ch.len_utf8()..]);
+            }
+            _ => out.push_str(line),
+        }
+    }
+    out
 }

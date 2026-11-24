@@ -565,7 +565,9 @@ fn build_block<'a>(
     match value {
         NodeValue::Heading(heading) => {
             let raw = heading_raw_text(node, source);
-            let plain = strip_html_tags(&raw).trim().to_string();
+            // 用 JS trim 语义：`# \u{feff}a` 的 BOM 要被裁掉，而 Rust 的
+            // `str::trim` 不把 U+FEFF 当空白。
+            let plain = crate::slug::js_trim(&strip_html_tags(&raw)).to_string();
             let id = allocator.allocate(&plain);
             out.push(Block::Heading {
                 level: heading.level,
