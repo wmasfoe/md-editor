@@ -52,6 +52,7 @@
     "test:release": "node --test scripts/release/*.test.mjs scripts/mobile/*.test.mjs",
     "test:style-eval": "node --test scripts/style-eval/*.test.mjs",
     "test:render-diff": "node --test scripts/render-diff/*.test.mjs && node --experimental-strip-types scripts/render-diff/real-docs-parity.mjs && node --experimental-strip-types scripts/render-diff/fuzz.mjs",
+    "test:render-lanes": "node --experimental-strip-types scripts/render-diff/lanes/run.mjs",
     "test:rust": "cargo test --manifest-path crates/render/Cargo.toml && cargo test --manifest-path crates/render-ffi/Cargo.toml && cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml",
     "lint": "pnpm lint:oxlint && pnpm format:prettier:check && pnpm lint:structure && pnpm lint:rust",
     "lint:fix": "oxlint --fix . && prettier --write . && cargo fmt --manifest-path crates/render/Cargo.toml && cargo fmt --manifest-path crates/render-ffi/Cargo.toml && cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml",
