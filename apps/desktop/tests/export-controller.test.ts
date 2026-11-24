@@ -135,6 +135,11 @@ describe("export-controller", () => {
     expect(result).toBe(true);
     expect(writeTextMock).toHaveBeenCalledOnce();
     expect(writtenText).toContain("<p>Hello world</p>");
+    // 复制到富文本编辑器的是**完整文档**：必须带主题变量与 <style>，
+    // 否则粘贴后丢失全部排版（回归项）。
+    expect(writtenText).toContain("<!doctype html>");
+    expect(writtenText).toContain("<style>");
+    expect(writtenText).toContain("--theme-bg");
 
     vi.unstubAllGlobals();
   });

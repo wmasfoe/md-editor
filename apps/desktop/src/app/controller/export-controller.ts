@@ -321,11 +321,12 @@ export async function copyDocumentAsHtml(
   styling: ExportDocumentStylingOptions = {},
 ): Promise<boolean> {
   const mermaidRenderer = await resolveMermaidRenderer(styling.isDark ?? false);
-  const rawFragment = await invoke<string>("render_markdown_fragment", {
-    markdown,
-    includeMarkers: false,
+  // 必须复制**完整文档**（含主题与字体 CSS），而不是裸片段：
+  // 富文本编辑器依赖这些样式还原排版，裸片段粘出去会丢失全部外观。
+  // 不传 resolveImageDataUrl —— 与迁移前一致，图片保持相对路径。
+  const { standaloneHtml: fragment } = await renderDocumentHtmlWithRust(markdown, styling, {
+    renderMermaidSvg: mermaidRenderer,
   });
-  const fragment = await inlineMermaidSvg(rawFragment, mermaidRenderer);
   if (typeof navigator !== "undefined" && navigator.clipboard) {
     try {
       if (typeof ClipboardItem !== "undefined") {
