@@ -82,13 +82,24 @@ scripts/render-diff/
   render-diff.test.mjs   差分测试本体
   real-docs-parity.mjs   仓库内全部 markdown 的真实文档对比
   fuzz.mjs               组合式 fuzz（固定种子，6 个套件约 1258 例）
+  lanes/                 八个语法维度的穷举矩阵（17.2k 例）
+    alert.mjs            7 种 callout × 标记形态 × 容器 × 标题内容
+    links.mjs            脚注 / 引用定义 / 链接 / 图片 / autolink
+    lists.mjs            列表标记 / tight-loose / 嵌套 / 任务项 / 续行
+    code.mjs             围栏 / 缩进代码 / HTML 块 / MDX / 42 个语言别名
+    tables.mjs           对齐矩阵 / 单元格内容 / 分割线 / frontmatter
+    headings.mjs         ATX 1-7 级 / setext / slug 特殊字符 / 去重
+    plugins.mjs          数学 / ==highlight== / :::directive
+    inline-text.mjs      CJK 边界 / 实体 / 转义 / 段落空白
+    run.mjs              汇总 + 分组统计
 ```
 
-**三层防线**，覆盖「想到的」之外还覆盖「没想到的」：
+**四层防线**，覆盖「想到的」之外还覆盖「没想到的」：
 
 1. `corpus/` —— 手写语料，每条声明 `mode` 与所守护的 TS 契约（精确、可读）；
 2. `real-docs-parity.mjs` —— 仓库里 364 份真实 markdown（贴近生产写法）；
-3. `fuzz.mjs` —— 笛卡尔积 + 固定种子随机组合（1.2k 例，30 秒）。
+3. `fuzz.mjs` —— 笛卡尔积 + 固定种子随机组合（1.2k 例，30 秒）；
+4. `lanes/` —— 八个语法维度的穷举矩阵（17.2k 例，80 秒），发现能力最强的一层。
 
 fuzz 与 `KNOWN_DIVERGENCES.md` 联动：命中已登记项的不计入失败但会单独列出，
 避免「绿测掩盖未登记差异」。历史上半数以上分叉是通过 fuzz 发现的

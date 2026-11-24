@@ -125,7 +125,27 @@ Rust 侧不复制 JS 实现，而是在**构建期**读取同一份源，从根�
 - `crates/render/Cargo.toml` **不存在** → 阶段 0，跳过 Rust 侧并显式报告
 - 存在但渲染器跑不起来 → **测试失败**
 
-### 4.2 语料
+### 4.2 四层防线
+
+手写语料只能覆盖「想到的」形态。实测教训：语料停在 177 条时报告
+「无未登记分歧」，随后用 8 个穷举 lane 在**不改一行代码**的情况下挖出
+1910 例分歧。因此等价性由四层互补防线共同保证：
+
+| 层 | 规模 | 定位 | 运行 |
+|---|---|---|---|
+| `corpus/` 手写语料 | 177 条 | 精确、可读，每条声明守护哪条 TS 契约 | `pnpm test:render-diff` |
+| `real-docs-parity.mjs` | 364 份真实文档 | 贴近生产写法 | `pnpm test:render-diff` |
+| `fuzz.mjs` | 1 359 例 | 固定种子组合，失败可复现 | `pnpm test:render-diff` |
+| `lanes/` 穷举矩阵 | 17 216 例 | 按语法维度穷举（alert / links / lists / code / tables / headings / plugins / inline-text） | `pnpm test:render-lanes` |
+
+`lanes/` 是发现能力最强的一层：每个 lane 是一个维度的笛卡尔积
+（例如 headings lane 覆盖 ATX 1–7 级 × 空白变体 × 16 种 Unicode 空白 ×
+75 个 slug 特殊字符）。它跑一次约 80 秒，代价低到可以在重构前后各跑一次。
+
+四层都复用同一套 `KNOWN_DIVERGENCES` 过滤：命中登记项的单独列出、不计入失败，
+因此「绿」不等于「没有差异」，只等于「没有**未登记**的差异」。
+
+### 4.3 手写语料
 
 共 177 条（170 条 byte 级 + 7 条 semantic 级），按关注点分组（`scripts/render-diff/corpus/`）：
 
