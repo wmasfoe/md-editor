@@ -247,6 +247,11 @@ fn replicate_quad_dollar(html: &str) -> String {
 }
 
 fn restore_placeholders(mut html: String, restore: &[crate::preprocess::RestoreItem]) -> String {
+    // 定义分隔注释只用于阻止 comrak 把定义行并入表格/HTML，不能出现在输出里。
+    html = html
+        .replace("<!--md-def-sep-->\n", "")
+        .replace("<!--md-def-sep-->", "");
+
     // 定义副本注释只服务于 comrak 的引用解析，不能出现在输出里。
     // 它独占一行（comrak 当作 HtmlBlock），移除后会残留一个换行，需一并清掉。
     while let Some(start) = html.find("<!--md-def:") {

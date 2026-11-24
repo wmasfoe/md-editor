@@ -194,6 +194,28 @@ pub fn preprocess(original: &str) -> Preprocessed {
             continue;
         }
 
+        // ---- 0.5) 伪 frontmatter ----
+        //
+        // comrak 会把 `---\n\n---` 当作 frontmatter（内容为空）并整体吞掉；
+        // TS（marked 的前置检查）要求 frontmatter 内容非空且不含空行，
+        // 因此该形态在 TS 侧是两条分隔线。用块级占位符还原为 `<hr />`。
+        if index == 0
+            && body.trim() == "---"
+            && lines.get(1).map(|l| l.trim().is_empty()) == Some(true)
+        {
+            let placeholder = placeholder_for(&mut counter);
+            restore.push(restore_item(
+                placeholder.clone(),
+                "<hr />\n".to_string(),
+                false,
+            ));
+            out.push_str(&placeholder);
+            if has_newline {
+                out.push('\n');
+            }
+            continue;
+        }
+
         // ---- 1) BOM 起始行：整行按纯文本保留 ----
         // 只处理文档首行的 BOM；其余位置 comrak 不会特殊对待。
         if index == 0 && body.starts_with('\u{FEFF}') {
@@ -240,6 +262,29 @@ pub fn preprocess(original: &str) -> Preprocessed {
             // 原位只留占位符（渲染为可见文本）；
             // 定义副本收集到 definitions，稍后统一放到文档开头供 comrak 解析。
             definitions.push(body.trim().to_string());
+            out.push_str(&placeholder);
+            if has_newline {
+                out.push('\n');
+            }
+            continue;
+        }
+
+        // ---- 2.2) 脚注定义行 ----
+        //
+        // comrak 即使未启用 `footnotes` 也会把 `[^1]: …` 消费为定义（不产生输出），
+        // 而 TS（marked）把它当普通段落文本。这里保护为占位符。
+        if is_footnote_definition(body) {
+            let placeholder = inline_placeholder_for(&mut counter);
+            let is_last_line = lines
+                .iter()
+                .skip(index + 1)
+                .all(|rest| rest.trim().is_empty());
+            let literal = if has_newline && is_last_line {
+                format!("{body}\n")
+            } else {
+                body.to_string()
+            };
+            restore.push(restore_item(placeholder.clone(), literal, true));
             out.push_str(&placeholder);
             if has_newline {
                 out.push('\n');
@@ -413,6 +458,11 @@ pub fn preprocess(original: &str) -> Preprocessed {
             combined.push_str(definition);
             combined.push('\n');
         }
+        // 定义行后若紧跟表格/HTML，comrak 会把定义行当成段落。
+        // 用 HTML 注释隔开（会被 restore_placeholders 清除），
+        // 既保证定义被消费、又不产生可见文本。
+        combined.push_str("<!--md-def-sep-->");
+        combined.push('\n');
         combined.push_str(&out);
         combined
     };
@@ -733,6 +783,22 @@ fn is_list_item_line(line: &str) -> bool {
         }
     };
     !rest.trim().is_empty()
+}
+
+/// 是否为脚注定义行（`[^label]: …`）。
+fn is_footnote_definition(line: &str) -> bool {
+    let trimmed = line.trim_start();
+    let indent = line.len() - trimmed.len();
+    if indent > 3 {
+        return false;
+    }
+    let Some(rest) = trimmed.strip_prefix("[^") else {
+        return false;
+    };
+    let Some(close) = rest.find("]:") else {
+        return false;
+    };
+    close > 0
 }
 
 #[cfg(test)]

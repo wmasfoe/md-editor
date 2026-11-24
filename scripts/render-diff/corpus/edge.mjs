@@ -506,6 +506,30 @@ export const AUDIT_ROUND3_FIXTURES = [
     markdown: "<Chart data={[1]} />\n",
   },
   {
+    id: "footnote-definition-visible",
+    mode: "byte",
+    guards: "定义行: 脚注定义 `[^1]:` 作为可见段落文本输出（comrak 默认会吞掉）",
+    markdown: "# H\n\n[^1]: note",
+  },
+  {
+    id: "link-definition-before-table",
+    mode: "byte",
+    guards: "定义行: 定义在表格之前时不得被并入表格段落",
+    markdown: "| a | b |\n| --- | --- |\n\n[foo]: /u",
+  },
+  {
+    id: "fake-frontmatter-double-rule",
+    mode: "byte",
+    guards: "frontmatter: `---` 后紧跟空行是两条分隔线，不是 frontmatter",
+    markdown: "---\n\n---",
+  },
+  {
+    id: "fake-frontmatter-then-text",
+    mode: "byte",
+    guards: "frontmatter: `---` 后空行再跟文本时首行是分隔线",
+    markdown: "---\n\npara",
+  },
+  {
     id: "reference-definition-eof-trailing-newline",
     mode: "byte",
     guards: "定义行: 末行且源码带尾换行时段落保留换行",
