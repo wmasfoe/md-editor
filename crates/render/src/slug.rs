@@ -54,12 +54,15 @@ fn re_italic_and_code_markers() -> &'static Regex {
 fn re_slug_disallowed() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     // `\p{M}` 必须保留：天城文等组合标记属于字母的一部分，丢了会产出错 id。
-    RE.get_or_init(|| Regex::new(r"[^\p{L}\p{N}\p{M}\s_\-]").expect("slug 允许字符集正则"))
+    RE.get_or_init(|| {
+        Regex::new(&format!("[^\\p{{L}}\\p{{N}}\\p{{M}}{JS_SPACE_CLASS}_\\-]"))
+            .expect("slug 允许字符集正则")
+    })
 }
 
 fn re_whitespace_run() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"\s+").expect("空白折叠正则"))
+    RE.get_or_init(|| Regex::new(&format!("{JS_SPACE_CLASS}+")).expect("空白折叠正则"))
 }
 
 fn re_trim_hyphens() -> &'static Regex {
@@ -87,6 +90,30 @@ fn re_legacy_trim_hyphens() -> &'static Regex {
     RE.get_or_init(|| Regex::new(r"^-|-$").expect("legacy 首尾连字符正则"))
 }
 
+/// JS 正则 `\s` 与 `String.prototype.trim` 的空白字符集。
+///
+/// 必须逐字符列出：Rust 的 `\s` 用 Unicode `White_Space` 属性，
+/// 与 JS 有两处相反——**包含** U+0085 (NEL)，**不包含** U+FEFF (BOM)。
+/// 直接用 `\s` 会让 `# a\u{FEFF}b` 与 `# a\u{85}b` 的 id 与 TS 分叉。
+const JS_SPACE_CLASS: &str = r"[\t\n\x0b\x0c\r \x{a0}\x{1680}\x{2000}-\x{200a}\x{2028}\x{2029}\x{202f}\x{205f}\x{3000}\x{feff}]";
+
+/// 按 JS `trim()` 语义去掉首尾空白。
+fn js_trim(text: &str) -> &str {
+    text.trim_matches(|c: char| {
+        matches!(
+            c,
+            '\t' | '\n' | '\x0b' | '\x0c' | '\r' | ' ' | '\u{a0}' | '\u{1680}' | '\u{2000}'
+                ..='\u{200a}'
+                    | '\u{2028}'
+                    | '\u{2029}'
+                    | '\u{202f}'
+                    | '\u{205f}'
+                    | '\u{3000}'
+                    | '\u{feff}'
+        )
+    })
+}
+
 /// 剥掉行内 Markdown 与 HTML 标签，得到「渲染后可见文本」。
 ///
 /// 顺序与 TS 实现一致：先图片、再链接（各含行内与引用两种形态）、再 HTML 标签、
@@ -109,9 +136,9 @@ pub fn heading_slug_source(source: &str) -> String {
 /// `#snake_case` 链接与导出 HTML 的 `id` 会分叉。
 pub fn slugify_heading(source: &str) -> String {
     let visible = heading_slug_source(source);
-    let lowered = visible.trim().to_lowercase();
+    let lowered = js_trim(&visible).to_lowercase();
     let filtered = re_slug_disallowed().replace_all(&lowered, "").into_owned();
-    let trimmed = filtered.trim();
+    let trimmed = js_trim(&filtered);
     let hyphenated = re_whitespace_run().replace_all(trimmed, "-").into_owned();
     re_trim_hyphens().replace_all(&hyphenated, "").into_owned()
 }
@@ -122,7 +149,7 @@ pub fn slugify_heading(source: &str) -> String {
 /// 中文之外的字符一律折叠为 `-`。它只用于输出 `<a id>` 别名，**不**用作真实 id。
 pub fn generate_legacy_heading_slug(text: &str) -> String {
     let plain = re_html_tag().replace_all(text, "");
-    let plain = plain.trim().to_lowercase();
+    let plain = js_trim(&plain).to_lowercase();
     let stripped = re_legacy_stripped_chars()
         .replace_all(&plain, "")
         .into_owned();

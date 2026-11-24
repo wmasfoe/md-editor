@@ -170,6 +170,30 @@ impl<'a> SourceText<'a> {
         self.line_starts[line_index] + position.column.saturating_sub(1)
     }
 
+    /// 切出 [start, end] 区间，并在需要时向左扩张一个字节。
+    ///
+    /// comrak 在「双反斜杠 + 可转义字符」上会把 Text 节点的 sourcepos 起点右移一位：
+    /// `\\*` 的 literal 是 `\*`，但 sourcepos 只覆盖 `\*` 的后一个反斜杠起的部分
+    /// （comrak 把只包含被转义字符的子节点合并进邻居，sourcepos 跟着偏移）。
+    /// 直接切片会丢掉第一个反斜杠，用户可见内容被改。前一个字节是反斜杠时补回来。
+    fn slice_keeping_escaped_prefix(
+        &self,
+        start: comrak::nodes::LineColumn,
+        end: comrak::nodes::LineColumn,
+    ) -> &'a str {
+        let from = self.offset(start).min(self.markdown.len());
+        let to = (self.offset(end) + 1).min(self.markdown.len());
+        let from = if from > 0 && self.markdown.as_bytes().get(from - 1) == Some(&b'\\') {
+            from - 1
+        } else {
+            from
+        };
+        if from >= to {
+            return "";
+        }
+        self.markdown.get(from..to).unwrap_or("")
+    }
+
     /// 切出 [start, end] 区间（含 end 位置的字符）。
     fn slice(&self, start: comrak::nodes::LineColumn, end: comrak::nodes::LineColumn) -> &'a str {
         let from = self.offset(start).min(self.markdown.len());
@@ -921,7 +945,10 @@ fn build_raw_inlines<'a>(node: &'a AstNode<'a>, source: &SourceText<'_>) -> Vec<
                 .map(|next| next.data.borrow().sourcepos.start)
                 .unwrap_or_else(|| child.data.borrow().sourcepos.end);
             let raw = match from {
-                Some(from) => slice_between(source, from, to),
+                // 切片跨越容器前缀（`> a  \n> b` 会切到 `"  \n> "`）。
+                // marked 的硬换行字面量只到换行为止，容器标记由块级结构负责，
+                // 因此截断在首个换行符（含）处，否则 `> ` 会变成可见的 `&gt; `。
+                Some(from) => truncate_at_newline(slice_between(source, from, to)),
                 None => String::from("\n"),
             };
             inlines.push(Inline::RawBreak(raw));
@@ -962,7 +989,7 @@ fn build_inline<'a>(node: &'a AstNode<'a>, source: &SourceText<'_>, out: &mut Ve
             // （`&copy;` 输出 `&amp;copy;`，页面上显示字面量 `&copy;`）。
             // 可见文本不同属于字节级差异，因此按 sourcepos 回查源码原文。
             let position = node.data.borrow().sourcepos;
-            let raw = source.slice(position.start, position.end);
+            let raw = source.slice_keeping_escaped_prefix(position.start, position.end);
             let value = if raw.is_empty() {
                 text.to_string()
             } else {
@@ -2007,4 +2034,12 @@ fn strip_blockquote_markers(text: &str) -> String {
         })
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+/// 截断到首个换行符（含）。没有换行时返回原串。
+fn truncate_at_newline(text: String) -> String {
+    match text.find('\n') {
+        Some(index) => text[..=index].to_string(),
+        None => text,
+    }
 }
