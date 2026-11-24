@@ -145,10 +145,16 @@ fn build_options() -> Options<'static> {
 struct SourceText<'a> {
     markdown: &'a str,
     line_starts: Vec<usize>,
+    /// 预处理占位符 → 原始字面量的映射。
+    ///
+    /// 块级发射需要知道「这个 HtmlBlock 其实是 preprocess 保护的未知标签行」，
+    /// 才能按 marked 的段落打断语义把它回并进段落（见
+    /// `absorb_unknown_tag_continuation`）。
+    restore: &'a [crate::preprocess::RestoreItem],
 }
 
 impl<'a> SourceText<'a> {
-    fn new(markdown: &'a str) -> Self {
+    fn new(markdown: &'a str, restore: &'a [crate::preprocess::RestoreItem]) -> Self {
         let mut line_starts = vec![0usize];
         for (index, byte) in markdown.bytes().enumerate() {
             if byte == b'\n' {
@@ -158,6 +164,7 @@ impl<'a> SourceText<'a> {
         Self {
             markdown,
             line_starts,
+            restore,
         }
     }
 
@@ -192,6 +199,50 @@ impl<'a> SourceText<'a> {
             return "";
         }
         self.markdown.get(from..to).unwrap_or("")
+    }
+
+    /// 若该 HtmlBlock 是 preprocess 保护的「未知标签行」，返回其原始字面量。
+    ///
+    /// `---`（`<hr />` 占位）的源码行不以 `<` 开头，闭标签行以 `</` 开头，
+    /// 两者都不会出现在段落行的下一行，用首字符就能排除，
+    /// 不需要在 emitter 里再复制一份 CommonMark 块级标签白名单。
+    fn unknown_tag_literal(&self, line: usize, literal: &str) -> Option<String> {
+        let source_line = self.line_text(line)?;
+        let trimmed = source_line.trim_start();
+        if !trimmed.starts_with('<') {
+            return None;
+        }
+        let item = self
+            .restore
+            .iter()
+            .find(|item| item.placeholder == literal.trim())?;
+        (!item.escape).then(|| item.literal.clone())
+    }
+
+    /// 取源码中 1-based 行号 `line` 的原始行文本（不含行终止符）。
+    ///
+    /// 超出末行返回 `None`。末行之后由尾换行造成的“空行”不是真实行，也返回 `None`。
+    fn line_text(&self, line: usize) -> Option<&'a str> {
+        let start = *self.line_starts.get(line.checked_sub(1)?)?;
+        if start >= self.markdown.len() {
+            return None;
+        }
+        let end = self
+            .line_starts
+            .get(line)
+            .copied()
+            .unwrap_or(self.markdown.len());
+        let raw = self.markdown.get(start..end)?;
+        Some(
+            raw.strip_suffix('\n')
+                .map(|rest| rest.strip_suffix('\r').unwrap_or(rest))
+                .unwrap_or(raw),
+        )
+    }
+
+    /// 源码行 `line` 是否以换行结束（即它后面真的还有一个行终止符）。
+    fn line_ends_with_newline(&self, line: usize) -> bool {
+        line < self.line_starts.len()
     }
 
     /// 切出 [start, end] 区间（含 end 位置的字符）。
@@ -242,7 +293,11 @@ pub(crate) fn render(markdown: &str, options: &RenderOptions) -> String {
     let preprocessed = crate::preprocess::preprocess(markdown);
 
     let mut allocator = HeadingSlugAllocator::default();
-    let blocks = build_document(&preprocessed.markdown, &mut allocator);
+    let blocks = build_document(
+        &preprocessed.markdown,
+        &mut allocator,
+        &preprocessed.restore,
+    );
 
     let real_ids = collect_heading_ids(&blocks);
     let mut emitted_aliases = std::collections::HashSet::new();
@@ -325,7 +380,11 @@ fn restore_placeholders(mut html: String, restore: &[crate::preprocess::RestoreI
 ///
 /// 标题 ID 分配器跨片段共享，保证嵌套容器内的标题与外部标题按**文档顺序**竞争
 /// 同一套 slug（这是 `nested-heading-uniqueness` 契约的要求）。
-fn build_document(markdown: &str, allocator: &mut HeadingSlugAllocator) -> Vec<Block> {
+fn build_document(
+    markdown: &str,
+    allocator: &mut HeadingSlugAllocator,
+    restore: &[crate::preprocess::RestoreItem],
+) -> Vec<Block> {
     let mut blocks = Vec::new();
     let segments = split_directives(markdown);
     let segment_count = segments.len();
@@ -341,6 +400,7 @@ fn build_document(markdown: &str, allocator: &mut HeadingSlugAllocator) -> Vec<B
                     text,
                     allocator,
                     has_following_segment,
+                    restore,
                 ));
             }
             Segment::Directive {
@@ -349,7 +409,7 @@ fn build_document(markdown: &str, allocator: &mut HeadingSlugAllocator) -> Vec<B
                 body,
                 in_list_item,
             } => {
-                let inner = build_document(&body, allocator);
+                let inner = build_document(&body, allocator, restore);
                 let callout = Block::Callout {
                     title: if title.is_empty() {
                         default_callout_title(&kind).to_string()
@@ -390,8 +450,9 @@ fn parse_markdown_blocks(
     markdown: &str,
     allocator: &mut HeadingSlugAllocator,
     has_following: bool,
+    restore: &[crate::preprocess::RestoreItem],
 ) -> Vec<Block> {
-    let source = SourceText::new(markdown);
+    let source = SourceText::new(markdown, restore);
     let arena = Arena::new();
     let parsed = parse_document(&arena, markdown, &build_options());
     build_blocks(parsed, allocator, &source, has_following)
@@ -406,11 +467,82 @@ fn build_blocks<'a>(
 ) -> Vec<Block> {
     let mut blocks = Vec::new();
     let children: Vec<&AstNode<'_>> = root.children().collect();
-    for (index, node) in children.iter().enumerate() {
+    let mut index = 0;
+    while index < children.len() {
         let more = has_following || index + 1 < children.len();
-        build_block(node, allocator, source, more, &mut blocks);
+        build_block(children[index], allocator, source, more, &mut blocks);
+        // 先前进到下一个兄弟，再把「本段落之后的未知标签续行」并回来。
+        index += 1;
+        index += absorb_unknown_tag_continuation(&children, index, source, &mut blocks);
     }
     blocks
+}
+
+/// 把「段落行之后紧跟的未知标签行」并回同一个段落。
+///
+/// CommonMark 的 type-7 HTML 块（未知标签、行内标签独占一行）**不能**打断段落，
+/// marked 因此把它留在段落内：顶层段落的行内 HTML 按文本转义
+/// （`text\n<b/>` → `<p>text\n&lt;b/&gt;</p>`）。
+///
+/// preprocess 已把这类行保护成块级占位符（`<div data-mdph="N">`），comrak 于是
+/// 把它解析成独立 HtmlBlock，并把后面的行也拆成新段落。这里按源码相邻关系回并：
+/// 中间隔了空行就停下（marked 的段落确实在空行处结束）。
+///
+/// 返回被吸收的兄弟节点数。
+fn absorb_unknown_tag_continuation<'a>(
+    siblings: &[&'a AstNode<'a>],
+    from: usize,
+    source: &SourceText<'_>,
+    blocks: &mut [Block],
+) -> usize {
+    let Some(previous) = from.checked_sub(1).and_then(|prev| siblings.get(prev)) else {
+        return 0;
+    };
+    let previous_end_line = {
+        let value = previous.data.borrow();
+        if !matches!(value.value, NodeValue::Paragraph) {
+            return 0;
+        }
+        value.sourcepos.end.line
+    };
+    if !matches!(blocks.last(), Some(Block::Paragraph(_))) {
+        return 0;
+    }
+
+    let mut consumed = 0;
+    let mut previous_line = previous_end_line;
+    for node in &siblings[from..] {
+        let (start_line, end_line) = {
+            let position = node.data.borrow().sourcepos;
+            (position.start.line, position.end.line)
+        };
+        // 中间隔了空行：marked 的段落已经结束。
+        if start_line != previous_line + 1 {
+            break;
+        }
+        let continuation = match node.data.borrow().value.clone() {
+            NodeValue::HtmlBlock(html) => source
+                .unknown_tag_literal(start_line, &html.literal)
+                .map(|literal| vec![Inline::Text(literal)]),
+            NodeValue::Paragraph => Some(restore_paragraph_indents(
+                node,
+                source,
+                build_inlines(node, source),
+            )),
+            _ => None,
+        };
+        let Some(extra) = continuation else { break };
+        let Some(Block::Paragraph(inlines)) = blocks.last_mut() else {
+            break;
+        };
+        if !extra.is_empty() {
+            inlines.push(Inline::Text(String::from("\n")));
+            inlines.extend(extra);
+        }
+        previous_line = end_line;
+        consumed += 1;
+    }
+    consumed
 }
 
 /// 构建单个块节点（可能向 `out` 追加多个块）。
@@ -478,7 +610,11 @@ fn build_block<'a>(
                 }
                 DisplayMath::None => {}
             }
-            out.push(Block::Paragraph(build_inlines(node, source)));
+            out.push(Block::Paragraph(restore_paragraph_indents(
+                node,
+                source,
+                build_inlines(node, source),
+            )));
         }
         NodeValue::CodeBlock(code) => {
             // TS 侧用 marked 的 `c.lang`，它是**整个** info string（去首尾空白），
@@ -495,39 +631,12 @@ fn build_block<'a>(
             // comrak 的 CodeBlock literal 含结尾换行，TS 侧（marked）不含，
             // 直接 trim_end 会误删代码自身的空行，因此只去掉一个换行序列。
             let literal = code.literal.as_str();
-            // TS（marked 的 `c.text`）**保留**源码的结尾换行；comrak 的 literal
-            // 也带一个尾换行。两者只在「源码无尾换行」时不同，因此按源码判断。
-            // 围栏代码块：TS（marked）的 `c.text` **不含**尾换行，而 comrak 的 literal
-            // 带一个 → 去掉。
-            // 缩进代码块：TS 保留源码的尾换行，comrak 也给带换行的 literal → 保留。
             let trimmed = if code.fenced {
-                // 围栏代码块：TS 的 `c.text` 不含尾换行
-                literal
-                    .strip_suffix("\r\n")
-                    .or_else(|| literal.strip_suffix('\n'))
-                    .unwrap_or(literal)
-                    .to_string()
+                // 围栏代码块：TS（marked）的 `c.text` **不含**尾换行，而 comrak 的
+                // literal 带一个 → 去掉。
+                strip_one_line_ending(literal).to_string()
             } else {
-                // 缩进代码块：comrak 的 literal 恒带尾换行，但 TS（marked `c.text`）
-                // **只在它是文档最后一个块时**才保留（中间块由后续块自身分隔）。
-                let position = node.data.borrow().sourcepos;
-                let is_last_block = !has_following
-                    && source
-                        .markdown
-                        .lines()
-                        .skip(position.end.line)
-                        .all(|line| line.trim().is_empty());
-                // 还需源码本身以换行结尾（fixture 的缩进块虽在末尾但源码无尾换行）。
-                let source_has_trailing_newline = source.markdown.ends_with('\n');
-                if is_last_block && source_has_trailing_newline {
-                    literal.to_string()
-                } else {
-                    literal
-                        .strip_suffix("\r\n")
-                        .or_else(|| literal.strip_suffix('\n'))
-                        .unwrap_or(literal)
-                        .to_string()
-                }
+                build_indented_code(node, source, literal, has_following)
             };
             out.push(Block::Code {
                 lang,
@@ -585,7 +694,7 @@ fn build_block<'a>(
                 let inner = if body_text.trim().is_empty() {
                     Vec::new()
                 } else {
-                    parse_markdown_blocks(body_text.trim(), allocator, true)
+                    parse_markdown_blocks(body_text.trim(), allocator, true, source.restore)
                 };
                 out.push(Block::Callout {
                     title: title.unwrap_or_else(|| default_callout_title(&kind).to_string()),
@@ -730,6 +839,186 @@ fn build_list_item<'a>(
         task_symbol,
         blocks,
     }
+}
+
+/// 还原段落每行行首的缩进空白。
+///
+/// comrak 按 CommonMark 把段落每行行首的缩进剥掉；marked（TS）把它当可见文本
+/// 原样保留：` code line` → `<p> code line</p>`、`a\n  b` → `<p>a\n  b</p>`。
+///
+/// 只在**没有容器**时还原：容器（列表项 / 引用块 / 脚注定义）里的行首前缀不只
+/// 是缩进，剥多少由容器自身决定（列表项续行的规则另由 `list_continuation_padding`
+/// 处理），直接取源码行首空白会算错。
+///
+/// 做法：按源码行算出每行行首空白，再在行内序列的每个行首位置插入一段 Text。
+/// 行首位置 = 序列开头、`\n`（软换行）之后、以及以换行结尾的硬换行之后。
+fn restore_paragraph_indents<'a>(
+    node: &'a AstNode<'a>,
+    source: &SourceText<'_>,
+    inlines: Vec<Inline>,
+) -> Vec<Inline> {
+    if has_indented_container_ancestor(node) {
+        return inlines;
+    }
+    let position = node.data.borrow().sourcepos;
+    let indents: Vec<&str> = (position.start.line..=position.end.line)
+        .filter_map(|line| source.line_text(line))
+        .map(|line| &line[..line.len() - line.trim_start_matches([' ', '\t']).len()])
+        .collect();
+    if indents.iter().all(|indent| indent.is_empty()) {
+        return inlines;
+    }
+
+    let mut result: Vec<Inline> = Vec::with_capacity(inlines.len());
+    let mut line = 0usize;
+    let mut at_line_start = true;
+    for inline in inlines {
+        match inline {
+            Inline::Text(text) => {
+                let mut rest = text.as_str();
+                while !rest.is_empty() {
+                    if at_line_start {
+                        push_paragraph_indent(&mut result, indents.get(line).copied());
+                        at_line_start = false;
+                    }
+                    match rest.find('\n') {
+                        Some(index) => {
+                            result.push(Inline::Text(rest[..=index].to_string()));
+                            rest = &rest[index + 1..];
+                            line += 1;
+                            at_line_start = true;
+                        }
+                        None => {
+                            result.push(Inline::Text(rest.to_string()));
+                            rest = "";
+                        }
+                    }
+                }
+            }
+            Inline::RawBreak(raw) => {
+                if at_line_start {
+                    push_paragraph_indent(&mut result, indents.get(line).copied());
+                }
+                at_line_start = raw.ends_with('\n');
+                if at_line_start {
+                    line += 1;
+                }
+                result.push(Inline::RawBreak(raw));
+            }
+            other => {
+                if at_line_start {
+                    push_paragraph_indent(&mut result, indents.get(line).copied());
+                    at_line_start = false;
+                }
+                result.push(other);
+            }
+        }
+    }
+    result
+}
+
+/// 在行首插入一段缩进空白（缩进为空时不插入，避免空 Text 节点）。
+fn push_paragraph_indent(result: &mut Vec<Inline>, indent: Option<&str>) {
+    if let Some(indent) = indent.filter(|indent| !indent.is_empty()) {
+        result.push(Inline::Text(indent.to_string()));
+    }
+}
+
+/// 还原缩进代码块（indented code）的代码内容文本。
+///
+/// comrak 的 `literal` 与 marked 的 `c.text` 有两条互相独立的规则，必须分别对齐：
+///
+/// 1. **逐行剔除的缩进**：comrak 按「列」剔——行首缩进先按 4 列制表位展开，
+///    再去掉 4 列；marked 按「字符」剔——`codeRemoveIndent = /^(?: {1,4}| {0,3}\t)/gm`，
+///    每行只去掉开头 1–4 个**空格**，或 0–3 个空格加**一个**制表符。
+///    两者只在「1–3 个空格 + 制表符」的缩进上分叉（comrak 把整段缩进吃掉，
+///    marked 保留那个制表符）。差异虽小，但会翻转 `highlightAuto` 的语言检测，
+///    必须逐字节一致。
+/// 2. **尾换行**：comrak 的 literal 恒带一个尾换行；marked 的 `te()` 只在
+///    「块后紧跟非空行」或「块后直接到文档末尾且该行自身以换行结束」时保留
+///    尾换行，块后出现空行则连同行终止符一起丢弃。
+///
+/// 两条规则只在**没有容器**时从源码重建：容器（列表项 / 引用块 / 脚注定义）里的
+/// 行首前缀不只是缩进（`>` 与列表标记也会被剥），直接切片会把它们算进代码内容；
+/// 而且容器内的尾换行由 marked 的列表/引用块再解析决定，与顶层相反。
+/// 因此容器内的缩进代码块继续使用 comrak 的 literal 与既有的末块判定。
+fn build_indented_code(
+    node: &AstNode<'_>,
+    source: &SourceText<'_>,
+    literal: &str,
+    has_following: bool,
+) -> String {
+    let position = node.data.borrow().sourcepos;
+    if has_indented_container_ancestor(node) {
+        let is_last_block = !has_following
+            && source
+                .markdown
+                .lines()
+                .skip(position.end.line)
+                .all(|line| line.trim().is_empty());
+        if is_last_block && source.markdown.ends_with('\n') {
+            return literal.to_string();
+        }
+        return strip_one_line_ending(literal).to_string();
+    }
+
+    // 顶层缩进代码块：行首缩进就是源码缩进，逐行按 marked 的规则重建。
+    let mut code = (position.start.line..=position.end.line)
+        .filter_map(|line| source.line_text(line))
+        .map(strip_marked_code_indent)
+        .collect::<Vec<_>>()
+        .join("\n");
+    // 保留尾换行：该行后面确实有行终止符，且后面没有立即跟一个空行。
+    let keep_trailing_newline = source.line_ends_with_newline(position.end.line)
+        && source
+            .line_text(position.end.line + 1)
+            .map_or(true, |next| !next.trim().is_empty());
+    if keep_trailing_newline {
+        code.push('\n');
+    }
+    code
+}
+
+/// 代码块 / 段落是否被会剥离行首前缀的容器包裹。
+///
+/// comrak 把 GFM Alert（`> [!NOTE]`）的引用块直接换成了 `Alert` 节点，
+/// 所以它同样要算作容器——否则源码的 `>` 前缀会被当成缩进。
+fn has_indented_container_ancestor(node: &AstNode<'_>) -> bool {
+    let mut current = node.parent();
+    while let Some(parent) = current {
+        let in_container = matches!(
+            parent.data.borrow().value,
+            NodeValue::List(_)
+                | NodeValue::Item(_)
+                | NodeValue::TaskItem(_)
+                | NodeValue::BlockQuote
+                | NodeValue::Alert(_)
+                | NodeValue::FootnoteDefinition(_)
+        );
+        if in_container {
+            return true;
+        }
+        current = parent.parent();
+    }
+    false
+}
+
+/// 去掉一个行终止符（`\r\n` 优先，其次 `\n`）。
+fn strip_one_line_ending(text: &str) -> &str {
+    text.strip_suffix("\r\n")
+        .or_else(|| text.strip_suffix('\n'))
+        .unwrap_or(text)
+}
+
+/// 按 marked 的 `codeRemoveIndent`（`/^(?: {1,4}| {0,3}\t)/`）剔除一行行首缩进。
+fn strip_marked_code_indent(line: &str) -> &str {
+    let spaces = line.bytes().take_while(|byte| *byte == b' ').count();
+    if spaces > 0 {
+        // 第一个分支 ` {1,4}` 在“有空格”时总是优先命中，最多吃 4 个。
+        return &line[spaces.min(4)..];
+    }
+    // 没有空格时只有 ` {0,3}\t` 能命中，即吃掉一个制表符。
+    line.strip_prefix('\t').unwrap_or(line)
 }
 
 /// 取标题的**原文**行内文本（含 `**` 等标记，仅剥掉 HTML 标签前的原始切片）。
@@ -1446,6 +1735,11 @@ fn emit_block(
             for child in inner {
                 emit_block(child, markers, real_ids, emitted_aliases, out);
             }
+            // marked 会先把引用块内容去掉末尾换行再重新解析，因此块内**最后一个
+            // HTML 块**不自带尾换行（`> <div>x</div>` → `<div>x</div></blockquote>`）。
+            if matches!(inner.last(), Some(Block::Html { .. })) && out.ends_with('\n') {
+                out.truncate(out.len() - 1);
+            }
             out.push_str("</blockquote>\n");
         }
         Block::Callout {
@@ -1860,21 +2154,9 @@ fn list_continuation_padding<'a>(node: &'a AstNode<'a>, source: &SourceText<'_>)
         if position.start.line == container.data.borrow().sourcepos.start.line {
             return None;
         }
-    } else if matches!(container.data.borrow().value, NodeValue::Document) {
-        // 情况 B：文档级段落。marked 也保留缩进后的前导空格
-        // （`para\n\n  text` → `<p>  text</p>`）。
-        // 仅「前面紧邻块、且该行确实有前导空白」时才算续行。
-        // 必须看**行首空白数**而不是列号：`\*esc\*` 的反斜杠占一列，
-        // 列号是 2 但行首并无缩进（实测会误补一个空格）。
-        parent.previous_sibling()?;
-        let line_start = source.markdown[..source.offset(position.start)]
-            .rfind('\n')
-            .map(|index| index + 1)
-            .unwrap_or(0);
-        let indent =
-            source.markdown[line_start..].len() - source.markdown[line_start..].trim_start().len();
-        return (indent > 0).then_some(indent);
     } else {
+        // 文档级段落由 `restore_paragraph_indents` 统一还原每行行首空白，
+        // 其余容器不补（缩进由容器自身决定）。
         return None;
     }
     // 文本本身已有前导空格则不重复补
