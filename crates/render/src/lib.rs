@@ -81,5 +81,25 @@ impl RenderOptions {
 /// assert!(html.contains("<h1"));
 /// ```
 pub fn render_html(markdown: &str, options: &RenderOptions) -> String {
-    emit::render(markdown, options)
+    // 渲染器对整个 AST 递归（comrak 节点 → 自研 emitter），深层嵌套文档会吃掉
+    // 相当多栈空间。Windows 主线程默认只有 1 MB（Unix 是 8 MB），实测在
+    // CI 的 Windows 平台上直接 `has overflowed its stack`。
+    //
+    // 因此把渲染放到一个显式指定栈大小的线程里执行：调用方（Tauri command
+    // 线程池、QuickLook 的 Swift 线程、测试二进制的主线程）的栈配置各不相同，
+    // 只有在库内部兜底才能保证行为一致。
+    //
+    // 每次渲染只起一个线程（一个文档一次），不是逐节点开销。spawn 失败时
+    // 退回当前线程，避免因为线程资源紧张而完全不渲染。
+    std::thread::scope(|scope| {
+        std::thread::Builder::new()
+            .stack_size(RENDER_STACK_SIZE)
+            .spawn_scoped(scope, || emit::render(markdown, options))
+            .map(|handle| handle.join().unwrap_or_default())
+            .unwrap_or_else(|_| emit::render(markdown, options))
+    })
 }
+
+/// 渲染线程的栈大小。32 MB 是 Windows 上最坏嵌套深度实测值的数倍，
+/// 且属于虚拟地址预留，不随文档大小实际占用。
+const RENDER_STACK_SIZE: usize = 32 * 1024 * 1024;
