@@ -537,6 +537,7 @@ fn build_block<'a>(
         }
         NodeValue::Alert(alert) => {
             // comrak 的 `alerts` 走 `> [!NOTE]` 语法，与 TS 侧 callout 同源。
+            // 折叠式 `> [!NOTE]-` 已由 preprocess 打断，不会走到这里。
             let kind = alert_kind(&alert.alert_type);
             let mut inner = Vec::new();
             for child in node.children() {
@@ -553,6 +554,24 @@ fn build_block<'a>(
             });
         }
         NodeValue::BlockQuote => {
+            // comrak 的 `alerts` 只识别 NOTE/TIP/IMPORTANT/WARNING/CAUTION，
+            // 而 TS 侧的正则还接受 `INFO` 与 `DANGER`（见 tokenizer 的
+            // `\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION|INFO|DANGER)\]`）。
+            // 这两种在 comrak 里退化成普通 blockquote，需在这里补上。
+            if let Some((kind, title, body_text)) = extra_alert_parts(node, source) {
+                let inner = if body_text.trim().is_empty() {
+                    Vec::new()
+                } else {
+                    parse_markdown_blocks(body_text.trim(), allocator, true)
+                };
+                out.push(Block::Callout {
+                    title: title.unwrap_or_else(|| default_callout_title(&kind).to_string()),
+                    kind,
+                    blocks: inner,
+                });
+                return;
+            }
+
             let mut inner = Vec::new();
             for child in node.children() {
                 build_block(child, allocator, source, true, &mut inner);
@@ -1930,4 +1949,62 @@ fn expand_single_line_display(text: &str) -> Option<Vec<Inline>> {
         out.push(Inline::Text(rest.to_string()));
     }
     Some(out)
+}
+
+/// 识别 comrak 未支持的 `> [!INFO]` / `> [!DANGER]`，返回（类型, 自定义标题, 正文）。
+///
+/// 语义对齐 TS 的 callout 正则：
+/// `/^\[!(TYPE)\](?:[ \t]+([^\r\n]+))?(?:\r?\n([\s\S]*))?$/i`
+///
+/// 其他类型（NOTE/TIP/IMPORTANT/WARNING/CAUTION）由 comrak 的 alerts 扩展处理，
+/// 这里只兜住 INFO / DANGER。
+fn extra_alert_parts<'a>(
+    node: &'a AstNode<'a>,
+    source: &SourceText<'_>,
+) -> Option<(String, Option<String>, String)> {
+    // 只处理「整块是一个 blockquote、且首段文本以 [!INFO]/[!DANGER] 开头」
+    let first = node.first_child()?;
+    if !matches!(first.data.borrow().value, NodeValue::Paragraph) {
+        return None;
+    }
+    let position = first.data.borrow().sourcepos;
+    let raw = source.slice(position.start, position.end);
+    let trimmed = raw.trim_start();
+    let lower = trimmed.to_ascii_lowercase();
+    let kind = if lower.starts_with("[!info]") {
+        "info"
+    } else if lower.starts_with("[!danger]") {
+        "danger"
+    } else {
+        return None;
+    };
+
+    // 剥掉标记，得到首行的可选标题与其后正文
+    let rest = &trimmed["[!".len() + kind.len() + 1..];
+    let (first_line, body) = match rest.find('\n') {
+        Some(index) => (&rest[..index], &rest[index + 1..]),
+        None => (rest, ""),
+    };
+    let title = first_line.trim();
+    Some((
+        kind.to_string(),
+        (!title.is_empty()).then(|| title.to_string()),
+        // sourcepos 切片保留了 `> ` 容器标记，需剥离后再当正文解析，
+        // 否则内部会被二次识别为 blockquote（实测 `<blockquote>` 嵌套进 callout）。
+        strip_blockquote_markers(body),
+    ))
+}
+
+/// 剥离每行行首的引用块标记（`> ` / `>`）。
+fn strip_blockquote_markers(text: &str) -> String {
+    text.lines()
+        .map(|line| {
+            let trimmed = line.trim_start();
+            match trimmed.strip_prefix('>') {
+                Some(rest) => rest.strip_prefix([' ', '\t']).unwrap_or(rest),
+                None => line,
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }

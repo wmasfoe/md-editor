@@ -506,6 +506,36 @@ export const AUDIT_ROUND3_FIXTURES = [
     markdown: "<Chart data={[1]} />\n",
   },
   {
+    id: "alert-info-and-danger",
+    mode: "byte",
+    guards: "callout: `> [!INFO]` 与 `> [!DANGER]`（TS 正则支持、comrak 不支持）",
+    markdown: "> [!INFO] 标题\n> 内容\n\n> [!DANGER]\n> 危险",
+  },
+  {
+    id: "alert-folded-marker-is-not-callout",
+    mode: "byte",
+    guards: "callout: `> [!NOTE]-` 折叠写法在 TS 侧退化为普通引用块",
+    markdown: "> [!NOTE]-\n> 内容",
+  },
+  {
+    id: "footnote-reference-as-link",
+    mode: "byte",
+    guards: "脚注: `[^1]` 有定义时渲染为链接（href = 定义内容）",
+    markdown: "正文[^1] 与再引用[^1]\n\n[^1]: /path",
+  },
+  {
+    id: "footnote-reference-without-definition",
+    mode: "byte",
+    guards: "脚注: 无定义时 `[^1]` 保持字面量",
+    markdown: "正文[^1]",
+  },
+  {
+    id: "footnote-definition-with-space-not-link",
+    mode: "byte",
+    guards: "脚注: 定义内容含空白时不构成链接",
+    markdown: "正文[^1]\n\n[^1]: a b",
+  },
+  {
     id: "frontmatter-requires-trailing-newline",
     mode: "byte",
     guards: "frontmatter: 闭合 `---` 无尾随换行时不构成 frontmatter",

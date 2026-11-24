@@ -145,6 +145,9 @@ pub fn preprocess(original: &str) -> Preprocessed {
     let mut definitions: Vec<String> = Vec::new();
     // 已见过的定义 label（用于复刻 marked「重复定义只保留第一条」的行为）。
     let mut seen_definitions: std::collections::HashSet<String> = std::collections::HashSet::new();
+    // 脚注定义 label → 内容。TS 把 `[^label]` 当作**链接**，href 就是定义内容。
+    let mut footnote_targets: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
     let mut counter = 0usize;
 
     // 先做「相邻单行 `$$x$$` 块」改写，再把改写标记换成行内占位符
@@ -282,6 +285,24 @@ pub fn preprocess(original: &str) -> Preprocessed {
             continue;
         }
 
+        // ---- 2.05) 折叠式 alert 标记 ----
+        //
+        // `> [!NOTE]-` 这类写法：TS 的正则要求 `]` 之后只能是行尾或「空白 + 标题」，
+        // 因此 TS 侧退化为普通引用块并保留字面 `[!NOTE]-`；
+        // comrak 的 alerts 更宽松会识别为 callout。
+        // 这里把 `!` 换成行内占位符，打断 comrak 的 alert 识别。
+        if let Some(marker_offset) = inline_alert_marker_offset(body) {
+            let placeholder = inline_placeholder_for(&mut counter);
+            restore.push(restore_item(placeholder.clone(), "!".to_string(), true));
+            out.push_str(&body[..marker_offset]);
+            out.push_str(&placeholder);
+            out.push_str(&body[marker_offset + 1..]);
+            if has_newline {
+                out.push('\n');
+            }
+            continue;
+        }
+
         // ---- 2.1) 裸有序列表标记 ----
         //
         // marked 把裸 `1.`（后面没有任何字符，连空格都没有）当作空的有序列表项，
@@ -323,6 +344,19 @@ pub fn preprocess(original: &str) -> Preprocessed {
                 continue;
             }
             let (prefix, content) = split_container_prefix(body);
+            // 记录 label → 定义内容（href 不能含空白，与 marked 的 def 正则一致）。
+            if let Some(rest) = content.trim_start().strip_prefix("[^") {
+                if let Some(close) = rest.find("]:") {
+                    let label = &rest[..close];
+                    let target = rest[close + 2..].trim();
+                    if !label.is_empty()
+                        && !target.is_empty()
+                        && !target.contains(char::is_whitespace)
+                    {
+                        footnote_targets.insert(label.to_string(), target.to_string());
+                    }
+                }
+            }
             let placeholder = inline_placeholder_for(&mut counter);
             let is_last_line = lines
                 .iter()
@@ -518,6 +552,14 @@ pub fn preprocess(original: &str) -> Preprocessed {
         combined.push('\n');
         combined.push_str(body);
         combined
+    };
+
+    // 把 `[^label]` 变成 `[^label](定义内容)`，让 comrak 解析为链接
+    // （TS 的 marked 把脚注引用当 reflink 处理，输出 `<a href="…">^label</a>`）。
+    let markdown = if footnote_targets.is_empty() {
+        markdown
+    } else {
+        rewrite_footnote_references(&markdown, &footnote_targets)
     };
 
     Preprocessed { markdown, restore }
@@ -1073,4 +1115,128 @@ fn split_leading_frontmatter(markdown: &str) -> (&str, &str) {
         offset = line_end + 1;
     }
     ("", markdown)
+}
+
+/// 把正文里的 `[^label]` 改写为 `[^label](target)`（跳过代码围栏内的内容）。
+fn rewrite_footnote_references(
+    markdown: &str,
+    targets: &std::collections::HashMap<String, String>,
+) -> String {
+    let mut out = String::with_capacity(markdown.len());
+    let mut open_fence: Option<(char, usize)> = None;
+
+    for (index, raw) in markdown.split_inclusive('\n').enumerate() {
+        let body = raw.strip_suffix('\n').unwrap_or(raw);
+        let body = body.strip_suffix('\r').unwrap_or(body);
+        let has_newline = raw.ends_with('\n');
+
+        // 围栏内原样输出
+        if let Some((marker, length)) = open_fence {
+            if is_closing_fence(body, marker, length) {
+                open_fence = None;
+            }
+            out.push_str(raw);
+            continue;
+        }
+        if let Some((marker, length)) = opening_fence(body) {
+            open_fence = Some((marker, length));
+            out.push_str(raw);
+            continue;
+        }
+        let _ = index;
+
+        out.push_str(&replace_footnote_tokens(body, targets));
+        if has_newline {
+            out.push('\n');
+        }
+    }
+    out
+}
+
+/// 单行内的 `[^label]` 替换（不含已带 `(` 的链接、跳过定义行）。
+fn replace_footnote_tokens(
+    line: &str,
+    targets: &std::collections::HashMap<String, String>,
+) -> String {
+    // 定义行（`[^label]: …`）不替换
+    if line.trim_start().starts_with("[^") && line.contains("]:") {
+        return line.to_string();
+    }
+    let mut out = String::with_capacity(line.len());
+    let mut rest = line;
+
+    while let Some(start) = rest.find("[^") {
+        out.push_str(&rest[..start]);
+        let after = &rest[start + 2..];
+        let Some(close) = after.find(']') else {
+            out.push_str(&rest[start..]);
+            return out;
+        };
+        let label = &after[..close];
+        // `[^label](...)` 已经是链接，原样保留
+        let tail = &after[close + 1..];
+        if tail.starts_with('(') {
+            out.push_str(&rest[start..start + 2 + close + 1]);
+            rest = tail;
+            continue;
+        }
+        match targets.get(label) {
+            Some(target) => {
+                out.push_str(&format!("[^{label}]({target})"));
+                rest = tail;
+            }
+            None => {
+                out.push_str(&rest[start..start + 2 + close + 1]);
+                rest = tail;
+            }
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
+/// 定位行内 `[!TYPE]` 标记里的 `!`，仅当 `]` 之后是非空白字符时返回其字节偏移。
+///
+/// TS 的 callout 正则要求 `]` 之后是行尾或「空白 + 标题」；
+/// `> [!NOTE]-` 不满足，因此不能交给 comrak 的 alerts 扩展识别。
+fn inline_alert_marker_offset(line: &str) -> Option<usize> {
+    let trimmed = line.trim_start();
+    let indent = line.len() - trimmed.len();
+    // 允许引用块前缀
+    let (prefix_len, content) = {
+        let mut rest = trimmed;
+        let mut consumed = 0usize;
+        loop {
+            let t = rest.trim_start();
+            let lead = rest.len() - t.len();
+            match t.strip_prefix('>') {
+                Some(after) => {
+                    let after = after.strip_prefix([' ', '\t']).unwrap_or(after);
+                    consumed += lead + 1 + (t.len() - 1 - after.len());
+                    rest = after;
+                }
+                None => break,
+            }
+        }
+        (indent + consumed, rest)
+    };
+    if !content.starts_with("[!") {
+        return None;
+    }
+    let after = &content[2..];
+    // 类型名必须是大写字母
+    let type_len = after.chars().take_while(char::is_ascii_uppercase).count();
+    if type_len == 0 {
+        return None;
+    }
+    let rest = &after[type_len..];
+    if !rest.starts_with(']') {
+        return None;
+    }
+    let after_close = &rest[1..];
+    // `]` 之后必须是「行尾」或「空白 + 标题」才算 callout
+    if after_close.is_empty() || after_close.starts_with(' ') || after_close.starts_with('\t') {
+        return None;
+    }
+    Some(prefix_len + 1)
 }
