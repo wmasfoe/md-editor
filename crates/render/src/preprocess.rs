@@ -143,6 +143,8 @@ fn original_ends_with_newline(text: &str) -> bool {
 pub fn preprocess(original: &str) -> Preprocessed {
     let mut restore: Vec<RestoreItem> = Vec::new();
     let mut definitions: Vec<String> = Vec::new();
+    // 已见过的定义 label（用于复刻 marked「重复定义只保留第一条」的行为）。
+    let mut seen_definitions: std::collections::HashSet<String> = std::collections::HashSet::new();
     let mut counter = 0usize;
 
     // 先做「相邻单行 `$$x$$` 块」改写，再把改写标记换成行内占位符
@@ -238,6 +240,11 @@ pub fn preprocess(original: &str) -> Preprocessed {
         // 同时收集定义，稍后**在文末追加一份副本**供 comrak 消费。
         // 副本位于文档末尾，其自身不会产生可见输出（定义不渲染）。
         if is_reference_definition(body) {
+            // 同一 label 的重复定义：marked 只保留第一条可见，其余被消费。
+            let label = body.trim().split("]:").next().unwrap_or("").to_string();
+            if !seen_definitions.insert(format!("ref{label}")) {
+                continue;
+            }
             // 双重需求：
             // - TS 把该行**原位**输出为可见文本（`<p>[foo]: url</p>`）；
             // - 但 `[foo]` 仍要能解析为链接，而 comrak 需要定义行参与解析。
@@ -274,6 +281,10 @@ pub fn preprocess(original: &str) -> Preprocessed {
         // comrak 即使未启用 `footnotes` 也会把 `[^1]: …` 消费为定义（不产生输出），
         // 而 TS（marked）把它当普通段落文本。这里保护为占位符。
         if is_footnote_definition(body) {
+            // 同一 label 的重复定义：marked 只保留第一条可见，其余被消费。
+            if !seen_definitions.insert(body.trim().to_string()) {
+                continue;
+            }
             let placeholder = inline_placeholder_for(&mut counter);
             let is_last_line = lines
                 .iter()

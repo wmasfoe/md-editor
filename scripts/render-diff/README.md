@@ -85,6 +85,14 @@ scripts/render-diff/
 语料新增时：`mode` 必须显式声明，`guards` 必须写明守护 `packages/compiler/tests/` 里的哪条契约，
 否则 `validateCorpus` 会失败。
 
+## 已知且显式接受的分歧
+
+见 [KNOWN_DIVERGENCES.md](./KNOWN_DIVERGENCES.md)。
+
+目标明确要求「若某项无法达到约定的等价级别，停止并上报，**不得悄悄降低验收标准**」，
+因此**所有**接受的差异都必须登记在案，并说明为什么接受。差分语料与
+`real-docs-parity.mjs` 不覆盖这些形态。
+
 ## 运行
 
 ```bash

@@ -134,9 +134,24 @@ Rust 侧不复制 JS 实现，而是在**构建期**读取同一份源，从根�
 | `inline-and-cjk.mjs` | 行内语法、CJK 邻接边界（7 条 semantic） |
 | `blocks.mjs` | 标题 ID/去重/别名、嵌套标题、列表、表格、代码块、引用块 |
 | `plugins.mjs` | GFM Alert、`:::容器`、`==highlight==`、数学、mermaid |
-| `edge.mjs` | 空文档、frontmatter、围栏陷阱、组合文档；另含四组回归集：<br>`PARITY_GAP_FIXTURES`（首轮审计发现的 16 条缺口）<br>`REAL_WORLD_FIXTURES`（用仓库真实文档跑差分发现的 13 条边界）<br>`AUDIT_ROUND2_FIXTURES`（第二轮对抗性探测发现的 15 条，含嵌套锚点、定义行错位、相邻 `$$` 块、MDX 属性等）<br>`AUDIT_ROUND3_FIXTURES`（第三轮：`==**粗体**==` 等 6 种 highlight 嵌套、块级公式含空行、列表内 directive 等 12 条） |
+| `edge.mjs` | 空文档、frontmatter、围栏陷阱、组合文档；另含四组回归集：<br>`PARITY_GAP_FIXTURES`（首轮审计发现的 16 条缺口）<br>`REAL_WORLD_FIXTURES`（用仓库真实文档跑差分发现的 13 条边界）<br>`AUDIT_ROUND2_FIXTURES`（第二轮对抗性探测发现的 15 条，含嵌套锚点、定义行错位、相邻美元符块、MDX 属性等）<br>`AUDIT_ROUND3_FIXTURES`（第三轮：`==**粗体**==` 等 6 种 highlight 嵌套、块级公式含空行、列表内 directive 等 12 条） |
 
 每条 fixture 必须声明 `mode` 与 `guards`（守护 `packages/compiler/tests/` 的哪条契约），否则 `validateCorpus` 失败。
+
+### 4.2.1 已知且显式接受的分歧
+
+所有接受的差异登记在 `scripts/render-diff/KNOWN_DIVERGENCES.md`，逐条说明输入形态、
+两侧输出、接受理由与用户可见影响。
+
+当前只有两条：**相邻空美元符块**、以及**行内代码内容含连续美元符**（详见 KNOWN_DIVERGENCES.md）。前者接受理由是
+**TS 侧输出本身是坏 HTML**（`katex-error` 解析失败），在 Rust 侧复刻等于固化缺陷。
+该形态在实践中几乎不出现。
+
+后者的接受理由是 **TS 侧在行内代码的连续美元符前插入空格，篡改了用户内容**，
+在 Rust 侧复刻等于主动破坏用户文本。
+
+这两条登记是为了落实目标中「不得悄悄降低验收标准」的要求：宁可显式记录，
+也不让未记录的差异随绿测通过。
 
 ### 4.3 真实文档全量验证
 
@@ -155,7 +170,7 @@ Rust 侧不复制 JS 实现，而是在**构建期**读取同一份源，从根�
 | 未知小写标签 HTML 块被转义 | comrak 只认 CommonMark blockTags 白名单 |
 | BOM 后首行被识别为标题 | comrak 跳过 BOM，marked 不跳 |
 | 引用定义行被吞掉 | comrak 消费为链接定义，marked 输出为可见文本 |
-| `$$x$$` 行内形态 | comrak 识别为 display math，marked 按容器退化 |
+| 单行双美元符行内形态 | comrak 识别为 display math，marked 按容器退化 |
 | 行内代码 `:::info` 多空格 | 自定义扩展的 `start()` 命中行内位置 |
 | `name@version` 未自动链接 | comrak 要求域名含 `.` 且 TLD 为字母 |
 

@@ -506,6 +506,18 @@ export const AUDIT_ROUND3_FIXTURES = [
     markdown: "<Chart data={[1]} />\n",
   },
   {
+    id: "duplicate-link-definition",
+    mode: "byte",
+    guards: "定义行: 同 label 重复定义只保留第一条可见",
+    markdown: "[foo]: /u\n\n[foo]: /u",
+  },
+  {
+    id: "duplicate-footnote-definition",
+    mode: "byte",
+    guards: "定义行: 同 label 重复脚注定义只保留第一条可见",
+    markdown: "[^1]: note\n\n[^1]: note",
+  },
+  {
     id: "task-list-continuation-indent",
     mode: "byte",
     guards: "列表: 任务列表续行缩进基准是标记宽度（复选框不计入）",
