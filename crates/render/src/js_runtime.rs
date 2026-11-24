@@ -191,6 +191,22 @@ mod diagnostics {
         );
     }
 
+    /// 走完整渲染路径（含 `render_html` 的渲染线程）也必须高亮。
+    ///
+    /// 直接调用 `highlightjs_*` 走的是当前线程；`render_html` 会把渲染放到
+    /// 一个显式大栈的线程上。Windows CI 上出现过「直接调用正常、渲染结果却
+    /// 丢掉全部高亮」，因此这条断言专门覆盖跨线程这一步。
+    #[test]
+    fn render_html_highlights_unlabelled_fence() {
+        let markdown = "```\nconst answer = 42;\n```";
+        let html = crate::render_html(markdown, &crate::RenderOptions::default());
+        assert!(
+            html.contains("language-"),
+            "渲染结果缺少 language- 类名（highlightAuto 在渲染线程上失败）：{html}"
+        );
+        assert!(html.contains("hljs-"), "渲染结果缺少高亮 span：{html}");
+    }
+
     /// 自动检测必须报告语言。
     #[test]
     fn highlightjs_auto_detects_language() {
