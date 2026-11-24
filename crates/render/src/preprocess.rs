@@ -243,6 +243,25 @@ pub fn preprocess(original: &str) -> Preprocessed {
         // 因此这里把原文换成占位符（渲染时还原为可见文本），
         // 同时收集定义，稍后**在文末追加一份副本**供 comrak 消费。
         // 副本位于文档末尾，其自身不会产生可见输出（定义不渲染）。
+        // `[b]:` 单独一行、目标在下一行：comrak 会把两行合并成一个定义消费掉，
+        // 可见文本整段消失。TS 侧保留可见文本并解析引用，因此这里只保护第一行，
+        // 第二行按普通文本留在原位（两行同属一个段落），定义副本合并成一行注入。
+        if let Some(combined) = multiline_definition_target(body, lines.get(index + 1).copied()) {
+            let label = body.trim().to_string();
+            if seen_definitions.insert(format!("ref{label}")) {
+                let (prefix, content) = split_container_prefix(body);
+                let placeholder = inline_placeholder_for(&mut counter);
+                restore.push(restore_item(placeholder.clone(), content.to_string(), true));
+                definitions.push(combined);
+                out.push_str(prefix);
+                out.push_str(&placeholder);
+                if has_newline {
+                    out.push('\n');
+                }
+                continue;
+            }
+        }
+
         if is_reference_definition(body) {
             // 同一 label 的重复定义：marked 只保留第一条可见，其余被消费。
             let label = body.trim().split("]:").next().unwrap_or("").to_string();
@@ -655,8 +674,62 @@ fn is_reference_definition(line: &str) -> bool {
     if label.is_empty() || label.starts_with('^') {
         return false;
     }
-    let rest = trimmed[close + 2..].trim_start();
-    !rest.is_empty()
+    definition_target_is_valid(&trimmed[close + 2..])
+}
+
+/// 校验 `]:` 之后的部分是否符合 marked 的定义目标语法。
+///
+/// marked 的 def 正则要求：可选空格与最多一个换行后是 `<dest>` 或非空白串，
+/// 之后只能是行尾，或「空白 + 带引号/括号的标题」。
+/// 只判断「非空」会把 `[b]: /u v`、`[b]: /u |` 误判为定义——
+/// 随后注入的裸副本被 comrak 当成普通段落，在文首**重复输出一遍可见文本**。
+fn definition_target_is_valid(rest: &str) -> bool {
+    let mut cursor = rest;
+    // 行首空白
+    cursor = cursor.trim_start_matches([' ', '\t']);
+    // 最多一个换行 + 续行缩进（`[b]:\n  /u`）
+    if let Some(after) = cursor.strip_prefix('\n') {
+        cursor = after.trim_start_matches([' ', '\t']);
+        cursor = cursor.strip_suffix('\r').unwrap_or(cursor);
+    }
+
+    // 目标：`<...>` 或非空白串
+    if let Some(after) = cursor.strip_prefix('<') {
+        let Some(end) = after.find('>') else {
+            return false;
+        };
+        if end == 0 {
+            return false;
+        }
+        cursor = &after[end + 1..];
+    } else {
+        let length = cursor
+            .find(|c: char| c.is_whitespace() || c == '>')
+            .unwrap_or(cursor.len());
+        if length == 0 {
+            return false;
+        }
+        cursor = &cursor[length..];
+    }
+
+    // 之后只能是行尾，或「空白 + 标题」
+    if cursor.trim().is_empty() {
+        return true;
+    }
+    if !cursor.starts_with([' ', '\t', '\n']) {
+        return false;
+    }
+    let title = cursor.trim();
+    if title.len() < 2 {
+        return false;
+    }
+    let (open, close) = match title.chars().next() {
+        Some('"') => ('"', '"'),
+        Some('\'') => ('\'', '\''),
+        Some('(') => ('(', ')'),
+        _ => return false,
+    };
+    title.starts_with(open) && title.ends_with(close) && title.len() >= 2
 }
 
 /// 若整行只有一个开标签（`<tagname ...>` 后除空白外无内容），返回标签名。
@@ -933,10 +1006,9 @@ fn is_footnote_definition(line: &str) -> bool {
     let Some(rest) = trimmed.strip_prefix("[^") else {
         return false;
     };
-    let Some(close) = rest.find("]:") else {
-        return false;
-    };
-    close > 0
+    // comrak 把 `[^]:`（空 label）也当定义消费掉，整段静默消失。
+    // TS 侧则按普通段落输出，因此这里必须保护（label 为空时不登记为脚注目标）。
+    rest.find("]:").is_some()
 }
 
 #[cfg(test)]
@@ -1239,4 +1311,35 @@ fn inline_alert_marker_offset(line: &str) -> Option<usize> {
         return None;
     }
     Some(prefix_len + 1)
+}
+
+/// 识别「`[label]:` 在上一行、目标在下一行」的跨行定义。
+///
+/// 返回合并后的单行定义（`[b]: /u`），供 comrak 解析引用。
+/// 不返回可见文本：调用方保留原行，让两行按普通段落渲染。
+fn multiline_definition_target(line: &str, next: Option<&str>) -> Option<String> {
+    let (_, content) = split_container_prefix(line);
+    let trimmed = content.trim_start();
+    if content.len() - trimmed.len() > 3 {
+        return None;
+    }
+    let rest = trimmed.strip_prefix('[')?;
+    let close = rest.find("]:")?;
+    let label = &rest[..close];
+    if label.is_empty() || label.starts_with('^') {
+        return None;
+    }
+    // 本行必须在 `]:` 之后没有任何内容
+    if !rest[close + 2..].trim().is_empty() {
+        return None;
+    }
+    let next = next?;
+    if next.trim().is_empty() {
+        return None;
+    }
+    let target = next.trim();
+    if !definition_target_is_valid(target) {
+        return None;
+    }
+    Some(format!("[{}]: {}", label, target))
 }
