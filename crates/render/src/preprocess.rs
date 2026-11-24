@@ -321,7 +321,11 @@ pub fn preprocess(original: &str) -> Preprocessed {
         // 因此 TS 侧退化为普通引用块并保留字面 `[!NOTE]-`；
         // comrak 的 alerts 更宽松会识别为 callout。
         // 这里把 `!` 换成行内占位符，打断 comrak 的 alert 识别。
-        if let Some(marker_offset) = inline_alert_marker_offset(body, has_newline) {
+        let has_following_content = lines
+            .iter()
+            .skip(index + 1)
+            .any(|rest| !rest.trim().is_empty());
+        if let Some(marker_offset) = inline_alert_marker_offset(body, has_following_content) {
             let placeholder = inline_placeholder_for(&mut counter);
             restore.push(restore_item(placeholder.clone(), "!".to_string(), true));
             out.push_str(&body[..marker_offset]);
@@ -1382,7 +1386,7 @@ fn split_leading_frontmatter(markdown: &str) -> (&str, &str) {
 ///
 /// TS 的 callout 正则要求 `]` 之后是行尾或「空白 + 标题」；
 /// `> [!NOTE]-` 不满足，因此不能交给 comrak 的 alerts 扩展识别。
-fn inline_alert_marker_offset(line: &str, has_newline: bool) -> Option<usize> {
+fn inline_alert_marker_offset(line: &str, has_following_content: bool) -> Option<usize> {
     let trimmed = line.trim_start();
     let indent = line.len() - trimmed.len();
     // 允许引用块前缀
@@ -1447,8 +1451,9 @@ fn inline_alert_marker_offset(line: &str, has_newline: bool) -> Option<usize> {
         // 整个可选组匹配失败；两个及以上时第一个空白充当"标题"，反而能匹配成功。
         // 实测 `> [!NOTE] ` → 引用块，`> [!NOTE]  `（两个空格）→ callout。
         if after_close.chars().count() == 1 {
-            // 末行的单个尾随空白会被抹掉，只有后面还有内容时才不成立。
-            return has_newline.then_some(prefix_len + 1);
+            // 单个尾随空白只有在「后面真的还有内容」时才让标题捕获失败；
+            // 文档末尾（哪怕带一个换行）会被抹掉，仍然是 callout。
+            return has_following_content.then_some(prefix_len + 1);
         }
         return None;
     }
