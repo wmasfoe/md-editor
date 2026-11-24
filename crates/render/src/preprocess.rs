@@ -1442,10 +1442,15 @@ fn inline_alert_marker_offset(line: &str, has_newline: bool) -> Option<usize> {
         if !after_close.trim().is_empty() {
             return None;
         }
-        // 空白后为空：取决于后面还有没有内容。
-        // - 还有下一行（`> [!NOTE] \n> body`）：marked 的 `[^\r\n]+` 匹配失败 → 不是 callout；
-        // - 已是文档末行（`> [!NOTE] ` EOF）：marked 会裁掉末行尾随空白 → 是 callout。
-        return has_newline.then_some(prefix_len + 1);
+        // 尾随空白全是空白字符时，只有**恰好一个**才不是 callout。
+        // TS 正则的标题捕获是 `/^(?:[ \t]+([^\r\n]+))?/`：单个空白后没有字符可捕获，
+        // 整个可选组匹配失败；两个及以上时第一个空白充当"标题"，反而能匹配成功。
+        // 实测 `> [!NOTE] ` → 引用块，`> [!NOTE]  `（两个空格）→ callout。
+        if after_close.chars().count() == 1 {
+            // 末行的单个尾随空白会被抹掉，只有后面还有内容时才不成立。
+            return has_newline.then_some(prefix_len + 1);
+        }
+        return None;
     }
     Some(prefix_len + 1)
 }
