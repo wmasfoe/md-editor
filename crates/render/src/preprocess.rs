@@ -545,6 +545,8 @@ pub fn preprocess(original: &str) -> Preprocessed {
         combined
     };
 
+    let markdown = protect_table_delimiters(&markdown);
+
     Preprocessed { markdown, restore }
 }
 
@@ -1458,4 +1460,92 @@ fn inline_alert_marker_offset(line: &str, has_following_content: bool) -> Option
         return None;
     }
     Some(prefix_len + 1)
+}
+
+/// 给「没有首尾竖线」的表格分隔行补上竖线。
+///
+/// comrak 的块起始判定把「列表」排在「表格」之前：`a | b` 的下一行若是 `- | -`，
+/// 这一行会先被吃成列表项，`handle_table` 再也看不到它，整张表格退化成
+/// 「段落 + 列表」。marked 则正确识别为表格。
+///
+/// 分隔行写成 `| - | - |` 时行首不再是 `- ` 列表标记，comrak 就能走到表格分支；
+/// 而按 GFM，首尾竖线只是可选的边界分隔符，两种写法**列数完全相同**，
+/// 因此这个改写不改变任何输出语义。
+///
+/// 判定要求「与上一行的单元格数一致」，避免把普通列表/分隔线误当成分隔行。
+fn protect_table_delimiters(markdown: &str) -> String {
+    let lines: Vec<&str> = markdown.split('\n').collect();
+    let mut out = String::with_capacity(markdown.len() + lines.len());
+
+    for (index, line) in lines.iter().enumerate() {
+        let previous = index.checked_sub(1).map(|i| lines[i]).unwrap_or("");
+        let replaced = if line.trim_start().starts_with('|') {
+            None
+        } else {
+            table_delimiter_with_pipes(line, previous)
+        };
+        out.push_str(replaced.as_deref().unwrap_or(line));
+        if index + 1 < lines.len() {
+            out.push('\n');
+        }
+    }
+    out
+}
+
+/// 若该行是「列数与上一行一致」的表格分隔行，返回补上首尾竖线的版本。
+fn table_delimiter_with_pipes(line: &str, previous: &str) -> Option<String> {
+    let trimmed = line.trim();
+    if trimmed.is_empty() || !trimmed.contains('-') || !previous.contains('|') {
+        return None;
+    }
+    // 只处理由 `|`、`-`、`:`、空白组成的行
+    if !trimmed
+        .chars()
+        .all(|c| matches!(c, '|' | '-' | ':' | ' ' | '\t'))
+    {
+        return None;
+    }
+    let cells = split_table_cells(trimmed);
+    if cells.len() < 1 || cells.len() != split_table_cells(previous.trim()).len() {
+        return None;
+    }
+    for cell in &cells {
+        let cell = cell.trim();
+        let core = cell.trim_matches(':');
+        if core.is_empty() || !core.chars().all(|c| c == '-') {
+            return None;
+        }
+    }
+    let leading = line.len() - line.trim_start().len();
+    Some(format!("{}|{}|", " ".repeat(leading), trimmed))
+}
+
+/// 按未转义的 `|` 切分表格行，并丢弃首尾竖线产生的空片段。
+fn split_table_cells(line: &str) -> Vec<String> {
+    let mut cells: Vec<String> = Vec::new();
+    let mut current = String::new();
+    let mut escaped = false;
+    for ch in line.chars() {
+        match ch {
+            '\\' if !escaped => {
+                escaped = true;
+                current.push(ch);
+            }
+            '|' if !escaped => {
+                cells.push(std::mem::take(&mut current));
+            }
+            _ => {
+                escaped = false;
+                current.push(ch);
+            }
+        }
+    }
+    cells.push(current);
+    if cells.first().map(|c| c.trim().is_empty()).unwrap_or(false) {
+        cells.remove(0);
+    }
+    if cells.last().map(|c| c.trim().is_empty()).unwrap_or(false) {
+        cells.pop();
+    }
+    cells
 }
