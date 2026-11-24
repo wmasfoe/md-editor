@@ -1506,7 +1506,7 @@ fn table_delimiter_with_pipes(line: &str, previous: &str) -> Option<String> {
         return None;
     }
     let cells = split_table_cells(trimmed);
-    if cells.len() < 1 || cells.len() != split_table_cells(previous.trim()).len() {
+    if cells.is_empty() || cells.len() != split_table_cells(previous.trim()).len() {
         return None;
     }
     for cell in &cells {
