@@ -506,6 +506,48 @@ export const AUDIT_ROUND3_FIXTURES = [
     markdown: "<Chart data={[1]} />\n",
   },
   {
+    id: "empty-task-checkbox-item",
+    mode: "byte",
+    guards: "任务列表: 复选框后无内容时不是任务项（marked 要求 `[ ] +非空白`）",
+    markdown: "- [ ]\n- [x]",
+  },
+  {
+    id: "bare-ordered-marker",
+    mode: "byte",
+    guards: "列表: 裸 `1.`（无尾随空格）是空的有序列表项",
+    markdown: "1.\n\n2.",
+  },
+  {
+    id: "emphasis-triple-nesting",
+    mode: "byte",
+    guards: "强调: `***bold italic***` 等三层嵌套",
+    markdown: "***bi*** 与 **_bi_** 与 **a *b* c**",
+  },
+  {
+    id: "link-title-variants",
+    mode: "byte",
+    guards: "链接: 三种 title 引号与尖括号目标",
+    markdown: "[a](<b c>) [d](e \"t\") [f](g 'u')",
+  },
+  {
+    id: "fence-variant-lengths",
+    mode: "byte",
+    guards: "围栏: 不同长度与 info 空白的围栏",
+    markdown: "````\nx\n````\n\n```  js  \ny\n```",
+  },
+  {
+    id: "table-degenerate-forms",
+    mode: "byte",
+    guards: "表格: 缺 body / 单列 / 极简分隔行",
+    markdown: "| a |\n|---|\n\n|a|\n|-|\n|b|",
+  },
+  {
+    id: "entity-unknown-and-hex",
+    mode: "byte",
+    guards: "转义: 未知实体与十六进制实体不解码",
+    markdown: "&unknown; 与 &#x41; 与 &#65;",
+  },
+  {
     id: "definition-in-blockquote",
     mode: "byte",
     guards: "定义行: 引用块内的定义行作为可见文本，且引用仍可解析",

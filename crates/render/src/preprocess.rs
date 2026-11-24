@@ -281,6 +281,37 @@ pub fn preprocess(original: &str) -> Preprocessed {
             continue;
         }
 
+        // ---- 2.1) 裸有序列表标记 ----
+        //
+        // marked 把裸 `1.`（后面没有任何字符，连空格都没有）当作空的有序列表项，
+        // comrak 则要求标记后必须有分隔空白。补一个空格让它与 TS 一致。
+        if is_bare_ordered_marker(body) {
+            out.push_str(body);
+            out.push(' ');
+            if has_newline {
+                out.push('\n');
+            }
+            continue;
+        }
+
+        // ---- 2.15) 空复选框列表项 ----
+        //
+        // marked 的任务列表判定是 `^\[[ xX]\] +\S`：复选框后**必须**还有非空白内容。
+        // 因此 `- [ ]`（内容为空）在 TS 侧只是普通列表项，`[ ]` 是可见文本；
+        // comrak 的 tasklist 扩展则会把它识别成空的任务项。
+        // 这里把复选框保护成行内占位符，让它退化为普通文本。
+        if let Some(caps) = match_empty_checkbox_item(body) {
+            let (prefix, marker_text) = caps;
+            let placeholder = inline_placeholder_for(&mut counter);
+            restore.push(restore_item(placeholder.clone(), marker_text, true));
+            out.push_str(&prefix);
+            out.push_str(&placeholder);
+            if has_newline {
+                out.push('\n');
+            }
+            continue;
+        }
+
         // ---- 2.2) 脚注定义行 ----
         //
         // comrak 即使未启用 `footnotes` 也会把 `[^1]: …` 消费为定义（不产生输出），
@@ -934,4 +965,53 @@ mod tag_tests {
             Some("use_when".into())
         );
     }
+}
+
+/// 匹配「列表项只有空复选框」的形态，返回（行前缀, 复选框文本）。
+///
+/// 例：`- [ ]`、`  - [x] `、`1. [ ]`。marked 要求复选框后必须有非空白内容，
+/// 因此这些在 TS 侧不是任务项。
+fn match_empty_checkbox_item(line: &str) -> Option<(String, String)> {
+    let trimmed_end = line.trim_end();
+    let trimmed = trimmed_end.trim_start();
+    // 定位列表标记（含缩进）
+    let indent = trimmed_end.len() - trimmed.len();
+    let prefix_len =
+        if trimmed.starts_with("- ") || trimmed.starts_with("* ") || trimmed.starts_with("+ ") {
+            2
+        } else {
+            let digits = trimmed.chars().take_while(char::is_ascii_digit).count();
+            if digits > 0
+                && (trimmed[digits..].starts_with(". ") || trimmed[digits..].starts_with(") "))
+            {
+                digits + 2
+            } else {
+                return None;
+            }
+        };
+    let after_marker = &trimmed[prefix_len..];
+    // 复选框本身必须是**唯一**内容
+    let marker_text = after_marker.trim_end();
+    if marker_text != "[ ]" && marker_text != "[x]" && marker_text != "[X]" {
+        return None;
+    }
+    Some((
+        trimmed_end[..indent + prefix_len].to_string(),
+        marker_text.to_string(),
+    ))
+}
+
+/// 是否为「裸有序列表标记」（`1.` / `2)`，其后没有任何字符）。
+fn is_bare_ordered_marker(line: &str) -> bool {
+    let trimmed = line.trim_start();
+    let indent = line.len() - trimmed.len();
+    if indent > 3 {
+        return false;
+    }
+    let digits = trimmed.chars().take_while(char::is_ascii_digit).count();
+    if digits == 0 {
+        return false;
+    }
+    let after = &trimmed[digits..];
+    after == "." || after == ")"
 }
