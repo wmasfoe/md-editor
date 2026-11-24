@@ -147,9 +147,59 @@ pub fn highlightjs_supports(language: &str) -> bool {
 pub fn highlightjs_highlight_auto(code: &str) -> Result<(String, String), JsError> {
     let quoted_code =
         serde_json::to_string(code).map_err(|error| JsError::Eval(error.to_string()))?;
-    let html = eval_string(&format!("hljs.highlightAuto({quoted_code}).value"))?;
-    let language = eval_string(&format!(
-        "hljs.highlightAuto({quoted_code}).language || \"\""
+    // 一次调用同时取回 html 与检测到的语言。
+    // 早期实现调用了两遍 `highlightAuto`（一次 `.value`、一次 `.language`），
+    // 每次都会跑一遍全语言扫描，开销翻倍——在 Windows 上实测直接失败，
+    // 高亮被静默降级成纯文本。
+    let result = eval_string(&format!(
+        "(function(){{var r=hljs.highlightAuto({quoted_code});\
+         return JSON.stringify([r.value, r.language || \"\"]);}})()"
     ))?;
+    let parsed: Vec<String> = serde_json::from_str(&result)
+        .map_err(|error| JsError::Eval(format!("highlightAuto 返回值无法解析：{error}")))?;
+    let mut iter = parsed.into_iter();
+    let html = iter.next().unwrap_or_default();
+    let language = iter.next().unwrap_or_default();
     Ok((html, language))
+}
+
+#[cfg(test)]
+mod diagnostics {
+    /// 语言注册表是否真的加载了。
+    ///
+    /// Windows CI 上曾出现「高亮全部失效、只保留 `hljs` 类名」，但 macOS/Linux 正常。
+    /// 这条断言把问题定位到「注册表为空」还是「highlightAuto 返回异常」，
+    /// 而不是让上层静默降级成纯文本。
+    #[test]
+    fn highlightjs_registers_common_languages() {
+        for language in ["javascript", "css", "python", "rust", "json"] {
+            assert!(
+                super::highlightjs_supports(language),
+                "highlight.js 未注册语言 `{language}`，说明嵌入的 JS 资产没有正确加载"
+            );
+        }
+    }
+
+    /// 显式语言高亮必须产出 span。
+    #[test]
+    fn highlightjs_produces_highlight_spans() {
+        let html = super::highlightjs_highlight("const a = 1;", "javascript")
+            .expect("highlight() 调用失败");
+        assert!(
+            html.contains("hljs-"),
+            "高亮结果不含任何 hljs- 类名：{html}"
+        );
+    }
+
+    /// 自动检测必须报告语言。
+    #[test]
+    fn highlightjs_auto_detects_language() {
+        let (html, language) = super::highlightjs_highlight_auto("function f() { return 1; }")
+            .expect("highlightAuto 失败");
+        assert!(!language.is_empty(), "highlightAuto 未检测出语言：{html}");
+        assert!(
+            html.contains("hljs-"),
+            "自动高亮结果不含 hljs- 类名：{html}"
+        );
+    }
 }
