@@ -71,6 +71,16 @@ function stripWhitespace(value) {
 
 const KNOWN_DIVERGENCE_PATTERNS = [
   {
+    id: "KD-3",
+    // 两个 `$$` 块被其他内容隔开：TS 会把中间内容吞进公式块。
+    // 特征：TS 侧 `math-display` 块内含有非公式文本（如 `---`、代码围栏）。
+    test: (tsText, rustText) =>
+      !rustText.includes("math-display") ||
+      (rustText.match(/math-display/g) ?? []).length !==
+        (tsText.match(/math-display/g) ?? []).length,
+    note: "TS 把两个 `$$` 之间的内容吞进公式块（结构性丢内容），Rust 保留结构",
+  },
+  {
     id: "KD-2",
     // TS 在行内代码的连续美元符前插入空格（篡改内容）；Rust 原样输出。
     // 注意：仓库文档已刻意避免该写法，因此通常不会命中；保留登记是为了

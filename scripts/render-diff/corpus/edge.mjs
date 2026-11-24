@@ -506,6 +506,24 @@ export const AUDIT_ROUND3_FIXTURES = [
     markdown: "<Chart data={[1]} />\n",
   },
   {
+    id: "frontmatter-requires-trailing-newline",
+    mode: "byte",
+    guards: "frontmatter: 闭合 `---` 无尾随换行时不构成 frontmatter",
+    markdown: "---\ntitle: x\n---",
+  },
+  {
+    id: "frontmatter-empty-content-not-frontmatter",
+    mode: "byte",
+    guards: "frontmatter: `---\\n---` 内容为空时是两条分隔线",
+    markdown: "---\n---\n\npara",
+  },
+  {
+    id: "definition-after-frontmatter",
+    mode: "byte",
+    guards: "定义行: 定义副本插入不得破坏开头的 frontmatter",
+    markdown: "---\n\n---\n\n[foo]: /u\n\npara",
+  },
+  {
     id: "empty-task-checkbox-item",
     mode: "byte",
     guards: "任务列表: 复选框后无内容时不是任务项（marked 要求 `[ ] +非空白`）",

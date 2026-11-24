@@ -198,13 +198,14 @@ pub fn preprocess(original: &str) -> Preprocessed {
 
         // ---- 0.5) 伪 frontmatter ----
         //
-        // comrak 会把 `---\n\n---` 当作 frontmatter（内容为空）并整体吞掉；
-        // TS（marked 的前置检查）要求 frontmatter 内容非空且不含空行，
-        // 因此该形态在 TS 侧是两条分隔线。用块级占位符还原为 `<hr />`。
-        if index == 0
-            && body.trim() == "---"
-            && lines.get(1).map(|l| l.trim().is_empty()) == Some(true)
-        {
+        // TS（marked 侧的前置检查）判定 frontmatter 需要同时满足：
+        // 1. 闭合 `---` 与开围栏之间**内容非空**（`---\n---` 不是 frontmatter）；
+        // 2. 闭合 `---` 之后必须跟换行（`---\ntitle: x\n---` 结尾无换行时不是）。
+        //
+        // comrak 的条件更宽松，会把这两种形态都当 frontmatter 吞掉。
+        // 因此这里识别「不满足 TS 条件」的情形，把开围栏保护成 `<hr />`，
+        // 让 comrak 看不到 frontmatter。
+        if index == 0 && pseudo_frontmatter(&lines) {
             let placeholder = placeholder_for(&mut counter);
             restore.push(restore_item(
                 placeholder.clone(),
@@ -212,9 +213,9 @@ pub fn preprocess(original: &str) -> Preprocessed {
                 false,
             ));
             out.push_str(&placeholder);
-            if has_newline {
-                out.push('\n');
-            }
+            // 后续若是 `---` 或段落，必须用空行终止这个块级占位符，
+            // 否则 comrak 会把它们并进同一个 HtmlBlock（实测 `---\n---` 被吞）。
+            out.push_str("\n\n");
             continue;
         }
 
@@ -501,19 +502,21 @@ pub fn preprocess(original: &str) -> Preprocessed {
         out
     } else {
         let mut combined = String::with_capacity(out.len() + definitions.len() * 48);
+        // frontmatter 必须在**文档最开头**，否则 comrak 不再识别它
+        // （实测 `---\n\n---\n\n[foo]: /u` 因定义副本前置而退化成两条分隔线）。
+        // 因此定义副本插入到 frontmatter 块之后。
+        let (frontmatter, body) = split_leading_frontmatter(&out);
+        combined.push_str(frontmatter);
         // 定义行必须是「裸」的才能被 comrak 解析为链接定义（放进 HTML 注释无效）。
-        // 放在文档最前、后面紧跟占位符（中间不空行），comrak 会消费掉定义、
-        // 只渲染占位符，因此不产生可见文本。
         for definition in &definitions {
             combined.push_str(definition);
             combined.push('\n');
         }
         // 定义行后若紧跟表格/HTML，comrak 会把定义行当成段落。
-        // 用 HTML 注释隔开（会被 restore_placeholders 清除），
-        // 既保证定义被消费、又不产生可见文本。
+        // 用 HTML 注释隔开（会被 restore_placeholders 清除）。
         combined.push_str("<!--md-def-sep-->");
         combined.push('\n');
-        combined.push_str(&out);
+        combined.push_str(body);
         combined
     };
 
@@ -1001,6 +1004,37 @@ fn match_empty_checkbox_item(line: &str) -> Option<(String, String)> {
     ))
 }
 
+/// 文档开头的 `---…---` 是否**不满足** TS 的 frontmatter 条件。
+///
+/// 对应两种情形：
+/// - 闭合 `---` 紧接开围栏（内容为空）：`---\n---`
+/// - 闭合 `---` 位于文档末尾且无尾随换行：`---\ntitle: x\n---`
+fn pseudo_frontmatter(lines: &[&str]) -> bool {
+    let Some(first) = lines.first() else {
+        return false;
+    };
+    if first.trim_end_matches(['\n', '\r']) != "---" {
+        return false;
+    }
+    // 找闭合行
+    for (offset, raw) in lines.iter().enumerate().skip(1) {
+        let line = raw.trim_end_matches(['\n', '\r']);
+        if line == "---" {
+            // 情形 1：闭合紧接开围栏
+            if offset == 1 {
+                return true;
+            }
+            // 情形 2：闭合是最后一行且没有尾随换行
+            let is_last = offset + 1 == lines.len();
+            if is_last && !raw.ends_with('\n') {
+                return true;
+            }
+            return false;
+        }
+    }
+    false
+}
+
 /// 是否为「裸有序列表标记」（`1.` / `2)`，其后没有任何字符）。
 fn is_bare_ordered_marker(line: &str) -> bool {
     let trimmed = line.trim_start();
@@ -1014,4 +1048,29 @@ fn is_bare_ordered_marker(line: &str) -> bool {
     }
     let after = &trimmed[digits..];
     after == "." || after == ")"
+}
+
+/// 切出文档开头的 frontmatter 块（含结尾换行），返回（frontmatter, 其余内容）。
+///
+/// 不是 frontmatter 时返回（空串, 全文）。
+fn split_leading_frontmatter(markdown: &str) -> (&str, &str) {
+    if !markdown.starts_with("---\n") {
+        return ("", markdown);
+    }
+    let mut offset = 4;
+    while offset <= markdown.len() {
+        let line_end = markdown[offset..]
+            .find('\n')
+            .map(|index| offset + index)
+            .unwrap_or(markdown.len());
+        if markdown[offset..line_end].trim_end_matches('\r') == "---" {
+            let end = (line_end + 1).min(markdown.len());
+            return markdown.split_at(end);
+        }
+        if line_end >= markdown.len() {
+            break;
+        }
+        offset = line_end + 1;
+    }
+    ("", markdown)
 }
