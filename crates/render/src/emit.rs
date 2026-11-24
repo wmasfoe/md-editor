@@ -1755,6 +1755,16 @@ fn list_continuation_padding<'a>(node: &'a AstNode<'a>, source: &SourceText<'_>)
     let position = node.data.borrow().sourcepos;
     let container = parent.parent()?;
 
+    // 只在**松散**列表里补：tight 列表的续行由 marked 直接拼接、不补空格
+    // （实测 `   - **入口**：\n     ```…```\n     说明` 的 `说明` 无前导空格）。
+    if let Some(list) = container.parent() {
+        if let NodeValue::List(list_data) = &list.data.borrow().value {
+            if list_data.tight {
+                return None;
+            }
+        }
+    }
+
     // 情况 A：段落直接在列表项内（comrak 的常规结构）
     if matches!(
         container.data.borrow().value,
@@ -1791,10 +1801,6 @@ fn list_continuation_padding<'a>(node: &'a AstNode<'a>, source: &SourceText<'_>)
     // 不能用「段落自身的起始列」作基准：段落的 sourcepos 已包含缩进
     // （`- a\n- b\n\n    indented` 的段落列是 5），相减恒为 0。
     // 列表项内容列 = 列表项首个子节点的起始列（`- a` 时是 3）。
-    let content_column = container
-        .first_child()
-        .map(|child| child.data.borrow().sourcepos.start.column)
-        .unwrap_or_else(|| container.data.borrow().sourcepos.start.column);
     // 用「行首空白数」而非列号（列号会被 `\*` 这类转义字符影响）。
     let line_start = source.markdown[..source.offset(position.start)]
         .rfind('\n')
@@ -1804,7 +1810,43 @@ fn list_continuation_padding<'a>(node: &'a AstNode<'a>, source: &SourceText<'_>)
         source.markdown[line_start..].len() - source.markdown[line_start..].trim_start().len();
     // 基准 = 列表项内容列的 0 基偏移（`- a` 时内容列是 3，基准 2；
     // `   - **x**` 时内容列是 6，基准 5）。用列差作基准会在嵌套/缩进列表里算错。
-    let base = content_column.saturating_sub(1);
+    // 基准 = 列表标记宽度（`- ` = 2，`1. ` = 3）。
+    //
+    // 不能用内容列作基准：任务列表项 `- [ ] t` 的内容列是 7（复选框也算内容），
+    // 会让基准虚高、padding 恒为 0（实测 `- [ ] t\n- [x] d\n\n    indented`
+    // 的续行未补空格）。标记宽度 = 段落首个非复选框文本的列 − 1 不可靠，
+    // 直接用「列表项起始列 + 标记长度」推算：标记长度取自 item 首行原文。
+    let item_line = {
+        let item_pos = container.data.borrow().sourcepos;
+        let start = source.offset(item_pos.start);
+        source.markdown[start..]
+            .split('\n')
+            .next()
+            .unwrap_or("")
+            .to_string()
+    };
+    let marker_width = list_marker_width_from_line(&item_line);
+    let base = marker_width;
     let padding = indent.saturating_sub(base);
     (padding > 0).then_some(padding)
+}
+
+/// 从列表项首行推算标记宽度（`- ` → 2，`1. ` → 3，`- [ ] ` → 2）。
+///
+/// 任务列表的复选框属于**内容**，不计入标记宽度——这一点是 TS 与 comrak
+/// 都一致的语义，也是续行缩进的基准。
+fn list_marker_width_from_line(line: &str) -> usize {
+    let indent = line.len() - line.trim_start().len();
+    let trimmed = line.trim_start();
+    if trimmed.starts_with("- ") || trimmed.starts_with("* ") || trimmed.starts_with("+ ") {
+        return indent + 2;
+    }
+    let digits = trimmed.chars().take_while(char::is_ascii_digit).count();
+    if digits > 0 {
+        let after = &trimmed[digits..];
+        if after.starts_with(". ") || after.starts_with(") ") {
+            return indent + digits + 2;
+        }
+    }
+    indent + 2
 }

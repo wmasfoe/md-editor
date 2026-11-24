@@ -112,7 +112,10 @@ pub fn split_directives(markdown: &str) -> Vec<Segment<'_>> {
             // 未闭合：不是 directive，按普通文本继续。
         }
 
-        at_block_boundary = stripped.trim().is_empty();
+        // 定义副本与分隔注释不构成「内容块」，其后仍算块边界。
+        at_block_boundary = stripped.trim().is_empty()
+            || stripped.starts_with("<!--md-def")
+            || stripped.starts_with("[") && stripped.contains("]:") && !stripped.starts_with("[^");
         if line_end >= markdown.len() {
             break;
         }

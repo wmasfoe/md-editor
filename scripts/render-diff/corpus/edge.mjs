@@ -506,6 +506,24 @@ export const AUDIT_ROUND3_FIXTURES = [
     markdown: "<Chart data={[1]} />\n",
   },
   {
+    id: "task-list-continuation-indent",
+    mode: "byte",
+    guards: "列表: 任务列表续行缩进基准是标记宽度（复选框不计入）",
+    markdown: "- [ ] t\n- [x] d\n\n    indented",
+  },
+  {
+    id: "tight-list-continuation-no-pad",
+    mode: "byte",
+    guards: "列表: tight 列表的续行不补前导空格",
+    markdown: "   - **入口**：\n     ```bash\n     cmd\n     ```\n     说明文字",
+  },
+  {
+    id: "directive-after-definition",
+    mode: "byte",
+    guards: "Directive: 定义副本位于文档开头时 directive 仍被识别",
+    markdown: ":::tip\nx\n:::\n\n[foo]: /u",
+  },
+  {
     id: "list-continuation-nested-item",
     mode: "byte",
     guards: "列表: 嵌套/缩进列表项内的续行缩进基准是「内容列 − 1」",

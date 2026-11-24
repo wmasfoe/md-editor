@@ -83,31 +83,3 @@ impl RenderOptions {
 pub fn render_html(markdown: &str, options: &RenderOptions) -> String {
     emit::render(markdown, options)
 }
-
-/// 诊断用：暴露预处理结果。
-pub fn debug_preprocess(markdown: &str) -> (String, Vec<(String, String, bool)>) {
-    let p = preprocess::preprocess(markdown);
-    (
-        p.markdown,
-        p.restore
-            .into_iter()
-            .map(|i| (i.placeholder, i.literal, i.escape))
-            .collect(),
-    )
-}
-
-/// 诊断用：暴露 directive 分段结果。
-pub fn debug_split_directives(markdown: &str) -> Vec<String> {
-    directive::split_directives(markdown)
-        .into_iter()
-        .map(|segment| match segment {
-            directive::Segment::Markdown(text) => format!("Markdown({text:?})"),
-            directive::Segment::Directive {
-                kind,
-                title,
-                body,
-                in_list_item,
-            } => format!("Directive({kind}, {title:?}, {body:?}, list={in_list_item})"),
-        })
-        .collect()
-}
