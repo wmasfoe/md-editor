@@ -253,6 +253,7 @@ pub fn preprocess(original: &str) -> Preprocessed {
             //   1) 一个 HTML 注释形式的定义副本（供 comrak 解析引用，渲染时不可见）
             //   2) 一个行内占位符（渲染时还原为该行的可见文本）
             // 顺序上注释在前，保证定义先生效。
+            let (prefix, content) = split_container_prefix(body);
             let placeholder = inline_placeholder_for(&mut counter);
             // 段落文本的尾换行由后续内容决定：只有本行是文档最后一行时
             // TS 才保留它（`[foo]: /u\n` → `<p>[foo]: /u\n</p>`）。
@@ -261,14 +262,18 @@ pub fn preprocess(original: &str) -> Preprocessed {
                 .skip(index + 1)
                 .all(|rest| rest.trim().is_empty());
             let literal = if has_newline && is_last_line {
-                format!("{body}\n")
+                format!("{content}\n")
             } else {
-                body.to_string()
+                content.to_string()
             };
             restore.push(restore_item(placeholder.clone(), literal, true));
-            // 原位只留占位符（渲染为可见文本）；
+            // 容器前缀必须原样保留。
+            out.push_str(prefix);
             // 定义副本收集到 definitions，稍后统一放到文档开头供 comrak 解析。
-            definitions.push(body.trim().to_string());
+            // 定义副本必须**去掉容器前缀**：它只是供 comrak 解析引用用的
+            // 顶层裸定义行（不产生可见输出）。若保留 `> ` / `- ` 前缀，
+            // 它会变成额外的空 blockquote / 空列表项（实测出现重复容器）。
+            definitions.push(content.trim().to_string());
             out.push_str(&placeholder);
             if has_newline {
                 out.push('\n');
@@ -285,17 +290,20 @@ pub fn preprocess(original: &str) -> Preprocessed {
             if !seen_definitions.insert(body.trim().to_string()) {
                 continue;
             }
+            let (prefix, content) = split_container_prefix(body);
             let placeholder = inline_placeholder_for(&mut counter);
             let is_last_line = lines
                 .iter()
                 .skip(index + 1)
                 .all(|rest| rest.trim().is_empty());
             let literal = if has_newline && is_last_line {
-                format!("{body}\n")
+                format!("{content}\n")
             } else {
-                body.to_string()
+                content.to_string()
             };
             restore.push(restore_item(placeholder.clone(), literal, true));
+            // 容器前缀必须原样保留，comrak 才会把它算进同一个容器。
+            out.push_str(prefix);
             out.push_str(&placeholder);
             if has_newline {
                 out.push('\n');
@@ -514,9 +522,51 @@ fn inline_placeholder_for(counter: &mut usize) -> String {
 /// 对齐 marked 的 `def` 规则：行首最多 3 个空格 + `[label]:` + 非空目标。
 /// 注意 TS 侧**保留**这些行作为可见文本，因此这里只是把它们保护成占位符，
 /// 最终仍原样输出。
+/// 剥离行首的容器标记（引用块 `>` 与列表标记），返回（前缀, 剩余内容）。
+///
+/// 容器内的定义行（`> [foo]: /u`、`- [foo]: /u`）在 TS 侧同样是**可见文本**，
+/// 因此判定定义前必须先剥掉这些前缀，输出时再把前缀接回去。
+fn split_container_prefix(line: &str) -> (&str, &str) {
+    let mut rest = line;
+    loop {
+        let trimmed = rest.trim_start();
+        let lead = rest.len() - trimmed.len();
+        // 引用块标记
+        if let Some(after) = trimmed.strip_prefix('>') {
+            let after = after.strip_prefix([' ', '\t']).unwrap_or(after);
+            rest = after;
+            continue;
+        }
+        // 列表标记（`- ` / `* ` / `+ ` / `1. `）
+        let bullet_len = if trimmed.starts_with("- ")
+            || trimmed.starts_with("* ")
+            || trimmed.starts_with("+ ")
+        {
+            Some(2)
+        } else {
+            let digits = trimmed.chars().take_while(char::is_ascii_digit).count();
+            if digits > 0
+                && (trimmed[digits..].starts_with(". ") || trimmed[digits..].starts_with(") "))
+            {
+                Some(digits + 2)
+            } else {
+                None
+            }
+        };
+        if let Some(len) = bullet_len {
+            // 只有 lead 很小（顶层容器）时才剥；嵌套缩进交给调用方
+            let _ = lead;
+            rest = &trimmed[len..];
+            continue;
+        }
+        return (line.split_at(line.len() - rest.len()).0, rest);
+    }
+}
+
 fn is_reference_definition(line: &str) -> bool {
-    let trimmed = line.trim_start();
-    let indent = line.len() - trimmed.len();
+    let (_, content) = split_container_prefix(line);
+    let trimmed = content.trim_start();
+    let indent = content.len() - trimmed.len();
     if indent > 3 || !trimmed.starts_with('[') {
         return false;
     }
@@ -798,8 +848,9 @@ fn is_list_item_line(line: &str) -> bool {
 
 /// 是否为脚注定义行（`[^label]: …`）。
 fn is_footnote_definition(line: &str) -> bool {
-    let trimmed = line.trim_start();
-    let indent = line.len() - trimmed.len();
+    let (_, content) = split_container_prefix(line);
+    let trimmed = content.trim_start();
+    let indent = content.len() - trimmed.len();
     if indent > 3 {
         return false;
     }

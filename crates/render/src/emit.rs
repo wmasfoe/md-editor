@@ -436,13 +436,20 @@ fn build_block<'a>(
                     return;
                 }
                 DisplayMath::SingleLineText(literal) => {
-                    // JS 侧（marked 自定义扩展）对单行 `$$x$$` 的处理是：
-                    // 既不构成块级数学（math_block 要求 `$$` 后紧跟换行），
-                    // 也不构成行内数学（math_inline 要求单个 `$`），
-                    // 最终输出为纯文本，且两个 `$$` 之间被插入一个换行。
-                    out.push(Block::Paragraph(vec![Inline::Text(format!(
-                        "$${literal}\n$$"
-                    ))]));
+                    // 单行 `$$x$$` 在 TS 侧有两种归宿（按容器区分）：
+                    // - 列表项 / 表格单元格内 → `$` + 行内数学 + `$`
+                    // - 段落 / 引用块内 → 字面量 `$$x\n$$`
+                    if in_math_shorthand_container(node) {
+                        out.push(Block::Paragraph(vec![
+                            Inline::Text("$".to_string()),
+                            Inline::Math(literal),
+                            Inline::Text("$".to_string()),
+                        ]));
+                    } else {
+                        out.push(Block::Paragraph(vec![Inline::Text(format!(
+                            "$${literal}\n$$"
+                        ))]));
+                    }
                     return;
                 }
                 DisplayMath::None => {}
@@ -618,10 +625,30 @@ fn build_block<'a>(
             // | 隔一个及以上空行 | 去掉 |
             //
             // 因此「去掉」的条件是：后面仍有内容 **且** 中间存在空行。
+            // 列表项内的 Html 块一律去掉尾换行：`</li>`（或块内下一块）紧跟其后
+            // （实测 `1. <div>x</div>` → `<li><div>x</div></li>`，即使后面还有段落，
+            // 也是 `<div>x</div><p>more</p>`，中间无换行）。
+            let inside_list_item = {
+                let mut cur = node.parent();
+                let mut found = false;
+                while let Some(parent) = cur {
+                    if matches!(
+                        parent.data.borrow().value,
+                        NodeValue::Item(_) | NodeValue::TaskItem(_)
+                    ) {
+                        found = true;
+                        break;
+                    }
+                    cur = parent.parent();
+                }
+                found
+            };
+
             let end_line = node.data.borrow().sourcepos.end.line;
             let remaining: Vec<&str> = source.markdown.lines().skip(end_line).collect();
-            let has_next_block = !remaining.is_empty()
-                && remaining.first().map(|line| line.trim().is_empty()) == Some(true);
+            let has_next_block = inside_list_item
+                || (!remaining.is_empty()
+                    && remaining.first().map(|line| line.trim().is_empty()) == Some(true));
             out.push(Block::Html {
                 literal: html.literal.clone(),
                 tight_to_next: has_next_block,
@@ -902,6 +929,16 @@ fn build_inline<'a>(node: &'a AstNode<'a>, source: &SourceText<'_>, out: &mut Ve
                 return;
             }
 
+            // 容器（列表项 / 表格单元格）内的单行 `$$x$$`：TS 的 math_inline
+            // 从第二个 `$` 开始匹配，得到 `$` + 行内数学 + `$`（外面那个 `$` 是字面量）。
+            // comrak 在容器里把它当纯文本，因此这里手动展开。
+            if in_math_shorthand_container(node) {
+                if let Some(expanded) = expand_single_line_display(&text) {
+                    out.extend(expanded);
+                    return;
+                }
+            }
+
             // comrak 会把 `&copy;` 解码成 `©`、`&amp;` 解码成 `&`；TS 侧不解码实体
             // （`&copy;` 输出 `&amp;copy;`，页面上显示字面量 `&copy;`）。
             // 可见文本不同属于字节级差异，因此按 sourcepos 回查源码原文。
@@ -1016,7 +1053,7 @@ fn build_inline<'a>(node: &'a AstNode<'a>, source: &SourceText<'_>, out: &mut Ve
                     .and_then(|rest| rest.strip_suffix("$$"))
                     .unwrap_or(raw);
 
-                if in_list_item(node) {
+                if in_math_shorthand_container(node) {
                     out.push(Inline::Text("$".to_string()));
                     out.push(Inline::Math(body.to_string()));
                     out.push(Inline::Text("$".to_string()));
@@ -1685,23 +1722,6 @@ fn emit_text_with_autolinks(text: &str, out: &mut String) {
     }
 }
 
-/// 节点是否位于列表项内。
-///
-/// marked 对 `$$x$$`（单行 display math）在不同容器下的处理不同：
-/// - 列表项内 → 退化为 `$` + 行内数学 + `$`
-/// - 段落 / 引用块 → 作为字面量输出并插入换行
-fn in_list_item<'a>(node: &'a AstNode<'a>) -> bool {
-    let mut current = node.parent();
-    while let Some(parent) = current {
-        let value = parent.data.borrow().value.clone();
-        if matches!(value, NodeValue::Item(_) | NodeValue::TaskItem(_)) {
-            return true;
-        }
-        current = parent.parent();
-    }
-    false
-}
-
 /// 收集段落内所有 display math 的字面量（用于「相邻块级公式被合并」的场景）。
 ///
 /// 仅当段落**只由** display math 与空白文本构成时才返回；否则返回空，
@@ -1849,4 +1869,65 @@ fn list_marker_width_from_line(line: &str) -> usize {
         }
     }
     indent + 2
+}
+
+/// 节点是否位于「`$$x$$` 会被展开为行内数学」的容器内（列表项或表格单元格）。
+///
+/// TS 的规则（实测）：
+/// - `$$x$$`（段落/引用块）→ 字面量 `$$x\n$$`
+/// - `- $$x$$`、表格单元格内 → `$` + 行内数学 + `$`
+fn in_math_shorthand_container<'a>(node: &'a AstNode<'a>) -> bool {
+    let mut current = node.parent();
+    while let Some(parent) = current {
+        let value = parent.data.borrow().value.clone();
+        if matches!(
+            value,
+            NodeValue::Item(_) | NodeValue::TaskItem(_) | NodeValue::TableCell
+        ) {
+            return true;
+        }
+        // 遇到块级容器（段落之外的块）就停止向上查找
+        current = parent.parent();
+    }
+    false
+}
+
+/// 把文本里的 `$$内容$$` 展开为 `$` + 行内数学 + `$`。
+///
+/// 返回 `None` 表示文本里没有该形态（调用方继续走普通路径）。
+fn expand_single_line_display(text: &str) -> Option<Vec<Inline>> {
+    if !text.contains("$$") {
+        return None;
+    }
+    let mut out = Vec::new();
+    let mut rest = text;
+    let mut expanded = false;
+
+    while let Some(start) = rest.find("$$") {
+        let after_open = &rest[start + 2..];
+        let Some(close) = after_open.find("$$") else {
+            break;
+        };
+        let body = &after_open[..close];
+        // 内容为空或含换行时不展开（保持字面量）
+        if body.is_empty() || body.contains('\n') {
+            break;
+        }
+        if start > 0 {
+            out.push(Inline::Text(rest[..start].to_string()));
+        }
+        out.push(Inline::Text("$".to_string()));
+        out.push(Inline::Math(body.to_string()));
+        out.push(Inline::Text("$".to_string()));
+        expanded = true;
+        rest = &after_open[close + 2..];
+    }
+
+    if !expanded {
+        return None;
+    }
+    if !rest.is_empty() {
+        out.push(Inline::Text(rest.to_string()));
+    }
+    Some(out)
 }

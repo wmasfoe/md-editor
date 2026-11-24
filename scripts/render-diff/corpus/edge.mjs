@@ -506,6 +506,48 @@ export const AUDIT_ROUND3_FIXTURES = [
     markdown: "<Chart data={[1]} />\n",
   },
   {
+    id: "definition-in-blockquote",
+    mode: "byte",
+    guards: "定义行: 引用块内的定义行作为可见文本，且引用仍可解析",
+    markdown: "> [foo]: /u\n\n[foo]",
+  },
+  {
+    id: "definition-in-list-item",
+    mode: "byte",
+    guards: "定义行: 列表项内的定义行作为可见文本",
+    markdown: "- [foo]: /u\n\n[foo]",
+  },
+  {
+    id: "footnote-definition-in-blockquote",
+    mode: "byte",
+    guards: "定义行: 引用块内的脚注定义",
+    markdown: "> [^1]: n",
+  },
+  {
+    id: "math-shorthand-in-list-item",
+    mode: "byte",
+    guards: "数学: 列表项内的 `$$x$$` 展开为 `$` + 行内数学 + `$`",
+    markdown: "- $$x$$",
+  },
+  {
+    id: "math-shorthand-in-table-cell",
+    mode: "byte",
+    guards: "数学: 表格单元格内的 `$$x$$` 展开为行内数学",
+    markdown: "| h |\n| --- |\n| $$x$$ |",
+  },
+  {
+    id: "math-shorthand-in-paragraph-stays-literal",
+    mode: "byte",
+    guards: "数学: 段落内的 `$$x$$` 保持字面量（与列表/表格区分）",
+    markdown: "$$x$$",
+  },
+  {
+    id: "html-block-inside-list-item",
+    mode: "byte",
+    guards: "HTML 块: 列表项内的 Html 块去掉尾换行",
+    markdown: "1. <div>x</div>\n2. b",
+  },
+  {
     id: "duplicate-link-definition",
     mode: "byte",
     guards: "定义行: 同 label 重复定义只保留第一条可见",
