@@ -1251,27 +1251,7 @@ fn build_raw_inlines<'a>(node: &'a AstNode<'a>, source: &SourceText<'_>) -> Vec<
             // marked 则保留缩进（`- a\n b` → `<li>a\n b</li>`）。
             // 规则实测（见 lists lane）：缩进 ≥ 列表项内容缩进时减去内容缩进，
             // 否则原样保留；顶层段落（无列表祖先）内容缩进视为 0，即原样保留。
-            let leading = children
-                .get(index + 1)
-                .map(|next| {
-                    let start = next.data.borrow().sourcepos.start;
-                    let line_start = source.line_start(start.line);
-                    let offset = source.offset(start);
-                    source
-                        .markdown
-                        .get(line_start..offset)
-                        .filter(|gap| gap.chars().all(|c| c == ' ' || c == '\t'))
-                        .map(str::to_string)
-                        .unwrap_or_default()
-                })
-                .unwrap_or_default();
-            // 只在列表项内调整：顶层段落的行首空白 comrak 已经按 marked 的
-            // 方式处理过，再补会重复叠加（实测 headings +37、inline-text +6）。
-            let leading = match list_item_content_indent(node, source) {
-                Some(indent) if leading.len() >= indent => " ".repeat(leading.len() - indent),
-                Some(_) => leading,
-                None => String::new(),
-            };
+            let leading = continuation_leading_whitespace(&children, index, node, source);
             inlines.push(Inline::Text(format!("{trailing}\n{leading}")));
             continue;
         }
@@ -1292,7 +1272,10 @@ fn build_raw_inlines<'a>(node: &'a AstNode<'a>, source: &SourceText<'_>) -> Vec<
                 Some(from) => truncate_at_newline(slice_between(source, from, to)),
                 None => String::from("\n"),
             };
-            inlines.push(Inline::RawBreak(raw));
+            // 硬换行之后那一行的行首空白同样要按列表项内容缩进调整，
+            // 否则 `- a  \n b` 会输出 `a  \nb`，TS 是 `a  \n b`。
+            let leading = continuation_leading_whitespace(&children, index, node, source);
+            inlines.push(Inline::RawBreak(format!("{raw}{leading}")));
             continue;
         }
         build_inline(child, source, &mut inlines);
@@ -2501,4 +2484,37 @@ fn list_item_content_indent<'a>(node: &'a AstNode<'a>, source: &SourceText<'_>) 
         current = item.parent();
     }
     None
+}
+
+/// 换行之后那一行的行首空白（按列表项内容缩进调整）。
+///
+/// comrak 的文本节点从首个非空白字符开始，marked 保留缩进。
+/// 只在列表项内调整：顶层段落的行首空白 comrak 已经按 marked 的方式处理过，
+/// 再补会重复叠加（实测 headings +37、inline-text +6）。
+fn continuation_leading_whitespace<'a>(
+    children: &[&'a AstNode<'a>],
+    index: usize,
+    node: &'a AstNode<'a>,
+    source: &SourceText<'_>,
+) -> String {
+    let raw = children
+        .get(index + 1)
+        .map(|next| {
+            let start = next.data.borrow().sourcepos.start;
+            let line_start = source.line_start(start.line);
+            let offset = source.offset(start);
+            source
+                .markdown
+                .get(line_start..offset)
+                .filter(|gap| gap.chars().all(|c| c == ' ' || c == '\t'))
+                .map(str::to_string)
+                .unwrap_or_default()
+        })
+        .unwrap_or_default();
+
+    match list_item_content_indent(node, source) {
+        Some(indent) if raw.len() >= indent => " ".repeat(raw.len() - indent),
+        Some(_) => raw,
+        None => String::new(),
+    }
 }
