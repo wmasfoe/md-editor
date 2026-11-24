@@ -303,13 +303,21 @@ fn restore_placeholders(mut html: String, restore: &[crate::preprocess::RestoreI
 /// 同一套 slug（这是 `nested-heading-uniqueness` 契约的要求）。
 fn build_document(markdown: &str, allocator: &mut HeadingSlugAllocator) -> Vec<Block> {
     let mut blocks = Vec::new();
-    for segment in split_directives(markdown) {
+    let segments = split_directives(markdown);
+    let segment_count = segments.len();
+    for (index, segment) in segments.into_iter().enumerate() {
+        // 后续还有非空片段 → 本片段末尾的块在文档里不是末块。
+        let has_following_segment = segments_have_content_after(markdown, index, segment_count);
         match segment {
             Segment::Markdown(text) => {
                 if text.trim().is_empty() {
                     continue;
                 }
-                blocks.extend(parse_markdown_blocks(text, allocator));
+                blocks.extend(parse_markdown_blocks(
+                    text,
+                    allocator,
+                    has_following_segment,
+                ));
             }
             Segment::Directive {
                 kind,
@@ -350,11 +358,19 @@ fn build_document(markdown: &str, allocator: &mut HeadingSlugAllocator) -> Vec<B
 }
 
 /// 用 comrak 解析一段 Markdown 并构建块序列。
-fn parse_markdown_blocks(markdown: &str, allocator: &mut HeadingSlugAllocator) -> Vec<Block> {
+///
+/// `has_following` 表示**文档层面**该片段之后还有内容（directive 分段会切断
+/// 源码，片段末尾的块在文档里可能并非末块）。末块判定依赖它，否则
+/// `缩进代码块 + directive` 会错误保留尾换行。
+fn parse_markdown_blocks(
+    markdown: &str,
+    allocator: &mut HeadingSlugAllocator,
+    has_following: bool,
+) -> Vec<Block> {
     let source = SourceText::new(markdown);
     let arena = Arena::new();
     let parsed = parse_document(&arena, markdown, &build_options());
-    build_blocks(parsed, allocator, &source)
+    build_blocks(parsed, allocator, &source, has_following)
 }
 
 /// 遍历 AST 构建块序列，过程中按文档顺序分配标题 ID。
@@ -362,10 +378,13 @@ fn build_blocks<'a>(
     root: &'a AstNode<'a>,
     allocator: &mut HeadingSlugAllocator,
     source: &SourceText<'_>,
+    has_following: bool,
 ) -> Vec<Block> {
     let mut blocks = Vec::new();
-    for node in root.children() {
-        build_block(node, allocator, source, &mut blocks);
+    let children: Vec<&AstNode<'_>> = root.children().collect();
+    for (index, node) in children.iter().enumerate() {
+        let more = has_following || index + 1 < children.len();
+        build_block(node, allocator, source, more, &mut blocks);
     }
     blocks
 }
@@ -375,6 +394,7 @@ fn build_block<'a>(
     node: &'a AstNode<'a>,
     allocator: &mut HeadingSlugAllocator,
     source: &SourceText<'_>,
+    has_following: bool,
     out: &mut Vec<Block>,
 ) {
     let value = node.data.borrow().value.clone();
@@ -460,11 +480,12 @@ fn build_block<'a>(
                 // 缩进代码块：comrak 的 literal 恒带尾换行，但 TS（marked `c.text`）
                 // **只在它是文档最后一个块时**才保留（中间块由后续块自身分隔）。
                 let position = node.data.borrow().sourcepos;
-                let is_last_block = source
-                    .markdown
-                    .lines()
-                    .skip(position.end.line)
-                    .all(|line| line.trim().is_empty());
+                let is_last_block = !has_following
+                    && source
+                        .markdown
+                        .lines()
+                        .skip(position.end.line)
+                        .all(|line| line.trim().is_empty());
                 // 还需源码本身以换行结尾（fixture 的缩进块虽在末尾但源码无尾换行）。
                 let source_has_trailing_newline = source.markdown.ends_with('\n');
                 if is_last_block && source_has_trailing_newline {
@@ -512,7 +533,7 @@ fn build_block<'a>(
             let kind = alert_kind(&alert.alert_type);
             let mut inner = Vec::new();
             for child in node.children() {
-                build_block(child, allocator, source, &mut inner);
+                build_block(child, allocator, source, true, &mut inner);
             }
             out.push(Block::Callout {
                 title: alert
@@ -527,7 +548,7 @@ fn build_block<'a>(
         NodeValue::BlockQuote => {
             let mut inner = Vec::new();
             for child in node.children() {
-                build_block(child, allocator, source, &mut inner);
+                build_block(child, allocator, source, true, &mut inner);
             }
             out.push(Block::Blockquote(inner));
         }
@@ -609,7 +630,7 @@ fn build_block<'a>(
         // FrontMatter 不参与 HTML 输出（与 TS 侧一致：frontmatter 只作为元数据提取）。
         _ => {
             for child in node.children() {
-                build_block(child, allocator, source, out);
+                build_block(child, allocator, source, true, out);
             }
         }
     }
@@ -632,7 +653,7 @@ fn build_list_item<'a>(
 
     let mut blocks = Vec::new();
     for child in node.children() {
-        build_block(child, allocator, source, &mut blocks);
+        build_block(child, allocator, source, true, &mut blocks);
     }
 
     ListItem {
@@ -869,6 +890,18 @@ fn build_inline<'a>(node: &'a AstNode<'a>, source: &SourceText<'_>, out: &mut Ve
     let value = node.data.borrow().value.clone();
     match value {
         NodeValue::Text(text) => {
+            // 列表项内的松散续行段落：marked 保留「缩进 − 列表标记宽度」个前导空格
+            // （`- a\n\n    indented` → `<p>  indented</p>`），comrak 全剥离。
+            // 仅当该文本是「非首行段落」的首个 Text 时才补。
+            if let Some(padding) = list_continuation_padding(node, source) {
+                let position = node.data.borrow().sourcepos;
+                let raw = source.slice(position.start, position.end);
+                // 与其他文本路径一致：只还原反斜杠转义，不解码 HTML 实体。
+                let value = unescape_backslashes(raw);
+                out.push(Inline::Text(format!("{}{}", " ".repeat(padding), value)));
+                return;
+            }
+
             // comrak 会把 `&copy;` 解码成 `©`、`&amp;` 解码成 `&`；TS 侧不解码实体
             // （`&copy;` 输出 `&amp;copy;`，页面上显示字面量 `&copy;`）。
             // 可见文本不同属于字节级差异，因此按 sourcepos 回查源码原文。
@@ -1691,4 +1724,87 @@ fn collect_display_maths<'a>(node: &'a AstNode<'a>) -> Vec<String> {
         }
     }
     literals
+}
+
+/// 分段循环中「当前片段之后是否还有非空片段」。
+///
+/// 由于 `segments` 已被消费，这里用片段总数近似：只要不是最后一个片段，
+/// 就认为后面还有内容（空的尾随片段极少见，且此时末块判定仍安全）。
+fn segments_have_content_after(_markdown: &str, index: usize, count: usize) -> bool {
+    index + 1 < count
+}
+
+/// 列表项内「松散续行段落」需要补回的前导空格数。
+///
+/// marked 的行为（实测）：
+/// - `- a\n\n    indented` → `<p>  indented</p>`（缩进 4 − 标记宽度 2 = 2）
+/// - `- a\n\n  two`        → `<p>two</p>`（缩进 2 − 2 = 0）
+/// - `- a\n\n   three`      → `<p> three</p>`（缩进 3 − 2 = 1）
+///
+/// 只在「段落的第一个 Text 子节点 + 段落不在列表项首行」时返回 `Some`。
+fn list_continuation_padding<'a>(node: &'a AstNode<'a>, source: &SourceText<'_>) -> Option<usize> {
+    let parent = node.parent()?;
+    if !matches!(parent.data.borrow().value, NodeValue::Paragraph) {
+        return None;
+    }
+    // 必须是段落的第一个子节点
+    let first = parent.first_child()?;
+    if !std::ptr::eq(first.data.as_ptr(), node.data.as_ptr()) {
+        return None;
+    }
+    let position = node.data.borrow().sourcepos;
+    let container = parent.parent()?;
+
+    // 情况 A：段落直接在列表项内（comrak 的常规结构）
+    if matches!(
+        container.data.borrow().value,
+        NodeValue::Item(_) | NodeValue::TaskItem(_)
+    ) {
+        if position.start.line == container.data.borrow().sourcepos.start.line {
+            return None;
+        }
+    } else if matches!(container.data.borrow().value, NodeValue::Document) {
+        // 情况 B：文档级段落。marked 也保留缩进后的前导空格
+        // （`para\n\n  text` → `<p>  text</p>`）。
+        // 仅「前面紧邻块、且该行确实有前导空白」时才算续行。
+        // 必须看**行首空白数**而不是列号：`\*esc\*` 的反斜杠占一列，
+        // 列号是 2 但行首并无缩进（实测会误补一个空格）。
+        parent.previous_sibling()?;
+        let line_start = source.markdown[..source.offset(position.start)]
+            .rfind('\n')
+            .map(|index| index + 1)
+            .unwrap_or(0);
+        let indent =
+            source.markdown[line_start..].len() - source.markdown[line_start..].trim_start().len();
+        return (indent > 0).then_some(indent);
+    } else {
+        return None;
+    }
+    // 文本本身已有前导空格则不重复补
+    let raw = source.slice(position.start, position.end);
+    if raw.starts_with(' ') || raw.starts_with('\t') {
+        return None;
+    }
+
+    // 正确公式：续行文本的起始列 − **列表项内容列**。
+    //
+    // 不能用「段落自身的起始列」作基准：段落的 sourcepos 已包含缩进
+    // （`- a\n- b\n\n    indented` 的段落列是 5），相减恒为 0。
+    // 列表项内容列 = 列表项首个子节点的起始列（`- a` 时是 3）。
+    let content_column = container
+        .first_child()
+        .map(|child| child.data.borrow().sourcepos.start.column)
+        .unwrap_or_else(|| container.data.borrow().sourcepos.start.column);
+    // 用「行首空白数」而非列号（列号会被 `\*` 这类转义字符影响）。
+    let line_start = source.markdown[..source.offset(position.start)]
+        .rfind('\n')
+        .map(|index| index + 1)
+        .unwrap_or(0);
+    let indent =
+        source.markdown[line_start..].len() - source.markdown[line_start..].trim_start().len();
+    // 基准 = 列表项内容列的 0 基偏移（`- a` 时内容列是 3，基准 2；
+    // `   - **x**` 时内容列是 6，基准 5）。用列差作基准会在嵌套/缩进列表里算错。
+    let base = content_column.saturating_sub(1);
+    let padding = indent.saturating_sub(base);
+    (padding > 0).then_some(padding)
 }

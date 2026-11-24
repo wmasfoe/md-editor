@@ -506,6 +506,48 @@ export const AUDIT_ROUND3_FIXTURES = [
     markdown: "<Chart data={[1]} />\n",
   },
   {
+    id: "list-continuation-nested-item",
+    mode: "byte",
+    guards: "列表: 嵌套/缩进列表项内的续行缩进基准是「内容列 − 1」",
+    markdown: "   - **入口**：\n     ```bash\n     cmd\n     ```\n     说明文字",
+  },
+  {
+    id: "paragraph-indented-after-block",
+    mode: "byte",
+    guards: "段落: 紧跟块级内容后的缩进段落保留前导空格",
+    markdown: "para\n\n  text",
+  },
+  {
+    id: "escaped-chars-not-padded",
+    mode: "byte",
+    guards: "转义: `\\*` 的列号偏移不应被误判为缩进",
+    markdown: "# H\n\n\\*esc\\*",
+  },
+  {
+    id: "list-continuation-indent",
+    mode: "byte",
+    guards: "列表: 松散续行段落保留「续行列 − 段落首行列」个前导空格",
+    markdown: "- a\n- b\n\n    indented",
+  },
+  {
+    id: "list-continuation-zero-pad",
+    mode: "byte",
+    guards: "列表: 续行缩进等于标记宽度时不补空格",
+    markdown: "- a\n\n  two",
+  },
+  {
+    id: "list-continuation-after-fence",
+    mode: "byte",
+    guards: "列表: 围栏代码块之后的续行段落缩进",
+    markdown: "- a\n\n  ```\n  code\n  ```\n\n     text",
+  },
+  {
+    id: "indented-code-then-directive",
+    mode: "byte",
+    guards: "代码块: 缩进代码块后跟 directive 时不保留尾换行",
+    markdown: "    indented\n\n:::tip\nx\n:::",
+  },
+  {
     id: "footnote-definition-visible",
     mode: "byte",
     guards: "定义行: 脚注定义 `[^1]:` 作为可见段落文本输出（comrak 默认会吞掉）",
