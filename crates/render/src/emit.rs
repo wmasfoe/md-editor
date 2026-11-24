@@ -1183,11 +1183,9 @@ enum Atom {
 ///   `[`、`$`、`!` 等，均为非空白非 `=`，因此总是可以
 fn atom_starts_highlightable(atom: &Atom) -> bool {
     match atom {
-        Atom::Text(text) => text
-            .chars()
-            .next()
-            .map(|ch| !ch.is_whitespace() && ch != '=')
-            .unwrap_or(false),
+        // TS 允许 `== a==`（内容以空白开头），只禁止紧跟 `=`：
+        // 后者是 `===x===` 这类连续等号，TS 不识别为高亮。
+        Atom::Text(text) => text.chars().next().map(|ch| ch != '=').unwrap_or(false),
         Atom::Delim => false,
         Atom::Node(_) => true,
     }
@@ -2438,7 +2436,7 @@ fn alert_title_from_source<'a>(node: &'a AstNode<'a>, source: &SourceText<'_>) -
 fn append_trailing_line_whitespace<'a>(
     node: &'a AstNode<'a>,
     source: &SourceText<'_>,
-    inlines: &mut [Inline],
+    inlines: &mut Vec<Inline>,
 ) {
     let end = node.data.borrow().sourcepos.end;
     let line_start = source.line_start(end.line);
@@ -2458,8 +2456,12 @@ fn append_trailing_line_whitespace<'a>(
     if end.column < line_text.chars().count() {
         return;
     }
-    if let Some(Inline::Text(text)) = inlines.last_mut() {
-        text.push_str(tail);
+    match inlines.last_mut() {
+        Some(Inline::Text(text)) => text.push_str(tail),
+        // 末个节点不是文本时（`==a== `、`**b** `）另起一个文本节点，
+        // 否则这段空白会被丢掉。
+        Some(_) => inlines.push(Inline::Text(tail.to_string())),
+        None => {}
     }
 }
 
