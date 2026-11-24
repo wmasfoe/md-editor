@@ -245,6 +245,14 @@ impl<'a> SourceText<'a> {
         line < self.line_starts.len()
     }
 
+    /// 1-based 行号对应的行首字节偏移。
+    fn line_start(&self, line: usize) -> usize {
+        self.line_starts
+            .get(line.saturating_sub(1))
+            .copied()
+            .unwrap_or(self.markdown.len())
+    }
+
     /// 切出 [start, end] 区间（含 end 位置的字符）。
     fn slice(&self, start: comrak::nodes::LineColumn, end: comrak::nodes::LineColumn) -> &'a str {
         let from = self.offset(start).min(self.markdown.len());
@@ -610,11 +618,9 @@ fn build_block<'a>(
                 }
                 DisplayMath::None => {}
             }
-            out.push(Block::Paragraph(restore_paragraph_indents(
-                node,
-                source,
-                build_inlines(node, source),
-            )));
+            let mut inlines = restore_paragraph_indents(node, source, build_inlines(node, source));
+            append_trailing_line_whitespace(node, source, &mut inlines);
+            out.push(Block::Paragraph(inlines));
         }
         NodeValue::CodeBlock(code) => {
             // TS 侧用 marked 的 `c.lang`，它是**整个** info string（去首尾空白），
@@ -2400,4 +2406,37 @@ fn alert_title_from_source<'a>(node: &'a AstNode<'a>, source: &SourceText<'_>) -
     }
     let title = crate::slug::js_trim(after);
     (!title.is_empty()).then(|| title.to_string())
+}
+
+/// 把源行末尾的空白补回行内序列末尾。
+///
+/// comrak 的 sourcepos 结束在最后一个非空白字符上，行尾空白被丢弃；
+/// marked 保留它（`a ` → `<p>a </p>`、`#######   ` → `<p>#######   </p>`）。
+/// 只在「结束位置之后到行尾全是空白」时补，因此不会碰到硬换行（那由 RawBreak 负责）。
+fn append_trailing_line_whitespace<'a>(
+    node: &'a AstNode<'a>,
+    source: &SourceText<'_>,
+    inlines: &mut [Inline],
+) {
+    let end = node.data.borrow().sourcepos.end;
+    let line_start = source.line_start(end.line);
+    let rest = match source.markdown.get(line_start..) {
+        Some(rest) => rest,
+        None => return,
+    };
+    let line_end = rest.find('\n').unwrap_or(rest.len());
+    let line_text = &rest[..line_end];
+    let trimmed = line_text.trim_end_matches([' ', '\t']);
+    let tail = &line_text[trimmed.len()..];
+    if tail.is_empty() {
+        return;
+    }
+    // 只有「节点结束位置本身就落在行尾空白区内」才补：
+    // 否则说明该段落还在这行里继续（后面是软/硬换行，由 RawBreak 负责）。
+    if end.column < line_text.chars().count() {
+        return;
+    }
+    if let Some(Inline::Text(text)) = inlines.last_mut() {
+        text.push_str(tail);
+    }
 }
