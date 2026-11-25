@@ -1,0 +1,35 @@
+[package]
+name = "md-render"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.77.2"
+license = "GPL-3.0-or-later"
+description = "Rust Markdown → HTML rendering core for Inkpoint desktop and QuickLook."
+
+[lib]
+name = "md_render"
+path = "src/lib.rs"
+
+[[bin]]
+name = "render-fixtures"
+path = "src/bin/render-fixtures.rs"
+
+[dependencies]
+# 解析层：comrak 只负责 CommonMark/GFM + CJK 友好强调 + 数学语法的**解析**，
+# HTML 由本 crate 自己发射（见 src/emit.rs 的说明），因为需要与 TS 实现逐字节一致，
+# 包括 CodeMirror 风格的 cm-md-marker 标记。
+comrak = "1.2"
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# 内嵌 JS 运行时：数学（KaTeX）与代码高亮（highlight.js）直接跑与 TS 侧同一份 JS，
+# 详见 src/js_runtime.rs 的说明。QuickJS 是纯解释器，不需要 JIT，
+# 因此可在 macOS App Sandbox 的 QuickLook 扩展里运行。
+rquickjs = { version = "0.9", features = ["bindgen", "loader"] }
+
+[profile.release]
+opt-level = "s"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"

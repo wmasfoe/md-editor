@@ -65,6 +65,226 @@ async function resolveMermaidRenderer(
 }
 
 /**
+ * 匹配 HTML 中 mermaid 语法高亮代码块。
+ *
+ * 与 `@md-editor/compiler` 的 `MERMAID_BLOCK_REGEX` 保持一致：Rust 渲染器按契约
+ * 只输出 `<pre><code class="…language-mermaid…">`，SVG 替换在宿主侧完成。
+ */
+const MERMAID_BLOCK_REGEX =
+  /<pre><code class="[^"]*language-mermaid[^"]*">([\s\S]*?)<\/code><\/pre>/gi;
+
+/** 还原 HTML 实体，得到 mermaid 源码。 */
+function unescapeHtmlEntities(escaped: string): string {
+  return escaped
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+}
+
+/**
+ * 把 HTML 里的 mermaid 代码块替换为矢量 SVG。
+ *
+ * 这是「mermaid 契约（方式 a）」的宿主侧实现：Rust 渲染核心不感知 mermaid，
+ * 只输出代码块；图表渲染留在 JS（依赖 mermaid.js 与 DOM）。
+ */
+async function inlineMermaidSvg(
+  html: string,
+  renderer?: (code: string) => Promise<{ svg: string; error?: string } | null>,
+): Promise<string> {
+  if (!renderer) {
+    return html;
+  }
+
+  const matches: Array<{ fullMatch: string; code: string }> = [];
+  const regex = new RegExp(MERMAID_BLOCK_REGEX.source, "gi");
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(html)) !== null) {
+    const [fullMatch, rawEscapedCode] = match;
+    if (rawEscapedCode) {
+      matches.push({ fullMatch, code: unescapeHtmlEntities(rawEscapedCode) });
+    }
+  }
+
+  if (matches.length === 0) {
+    return html;
+  }
+
+  const replacements = await Promise.all(
+    matches.map(async (item) => {
+      try {
+        const res = await renderer(item.code);
+        if (res && res.svg && res.svg.trim().length > 0) {
+          return {
+            fullMatch: item.fullMatch,
+            replacement: `<div class="cm-md-mermaid-container"><div class="cm-md-mermaid-svg">${res.svg}</div></div>`,
+          };
+        }
+        return { fullMatch: item.fullMatch, replacement: item.fullMatch };
+      } catch {
+        return { fullMatch: item.fullMatch, replacement: item.fullMatch };
+      }
+    }),
+  );
+
+  let resultHtml = html;
+  for (const { fullMatch, replacement } of replacements) {
+    resultHtml = resultHtml.replace(fullMatch, replacement);
+  }
+  return resultHtml;
+}
+
+/** 拼装导出用的字体覆盖 CSS（与 `@md-editor/compiler` 的 html-export 保持一致）。 */
+function buildFontCss(styling: ExportDocumentStylingOptions): string {
+  const fontDeclarations: string[] = [];
+  const bodyFontRules: string[] = [];
+  const monoFontRules: string[] = [];
+
+  if (styling.proseFontFamily) {
+    fontDeclarations.push(`--theme-font: ${styling.proseFontFamily} !important;`);
+    bodyFontRules.push(`font-family: var(--theme-font) !important;`);
+  }
+  if (styling.codeFontFamily) {
+    fontDeclarations.push(`--theme-mono-font: ${styling.codeFontFamily} !important;`);
+    monoFontRules.push(`font-family: var(--theme-mono-font) !important;`);
+  }
+  if (styling.fontSize && Number.isFinite(styling.fontSize) && styling.fontSize > 0) {
+    fontDeclarations.push(
+      `--theme-editor-font-size: ${styling.fontSize}px !important; font-size: ${styling.fontSize}px !important;`,
+    );
+    bodyFontRules.push(`font-size: var(--theme-editor-font-size) !important;`);
+  }
+
+  const parts: string[] = [];
+  if (fontDeclarations.length > 0) {
+    parts.push(`:root, body, #content { ${fontDeclarations.join(" ")} }`);
+  }
+  if (bodyFontRules.length > 0) {
+    parts.push(
+      `body, #content, p, li, td, th, blockquote, div, h1, h2, h3, h4, h5, h6 { ${bodyFontRules.join(" ")} }`,
+    );
+    parts.push(
+      `@media print { body, #content, p, li, td, th, blockquote, div, h1, h2, h3, h4, h5, h6 { ${bodyFontRules.join(" ")} } }`,
+    );
+  }
+  if (monoFontRules.length > 0) {
+    parts.push(`code, pre, pre code, .cm-md-inline-code, kbd, samp { ${monoFontRules.join(" ")} }`);
+    parts.push(
+      `@media print { code, pre, pre code, .cm-md-inline-code, kbd, samp { ${monoFontRules.join(" ")} } }`,
+    );
+  }
+  return parts.join("\n");
+}
+
+/**
+ * 用 Rust 渲染核心产出 HTML 片段，并完成宿主侧后处理。
+ *
+ * 分工边界：
+ * - Rust：Markdown → HTML（含标题 ID、callout、highlight、代码高亮、数学公式）
+ * - 宿主（此处）：mermaid → SVG、图片 → Data URL、字体/打印 CSS 拼装、文档包装
+ */
+async function renderDocumentHtmlWithRust(
+  markdown: string,
+  styling: ExportDocumentStylingOptions,
+  options: {
+    readonly printPageCss?: string;
+    readonly resolveImageDataUrl?: (src: string) => Promise<string | null>;
+    readonly renderMermaidSvg?: (code: string) => Promise<{ svg: string; error?: string } | null>;
+  } = {},
+): Promise<{ standaloneHtml: string; linkedHtml: string; title: string }> {
+  const fragment = await invoke<string>("render_markdown_fragment", {
+    markdown,
+    includeMarkers: false,
+  });
+
+  const fontCss = buildFontCss(styling);
+  const baseCss = [styling.themeCss ?? "", fontCss].filter(Boolean).join("\n");
+  const customCss = options.printPageCss
+    ? `${baseCss}\n@media print { ${options.printPageCss} }`
+    : baseCss;
+
+  const withMermaid = await inlineMermaidSvg(fragment, options.renderMermaidSvg);
+
+  const title = extractDocumentTitle(markdown);
+  const renderDocument = (contentHtml: string) =>
+    invoke<string>("render_markdown_document_from_fragment", {
+      fragment: contentHtml,
+      customCss,
+      title,
+    });
+
+  // linked：保留原始相对图片路径
+  const linkedHtml = await renderDocument(withMermaid);
+
+  // standalone：图片内联为 Data URL
+  const inlinedContent = await inlineImagesInDataUrls(withMermaid, options.resolveImageDataUrl);
+  const standaloneHtml = await renderDocument(inlinedContent);
+
+  return { standaloneHtml, linkedHtml, title };
+}
+
+/**
+ * 从 Markdown 提取文档标题（第一个 H1），用于导出文件命名。
+ */
+function extractDocumentTitle(markdown: string): string {
+  const match = /^#\s+([^\n]+)/m.exec(markdown);
+  return match?.[1]?.trim() || "Untitled";
+}
+
+/**
+ * 将 HTML 中的相对图片替换为 base64 Data URL。
+ *
+ * 与 `@md-editor/compiler` 的 `inlineImagesInDataUrls` 语义一致。
+ */
+async function inlineImagesInDataUrls(
+  html: string,
+  resolver?: (src: string) => Promise<string | null>,
+): Promise<string> {
+  if (!resolver) {
+    return html;
+  }
+
+  const IMG_SRC_REGEX = /<img\b([^>]*?)\bsrc=["']([^"']+)["']([^>]*?)>/gi;
+  const matches: Array<{ fullMatch: string; src: string }> = [];
+  let match: RegExpExecArray | null;
+  const regex = new RegExp(IMG_SRC_REGEX.source, "gi");
+
+  while ((match = regex.exec(html)) !== null) {
+    const [fullMatch, , src] = match;
+    if (!src) continue;
+    if (/^(https?:|data:|blob:)/i.test(src)) continue;
+    matches.push({ fullMatch, src });
+  }
+
+  if (matches.length === 0) {
+    return html;
+  }
+
+  const replacements = await Promise.all(
+    matches.map(async (item) => {
+      try {
+        const dataUrl = await resolver(item.src);
+        if (!dataUrl) return { fullMatch: item.fullMatch, replacement: item.fullMatch };
+        return {
+          fullMatch: item.fullMatch,
+          replacement: item.fullMatch.replace(item.src, dataUrl),
+        };
+      } catch {
+        return { fullMatch: item.fullMatch, replacement: item.fullMatch };
+      }
+    }),
+  );
+
+  let resultHtml = html;
+  for (const { fullMatch, replacement } of replacements) {
+    resultHtml = resultHtml.replace(fullMatch, replacement);
+  }
+  return resultHtml;
+}
+
+/**
  * 将指定相对图片路径转为 Base64 Data URL
  */
 async function resolveImageAsBase64(
@@ -100,16 +320,13 @@ export async function copyDocumentAsHtml(
   markdown: string,
   styling: ExportDocumentStylingOptions = {},
 ): Promise<boolean> {
-  const { exportDocumentHtml } = await import("@md-editor/compiler");
   const mermaidRenderer = await resolveMermaidRenderer(styling.isDark ?? false);
-  const result = await exportDocumentHtml(markdown, {
+  // 必须复制**完整文档**（含主题与字体 CSS），而不是裸片段：
+  // 富文本编辑器依赖这些样式还原排版，裸片段粘出去会丢失全部外观。
+  // 不传 resolveImageDataUrl —— 与迁移前一致，图片保持相对路径。
+  const { standaloneHtml: fragment } = await renderDocumentHtmlWithRust(markdown, styling, {
     renderMermaidSvg: mermaidRenderer,
-    proseFontFamily: styling.proseFontFamily,
-    codeFontFamily: styling.codeFontFamily,
-    fontSize: styling.fontSize,
-    customCss: styling.themeCss,
   });
-  const fragment = result.standaloneHtml;
   if (typeof navigator !== "undefined" && navigator.clipboard) {
     try {
       if (typeof ClipboardItem !== "undefined") {
@@ -141,15 +358,10 @@ export async function exportDocumentAsHtml(
   styling: ExportDocumentStylingOptions = {},
 ): Promise<{ success: boolean; filePath?: string; message?: string }> {
   try {
-    const { exportDocumentHtml } = await import("@md-editor/compiler");
     const mermaidRenderer = await resolveMermaidRenderer(styling.isDark ?? false);
-    const exportResult = await exportDocumentHtml(markdown, {
+    const exportResult = await renderDocumentHtmlWithRust(markdown, styling, {
       resolveImageDataUrl: (src: string) => resolveImageAsBase64(documentPath, src),
       renderMermaidSvg: mermaidRenderer,
-      proseFontFamily: styling.proseFontFamily,
-      codeFontFamily: styling.codeFontFamily,
-      fontSize: styling.fontSize,
-      customCss: styling.themeCss,
     });
 
     const baseName = documentPath
@@ -217,16 +429,11 @@ export async function exportDocumentAsPdf(
     const margin = options.margin ?? "15mm 20mm";
 
     const printPageCss = `@page { size: ${pageSize} ${orientation}; margin: ${margin}; }`;
-    const { exportDocumentHtml } = await import("@md-editor/compiler");
     const mermaidRenderer = await resolveMermaidRenderer(options.isDark ?? false);
-    const exportResult = await exportDocumentHtml(markdown, {
+    const exportResult = await renderDocumentHtmlWithRust(markdown, options, {
       printPageCss,
       resolveImageDataUrl: (src: string) => resolveImageAsBase64(documentPath, src),
       renderMermaidSvg: mermaidRenderer,
-      proseFontFamily: options.proseFontFamily,
-      codeFontFamily: options.codeFontFamily,
-      fontSize: options.fontSize,
-      customCss: options.themeCss,
     });
 
     const baseName = documentPath

@@ -102,4 +102,20 @@ dist-mobile/
 **/src-tauri/binaries/*.so
 **/src-tauri/binaries/*.dll
 **/src-tauri/binaries/*.dylib
+
+# macOS llama.cpp 运行时：只 vendor Tauri 真正打进包的 dylib（见 tauri.macos.conf.json
+# 的 bundle.macOS.files）。其余同名多版本副本（*.dylib / *.0.dylib / *.0.0.9789.dylib）
+# 以及 llama-cli/bench/quantize 等 CLI 工具库都不随包，由 prepare-llama-runtime.mjs
+# 需要时下载，不进版本库。
+**/src-tauri/binaries/llama-runtime-*/*.dylib
+!**/src-tauri/binaries/llama-runtime-*/libggml-base.0.dylib
+!**/src-tauri/binaries/llama-runtime-*/libggml-blas.0.dylib
+!**/src-tauri/binaries/llama-runtime-*/libggml-cpu.0.dylib
+!**/src-tauri/binaries/llama-runtime-*/libggml-metal.0.dylib
+!**/src-tauri/binaries/llama-runtime-*/libggml-rpc.0.dylib
+!**/src-tauri/binaries/llama-runtime-*/libggml.0.dylib
+!**/src-tauri/binaries/llama-runtime-*/libllama-common.0.dylib
+!**/src-tauri/binaries/llama-runtime-*/libllama-server-impl.dylib
+!**/src-tauri/binaries/llama-runtime-*/libllama.0.dylib
+!**/src-tauri/binaries/llama-runtime-*/libmtmd.0.dylib
 style-eval-out/

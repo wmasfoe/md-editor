@@ -160,7 +160,18 @@ function createMarkedLexer(): Marked {
         name: "directive_container",
         level: "block",
         start(src: string) {
-          return src.indexOf(":::");
+          // `start()` 必须只指向**行首**的 `:::`。
+          //
+          // 之前直接 `src.indexOf(":::")` 会命中行内代码里的 `:::info`
+          // （例如 `` `:::info` ``），让 marked 在该处提前切分，
+          // 结果行内代码内容被插入一个前导空格（实测 `:::info` → ` :::info`）。
+          // 容器指令只能是块级、且必须位于行首。
+          const pattern = /(^|\n)[ \t]*:::/g;
+          const match = pattern.exec(src);
+          if (!match) {
+            return;
+          }
+          return match.index + match[1].length + (match[0].length - match[1].length - 3);
         },
         tokenizer(src: string) {
           const match = /^:::([a-zA-Z0-9_-]+)(?:[ \t]+([^\r\n]+))?[\r\n]+([\s\S]*?)[\r\n]+:::/.exec(

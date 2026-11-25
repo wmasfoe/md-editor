@@ -1,0 +1,22 @@
+[package]
+name = "md-render-ffi"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.77.2"
+license = "GPL-3.0-or-later"
+description = "C ABI wrapper around md-render for the macOS QuickLook app extension."
+
+[lib]
+name = "md_render_ffi"
+# staticlib 供 Swift（swiftc -l）链接；rlib 供 Rust 侧单测。
+crate-type = ["staticlib", "rlib"]
+
+[dependencies]
+md-render = { path = "../render" }
+
+[profile.release]
+opt-level = "s"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"

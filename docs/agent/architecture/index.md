@@ -29,9 +29,9 @@
 - Markdown 语法插件架构（文本高亮、容器指令、LaTeX 数学公式与 Mermaid 图表方案）： [markdown_syntax_plugin_architecture.md](./markdown_syntax_plugin_architecture.md)
   记录 Markdown 扩展语法插件规范（MarkdownSyntaxPlugin）、@md-editor/syntax-plugins 架构、highlightPlugin（==高亮==）、containerDirectivePlugin、mathPlugin（KaTeX）与 mermaidPlugin 的按需/异步加载、Lezer 语法拦截、所见即所得就地编辑契约与降级隔离设计。
 - macOS Quick Look 快速预览扩展架构方案： [macos_quicklook_preview_architecture.md](./macos_quicklook_preview_architecture.md)
-  记录系统接入边界、JavaScriptCore 离线渲染沙箱、基于独立子包 @md-editor/compiler 的纯静态渲染能力复用设计以及构建流水线规范。
-- 独立无头编译器架构方案： [compiler_architecture.md](./compiler_architecture.md)
-  记录纯 Headless 编译器子包 @md-editor/compiler 架构、结构化 Token 流抽取 (compileToTokens)、语义 HTML 发射、KaTeX 离线公式与容器指令渲染，以及开放 StaticCustomRenderer 接口设计。
+  记录系统接入边界、为什么用 Rust 静态库而非 JavaScriptCore（无 allow-jit entitlement 的硬约束）、C ABI 内存约定、deployment target 一致性要求以及构建流水线规范。
+- Markdown 渲染核心架构（TS + Rust 双实现）： [compiler_architecture.md](./compiler_architecture.md)
+  记录 TS `@md-editor/compiler`（移动端）与 Rust `crates/render`（桌面 + QuickLook）的**双实现边界**、三个「同一份资产」原则（构建期内嵌 katex/highlight.js/CSS）、等价性分级（byte / semantic）、差分测试守门机制与修改渲染行为时的检查清单。
 
 - 用户风格学习（写作偏好）架构： [style_profile_architecture.md](./style_profile_architecture.md)
   记录 Rust 文件系统层、`@md-editor/ai/style` 与 `style-engine` 分层、学习时机与独占调度、草稿机制、目录身份、画像闸门、续写与纠错的注入契约及验收评测。

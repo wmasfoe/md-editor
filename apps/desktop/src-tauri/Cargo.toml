@@ -12,6 +12,28 @@ default-run = "md-editor"
 name = "md_editor_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+# 发布构建体积优化（实测 17.7 MiB → 6.5 MiB，-63%）。
+#
+# - lto=fat + codegen-units=1：跨 crate 内联与死代码消除（__text 8.2M → 约 6.0M）。
+# - strip=symbols：__LINKEDIT 3.6M → 0.1M。
+# - panic=abort：移除 __eh_frame(1.25M) 与 __gcc_except_tab(0.67M)，共约 1.9 MiB。
+#   代价：线程内 panic 由「该任务返回 JoinError」变为「整个进程 abort」。
+#   目前生产代码不依赖 unwind（catch_unwind 仅见于 save_runtime.rs 的 #[cfg(test)]），
+#   且草稿/会话已落盘（session.rs），崩溃最多丢最后一次未落盘编辑。
+#   若日后需要「单命令失败不杀进程」的语义，删掉这一行即可，代价约 +1.9 MiB。
+# - opt-level="s"：实测比 opt-level=3 少 1.42 MiB。Rust 侧工作负载（文件扫描、SHA-256、
+#   原子落盘）以 I/O 为主，唯一计算密集路径是 similar 的 diff；若将来大文档 diff 变瓶颈，
+#   用下面的 per-package 覆盖单独提回：
+#     [profile.release.package.similar]
+#     opt-level = 3
+#   混合策略（本仓=3 + 依赖=s）实测只能回收 0.37 MiB，不值得多一层配置。
+[profile.release]
+opt-level = "s"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
+
 [[bin]]
 name = "md-editor"
 path = "src/main.rs"
@@ -33,6 +55,9 @@ notify-debouncer-mini = "0.4"
 sha2 = "0.10"
 walkdir = "2"
 similar = "2"
+# Markdown 渲染核心（仓库根 crates/render）。与 TS 侧 @md-editor/compiler 等价，
+# 由 scripts/render-diff 的差分测试守护。
+md-render = { path = "../../../crates/render" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 block2 = "0.6"

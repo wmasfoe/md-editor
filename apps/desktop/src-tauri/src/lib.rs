@@ -15,6 +15,7 @@ mod process_utils;
 #[cfg(target_os = "macos")]
 mod quicklook;
 mod recent_files;
+mod render;
 mod save_runtime;
 mod session;
 mod settings;
@@ -150,6 +151,9 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             history_diff::diff_history_lines,
+            render::render_markdown_document,
+            render::render_markdown_document_from_fragment,
+            render::render_markdown_fragment,
             open_markdown_document,
             open_markdown_document_at_path,
             file_open::take_pending_file_open,

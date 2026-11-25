@@ -24,9 +24,31 @@ fi
 
 echo "==> Building Inkpoint Quick Look App Extension (arm64)..."
 
-# 3. Build static renderer engine bundle from @md-editor/compiler
-echo "==> Bundling static renderer engine (quicklook-engine.js)..."
-node "${DESKTOP_DIR}/scripts/build-quicklook-engine.mjs"
+# 3. Build the Rust render core as a static library
+#
+# 渲染核心已从内嵌 JS（quicklook-engine.js + JavaScriptCore）迁到 Rust。
+# 扩展通过 C ABI 链接 md-render-ffi，与桌面导出共用同一套渲染实现。
+# 本扩展没有 allow-jit entitlement，因此不能走 WebAssembly；
+# Rust 原生机器码不受限制（内部 QuickJS 是纯解释器，无需 JIT）。
+REPO_ROOT="$(cd "${DESKTOP_DIR}/../.." && pwd)"
+RUST_FFI_DIR="${REPO_ROOT}/crates/render-ffi"
+RUST_TARGET_DIR="${RUST_FFI_DIR}/target/release"
+
+echo "==> Building Rust render core (md-render-ffi)..."
+if ! command -v cargo &>/dev/null; then
+  echo "==> Error: cargo not found; cannot build the Rust render core required by Quick Look."
+  exit 1
+fi
+# MACOSX_DEPLOYMENT_TARGET 必须与 Swift 的 -target 一致，否则 Rust 产物会按
+# 构建机当前系统版本编译，链接时告警「built for newer macOS than being linked」，
+# 且可能用到旧系统不存在的符号，导致扩展在 macOS 12 上加载失败。
+MACOSX_DEPLOYMENT_TARGET=12.0 \
+  cargo build --release --manifest-path "${RUST_FFI_DIR}/Cargo.toml"
+RUST_STATIC_LIB="${RUST_TARGET_DIR}/libmd_render_ffi.a"
+if [[ ! -f "${RUST_STATIC_LIB}" ]]; then
+  echo "==> Error: Rust static library not found at ${RUST_STATIC_LIB}"
+  exit 1
+fi
 
 # 4. Clean and prepare output directories
 rm -rf "${APPEX_PATH}"
@@ -43,11 +65,11 @@ swiftc \
   -framework QuickLookUI \
   -framework UniformTypeIdentifiers \
   -framework Foundation \
-  -framework JavaScriptCore
+  -L "${RUST_TARGET_DIR}" \
+  -lmd_render_ffi
 
-# 6. Copy Info.plist and resources
+# 6. Copy Info.plist (no JS engine asset anymore — rendering is native)
 cp "${EXT_DIR}/Info.plist" "${APPEX_PATH}/Contents/Info.plist"
-cp "${EXT_DIR}/Resources/quicklook-engine.js" "${APPEX_PATH}/Contents/Resources/"
 
 # 6. Ad-hoc codesign the extension bundle with app sandbox entitlements
 if command -v codesign &>/dev/null; then

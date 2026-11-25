@@ -97,9 +97,59 @@ function detectHostTarget() {
   return "x86_64-unknown-linux-gnu";
 }
 
+/**
+ * Strip local symbols from darwin dylibs in place.
+ *
+ * `strip -x` only removes local/redundant symbols and keeps exported symbols plus the
+ * `LC_ID_DYLIB` / `LC_LOAD_DYLIB` load commands intact, so `dlopen` and `@rpath`
+ * resolution keep working. Measured on the macOS arm64 payload: 22.9 MB -> 18.0 MB.
+ *
+ * Idempotent (re-stripping a stripped Mach-O is a no-op) and fail-soft: a toolchain
+ * without `strip` must not break the build.
+ */
+function stripDarwinDylibs(directory) {
+  if (process.platform !== "darwin" || !fs.existsSync(directory)) {
+    return;
+  }
+
+  for (const fileName of fs.readdirSync(directory)) {
+    if (!fileName.endsWith(".dylib")) {
+      continue;
+    }
+    const filePath = path.join(directory, fileName);
+    const before = fs.statSync(filePath).size;
+    try {
+      execFileSync("strip", ["-x", filePath], { stdio: "ignore" });
+    } catch (error) {
+      console.warn(
+        `[prepare-llama-runtime] Could not strip ${fileName}: ${error.message}. Keeping unstripped copy.`,
+      );
+      continue;
+    }
+    const after = fs.statSync(filePath).size;
+    if (after < before) {
+      console.log(
+        `[prepare-llama-runtime] Stripped ${fileName}: ${before} -> ${after} bytes (-${Math.round(
+          ((before - after) * 100) / before,
+        )}%)`,
+      );
+    }
+  }
+}
+
+/** Tauri copies `binaries/llama-runtime-macos-arm64/*.dylib` straight into the app bundle. */
+const MACOS_RUNTIME_DIR = path.join(BINARIES_DIR, "llama-runtime-macos-arm64");
+
 async function prepareLlamaRuntime() {
   const { target: targetArg, checkOnly, force } = parseArgs();
   const target = targetArg || detectHostTarget();
+
+  // Strip the vendored macOS payload before the early return below: the dylibs are
+  // committed to the repo, so a fresh checkout must also get them shrunk.
+  if (target.endsWith("apple-darwin")) {
+    stripDarwinDylibs(MACOS_RUNTIME_DIR);
+    stripDarwinDylibs(BINARIES_DIR);
+  }
 
   const config = TARGET_CONFIGS[target];
   if (!config) {
@@ -224,6 +274,9 @@ async function prepareLlamaRuntime() {
                 );
               }
             }
+          }
+          if (target.endsWith("apple-darwin")) {
+            stripDarwinDylibs(BINARIES_DIR);
           }
           return;
         } else {

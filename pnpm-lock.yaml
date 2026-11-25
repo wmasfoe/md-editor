@@ -201,9 +201,6 @@ importers:
       '@md-editor/changelog':
         specifier: workspace:*
         version: link:../../packages/changelog
-      '@md-editor/compiler':
-        specifier: workspace:*
-        version: link:../../packages/compiler
       '@md-editor/core':
         specifier: workspace:*
         version: link:../../packages/core

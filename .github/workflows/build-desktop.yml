@@ -103,6 +103,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # `pnpm test` 包含 test:render-diff（TS/Rust 双实现一致性守门），
+      # 它需要 cargo 才能跑 Rust 侧。因此本 job 必须装 Rust 工具链，
+      # 否则差分测试会因「crate 存在但找不到 cargo」而失败。
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
       - name: Run unit tests
         run: pnpm test
 
@@ -274,6 +283,23 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev file unzip squashfs-tools desktop-file-utils xvfb icewm x11-utils xdotool libegl1 libgl1 libgles2 libglx-mesa0 libgl1-mesa-dri libosmesa6 mesa-utils gcc appstream zsync
           sudo apt-get install -y libfuse2t64 || sudo apt-get install -y libfuse2
 
+      # `crates/render/build.rs` 在构建期从 `packages/compiler/node_modules` 提取
+      # `katex.min.js` 与 highlight.js（版本随 package.json 自动锁定，不手写版本号）。
+      # 因此这个 Rust job 也必须先装 Node 依赖，否则 clippy 阶段 build script 会直接 panic。
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.6.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -291,7 +317,18 @@ jobs:
         run: cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets -- -D warnings
 
       - name: Test Rust
-        run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
+        run: |
+          cargo test --manifest-path crates/render/Cargo.toml
+          cargo test --manifest-path crates/render-ffi/Cargo.toml
+          cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
+
+      # 双实现一致性的守门设施：
+      # 1) fixture 语料（约 110 条）逐条对比
+      # 2) 仓库全部 markdown 文档全量对比（真实写法覆盖，见 real-docs-parity.mjs）
+      # 虽然 `test-unit` 里的 `pnpm test` 已包含它，这里再显式跑一次，
+      # 让 parity 失败在 CI 上单独可见、不必翻整条测试日志。
+      - name: Render parity (TS vs Rust)
+        run: pnpm test:render-diff
 
   # The manual matrix below stays workflow_dispatch-only. Pull requests still have
   # to build the real x86_64 AppImage: validate-appimage.mjs runs inside
