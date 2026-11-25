@@ -26,9 +26,9 @@ Fixes #
 ## 🧪 测试与验证 (Testing & Verification)
 
 <!-- 说明如何验证本次变更，附上运行测试命令的输出或截图证据 -->
-- [ ] 运行 `pnpm test` 通过所有单元测试
-- [ ] 运行 `pnpm typecheck` 无类型错误
-- [ ] 运行 `pnpm lint` 无代码风格问题
+- [ ] 运行 `cargo fmt --all --check`
+- [ ] 运行 `cargo clippy --workspace --all-targets --locked -- -D warnings`
+- [ ] 运行 `cargo test --workspace --locked`
 - [ ] （如涉及 UI/桌面端）进行了实际界面交互测试
 
 ## 📋 检查清单 (Checklist)

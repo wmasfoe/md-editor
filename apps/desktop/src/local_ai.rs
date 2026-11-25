@@ -1,7 +1,7 @@
 //! Local llama.cpp inference for the native desktop host.
 //!
-//! Models live beside the existing Tauri app data, so switching hosts preserves
-//! user downloads and never starts a model download as a side effect.
+//! Models live beside the existing desktop app data so the app can reuse
+//! downloaded models across upgrades.
 
 use std::{
     net::{Ipv4Addr, TcpListener},

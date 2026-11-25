@@ -1,205 +1,32 @@
-# 发版指南
+# Beta 桌面应用发布
 
-这份文档面向人类维护者，说明如何发布 **桌面端 App（macOS / Linux / Windows）**、**Web 在线端（Playground）**、**uTools 插件**和 **官网（site）**。
+本指南说明当前 `beta` 分支的原生桌面构建和发布流程。
 
-| 产物 | 推荐命令 | Git Tag 触发契约 | 用户拿到什么 / 发布目标 |
-|------|----------|-----------------|------------------------|
-| **桌面端 App** | `pnpm release:desktop` | `v*`（例: `v0.10.2`） | DMG、AppImage、DEB、EXE、Homebrew、应用内自动更新 |
-| **Web 在线端** | `pnpm release:web` | 本地执行即可上线（无 Tag 干扰） | 生产环境预构建部署（Vercel）；不建 GitHub Release，保持 Release 纯净 |
-| **uTools 插件** | `pnpm build:utools` | `utools-v*`（首版: `utools-v0.1.0`） | 经校验的发布目录 zip 与 GitHub Release；市场审核需在 uTools 开发者工具提交 |
-| **官网** | `pnpm release:site` | App release 成功后自动触发；也可手动执行 | 首页与更新记录页（同时展示桌面端与 Web 端双日志 Tab） |
+## Beta CI
 
-更细的 CI / 脚本实现见 agent 文档：[release_workflow](../agent/release/release_workflow.md)。
+推送到 `beta` 分支后，`.github/workflows/release-beta.yml` 会运行 Rust 格式检查、Clippy 和 workspace 测试，然后为 macOS Apple Silicon 构建应用并打包 DMG。成功的 `beta` 分支推送会创建或更新 GitHub prerelease；Pull Request 只运行构建和上传短期 workflow artifact，不发布 prerelease。
 
----
+Beta 产物是独立的 GPUI Preview 应用，不会更新稳定版 Inkpoint 安装。该流程使用仓库内随附的 llama.cpp runtime，不从网络下载 runtime。
 
-## 一、桌面端 App 发版
+## 本地开发检查
 
-### 1. 推荐流程
+在仓库根目录运行：
 
-在干净的 `main` 分支上：
-
-```bash
-pnpm release:desktop
+```sh
+cargo fmt --all -- --check
+cargo clippy --locked --workspace --all-targets -- -D warnings
+cargo test --locked --workspace
 ```
 
-脚本会引导选择 `patch` / `minor` / `major` / `beta` 或具体版本号，并填写本次更新说明，然后自动：
+## 本地构建 macOS Apple Silicon DMG
 
-1. 调用 `pnpm release:desktop:version` 同步版本文件（desktop、Tauri、Cargo；根目录 package.json 固定为 0.0.0 容器占位）。
-2. 把本次说明写入 `apps/desktop/CHANGELOG.md`（新版本 section；已存在则失败，避免覆盖）。
-3. 本地构建自检并创建版本 commit。
-4. 创建 `v版本号` tag（例如 `v0.10.2`）。
-5. push 当前分支和 tag，触发 GitHub Release 跨平台工作流。
+在 macOS 上安装 Rust 1.99 工具链及 `aarch64-apple-darwin` target，然后运行：
 
-预览（不真正改文件 / 不 push）：
-
-```bash
-pnpm release:desktop patch --dry-run
+```sh
+cargo +1.99.0 build --locked --release --target aarch64-apple-darwin --package inkpoint-gpui
+GPUI_VERSION=0.23.4 CARGO_BUILD_TARGET=aarch64-apple-darwin bash apps/desktop/scripts/package-macos.sh
 ```
 
-指定说明或版本：
+`GPUI_VERSION` 应与 `apps/desktop/Cargo.toml` 中的 app 版本对应。DMG 输出到 `target/gpui-preview/`。打包脚本使用 ad-hoc 签名并调用 macOS 的 `hdiutil`，不会进行 Developer ID 公证。CI 中的 beta 版本号会由 workflow 从 app 版本和 commit SHA 计算。
 
-```bash
-pnpm release:desktop minor --notes "改进文件树体验"
-pnpm release:desktop beta --notes "测试新版编辑器"
-pnpm release:desktop 0.10.2
-```
-
-若脚本在版本文件更新后、commit/tag 之前中断，确认版本文件正确后可继续：
-
-```bash
-pnpm release:desktop --resume
-```
-
-`--resume` 要求 `apps/desktop/CHANGELOG.md` 里**已经存在**目标版本 section，且不会改写该 section。
-
-### 2. 手动分步发版（仅应急）
-
-```bash
-pnpm release:desktop:version patch   # 或 minor / major / 0.10.2
-# 检查 apps/desktop/CHANGELOG.md
-git add .
-git commit -m "chore: release v0.10.2"
-git push origin main
-
-git tag v0.10.2
-git push origin v0.10.2
-```
-
-### 3. Beta 版本
-
-```bash
-pnpm release:desktop beta
-```
-
-- 当前 `0.10.1` → `0.10.2-beta.1`
-- 当前 `0.10.2-beta.1` → `0.10.2-beta.2`
-
-Beta 会生成 GitHub **prerelease**，**不会**更新公开 Homebrew tap、cask 与应用内更新 manifest。
-
-### 4. Sentry source map
-
-桌面发版会把仓库 Secret `SENTRY_AUTH_TOKEN` 传给 macOS、Linux、Windows 的打包步骤。有 token 时，Vite 用 `@sentry/vite-plugin` 把 hidden source map 上传到 Sentry 项目 `lijiaqi/inkpoint`，release 名是 `inkpoint@<版本号>`，与应用里的 `Sentry.init` 相同。上传后删除 `.map`，安装包不带源码映射。
-
-正式版工作流在打包前运行 `scripts/release/note-sentry-auth.mjs --require`。Secret 缺失或为空时这一步失败，避免再发出没有 source map 的正式版。Beta 不带 `--require`，只警告并继续构建。上传本身失败时只记警告，构建继续，随后仍会删掉本地 `.map`。
-
-在 **Settings → Secrets and variables → Actions → Secrets** 添加 `SENTRY_AUTH_TOKEN`。按 [Sentry 权限文档](https://docs.sentry.io/api/permissions/)，token 需要 `project:releases` 和 `org:read`。不要把 token 写进仓库。
-
----
-
-## 二、Web 在线版发版
-
-Web 端作为部署在 Vercel 上的在线服务（Playground），发布模式对标**官网（site）**，采用 **Vercel CLI 预构建发布**。
-
-### 1. 为什么不发布 GitHub Release？
-
-- **纯净性保障**：GitHub Releases 页面与仓库首页的 `Latest` 徽标**永远只属于桌面客户端 App**，避免用户在下载客户端时被 Web 端离线包干扰；
-- **即开即用**：Web 用户直接通过浏览器访问在线地址（如 `/playground`），无需在 GitHub 下载压缩包；
-- **更新日志分离**：Web 端的功能演进记录在 `apps/web/CHANGELOG.md` 中，官网更新日志页有专门的「Web 在线版」Tab 展示。
-
-### 2. 推荐发布流程（本地一键上线）
-
-在本地终端执行：
-
-```bash
-pnpm release:web
-```
-
-该命令将执行 `scripts/web/deploy-web.mjs`：
-1. 本地拉取 `md-editor-web` 的生产配置；
-2. 在本地执行生产构建（`build --prod`）；
-3. 将预构建产物上传至 Vercel 生产环境并即时生效；
-4. 部署完成后自动还原根目录配置，不影响官网的发布上下文。
-
-预览部署命令（不执行实际上传）：
-```bash
-pnpm release:web --dry-run
-```
-
-### 3. 更新版本号与更新日志（可选）
-
-当 Web 端有重要功能上线、需要向用户公布更新日志时：
-
-```bash
-# 升级 patch / minor / major 版本，并自动更新 apps/web/CHANGELOG.md
-pnpm release:web:version patch
-```
-
-> [!IMPORTANT]
-> `apps/web/vercel.json` 已显式设置 `"git": { "deploymentEnabled": false }`。合并 PR 或推送到 `main` 分支**绝不会**自动触发 Web 生产部署，所有发布均由本地 `pnpm release:web` 严格受控。
-```
-
----
-
-## 三、uTools 插件发版
-
-uTools 版本以 `apps/utools/package.json` 与 `apps/utools/plugin.json` 共同维护，二者必须一致。首发版本为 `0.1.0`。
-
-```bash
-pnpm build:utools
-node scripts/release/validate-utools-release.mjs --dist apps/utools/dist
-git tag utools-v0.1.0
-git push origin utools-v0.1.0
-```
-
-`.github/workflows/release-utools.yml` 会自动运行类型检查、单测和生产构建，校验 tag 与三个 manifest 的版本，上传 `inkpoint-utools-0.1.0.zip` 并创建 GitHub Release。PR 与手动 workflow 也会生成短期构建产物，但不会创建 Release。
-
-uTools 官方公开流程要求在开发者工具中填写发布信息、截图并提交审核，目前没有公开的市场发布 API/CLI。因此 GitHub Release 自动化完成后，仍需解压产物并在 uTools 开发者工具中完成市场提交；不要把账号 cookie 或私有接口凭证放入 CI。
-
----
-
-## 四、官网（site）发版
-
-官网在 monorepo 的 `apps/site/` 包（Next.js），内容来源：
-- 页面文案与布局：`apps/site/`
-- **更新记录**：同时展示「桌面客户端」（来自 `apps/desktop/CHANGELOG.md`）与「Web 在线版」（来自 `apps/web/CHANGELOG.md`），支持 Tab 自由切换。
-
-### 1. 发布策略
-
-| 场景 | 是否部署官网 |
-|------|----------------|
-| PR / `main` push | 否（PR 只校验 `pnpm build:site` 等） |
-| 推送 `v*` tag 且桌面端 Release 流程成功跑完 | 是（CI 中自动执行 `pnpm release:site`） |
-| 本地或 CI 手动执行 | 是（`pnpm release:site`） |
-
-官网采用 **Vercel CLI-only** 发布：
-- 仓库内**唯一**发布入口：`pnpm release:site` → `scripts/site/deploy-site.mjs`
-- `apps/site/vercel.json` 已设置 `git.deploymentEnabled: false`，关闭 push / PR 触发的自动部署。
-
-### 2. 本地预览与手动发布
-
-```bash
-# 本地预览官网
-pnpm dev:site
-
-# 构建官网生产静态产物
-pnpm build:site
-
-# 发布官网（需本机 Vercel 登录态或环境变量 VERCEL_TOKEN）
-pnpm release:site
-```
-
----
-
-## 五、相关命令速查
-
-```bash
-# 桌面端 (Desktop)
-pnpm release:desktop             # 交互式发版（推荐）
-pnpm release:desktop:version     # 仅更新版本文件与日志
-pnpm release:desktop patch --dry-run
-
-# Web 端 (Web)
-pnpm release:web                 # 本地构建并一键发布至 Vercel（推荐）
-pnpm release:web:version         # 仅更新版本文件与日志
-pnpm release:web --dry-run       # 仅预览发布命令，不执行上传
-
-# uTools 插件
-pnpm build:utools
-node scripts/release/validate-utools-release.mjs --dist apps/utools/dist
-
-# 官网 (Site)
-pnpm dev:site                    # 本地调试
-pnpm build:site                  # 静态构建
-pnpm release:site                # 生产环境发布
-```
+发布前请确认 Cargo package 版本、应用名称与独立 bundle ID 符合本次 Beta 预览要求。自动更新、官网、其他平台安装包及 npm 包发布当前不属于此工作流。

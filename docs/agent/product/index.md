@@ -1,12 +1,12 @@
 # 产品文档目录
 
-用途：记录产品需求、沟通共识、优先级和 AI 功能边界。需要判断“要做什么、为什么做、先后顺序是什么”时先读本目录。
+用途：保存历史产品需求、沟通结论和优先级背景。此处的计划不代表功能已经迁移到 Rust Beta。
 
 ## 文档
 
-- 需求沟通记录： [markdown_editor_communication_record.md](./markdown_editor_communication_record.md)
-- 产品需求文档： [markdown_editor_requirements.md](./markdown_editor_requirements.md)
-- 任务优先级与里程碑： [markdown_editor_task_priorities.md](./markdown_editor_task_priorities.md)
-- AI 功能需求、隐私边界、实现状态与风格学习实现详情： [markdown_editor_ai_feature_requirements.md](./markdown_editor_ai_feature_requirements.md)
-- 竞品分析（VMark 功能盘点、借鉴/拒绝建议与落地顺序；§7.1 记录代码核实的现状与剩余缺口）： [vmark_competitive_analysis.md](./vmark_competitive_analysis.md)
-- 编辑器视图模式（专注/打字机模式的行为契约、键位与勾选态镜像）： [editor_view_modes.md](./editor_view_modes.md)
+- [产品需求](./markdown_editor_requirements.md)：Markdown 编辑体验目标与需求记录。
+- [任务优先级](./markdown_editor_task_priorities.md)：历史里程碑与功能排期背景。
+- [AI 功能需求](./markdown_editor_ai_feature_requirements.md)：AI 能力与隐私需求记录；Beta 当前能力以桌面 Rust 代码为准。
+- [沟通记录](./markdown_editor_communication_record.md)：历史产品决策和沟通背景。
+- [竞品分析](./vmark_competitive_analysis.md)：历史竞品研究，不作为当前实现或承诺。
+- [编辑视图模式](./editor_view_modes.md)：编辑模式及相关交互目标，当前实现以 GPUI 桌面应用为准。

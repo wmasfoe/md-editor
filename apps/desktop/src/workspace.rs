@@ -147,6 +147,10 @@ impl Workspace {
                     if this.file_busy {
                         return false;
                     }
+                    if this.editor.read(cx).composing() {
+                        this.message("Finish the current text composition before closing.", cx);
+                        return false;
+                    }
                     if this.dirty(cx) {
                         this.save_hot_exit_session(cx);
                         this.file_action(FileAction::Close, window, cx);
@@ -284,24 +288,23 @@ impl Workspace {
     }
 
     fn file_action(&mut self, action: FileAction, window: &mut Window, cx: &mut Context<Self>) {
-        self.after_editor_flush(window, cx, move |this, window, cx| {
+        self.with_committed_editor(window, cx, move |this, window, cx| {
             this.file_action_from_snapshot(action, window, cx);
         });
     }
 
-    /// Runs `action` now that the editor has no pending edits to flush.
-    ///
-    /// The WebView host had to wait for an IPC round-trip before reading a
-    /// snapshot, so menu actions arriving first could read stale text. This
-    /// editor commits each edit as it happens, so there is nothing to wait for
-    /// and the action runs immediately.
-    fn after_editor_flush(
+    /// Runs an action when the editor has committed its current composition.
+    fn with_committed_editor(
         &mut self,
         window: &mut Window,
         cx: &mut Context<Self>,
         action: impl FnOnce(&mut Self, &mut Window, &mut Context<Self>),
     ) {
         if self.file_busy {
+            return;
+        }
+        if self.editor.read(cx).composing() {
+            self.message("Finish the current text composition before continuing.", cx);
             return;
         }
         action(self, window, cx);
@@ -476,7 +479,7 @@ impl Workspace {
         if !self.has_active_document {
             return;
         }
-        self.after_editor_flush(window, cx, move |this, window, cx| {
+        self.with_committed_editor(window, cx, move |this, window, cx| {
             this.save_snapshot(save_as, next, window, cx);
         });
     }
@@ -511,7 +514,7 @@ impl Workspace {
                 this.file_busy = false;
                 match response {
                     Ok(Ok(Some(path))) => {
-                        this.after_editor_flush(window, cx, move |this, window, cx| {
+                        this.with_committed_editor(window, cx, move |this, window, cx| {
                             this.write_document(path, next, window, cx);
                         })
                     }
@@ -551,7 +554,7 @@ impl Workspace {
                             this.pending_draft = None;
                         }
                         if let Some(next) = next {
-                            this.after_editor_flush(window, cx, move |this, window, cx| {
+                            this.with_committed_editor(window, cx, move |this, window, cx| {
                                 if this.dirty(cx) {
                                     this.message(
                                         "Saved a snapshot. Newer edits are still unsaved.",
@@ -642,7 +645,7 @@ impl Workspace {
 
     fn request_completion(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.has_active_document && !self.ai_busy {
-            self.after_editor_flush(window, cx, Self::request_snapshot_completion);
+            self.with_committed_editor(window, cx, Self::request_snapshot_completion);
         }
     }
 

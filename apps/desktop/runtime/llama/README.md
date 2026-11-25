@@ -1,12 +1,11 @@
-This directory vendors the bundled local inference runtime for the desktop app.
+# Bundled llama.cpp runtime
 
-Current payload:
+This directory contains the llama.cpp runtime used by the native desktop app's local inference feature.
+
+The macOS Apple Silicon payload includes:
+
 - `llama-server-aarch64-apple-darwin`
 - `llama-runtime-macos-arm64/*.dylib`
-- `LICENSE.llama.cpp`
+- `llama-runtime-macos-arm64/LICENSE.llama.cpp`
 
-The Tauri bundle config copies the macOS arm64 runtime into app resources and
-loads it as a bundled sidecar from the app's resource directory.
-
-To refresh this payload, update it from the matching llama.cpp release artifact
-and keep the executable plus its sibling dylibs together.
+The app's macOS packaging script copies the server and its runtime libraries into the app bundle. Keep the executable, required libraries, and license together when updating the vendored payload.

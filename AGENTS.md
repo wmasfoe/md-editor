@@ -10,7 +10,7 @@ USE CODEX NATIVE SUBAGENTS FOR INDEPENDENT PARALLEL SUBTASKS WHEN THAT IMPROVES 
 ## 注意遵守的事项
 
 1. 编码过程中注意写注释；
-2. 如果 GitHub / NPM 上有成熟的开源方案，直接复用，不要自己实现；
+2. 如果已有成熟的 Rust crate 或开源方案，优先复用；
 3. 分析 bug 的时候，要从第一性原理出发；
 4. 所有实现必须易维护、易扩展，不允许为了当前需求硬编码；
 5. 遇到不确定的信息，不要猜测，优先查官方文档或明确指出需要确认的地方；
@@ -23,29 +23,18 @@ USE CODEX NATIVE SUBAGENTS FOR INDEPENDENT PARALLEL SUBTASKS WHEN THAT IMPROVES 
    - 示例：`feature/desktop-r2-distribution`、`fix/table-cell-editing`、`refactor/split-desktop-view`；
 7. **Commit 规范**：严格采用 **Conventional Commits** 规范（格式为 `<type>(<scope>): <subject>`，全小写动词短语）。允许的 type 包括：`feat`, `fix`, `perf`, `refactor`, `docs`, `test`, `chore`, `style`, `ci`, `build`。严禁自由发挥或使用任何 Lore 格式；
 8. **Push 前验证规范**：每次执行 `git push` 前，必须在本地依次执行并通过：
-   - `pnpm lint`（包含 oxlint、prettier 格式化检查、cargo fmt/clippy）；
-   - `pnpm test`（运行所有 package 单元测试，必须 100% 通过；不强制要求 e2e 测试）；
-   - `pnpm typecheck`（确保所有 workspace 无 TypeScript 类型错误）；
+   - `cargo fmt --all --check`；
+   - `cargo clippy --workspace --all-targets --locked -- -D warnings`；
+   - `cargo test --workspace --locked`；
 9. **Push 后 CI 监控规范**：如果当前分支存在关联的 Pull Request，在 `git push` 成功后，必须自动执行 CI 状态监控（如 `gh pr checks` 或 `gh run watch`），观察并向用户汇报 CI 构建与测试结果，确保未引入远程破坏；
 10. **严禁无意义的兼容性 Re-export（杜绝代码臃肿）**：当抽取、拆解或新增独立子包/模块时，严禁在旧模块或旧包中为了所谓的“向后兼容”保留无意义的 `re-export` 转发代码。一旦拆出新包，必须直接修改所有历史调用方直接从新包导入，并彻底清理旧模块与无用导出，严防历史包袱累积导致代码库日益臃肿；
 11. **PR 合并与分支清理规范**：使用 GitHub CLI（`gh pr merge`）执行 PR 合并时，必须携带 `--delete-branch`（或 `-d`）参数，合并后自动清理远程分支与本地分支，避免已合入分支长期累积堆积；严禁删除 `main`、`dev`、`beta` 保护分支；
-12. **npm 公开子包发版与变更集规范（Changeset）**：
-   - 凡修改已发布的公开 npm 子包（`packages/core`、`packages/editor`、`packages/plugin-sdk`、`packages/shared`、`packages/markdown-fidelity`、`packages/plugin-host`）时，提 PR 前必须运行 `pnpm changeset` 生成变更声明文件（`.changeset/*.md`），选择对应的受影响包并标明 SemVer 级别（`patch` / `minor` / `major`）及英文变更描述，随 PR 一并提交；
-   - 严禁在 PR 中直接手动修改 `packages/*/package.json` 中的 `version` 字段，发版版本号由 Changesets 在合并到 `main` 分支后自动聚合计算与发布；
-   - 内部包（`ai`、`app-ui`、`file-system` 等）与应用（`desktop`、`web` 等）已在 Changeset 中全局忽略，无需且严禁为其生成 changeset。
 
 ## 代码结构与命名
 
-结构性约定（目录职责、文件名与后缀语义、测试位置、导入规则、体量阈值与豁免清单、规则分批上线）统一收敛在
-[仓库结构与命名规范](./docs/agent/architecture/repo_structure_and_naming_conventions.md)，
-机器可读的唯一事实来源是同目录的 `scripts/structure/check.mjs`。
-
-- **测试位置**：所有测试位于 `<pkg>/tests/**`，`src/**` 内不允许测试文件或 `tests/`、`__tests__/` 目录；
-  `tests/` 与 `src/` 保持顶层目录镜像（`support/`、`fixtures/`、`helpers/` 等辅助目录豁免）。
-- **导入**：禁止冗余回退段路径（`a/b/../c`）与跨包深导入（`@md-editor/<pkg>/src/**`）；移动文件后直接改所有调用方，禁止兼容 re-export。
-- **体量阈值**：`packages|apps|infra/*/src/**` 的 `.ts/.tsx` 单文件 >800 行警告、>1200 行失败；
-  豁免清单 `structure-exceptions.json` 与 `scripts/structure/exceptions.baseline.json` 必须一致地维护（id 子集、`maxLines` 只降不升、搬迁 ≤+5 行 headroom），且**禁止新增豁免**。
-- **改结构前先读规范**；改规则时必须同时更新「检查器 + 规范文档 + 反例测试」，并跑 `pnpm lint`（含 `pnpm lint:structure`）、`pnpm test`（含 `pnpm test:structure`）、`pnpm typecheck`。
+改动 crate 或模块结构前，先读[仓库结构与命名规范](./docs/agent/architecture/repo_structure_and_naming_conventions.md)。
+各 crate 通过 Cargo 声明依赖和公开 API，集成测试放在对应 crate 的 `tests/`。
+移动模块后直接更新调用方，避免无意义的兼容 re-export。
 
 ## 架构边界设计
 
@@ -94,17 +83,12 @@ Keep runtime marker contracts stable and non-destructive when overlays are appli
 - `<!-- OMX:TEAM:WORKER:START --> ... <!-- OMX:TEAM:WORKER:END -->`
 </guidance_schema_contract>
 
-The workspace now uses pnpm workspaces with a Tauri + React desktop app. Useful commands:
+The beta branch uses a Rust Cargo workspace and a native GPUI desktop app.
+Use the Cargo checks below and `.github/workflows/release-beta.yml` for beta development and releases.
 
-- `find docs -type f -name '*.md'`: list documentation files.
-- `rg "Milkdown|MDX|Tauri" docs/`: search project decisions.
-- `git status`: check pending changes once a Git repository is initialized.
-- `pnpm install`: install workspace dependencies.
-- `pnpm dev`: start the desktop web shell through Vite.
-- `pnpm tauri dev`: run the Tauri desktop app.
-- `pnpm typecheck`: run TypeScript checks for every workspace.
-- `pnpm test`: run Vitest suites.
-- `pnpm build`: build all workspaces.
+- Run the desktop app with `cargo run --locked -p inkpoint-gpui`.
+- Build the workspace with `cargo build --workspace --locked`.
+- Run the workspace tests with `cargo test --workspace --locked`.
 
 <operating_principles>
 
@@ -179,10 +163,11 @@ Every commit message in this repository must strictly follow **Conventional Comm
 - `style`: Formatting, missing semi colons, etc.
 
 ### Pre-push Verification (Mandatory)
-Before pushing to remote, always execute and ensure passes:
-1. `pnpm lint`
-2. `pnpm test`
-3. `pnpm typecheck`
+Run these checks before pushing to a remote branch.
+
+1. `cargo fmt --all --check`
+2. `cargo clippy --workspace --all-targets --locked -- -D warnings`
+3. `cargo test --workspace --locked`
 
 ### Post-push CI Watch (Mandatory if PR exists)
 If a Pull Request is open for the branch, monitor its CI status after push:

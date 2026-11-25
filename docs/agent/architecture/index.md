@@ -1,55 +1,19 @@
 # 架构文档目录
 
-用途：记录技术方案、模块边界、能力边界、编辑器核心模型和插件架构。改动核心编辑链路、MDX、Raw 保真、插件系统、AI 接入或跨包接口时先读本目录。
+用途：记录当前 Rust workspace 中的稳定模块边界和已采纳的桌面编辑器架构。对旧 JavaScript / WebView 实现的记录不代表 Beta 当前代码。
 
-## 文档
+## 当前架构
 
-- GitHub 外部插件协议、SDK/host 边界、开发模板、桌面安装更新与网页隔离试用： [github_external_plugins.md](./github_external_plugins.md)
+- [GPUI Beta 架构](./gpui_beta_architecture.md)：原生桌面画布、输入/排版分工、源码映射和本地开发命令。
+- [GPUI 原生编辑器 ADR](./adr_gpui_native_editor.md)：从 WebView 桌面编辑器迁移至 GPUI 的决策背景。
+- [能力边界设计原则](./capability_boundary_design_principles.md)：稳定能力归属核心领域，宿主负责平台接入。
+- [Rust workspace 结构](./repo_structure_and_naming_conventions.md)：Beta 应用、crate 与测试的目录职责。
+- [macOS 窗口 Chrome 规范](./macos_window_chrome_guidelines.md)：桌面窗口视觉与交互原则。
+- [本地模型接入方案](./local_ai_model_integration_plan.md)：端侧 llama.cpp 集成背景与约束；实现状态以 Rust 代码为准。
+- [本地 AI 任务适配架构](./local_ai_task_adapter_architecture.md)：本地 AI 任务和模型档位的设计记录。
+- [SLM 紧凑协议](./slm_compact_protocol_and_client_integration.md)：本地小模型客户端协议设计记录。
+- [AI 写作 Harness 架构](./ai_writing_harness_architecture.md)：AI 编排设计记录，尚未全部迁移到 Beta。
 
-- VMark 剩余核心能力落地技术方案（Hot Exit、文档历史、Markdown Lint/链接检查与 HTML/PDF 导出）： [vmark_remaining_features_technical_plan.md](./vmark_remaining_features_technical_plan.md)
-- 技术方案（文件、状态等通用边界继续有效；编辑器内核以 CM6 专项方案为准）： [markdown_editor_technical_plan.md](./markdown_editor_technical_plan.md)
-- 能力边界设计原则： [capability_boundary_design_principles.md](./capability_boundary_design_principles.md)
-- 仓库优化与加固方案（体积/首屏、配置单源、巨型文件拆分、工程门禁、依赖卫生五项方案与验收标准）： [repo_optimization_plan.md](./repo_optimization_plan.md)
-  记录 KaTeX 运行时收敛（双版本 + 启动预加载）、Vite 工作区别名单源化、distribution-worker router 拆分、CI 门禁与包体预算护栏、依赖卫生（幽灵依赖与 catalog）的现状证据、分步实施与风险。
-- 仓库结构与命名规范（目录职责/命名后缀/测试位置/导入规则/体量阈值与豁免/规则分批上线）： [repo_structure_and_naming_conventions.md](./repo_structure_and_naming_conventions.md)
-  唯一事实来源的机器可读部分在 `scripts/structure/check.mjs`；改动结构、移动文件、调整阈值或登记豁免前必读。
-- Desktop Store 与 Controller 边界规范： [desktop_store_controller_boundary.md](./desktop_store_controller_boundary.md)
-- Hooks 迁移到 React-facing 层与 core 平台依赖清理手册： [hooks-migration-to-core.md](./hooks-migration-to-core.md)
-- macOS 窗口 Chrome 规范： [macos_window_chrome_guidelines.md](./macos_window_chrome_guidelines.md)
-- MDX 官方组件分层方案： [mdx_component_plugin_architecture.md](./mdx_component_plugin_architecture.md)
-- 本地小模型接入方案（含 macOS runtime 动态库布局、ad-hoc 签名例外与验证方式）： [local_ai_model_integration_plan.md](./local_ai_model_integration_plan.md)
-- 端侧专属小模型 (SLM) 紧凑协议与客户端对接规范： [slm_compact_protocol_and_client_integration.md](./slm_compact_protocol_and_client_integration.md)
-- Desktop Editor Actions Context（Provider 依赖型动作的组织规范）： [desktop_editor_actions_context.md](./desktop_editor_actions_context.md)
-- WYSIWYG 内联可删除语法标记（Milkdown 路线 D 历史实现）+ 编辑器视觉优化记录： [inline_syntax_markers_and_visual_refresh.md](./inline_syntax_markers_and_visual_refresh.md)
-- GPUI 桌面编辑区、排版与编辑分工、本地启动命令：[GPUI 桌面编辑区架构](./gpui_beta_architecture.md)
-- ADR：桌面正文放弃 WebView、改用 GPUI 原生排版（含三个被否决方案的理由与复核条件）：[ADR 原生排版](./adr_gpui_native_editor.md)
-- CodeMirror 6 Markdown 可视化编辑器架构方案（权威目标；S1/M0 beta 可用，M1/S2、M1-FM/S5-FM-only、M2/S3、M3 表格、M4 HTML/MDX 与 M5 均已验证，M6 收口进行中）： [custom_markdown_renderer_architecture.md](./custom_markdown_renderer_architecture.md)
-- Linux 与 Windows 平台支持、ARM 架构与终端一键安装方案： [cross_platform_support_plan.md](./cross_platform_support_plan.md)
-- Web 端（Playground 体验版）架构方案： [web_app_architecture_plan.md](./web_app_architecture_plan.md)
-- Markdown 语法插件架构（文本高亮、容器指令、LaTeX 数学公式与 Mermaid 图表方案）： [markdown_syntax_plugin_architecture.md](./markdown_syntax_plugin_architecture.md)
-  记录 Markdown 扩展语法插件规范（MarkdownSyntaxPlugin）、@md-editor/syntax-plugins 架构、highlightPlugin（==高亮==）、containerDirectivePlugin、mathPlugin（KaTeX）与 mermaidPlugin 的按需/异步加载、Lezer 语法拦截、所见即所得就地编辑契约与降级隔离设计。
-- macOS Quick Look 快速预览扩展架构方案： [macos_quicklook_preview_architecture.md](./macos_quicklook_preview_architecture.md)
-  记录系统接入边界、JavaScriptCore 离线渲染沙箱、基于独立子包 @md-editor/compiler 的纯静态渲染能力复用设计以及构建流水线规范。
-- 独立无头编译器架构方案： [compiler_architecture.md](./compiler_architecture.md)
-  记录纯 Headless 编译器子包 @md-editor/compiler 架构、结构化 Token 流抽取 (compileToTokens)、语义 HTML 发射、KaTeX 离线公式与容器指令渲染，以及开放 StaticCustomRenderer 接口设计。
+## 历史方案
 
-- 用户风格学习（写作偏好）架构： [style_profile_architecture.md](./style_profile_architecture.md)
-  记录 Rust 文件系统层、`@md-editor/ai/style` 与 `style-engine` 分层、学习时机与独占调度、草稿机制、目录身份、画像闸门、续写与纠错的注入契约及验收评测。
-- 本地 AI 任务、模型档位与 Adapter 架构方案： [local_ai_task_adapter_architecture.md](./local_ai_task_adapter_architecture.md)
-  记录单一启用 Model Tier、任务枚举、Capability Resolver、隐藏 Adapter、请求调度、缓存边界与两仓库实现契约。
-- AI 写作服务整洁架构与 App Harness 编排规范： [ai_writing_harness_architecture.md](./ai_writing_harness_architecture.md)
-  记录 `@md-editor/ai` 整洁分层设计、ModelClient 依赖倒置、多协议与 Harness 管道，以及 RFC-004 桌面 IPC 任务契约、LoRA 切换、发布清单差异与跨语言验证方式。
-- 国际化 (i18n) 架构与多语言扩展方案： [i18n_architecture.md](./i18n_architecture.md)
-  记录 `@md-editor/i18n` 独立包设计、Type-Safe 字典、全应用多语言接入方案及后续新增语言指南。
-- 代码库模块化拆分、并发保序保存调度与多端发版架构方案： [codebase_modularization_and_concurrency_architecture.md](./codebase_modularization_and_concurrency_architecture.md)
-  记录巨型单体文件拆解与全量注释规范、串行异步保存调度器（防抖/手动并发保护）以及桌面端与 Web 端发版解耦架构。
-- uTools 平台插件接入架构方案： [utools_integration_architecture.md](./utools_integration_architecture.md)
-  记录 uTools 平台接入定位（临时导流跳板）、apps/utools 完全隔离设计、文件与数据持久化机制、保存与图片插入防跳顶机制（beginSave/settleSave/applyExternalEdit）及 AI 免责规范。
-- 移动端 (iOS & Android) 原生外壳与离线内核架构方案： [mobile_support_architecture.md](./mobile_support_architecture.md)
-  记录移动端“即览 (Jilan)”产品哲学、CodeMirror 6 离线容器复用方案、双向类型安全 JSBridge 契约、iOS SwiftUI/inputAccessoryView 联动、Android Jetpack Compose/SAF 接入，以及本机构建与测试命令（移动端无 CI、不再发版）。
-- 多平台分发与边缘加速架构方案： [multi_platform_distribution_architecture.md](./multi_platform_distribution_architecture.md)
-  记录基于 Cloudflare R2（免流量费、移动端独立存储）与 Cloudflare Worker（桌面端大文件流式代理加速、统一多 App 版本元数据契约）的全球无污染分发基建设计；移动端已停止发版，仅保留已发布版本。
-
-
-
-- 编辑器三包职责、React 子入口、独立性护栏与保留依赖的 npm 分发约定：[编辑器包边界](./editor_package_boundaries.md)
+旧版 Web、插件、移动端、npm 子包、MDX 组件和 JavaScript 编译器的架构文档已从当前导航中移除。它们描述的是历史实现或未采纳方案，不构成 Beta 的构建、运行或扩展契约。仍需追溯时可在 Git 历史中查阅。

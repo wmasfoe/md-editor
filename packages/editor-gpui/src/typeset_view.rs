@@ -1,10 +1,8 @@
 //! The GPUI view: a laid-out Markdown document that accepts input.
 //!
-//! gpui-kit renders the blocks and reports geometry; [`inkpoint_editor_typeset`]
-//! owns the document, the selection and the edit operations. This view joins
-//! them and implements the platform input contract, which is the one piece only
-//! the host can supply: the OS asks for text ranges, marked (composing) text and
-//! caret bounds in UTF-16, and every offset in this crate is UTF-8 bytes.
+//! The source session owns editing and history. The view joins it to shaped
+//! block geometry and converts the operating system's UTF-16 text input and
+//! candidate window requests to and from UTF-8.
 //!
 //! The conversion is not cosmetic. macOS drives IME through these calls, so an
 //! offset that is wrong by one byte in the middle of a CJK character shows up as
@@ -15,17 +13,30 @@ use std::ops::Range;
 #[path = "find.rs"]
 mod find;
 
-use gpui_kit::base::text::editor_host::RenderContext;
+use gpui_kit::base::text::editor_host::{Caret, CaretAffinity, RenderContext};
 use gpui_kit::{
-    AnyElement, App, Bounds, Context, Element, ElementId, ElementInputHandler, Entity,
-    EntityInputHandler, FocusHandle, GlobalElementId, InspectorElementId, IntoElement, KeyBinding,
-    LayoutId, Pixels, Point, Render, SharedString, UTF16Selection, Window, actions, div,
-    prelude::*, px,
+    AnyElement, App, Bounds, Context, Element, ElementId, ElementInputHandler, Entity, FocusHandle,
+    GlobalElementId, InspectorElementId, IntoElement, KeyBinding, LayoutId, Pixels, Point, Render,
+    SharedString, Window, actions, div, prelude::*, px,
 };
-use inkpoint_editor_typeset::{
-    LeafIndex, TypesetDocument, TypesetEditor, TypesetError, byte_offset, line_start, move_left,
-    move_right, utf16_offset,
+use inkpoint_editor_core::{
+    SourceEdit,
+    session::{
+        EditorCommand, EditorIntent, EditorSession, SessionError, next_grapheme, previous_grapheme,
+    },
+    table_navigation::TableNavigation,
 };
+use inkpoint_editor_typeset::{LeafIndex, TypesetDocument, caret_bounds_at};
+
+#[path = "typeset_view/ime.rs"]
+mod ime;
+#[path = "typeset_view/source_mode.rs"]
+mod source_mode;
+
+#[cfg(test)]
+use gpui_kit::EntityInputHandler;
+#[cfg(test)]
+use inkpoint_editor_core::text::utf16_offset;
 
 actions!(
     inkpoint_typeset,
@@ -78,6 +89,7 @@ actions!(
         Copy,
         Cut,
         Paste,
+        ToggleSourceMode,
         MoveToLineStart,
         SelectToLineStart,
         MoveToLineEnd,
@@ -134,9 +146,8 @@ const KEY_CONTEXT: &str = "TypesetView";
 /// The keystrokes for the commands whose modifier differs per platform.
 ///
 /// Resolved at runtime from the platform the app is actually running on, not
-/// from `cfg!(target_os)`: a WebAssembly build is compiled once and then runs in
-/// whatever browser it is served to, so a compile-time choice would bind `cmd-z`
-/// for a Linux user. `KeyBinding::new` parses statically and cannot resolve
+/// from `cfg!(target_os)`, because a binary may run on a different host than
+/// the one that built it. `KeyBinding::new` parses statically and cannot resolve
 /// `secondary-`, which is why the spelling is assembled here.
 struct CommandKeys {
     find: String,
@@ -288,27 +299,36 @@ enum DragMode {
     Line(Range<usize>),
 }
 
+struct PendingVerticalMove {
+    key: u64,
+    goal_x: Pixels,
+    up: bool,
+    anchor: Option<usize>,
+}
+
 /// A GPUI element that renders and edits Markdown.
 pub struct TypesetView {
     typography: TypesetTypography,
+    native_layout: crate::native_layout::NativeLayoutState,
+    pending_vertical: Option<PendingVerticalMove>,
+    reveal_caret: Option<usize>,
+    visual_affinity: CaretAffinity,
     find: find::FindState,
-    editor: TypesetEditor,
+    editor: EditorSession,
     document: TypesetDocument,
+    source_mode: bool,
     geometry: LeafIndex,
     focus: FocusHandle,
     /// The leaf the caret is in, as reported by the last frame's geometry.
     caret_leaf: Option<u64>,
-    /// Composing text range in UTF-8 bytes, while an IME is active.
-    marked: Option<Range<usize>>,
+    /// Revision associated with the parsed tree. Preedit uses a temporary tree.
+    document_revision: Option<u64>,
     image_paste_enabled: bool,
     /// Draws `mermaid` and `math` fences. Kept across re-parses because it owns
     /// a font database and a parsed math face.
     diagrams: inkpoint_editor_typeset::DiagramRenderer,
     /// Why the last command was rejected, when it was.
     last_error: Option<String>,
-    /// The container's scroll position, so a click can be mapped back from
-    /// window coordinates into the document's own space.
-    scroll: gpui_kit::ScrollHandle,
     /// Where a mouse drag started, while the button is held.
     drag_anchor: Option<usize>,
     drag_mode: DragMode,
@@ -326,37 +346,35 @@ pub struct TypesetView {
 impl TypesetView {
     /// Opens `source` in a new view.
     pub fn new(window: &mut Window, cx: &mut Context<Self>, source: impl Into<String>) -> Self {
-        let editor = TypesetEditor::new(source);
-        // A document that will not parse still opens, because the buffer is the
-        // user's file and losing it would be worse than showing it unrendered.
-        //
-        // There is no previous tree to keep on the first open, so the fallback
-        // shows the raw source as one code block: the user sees their text
-        // instead of a blank page, which is the same intent as the degradation
-        // mermaid and math use. `reparse` keeps the previous tree instead, since
-        // by then one exists.
+        let editor = EditorSession::new(source);
+        // Preserve the source and current geometry even when the parser
+        // cannot structure the file.
         let diagrams = inkpoint_editor_typeset::DiagramRenderer::new(cx.asset_source().clone());
         let (document, parse_error) =
-            match TypesetDocument::parse_with(editor.source(), Some(&diagrams)) {
-                Ok(document) => (document, None),
-                Err(error) => (Self::source_fallback(editor.source()), Some(error)),
-            };
+            source_mode::parse_document(editor.source(), false, &diagrams);
         let focus = cx.focus_handle();
         focus.focus(window, cx);
         let find = find::FindState::new(window, cx);
+        let document_revision = Some(editor.revision());
         Self {
             find,
             typography: TypesetTypography::default(),
+            native_layout: crate::native_layout::NativeLayoutState::new(
+                crate::native_layout::NativeLayoutConfig::default(),
+            ),
+            pending_vertical: None,
+            reveal_caret: None,
+            visual_affinity: CaretAffinity::Downstream,
             editor,
             document,
+            source_mode: false,
             geometry: LeafIndex::default(),
             focus,
             caret_leaf: None,
-            marked: None,
+            document_revision,
             image_paste_enabled: false,
             diagrams,
             last_error: None,
-            scroll: gpui_kit::ScrollHandle::new(),
             drag_anchor: None,
             drag_mode: DragMode::Char,
             drag_start_point: None,
@@ -379,22 +397,18 @@ impl TypesetView {
     }
 
     fn navigate_table(&mut self, backward: bool, cx: &mut Context<Self>) {
-        if self.marked.is_some() {
+        if self.composing() {
             return;
         }
-        let Some(target) = inkpoint_editor_typeset::navigate_table(
-            self.editor.source(),
-            self.editor.selection().range(),
-            backward,
-        ) else {
+        let Some(target) = self.editor.navigate_table(backward) else {
             return;
         };
         match target {
-            inkpoint_editor_typeset::TableNavigation::Select(range) => {
+            TableNavigation::Select(range) => {
                 self.editor.set_selection(range.start, range.end);
                 cx.notify();
             }
-            inkpoint_editor_typeset::TableNavigation::AppendRow {
+            TableNavigation::AppendRow {
                 offset,
                 text,
                 caret,
@@ -402,11 +416,11 @@ impl TypesetView {
                 if self.editor.is_readonly() {
                     return;
                 }
-                self.editor.set_caret(offset);
-                let result = self.editor.insert(&text);
-                if result.is_ok() {
-                    self.editor.set_caret(caret);
-                }
+                let result = self.editor.apply_edit(SourceEdit {
+                    range: offset..offset,
+                    replacement: text,
+                    selection_after: caret..caret,
+                });
                 self.apply(result, cx);
             }
         }
@@ -431,12 +445,16 @@ impl TypesetView {
 
     /// Whether an IME is composing, in which case the host must not save.
     pub fn composing(&self) -> bool {
-        self.marked.is_some()
+        self.editor.composition_target().is_some()
     }
 
     /// Replaces the document from disk.
     pub fn replace_markdown(&mut self, source: impl Into<String>, cx: &mut Context<Self>) {
         self.goal_x = None;
+        self.reset_drag();
+        {
+            self.reveal_caret = None;
+        }
         self.editor.replace_source(source);
         self.last_error = None;
         self.reparse();
@@ -445,6 +463,10 @@ impl TypesetView {
 
     /// Sets whether the view rejects edits.
     pub fn set_readonly(&mut self, readonly: bool, cx: &mut Context<Self>) {
+        if readonly && self.composing() {
+            self.editor.cancel_composition();
+            self.reparse();
+        }
         self.editor.set_readonly(readonly);
         self.last_error = None;
         cx.notify();
@@ -454,6 +476,7 @@ impl TypesetView {
     pub fn set_caret(&mut self, offset: usize, cx: &mut Context<Self>) {
         self.goal_x = None;
         self.editor.set_caret(offset);
+        self.scroll_offset_into_view(offset);
         cx.notify();
     }
 
@@ -462,34 +485,18 @@ impl TypesetView {
         self.focus.focus(window, cx);
     }
 
-    /// Renders the raw source as a single fenced block.
-    ///
-    /// Used when Markdown cannot be structured: showing the text beats a blank
-    /// page, and it is what the mermaid and math paths do when they fail.
-    fn source_fallback(source: &str) -> TypesetDocument {
-        let body = source.replace("```", "'''");
-        let fenced = format!("```text\n{body}\n```\n");
-        TypesetDocument::parse(fenced)
-            .or_else(|_| TypesetDocument::parse(""))
-            .expect("an empty document parses")
-    }
-
     /// Re-parses after the source changed.
     fn reparse(&mut self) {
         // Every successful edit ends with a re-parse, so this is the one place
         // that can clear a stale rejection.
         self.last_error = None;
-        match TypesetDocument::parse_with(self.editor.source(), Some(&self.diagrams)) {
-            Ok(document) => {
-                self.document = document;
-                self.parse_error = None;
-            }
-            Err(error) => {
-                // Keep the previous tree: an edit that the parser rejects should
-                // not blank the page under the caret.
-                self.parse_error = Some(error);
-            }
+        let revision = self.editor.revision();
+        if self.document_revision == Some(revision) {
+            return;
         }
+        self.document_revision = Some(revision);
+        (self.document, self.parse_error) =
+            source_mode::parse_document(self.editor.source(), self.source_mode, &self.diagrams);
     }
 
     /// Applies an edit, then re-parses and notifies.
@@ -497,7 +504,7 @@ impl TypesetView {
     /// A rejected edit is recorded rather than dropped: typing into a read-only
     /// document or past a boundary would otherwise do nothing with no
     /// explanation, which reads as a broken key.
-    fn apply(&mut self, edit: Result<(), TypesetError>, cx: &mut Context<Self>) {
+    fn apply(&mut self, edit: Result<(), SessionError>, cx: &mut Context<Self>) {
         self.goal_x = None;
         match edit {
             Ok(()) => {
@@ -515,16 +522,27 @@ impl TypesetView {
 
     /// Inserts `text` at the caret.
     fn insert(&mut self, text: &str, cx: &mut Context<Self>) {
+        if self.composing() {
+            return;
+        }
+        if self.source_mode() {
+            let result = self.editor.insert_source_text(text);
+            self.apply(result, cx);
+            return;
+        }
         if let Ok(true) = self.editor.try_wrap_pair(text) {
             self.apply(Ok(()), cx);
             return;
         }
-        let result = self.editor.insert(text);
-        self.apply(result, cx);
+        let result = self.editor.dispatch(EditorIntent::Insert(text.to_owned()));
+        self.apply(result.map(drop), cx);
     }
 
     /// Deletes the selection, or one character backwards when collapsed.
     fn delete_backward(&mut self, cx: &mut Context<Self>) {
+        if self.composing() {
+            return;
+        }
         let result = self.editor.delete_backward();
         self.apply(result, cx);
     }
@@ -545,6 +563,10 @@ impl TypesetView {
     /// Preserves `goal_x` across vertical movements so navigation through short
     /// or empty lines does not discard the user's intended column.
     fn move_vertical(&mut self, up: bool, shift: bool, cx: &mut Context<Self>) {
+        if self.composing() {
+            return;
+        }
+        let anchor = shift.then_some(self.editor.selection().anchor());
         if !shift && !self.editor.selection().is_collapsed() {
             let target = if up {
                 self.editor.selection().range().start
@@ -570,7 +592,7 @@ impl TypesetView {
             .document
             .rendered_offset(key, self.editor.selection().head())
             .unwrap_or(0);
-        let caret = gpui_kit::base::text::editor_host::Caret::new(local.min(leaf.len()));
+        let caret = self.layout_caret(local.min(leaf.len()));
         let origin = leaf.position_for_caret(caret);
         let goal_x = *self.goal_x.get_or_insert(origin.x);
 
@@ -586,6 +608,7 @@ impl TypesetView {
             Some(goal_x),
         );
         if let Some(moved) = inside {
+            self.visual_affinity = moved.affinity;
             self.editor.set_caret(
                 self.document
                     .source_offset(key, moved.index.min(leaf.len()))
@@ -597,13 +620,28 @@ impl TypesetView {
         }
 
         // Otherwise cross into the nearest laid-out neighbour.
-        let laid_out: Vec<u64> = self.geometry.entries().map(|(key, _)| key).collect();
+        let laid_out: Vec<u64> = self
+            .document
+            .leaf_spans()
+            .iter()
+            .map(|leaf| leaf.key())
+            .collect();
         let Some((neighbour_key, neighbour_span)) =
             self.document.vertical_neighbour(key, up, &laid_out)
         else {
             return;
         };
         let Some(neighbour) = self.geometry.get(neighbour_key) else {
+            if let Some(block_index) = self.block_index_for_offset(neighbour_span.start) {
+                self.native_layout.reveal_block(block_index);
+                self.pending_vertical = Some(PendingVerticalMove {
+                    key: neighbour_key,
+                    goal_x,
+                    up,
+                    anchor,
+                });
+                cx.notify();
+            }
             return;
         };
         let bounds = neighbour.bounds();
@@ -616,6 +654,7 @@ impl TypesetView {
             x: goal_x,
             y: target_y,
         });
+        self.visual_affinity = target.affinity;
         self.editor.set_caret(
             self.document
                 .source_offset(neighbour_key, target.index.min(neighbour.len()))
@@ -644,10 +683,19 @@ impl TypesetView {
     /// `within_line` picks the line around the caret; otherwise the whole
     /// document. `to_end` picks which end.
     fn move_to(&mut self, within_line: bool, to_end: bool, shift: bool, cx: &mut Context<Self>) {
+        if self.composing() {
+            return;
+        }
         self.goal_x = None;
-        let source = self.editor.source().to_string();
+        let source = self.editor.source();
         let head = self.editor.selection().head();
-        let target = if within_line {
+        let visual_boundary = within_line
+            .then(|| self.visual_line_boundary(head, to_end))
+            .flatten();
+        let target = if let Some((offset, affinity)) = visual_boundary {
+            self.visual_affinity = affinity;
+            offset
+        } else if within_line {
             let start = source[..head].rfind('\n').map_or(0, |index| index + 1);
             if to_end {
                 source[head..]
@@ -671,6 +719,26 @@ impl TypesetView {
         cx.notify();
     }
 
+    fn visual_line_boundary(&self, offset: usize, to_end: bool) -> Option<(usize, CaretAffinity)> {
+        let key = self.document.leaf_at(offset)?;
+        let leaf = self.geometry.get(key)?;
+        let local = self.document.rendered_offset(key, offset)?.min(leaf.len());
+        let y = leaf.position_for_caret(self.layout_caret(local)).y + leaf.line_height() / 2.;
+        let bounds = leaf.bounds();
+        let x = if to_end {
+            bounds.right()
+        } else {
+            bounds.left()
+        };
+        let hit = leaf.caret_for_position(gpui_kit::point(x, y));
+        let source = if to_end {
+            self.document.source_offset_before(key, hit.index)
+        } else {
+            self.document.source_offset(key, hit.index)
+        }?;
+        Some((source, hit.affinity))
+    }
+
     /// Writes the selection to the clipboard.
     fn copy(&mut self, cx: &mut Context<Self>) {
         self.goal_x = None;
@@ -688,6 +756,9 @@ impl TypesetView {
     /// would clobber what the user had copied even when the cut itself was
     /// rejected.
     fn cut(&mut self, cx: &mut Context<Self>) {
+        if self.composing() {
+            return;
+        }
         if self.editor.selected_text().is_empty() {
             return;
         }
@@ -706,6 +777,11 @@ impl TypesetView {
         let Some(item) = cx.read_from_clipboard() else {
             return;
         };
+        if self.composing() {
+            self.last_error = Some("Finish the current text composition before inserting.".into());
+            cx.notify();
+            return;
+        }
         let image = self
             .image_paste_enabled
             .then(|| {
@@ -721,12 +797,6 @@ impl TypesetView {
                 cx.notify();
                 return;
             }
-            if self.marked.is_some() {
-                self.last_error =
-                    Some("Finish the current text composition before inserting.".into());
-                cx.notify();
-                return;
-            }
             cx.emit(ImagePaste {
                 image,
                 target: PasteTarget {
@@ -735,7 +805,9 @@ impl TypesetView {
                 },
             });
         } else if let Some(text) = item.text() {
-            if let Ok(true) = self.editor.paste_smart_link(&text) {
+            if !self.source_mode()
+                && let Ok(true) = self.editor.paste_smart_link(&text)
+            {
                 self.apply(Ok(()), cx);
                 return;
             }
@@ -745,6 +817,9 @@ impl TypesetView {
 
     /// Reverts the last edit.
     fn undo(&mut self, cx: &mut Context<Self>) {
+        if self.composing() {
+            return;
+        }
         self.goal_x = None;
         if self.editor.is_readonly() {
             self.last_error = Some("The document is read-only.".into());
@@ -760,6 +835,9 @@ impl TypesetView {
 
     /// Reapplies the last undone edit.
     fn redo(&mut self, cx: &mut Context<Self>) {
+        if self.composing() {
+            return;
+        }
         self.goal_x = None;
         if self.editor.is_readonly() {
             self.last_error = Some("The document is read-only.".into());
@@ -785,6 +863,9 @@ impl TypesetView {
 
     /// Selects the whole document.
     fn select_all(&mut self, cx: &mut Context<Self>) {
+        if self.composing() {
+            return;
+        }
         self.goal_x = None;
         let len = self.editor.source().len();
         self.editor.set_selection(0, len);
@@ -793,6 +874,9 @@ impl TypesetView {
 
     /// Moves the caret left, extending the selection when `shift` is held.
     fn do_move_left(&mut self, shift: bool, cx: &mut Context<Self>) {
+        if self.composing() {
+            return;
+        }
         self.goal_x = None;
         if !shift && !self.editor.selection().is_collapsed() {
             let start = self.editor.selection().range().start;
@@ -802,8 +886,8 @@ impl TypesetView {
             return;
         }
         let head = self.editor.selection().head();
-        let caret = gpui_kit::base::text::editor_host::Caret::new(head);
-        let moved = move_left(self.editor.source(), caret).index;
+        self.visual_affinity = CaretAffinity::Downstream;
+        let moved = previous_grapheme(self.editor.source(), head);
         let anchor = if shift {
             self.editor.selection().anchor()
         } else {
@@ -816,6 +900,9 @@ impl TypesetView {
 
     /// Moves the caret right, extending the selection when `shift` is held.
     fn do_move_right(&mut self, shift: bool, cx: &mut Context<Self>) {
+        if self.composing() {
+            return;
+        }
         self.goal_x = None;
         if !shift && !self.editor.selection().is_collapsed() {
             let end = self.editor.selection().range().end;
@@ -825,8 +912,8 @@ impl TypesetView {
             return;
         }
         let head = self.editor.selection().head();
-        let caret = gpui_kit::base::text::editor_host::Caret::new(head);
-        let moved = move_right(self.editor.source(), caret).index;
+        self.visual_affinity = CaretAffinity::Downstream;
+        let moved = next_grapheme(self.editor.source(), head);
         let anchor = if shift {
             self.editor.selection().anchor()
         } else {
@@ -839,6 +926,9 @@ impl TypesetView {
 
     /// Moves the caret by word left or right, extending the selection when `shift` is held.
     fn do_move_word(&mut self, forward: bool, shift: bool, cx: &mut Context<Self>) {
+        if self.composing() {
+            return;
+        }
         self.goal_x = None;
         let head = self.editor.selection().head();
         let caret = gpui_kit::base::text::editor_host::Caret::new(head);
@@ -858,12 +948,18 @@ impl TypesetView {
     }
 
     fn delete_word_backward(&mut self, cx: &mut Context<Self>) {
+        if self.composing() {
+            return;
+        }
         self.goal_x = None;
         let result = self.editor.delete_word_backward();
         self.apply(result, cx);
     }
 
     fn delete_to_line_start(&mut self, cx: &mut Context<Self>) {
+        if self.composing() {
+            return;
+        }
         self.goal_x = None;
         let result = self.editor.delete_to_line_start();
         self.apply(result, cx);
@@ -877,37 +973,62 @@ impl TypesetView {
 
     /// Scrolls the container so `offset` is inside the visible viewport.
     pub(crate) fn scroll_offset_into_view(&mut self, offset: usize) {
-        let viewport = self.scroll.bounds();
-        if viewport.size.height <= px(0.) {
-            return;
+        {
+            let layout = &self.native_layout;
+            let Some(block_index) = self.block_index_for_offset(offset) else {
+                return;
+            };
+            let viewport = layout.viewport_bounds();
+            let Some(block_bounds) = layout.block_bounds(block_index) else {
+                layout.reveal_block(block_index);
+                return;
+            };
+            if viewport.size.height <= px(0.)
+                || block_bounds.bottom() <= viewport.top()
+                || block_bounds.top() >= viewport.bottom()
+            {
+                layout.reveal_block(block_index);
+                return;
+            }
+            let Some((leaf, local)) = self.document.leaf_at(offset).and_then(|key| {
+                Some((
+                    self.geometry.get(key)?,
+                    self.document.rendered_offset(key, offset)?,
+                ))
+            }) else {
+                return;
+            };
+            let caret = caret_bounds_at(leaf, self.layout_caret(local.min(leaf.len())));
+            let margin = px(20.);
+            let top_limit = viewport.top() + margin;
+            let bottom_limit = viewport.bottom() - margin;
+            let adjustment = if caret.top() < top_limit {
+                top_limit - caret.top()
+            } else if caret.bottom() > bottom_limit {
+                bottom_limit - caret.bottom()
+            } else {
+                px(0.)
+            };
+            if adjustment != px(0.) {
+                layout.scroll_by(-adjustment);
+            }
         }
-        let Some((leaf, local)) = self.document.leaf_at(offset).and_then(|key| {
-            Some((
-                self.geometry.get(key)?,
-                self.document.rendered_offset(key, offset)?,
-            ))
-        }) else {
-            return;
-        };
-        let y = leaf.position_for_index(local.min(leaf.len())).y;
-        let caret_h = leaf.caret_height();
-        let scroll_offset = self.scroll.offset();
-        let margin = px(20.);
-        let top_limit = viewport.top() + margin;
-        let bottom_limit = viewport.bottom() - margin;
-        let adjustment = if y < top_limit {
-            top_limit - y
-        } else if y + caret_h > bottom_limit {
-            bottom_limit - (y + caret_h)
-        } else {
-            px(0.)
-        };
-        if adjustment != px(0.) {
-            self.scroll.set_offset(gpui_kit::point(
-                scroll_offset.x,
-                scroll_offset.y + adjustment,
-            ));
-        }
+    }
+
+    fn block_index_for_offset(&self, offset: usize) -> Option<usize> {
+        let ranges = self.document.block_ranges();
+        ranges
+            .iter()
+            .position(|range| {
+                range
+                    .as_ref()
+                    .is_some_and(|range| range.start <= offset && offset <= range.end)
+            })
+            .or_else(|| {
+                ranges
+                    .iter()
+                    .rposition(|range| range.as_ref().is_some_and(|range| range.start <= offset))
+            })
     }
 
     /// Binds the movement keys.
@@ -935,6 +1056,8 @@ impl TypesetView {
         let bindings = vec![
             KeyBinding::new("escape", find::CloseFind, Some("TypesetFind")),
             KeyBinding::new("escape", CloseFind, Some(KEY_CONTEXT)),
+            KeyBinding::new("cmd-/", ToggleSourceMode, Some(KEY_CONTEXT)),
+            KeyBinding::new("ctrl-/", ToggleSourceMode, Some(KEY_CONTEXT)),
             KeyBinding::new("cmd-h", find::ToggleReplace, Some("TypesetFind")),
             KeyBinding::new("ctrl-h", find::ToggleReplace, Some("TypesetFind")),
             KeyBinding::new("alt-cmd-f", find::ToggleReplace, Some("TypesetFind")),
@@ -1022,194 +1145,8 @@ impl TypesetView {
     }
 }
 
-impl TypesetView {
-    fn ime_replacement_range(&self, range: Option<Range<usize>>) -> Range<usize> {
-        // GPUI passes None when the platform omits an explicit replacement
-        // range. An update then targets the preedit even if its caret is at the end.
-        range
-            .map(|range| {
-                let source = self.editor.source();
-                byte_offset(source, range.start)..byte_offset(source, range.end)
-            })
-            .or_else(|| self.marked.clone())
-            .unwrap_or_else(|| self.editor.selection().range())
-    }
-
-    fn finish_composition(&mut self) {
-        self.marked = None;
-        self.editor.commit_composition();
-    }
-}
-
-impl EntityInputHandler for TypesetView {
-    fn text_for_range(
-        &mut self,
-        range: Range<usize>,
-        adjusted_range: &mut Option<Range<usize>>,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
-    ) -> Option<String> {
-        let source = self.editor.source();
-        let start = byte_offset(source, range.start);
-        let end = byte_offset(source, range.end);
-        adjusted_range.replace(utf16_offset(source, start)..utf16_offset(source, end));
-        source.get(start..end).map(str::to_string)
-    }
-
-    fn selected_text_range(
-        &mut self,
-        _ignore_disabled_input: bool,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
-    ) -> Option<UTF16Selection> {
-        let source = self.editor.source();
-        let selection = self.editor.selection();
-        let range = selection.range();
-        Some(UTF16Selection {
-            range: utf16_offset(source, range.start)..utf16_offset(source, range.end),
-            reversed: selection.is_reversed(),
-        })
-    }
-
-    fn marked_text_range(
-        &self,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
-    ) -> Option<Range<usize>> {
-        let source = self.editor.source();
-        self.marked
-            .as_ref()
-            .map(|range| utf16_offset(source, range.start)..utf16_offset(source, range.end))
-    }
-
-    fn unmark_text(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
-        self.finish_composition();
-        cx.notify();
-    }
-
-    fn replace_text_in_range(
-        &mut self,
-        range: Option<Range<usize>>,
-        text: &str,
-        _window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let target = self.ime_replacement_range(range);
-        self.editor.set_selection(target.start, target.end);
-        if self.composing() {
-            // Candidate insertion is the last update of the same undo step.
-            let result = self.editor.insert_composing(text);
-            self.finish_composition();
-            self.apply(result, cx);
-        } else {
-            self.insert(text, cx);
-        }
-    }
-
-    fn replace_and_mark_text_in_range(
-        &mut self,
-        range: Option<Range<usize>>,
-        new_text: &str,
-        new_selected_range: Option<Range<usize>>,
-        _window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let target = self.ime_replacement_range(range);
-        self.editor.set_selection(target.start, target.end);
-        let start = target.start;
-        // Composition replaces the marked region on every keystroke; joining keeps
-        // it one undo step so Cmd-Z removes the character, not a stage of it.
-        let result = self.editor.insert_composing(new_text);
-        let inserted = result.is_ok();
-        self.apply(result, cx);
-        // The composing region covers the text just inserted. Only mark it when
-        // the insert actually landed: a read-only document would otherwise stay
-        // "composing" forever, blocking every save and AI suggestion that waits
-        // for composition to finish.
-        if inserted && !new_text.is_empty() {
-            self.marked = Some(start..start + new_text.len());
-        } else {
-            self.finish_composition();
-        }
-        // Only when the insert landed: the offsets were computed for a document
-        // that did not change, so applying them after a rejection would move the
-        // caret to a meaningless place.
-        if let (true, Some(selected)) = (inserted, new_selected_range) {
-            let from = start + byte_offset(new_text, selected.start);
-            let to = start + byte_offset(new_text, selected.end);
-            self.editor.set_selection(from, to);
-        }
-        cx.notify();
-    }
-
-    fn bounds_for_range(
-        &mut self,
-        range: Range<usize>,
-        _element_bounds: Bounds<Pixels>,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
-    ) -> Option<Bounds<Pixels>> {
-        let source = self.editor.source();
-        let offset = byte_offset(source, range.start);
-        // The leaf that owns the range, not the leaf holding the caret: the IME
-        // asks for the rectangle of text it is composing.
-        let key = self.document.leaf_at(offset)?;
-        let leaf = self.geometry.get(key)?;
-        let local = self.document.rendered_offset(key, offset).unwrap_or(0);
-        let position = leaf.position_for_index(local.min(leaf.len()));
-        let height = leaf.caret_height();
-        // Prepaint geometry already includes the scroll offset.
-        Some(Bounds {
-            origin: position,
-            size: gpui_kit::size(px(2.), height),
-        })
-    }
-
-    fn character_index_for_point(
-        &mut self,
-        point: Point<Pixels>,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
-    ) -> Option<usize> {
-        // The leaf must be the one under the point, not the one holding the
-        // caret: clicking into another block while the caret sits here would
-        // otherwise report an offset from the wrong block, and an IME composing
-        // region would open in the wrong place.
-        let (key, caret) = self.geometry.caret_and_key_for_point(point)?;
-        let span = self.document.span_of(key)?;
-        let document_offset = self
-            .document
-            .source_offset(key, caret.index)
-            .unwrap_or(span.start);
-        let source = self.editor.source();
-        Some(utf16_offset(source, document_offset))
-    }
-
-    fn set_selected_text_range(
-        &mut self,
-        range: Range<usize>,
-        _window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.goal_x = None;
-        let source = self.editor.source().to_string();
-        let start = byte_offset(&source, range.start);
-        let end = byte_offset(&source, range.end);
-        self.editor.set_selection(start, end);
-        cx.notify();
-    }
-
-    fn text_length_utf16(
-        &mut self,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
-    ) -> Option<usize> {
-        Some(self.editor.source().encode_utf16().count())
-    }
-}
-
 impl Render for TypesetView {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         // Build the listeners before rendering: the rendered element borrows
         // `cx` mutably, so every `cx.listener` call has to happen first.
         let on_table_next =
@@ -1246,34 +1183,21 @@ impl Render for TypesetView {
             this.extend_to(Some(anchor), cx);
         });
         let on_format_bold = cx.listener(|this, _: &FormatBold, window, cx| {
-            this.execute_command(
-                inkpoint_editor_typeset::EditorCommand::ToggleBold,
-                window,
-                cx,
-            )
+            this.execute_command(EditorCommand::ToggleBold, window, cx)
         });
         let on_format_italic = cx.listener(|this, _: &FormatItalic, window, cx| {
-            this.execute_command(
-                inkpoint_editor_typeset::EditorCommand::ToggleItalic,
-                window,
-                cx,
-            )
+            this.execute_command(EditorCommand::ToggleItalic, window, cx)
         });
         let on_format_code = cx.listener(|this, _: &FormatCode, window, cx| {
-            this.execute_command(
-                inkpoint_editor_typeset::EditorCommand::ToggleInlineCode,
-                window,
-                cx,
-            )
+            this.execute_command(EditorCommand::ToggleInlineCode, window, cx)
         });
         let on_format_strike = cx.listener(|this, _: &FormatStrike, window, cx| {
-            this.execute_command(
-                inkpoint_editor_typeset::EditorCommand::ToggleStrikethrough,
-                window,
-                cx,
-            )
+            this.execute_command(EditorCommand::ToggleStrikethrough, window, cx)
         });
         let on_indent = cx.listener(|this, _: &IndentListItem, _, cx| {
+            if this.composing() {
+                return;
+            }
             if let Ok(true) = this.editor.indent_list(true) {
                 this.apply(Ok(()), cx);
             } else {
@@ -1281,21 +1205,18 @@ impl Render for TypesetView {
             }
         });
         let on_outdent = cx.listener(|this, _: &OutdentListItem, _, cx| {
+            if this.composing() {
+                return;
+            }
             if let Ok(true) = this.editor.outdent_current() {
                 this.apply(Ok(()), cx);
             }
         });
         let on_indent_general = cx.listener(|this, _: &Indent, _, cx| {
-            if this.marked.is_some() {
+            if this.composing() {
                 return;
             }
-            if inkpoint_editor_typeset::navigate_table(
-                this.editor.source(),
-                this.editor.selection().range(),
-                false,
-            )
-            .is_some()
-            {
+            if this.editor.navigate_table(false).is_some() {
                 this.navigate_table(false, cx);
                 return;
             }
@@ -1306,16 +1227,10 @@ impl Render for TypesetView {
             }
         });
         let on_outdent_general = cx.listener(|this, _: &Outdent, _, cx| {
-            if this.marked.is_some() {
+            if this.composing() {
                 return;
             }
-            if inkpoint_editor_typeset::navigate_table(
-                this.editor.source(),
-                this.editor.selection().range(),
-                true,
-            )
-            .is_some()
-            {
+            if this.editor.navigate_table(true).is_some() {
                 this.navigate_table(true, cx);
                 return;
             }
@@ -1326,90 +1241,57 @@ impl Render for TypesetView {
             }
         });
         let on_soft_break = cx.listener(|this, _: &InsertPlainNewline, _, cx| {
-            let result = this.editor.insert_soft_break();
+            if this.composing() {
+                return;
+            }
+            let result = if this.source_mode() {
+                this.editor.insert_source_newline()
+            } else {
+                this.editor.insert_soft_break()
+            };
+            this.visual_affinity = CaretAffinity::Downstream;
             this.apply(result, cx);
         });
         let on_heading_0 = cx.listener(|this, _: &Heading0, window, cx| {
-            this.execute_command(
-                inkpoint_editor_typeset::EditorCommand::Heading(0),
-                window,
-                cx,
-            );
+            this.execute_command(EditorCommand::Heading(0), window, cx);
         });
         let on_heading_1 = cx.listener(|this, _: &Heading1, window, cx| {
-            this.execute_command(
-                inkpoint_editor_typeset::EditorCommand::Heading(1),
-                window,
-                cx,
-            );
+            this.execute_command(EditorCommand::Heading(1), window, cx);
         });
         let on_heading_2 = cx.listener(|this, _: &Heading2, window, cx| {
-            this.execute_command(
-                inkpoint_editor_typeset::EditorCommand::Heading(2),
-                window,
-                cx,
-            );
+            this.execute_command(EditorCommand::Heading(2), window, cx);
         });
         let on_heading_3 = cx.listener(|this, _: &Heading3, window, cx| {
-            this.execute_command(
-                inkpoint_editor_typeset::EditorCommand::Heading(3),
-                window,
-                cx,
-            );
+            this.execute_command(EditorCommand::Heading(3), window, cx);
         });
         let on_heading_4 = cx.listener(|this, _: &Heading4, window, cx| {
-            this.execute_command(
-                inkpoint_editor_typeset::EditorCommand::Heading(4),
-                window,
-                cx,
-            );
+            this.execute_command(EditorCommand::Heading(4), window, cx);
         });
         let on_heading_5 = cx.listener(|this, _: &Heading5, window, cx| {
-            this.execute_command(
-                inkpoint_editor_typeset::EditorCommand::Heading(5),
-                window,
-                cx,
-            );
+            this.execute_command(EditorCommand::Heading(5), window, cx);
         });
         let on_heading_6 = cx.listener(|this, _: &Heading6, window, cx| {
-            this.execute_command(
-                inkpoint_editor_typeset::EditorCommand::Heading(6),
-                window,
-                cx,
-            );
+            this.execute_command(EditorCommand::Heading(6), window, cx);
         });
         let on_toggle_quote = cx.listener(|this, _: &ToggleQuote, window, cx| {
-            this.execute_command(
-                inkpoint_editor_typeset::EditorCommand::ToggleQuote,
-                window,
-                cx,
-            );
+            this.execute_command(EditorCommand::ToggleQuote, window, cx);
         });
         let on_toggle_bullet = cx.listener(|this, _: &ToggleBulletList, window, cx| {
-            this.execute_command(
-                inkpoint_editor_typeset::EditorCommand::ToggleBulletList,
-                window,
-                cx,
-            );
+            this.execute_command(EditorCommand::ToggleBulletList, window, cx);
         });
         let on_toggle_ordered = cx.listener(|this, _: &ToggleOrderedList, window, cx| {
-            this.execute_command(
-                inkpoint_editor_typeset::EditorCommand::ToggleOrderedList,
-                window,
-                cx,
-            );
+            this.execute_command(EditorCommand::ToggleOrderedList, window, cx);
         });
         let on_toggle_task = cx.listener(|this, _: &ToggleTaskList, window, cx| {
-            this.execute_command(
-                inkpoint_editor_typeset::EditorCommand::ToggleTaskList,
-                window,
-                cx,
-            );
+            this.execute_command(EditorCommand::ToggleTaskList, window, cx);
         });
         let on_close_find = cx.listener(|this, _: &CloseFind, window, cx| {
             if this.find.open {
                 this.close_find(window, cx);
             }
+        });
+        let on_toggle_source_mode = cx.listener(|this, _: &ToggleSourceMode, _, cx| {
+            this.toggle_source_mode(cx);
         });
         let on_word_left = cx.listener(|this, _: &MoveWordLeft, _, cx| {
             this.do_move_word(false, false, cx);
@@ -1427,6 +1309,9 @@ impl Render for TypesetView {
             this.delete_word_backward(cx);
         });
         let on_delete_word_forward = cx.listener(|this, _: &DeleteWordForward, _, cx| {
+            if this.composing() {
+                return;
+            }
             let result = this.editor.delete_word_forward();
             this.apply(result, cx);
         });
@@ -1435,11 +1320,22 @@ impl Render for TypesetView {
         });
         let on_select_all = cx.listener(|this, _: &SelectAll, _, cx| this.select_all(cx));
         let on_newline = cx.listener(|this, _: &InsertNewline, _, cx| {
-            let result = this.editor.insert_newline();
+            if this.composing() {
+                return;
+            }
+            let result = if this.source_mode() {
+                this.editor.insert_source_newline()
+            } else {
+                this.editor.insert_newline()
+            };
+            this.visual_affinity = CaretAffinity::Downstream;
             this.apply(result, cx);
         });
         let on_backspace = cx.listener(|this, _: &DeleteBackward, _, cx| this.delete_backward(cx));
         let on_delete = cx.listener(|this, _: &DeleteForward, _, cx| {
+            if this.composing() {
+                return;
+            }
             let result = this.editor.delete_forward();
             this.apply(result, cx);
         });
@@ -1469,22 +1365,52 @@ impl Render for TypesetView {
         let context = self.typography.render_context(cx);
         // Pass the selection through so the selected text is visibly highlighted:
         // without it, cmd-a and shift-arrow change state the user cannot see.
-        let selection = self.editor.selection().range();
-        let (element, decorations) = self.document.render_with_selection(
-            px(self.typography.body_font_size),
-            context,
-            window,
-            cx,
-            Some(selection),
-        );
+        let selection = self.editor.display_selection();
+        let highlight = if selection.is_empty() {
+            self.editor.marked_range()
+        } else {
+            Some(selection)
+        };
+        let native_should_reveal = self.drag_anchor.is_none() && !self.composing();
+        let element = {
+            let layout = &mut self.native_layout;
+            let config = crate::native_layout::NativeLayoutConfig {
+                body_font_size: self.typography.body_font_size,
+                source_mode: self.source_mode,
+                ..Default::default()
+            };
+            // While selecting or composing, keep the laid-out insertion anchor.
+            if native_should_reveal {
+                self.reveal_caret = self
+                    .editor
+                    .selection()
+                    .is_collapsed()
+                    .then_some(self.editor.selection().head());
+            }
+            self.document
+                .prepare_projection(self.reveal_caret.map(|offset| offset..offset));
+            let active_reveal = self.document.active_reveal();
+            crate::native_layout::render_document(
+                layout,
+                crate::native_layout::NativeDocumentInput {
+                    blocks: self.document.blocks(),
+                    block_ranges: self.document.block_ranges(),
+                    source: self.document.source(),
+                    revision: self.document_revision.unwrap_or_default(),
+                    reveal: active_reveal,
+                },
+                context,
+                config,
+            )
+        };
+
+        let decorations = self.document.selection_decorations(highlight);
         // The document scrolls: without this a document taller than the window
         // has no way to reach its lower half.
         let scrollable = div()
             .id("typeset-scroll")
             .size_full()
             .cursor_text()
-            .overflow_y_scroll()
-            .track_scroll(&self.scroll)
             .text_size(px(self.typography.body_font_size))
             .when(!self.typography.prose_font_family.is_empty(), |div| {
                 div.font_family(SharedString::from(
@@ -1498,23 +1424,15 @@ impl Render for TypesetView {
             .id("typeset-view")
             .cursor_text()
             .track_focus(&self.focus)
-            .key_context(
-                if inkpoint_editor_typeset::navigate_table(
-                    self.editor.source(),
-                    self.editor.selection().range(),
-                    false,
-                )
-                .is_some()
-                {
-                    "TypesetView table_cell"
-                } else if self.editor.is_in_list() {
-                    "TypesetView list_item"
-                } else if !self.editor.selection().is_collapsed() {
-                    "TypesetView has_selection"
-                } else {
-                    KEY_CONTEXT
-                },
-            )
+            .key_context(if self.editor.navigate_table(false).is_some() {
+                "TypesetView table_cell"
+            } else if self.editor.is_in_list() {
+                "TypesetView list_item"
+            } else if !self.editor.selection().is_collapsed() {
+                "TypesetView has_selection"
+            } else {
+                KEY_CONTEXT
+            })
             .w_full()
             .flex_1()
             .min_h_0()
@@ -1537,6 +1455,7 @@ impl Render for TypesetView {
             .on_action(on_toggle_ordered)
             .on_action(on_toggle_task)
             .on_action(on_close_find)
+            .on_action(on_toggle_source_mode)
             .on_action(on_find)
             .on_action(on_format_bold)
             .on_action(on_format_italic)
@@ -1587,16 +1506,24 @@ impl Render for TypesetView {
                     if event.pressed_button != Some(gpui_kit::MouseButton::Left) {
                         return;
                     }
+                    this.auto_scroll_native_drag(event.position);
                     this.extend_drag_to(event.position, cx);
                 }),
             )
             .on_mouse_up(
                 gpui_kit::MouseButton::Left,
                 cx.listener(|this, _: &gpui_kit::MouseUpEvent, _, cx| {
-                    this.drag_anchor = None;
-                    this.drag_start_point = None;
-                    this.drag_mode = DragMode::Char;
+                    this.reset_drag();
                     cx.notify();
+                }),
+            )
+            .on_mouse_up_out(
+                gpui_kit::MouseButton::Left,
+                cx.listener(|this, _: &gpui_kit::MouseUpEvent, _, cx| {
+                    if this.drag_anchor.is_some() {
+                        this.reset_drag();
+                        cx.notify();
+                    }
                 }),
             )
             .child(scrollable)
@@ -1630,6 +1557,7 @@ impl TypesetView {
         let start = range.start.min(len);
         let end = range.end.min(len);
         self.editor.set_selection(start, end);
+        self.scroll_offset_into_view(end);
         cx.notify();
     }
 
@@ -1679,7 +1607,7 @@ impl TypesetView {
         {
             return Err("The document or selection changed while the insert was pending.");
         }
-        if self.marked.is_some() {
+        if self.composing() {
             return Err("Finish the current text composition before inserting.");
         }
         // A guard passed but the insert can still fail at the source level, and
@@ -1687,8 +1615,8 @@ impl TypesetView {
         // did not.
         if let Err(error) = self.editor.insert(text) {
             return Err(match error {
-                TypesetError::ReadOnly => "The editor is read-only.",
-                TypesetError::Source(_) => "The insert was rejected by the document.",
+                SessionError::ReadOnly => "The editor is read-only.",
+                SessionError::Source(_) => "The insert was rejected by the document.",
             });
         }
         self.reparse();
@@ -1720,6 +1648,12 @@ impl TypesetView {
 }
 
 impl TypesetView {
+    fn reset_drag(&mut self) {
+        self.drag_anchor = None;
+        self.drag_start_point = None;
+        self.drag_mode = DragMode::Char;
+    }
+
     /// Handles mouse-down events, supporting single click, double-click (word),
     /// triple-click (line), shift-click (range extension), and task checkbox toggle.
     fn handle_mouse_down(
@@ -1729,7 +1663,13 @@ impl TypesetView {
         cx: &mut Context<Self>,
     ) {
         self.focus.focus(window, cx);
+        if self.composing() {
+            return;
+        }
         self.goal_x = None;
+        if let Some((_, caret)) = self.geometry.caret_and_key_for_point(event.position) {
+            self.visual_affinity = caret.affinity;
+        }
         self.drag_start_point = Some(event.position);
         let max_bottom = self
             .geometry
@@ -1755,7 +1695,11 @@ impl TypesetView {
             return;
         };
 
-        if let Ok(true) = self.editor.toggle_task_checkbox(offset) {
+        if event.click_count == 1
+            && !event.modifiers.shift
+            && self.hits_task_checkbox(event.position, window)
+            && let Ok(true) = self.editor.toggle_task_checkbox(offset)
+        {
             self.apply(Ok(()), cx);
             return;
         }
@@ -1784,6 +1728,27 @@ impl TypesetView {
         cx.notify();
     }
 
+    // The rendered checkbox is immediately left of the first line's text. A
+    // hit in that gutter and a hit before the first glyph have the same byte
+    // offset, so test the visual target before mutating the task.
+    fn hits_task_checkbox(&self, point: Point<Pixels>, window: &Window) -> bool {
+        let Some((key, caret)) = self.geometry.caret_and_key_for_point(point) else {
+            return false;
+        };
+        let Some(leaf) = self.geometry.get(key) else {
+            return false;
+        };
+        let line_start = leaf.position_for_index(0);
+        let rem = window.rem_size();
+        let right = line_start.x - rem * 0.5;
+        let left = right - rem * 0.9375;
+        caret.index == 0
+            && point.x >= left
+            && point.x <= right
+            && point.y >= line_start.y
+            && point.y < line_start.y + leaf.line_height()
+    }
+
     /// Places the caret where the user clicked, used directly by tests.
     #[cfg(test)]
     pub(crate) fn place_caret_from_click(
@@ -1797,13 +1762,29 @@ impl TypesetView {
         let Some(offset) = self.source_offset_for_point(point) else {
             return;
         };
-        if let Ok(true) = self.editor.toggle_task_checkbox(offset) {
+        if self.hits_task_checkbox(point, window)
+            && let Ok(true) = self.editor.toggle_task_checkbox(offset)
+        {
             self.apply(Ok(()), cx);
             return;
         }
         self.editor.set_caret(offset);
         self.scroll_caret_into_view();
         cx.notify();
+    }
+
+    fn auto_scroll_native_drag(&self, point: Point<Pixels>) {
+        let layout = &self.native_layout;
+        let viewport = layout.viewport_bounds();
+        if viewport.size.height <= px(0.) {
+            return;
+        }
+        let edge = px(28.);
+        if point.y < viewport.top() + edge {
+            layout.scroll_by(-px(24.));
+        } else if point.y > viewport.bottom() - edge {
+            layout.scroll_by(px(24.));
+        }
     }
 
     /// Extend from the original mouse-down anchor without collapsing the range.
@@ -1888,20 +1869,34 @@ impl TypesetView {
     /// The caret only shows for a collapsed selection: with text selected the
     /// highlight is the indicator, and a caret on top of it would be noise.
     fn caret_bounds(&self) -> Option<Bounds<Pixels>> {
-        if !self.editor.selection().range().is_empty() {
+        if !self.editor.display_selection().is_empty() {
             return None;
         }
         let key = self.caret_leaf?;
         let leaf = self.geometry.get(key)?;
         let local = self
             .document
-            .rendered_offset(key, self.editor.selection().head())
+            .rendered_offset(key, self.display_caret())
             .unwrap_or(0);
-        let position = leaf.position_for_index(local.min(leaf.len()));
-        Some(Bounds {
-            origin: position,
-            size: gpui_kit::size(px(2.), leaf.caret_height()),
-        })
+        Some(caret_bounds_at(
+            leaf,
+            self.layout_caret(local.min(leaf.len())),
+        ))
+    }
+
+    fn display_caret(&self) -> usize {
+        if self.composing() {
+            self.editor.display_selection().end
+        } else {
+            self.editor.selection().head()
+        }
+    }
+
+    fn layout_caret(&self, local_index: usize) -> Caret {
+        Caret {
+            index: local_index,
+            affinity: self.visual_affinity,
+        }
     }
 
     /// The leaf whose bounds contain `point`, else the nearest one.
@@ -1914,54 +1909,46 @@ impl TypesetView {
     /// Moves the caret to the start of `line`, counting from one.
     pub fn seek_line(&mut self, line: usize, cx: &mut Context<Self>) {
         self.editor
-            .set_caret(line_start(self.editor.source(), line));
+            .set_caret(inkpoint_editor_core::text::line_start(
+                self.editor.source(),
+                line,
+            ));
         cx.notify();
     }
 
     /// Runs a host command.
     ///
-    /// The commands that only existed because the WebView had a source and a
-    /// split preview collapse into no-ops here: this view always shows the
-    /// rendered document with the source editable in place.
+    /// Commands for separate source and preview panes are no-ops here because
+    /// this view edits the rendered document in place.
     pub fn execute_command(
         &mut self,
-        command: inkpoint_editor_typeset::EditorCommand,
+        command: EditorCommand,
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.marked.is_some() {
+        if self.composing() {
             self.last_error = Some("Finish the current text composition before formatting.".into());
             cx.notify();
             return;
         }
         let result = match command {
-            inkpoint_editor_typeset::EditorCommand::ToggleBold => self
+            EditorCommand::ToggleBold => self
                 .editor
                 .toggle_inline_mark(inkpoint_editor_core::InlineFormat::Bold),
-            inkpoint_editor_typeset::EditorCommand::ToggleItalic => self
+            EditorCommand::ToggleItalic => self
                 .editor
                 .toggle_inline_mark(inkpoint_editor_core::InlineFormat::Italic),
-            inkpoint_editor_typeset::EditorCommand::ToggleInlineCode => self
+            EditorCommand::ToggleInlineCode => self
                 .editor
                 .toggle_inline_mark(inkpoint_editor_core::InlineFormat::Code),
-            inkpoint_editor_typeset::EditorCommand::ToggleStrikethrough => self
+            EditorCommand::ToggleStrikethrough => self
                 .editor
                 .toggle_inline_mark(inkpoint_editor_core::InlineFormat::Strikethrough),
-            inkpoint_editor_typeset::EditorCommand::ToggleQuote => {
-                self.editor.toggle_line_prefix("> ")
-            }
-            inkpoint_editor_typeset::EditorCommand::ToggleBulletList => {
-                self.editor.toggle_line_prefix("- ")
-            }
-            inkpoint_editor_typeset::EditorCommand::ToggleOrderedList => {
-                self.editor.toggle_line_prefix("1. ")
-            }
-            inkpoint_editor_typeset::EditorCommand::ToggleTaskList => {
-                self.editor.toggle_line_prefix("- [ ] ")
-            }
-            inkpoint_editor_typeset::EditorCommand::Heading(level) => {
-                self.editor.set_heading(level)
-            }
+            EditorCommand::ToggleQuote => self.editor.toggle_line_prefix("> "),
+            EditorCommand::ToggleBulletList => self.editor.toggle_line_prefix("- "),
+            EditorCommand::ToggleOrderedList => self.editor.toggle_line_prefix("1. "),
+            EditorCommand::ToggleTaskList => self.editor.toggle_line_prefix("- [ ] "),
+            EditorCommand::Heading(level) => self.editor.set_heading(level),
         };
         // A rejected command is kept rather than dropped: a read-only document or
         // a range the source cannot take would otherwise fail silently, and the
@@ -2047,9 +2034,44 @@ impl Element for InputSurface {
             std::mem::take(&mut self.decorations),
             || self.child.prepaint(window, cx),
         );
-        self.view.update(cx, |view, _| {
+        self.view.update(cx, |view, _cx| {
             view.geometry = LeafIndex::new(leaves);
-            let offset = view.editor.selection().head();
+            if view.native_layout.resolve_pending_reveal() {
+                _cx.notify();
+            }
+            if let Some(pending) = view.pending_vertical.take() {
+                if let Some(neighbour) = view.geometry.get(pending.key) {
+                    let bounds = neighbour.bounds();
+                    let target_y = if pending.up {
+                        bounds.origin.y + (bounds.size.height - px(2.0)).max(px(0.0))
+                    } else {
+                        bounds.origin.y + px(2.0)
+                    };
+                    let target = neighbour.caret_for_position(Point {
+                        x: pending.goal_x,
+                        y: target_y,
+                    });
+                    let source_offset = view
+                        .document
+                        .source_offset(pending.key, target.index.min(neighbour.len()))
+                        .unwrap_or_else(|| {
+                            view.document
+                                .span_of(pending.key)
+                                .map_or(0, |span| span.start)
+                        });
+                    view.visual_affinity = target.affinity;
+                    if let Some(anchor) = pending.anchor {
+                        view.editor.set_selection(anchor, source_offset);
+                    } else {
+                        view.editor.set_caret(source_offset);
+                    }
+                    view.scroll_offset_into_view(source_offset);
+                    _cx.notify();
+                } else {
+                    view.pending_vertical = Some(pending);
+                }
+            }
+            let offset = view.display_caret();
             view.caret_leaf = view
                 .document
                 .leaf_at(offset)
@@ -2231,11 +2253,7 @@ mod input_tests {
             view.update(cx, |view, cx| {
                 view.focus(window, cx);
                 view.set_caret(0, cx);
-                view.execute_command(
-                    inkpoint_editor_typeset::EditorCommand::Heading(3),
-                    window,
-                    cx,
-                );
+                view.execute_command(EditorCommand::Heading(3), window, cx);
             });
             window.draw(cx).clear(cx);
         });
@@ -2360,9 +2378,7 @@ mod key_tests {
 
     /// The modifier is chosen from the running platform, not the build host.
     ///
-    /// A WebAssembly build is compiled once and served to any browser, so a
-    /// compile-time choice would bind cmd on a Linux user's machine — which is
-    /// exactly the bug the Playground smoke test caught.
+    /// Resolve modifiers from the running operating system, not the build host.
     #[test]
     fn command_keys_follow_the_running_platform() {
         let mac = CommandKeys::for_os(gpui_kit::OperatingSystem::Mac);
@@ -2471,19 +2487,12 @@ mod ime_tests {
         vcx.update(|window, cx| {
             view.update(cx, |view, cx| {
                 view.replace_and_mark_text_in_range(None, "中", None, window, cx);
-                view.execute_command(
-                    inkpoint_editor_typeset::EditorCommand::ToggleBold,
-                    window,
-                    cx,
-                );
-                assert_eq!(view.editor.source(), "中");
-                assert!(view.marked.is_some());
+                view.execute_command(EditorCommand::ToggleBold, window, cx);
+                assert_eq!(view.editor.source(), "");
+                assert_eq!(view.editor.display_source(), "中");
+                assert!(view.composing());
                 view.finish_composition();
-                view.execute_command(
-                    inkpoint_editor_typeset::EditorCommand::ToggleBold,
-                    window,
-                    cx,
-                );
+                view.execute_command(EditorCommand::ToggleBold, window, cx);
                 assert_eq!(view.editor.source(), "中****");
             });
         });
@@ -2530,7 +2539,8 @@ mod ime_tests {
                 view.editor.set_caret("😀".len());
                 view.replace_and_mark_text_in_range(None, "z", Some(1..1), window, cx);
                 view.replace_and_mark_text_in_range(None, "zhong", Some(5..5), window, cx);
-                assert_eq!(view.markdown(), "😀zhong后");
+                assert_eq!(view.markdown(), "😀后");
+                assert_eq!(view.editor.display_source(), "😀zhong后");
                 assert_eq!(view.marked_text_range(window, cx), Some(2..7));
 
                 view.replace_text_in_range(None, "中", window, cx);
@@ -2660,7 +2670,11 @@ second line
             view.geometry
                 .entries()
                 .map(|(key, leaf)| (key, leaf.bounds()))
-                .find(|(_, bounds)| bounds.origin.y > gpui_kit::px(0.))
+                .find(|(key, _)| {
+                    view.document
+                        .span_of(*key)
+                        .is_some_and(|span| span.start >= "first line\n\n".len())
+                })
                 .map(|(_, bounds)| {
                     gpui_kit::point(
                         bounds.origin.x + gpui_kit::px(2.),
@@ -2775,7 +2789,9 @@ mod ime_geometry_tests {
                     let position = leaf.position_for_index(index);
                     gpui_kit::point(position.x, position.y + leaf.caret_height() / 2.)
                 };
-                let start = point(0);
+                // The caret starts at byte zero, so inline Markdown delimiters
+                // are visible and occupy the first two rendered positions.
+                let start = point("**".len());
                 let end = point("中文".len());
                 for (from, to) in [(start, end), (end, start)] {
                     view.place_caret_from_click(from, window, cx);
@@ -2838,9 +2854,13 @@ mod ime_geometry_tests {
         let point = view.read_with(&*vcx, |view, _| {
             view.geometry
                 .entries()
-                .map(|(_, leaf)| leaf.bounds())
-                .find(|bounds| bounds.origin.y > gpui_kit::px(0.))
-                .map(|bounds| {
+                .map(|(key, leaf)| (key, leaf.bounds()))
+                .find(|(key, _)| {
+                    view.document
+                        .span_of(*key)
+                        .is_some_and(|span| span.start >= "first\n\n".len())
+                })
+                .map(|(_, bounds)| {
                     gpui_kit::point(
                         bounds.origin.x + gpui_kit::px(2.),
                         bounds.origin.y + bounds.size.height / 2.,
@@ -2878,7 +2898,7 @@ mod ime_geometry_tests {
             window.draw(cx).clear(cx);
             let before = view.update(cx, |view, cx| {
                 let bounds = range_bounds(view, window, cx);
-                view.scroll.set_offset(gpui_kit::point(px(0.), px(-96.)));
+                view.native_layout.scroll_by(px(96.));
                 cx.notify();
                 bounds
             });
@@ -2900,3 +2920,11 @@ mod ime_geometry_tests {
 #[cfg(test)]
 #[path = "../tests/support/typography_view.rs"]
 mod typography_view_tests;
+
+#[cfg(test)]
+#[path = "../tests/support/native_writing.rs"]
+mod native_writing_tests;
+
+#[cfg(test)]
+#[path = "../tests/support/native_task_hit.rs"]
+mod native_task_hit_tests;
