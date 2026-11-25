@@ -1353,7 +1353,7 @@ fn build_inline<'a>(node: &'a AstNode<'a>, source: &SourceText<'_>, out: &mut Ve
             let raw = source.slice(position.start, position.end);
             let alt = raw
                 .strip_prefix("![")
-                .and_then(|rest| rest.find("]").map(|close| &rest[..close]))
+                .and_then(|rest| matching_bracket(rest).map(|close| &rest[..close]))
                 .map(str::to_string)
                 .unwrap_or_else(|| collect_plain_text(node));
             out.push(Inline::Image {
@@ -2517,4 +2517,30 @@ fn continuation_leading_whitespace<'a>(
         Some(_) => raw,
         None => String::new(),
     }
+}
+
+/// 找到与起始位置配对的 `]`（支持 alt 里嵌方括号）。
+///
+/// 早期实现取第一个 `]`，`![a [b]](p)` 的 alt 会被截成 `a [b`。
+fn matching_bracket(text: &str) -> Option<usize> {
+    let mut depth = 0usize;
+    let mut escaped = false;
+    for (index, ch) in text.char_indices() {
+        match ch {
+            '\\' if !escaped => {
+                escaped = true;
+                continue;
+            }
+            '[' if !escaped => depth += 1,
+            ']' if !escaped => {
+                if depth == 0 {
+                    return Some(index);
+                }
+                depth -= 1;
+            }
+            _ => {}
+        }
+        escaped = false;
+    }
+    None
 }
