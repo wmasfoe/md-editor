@@ -93,7 +93,7 @@ impl FindState {
 
 impl TypesetView {
     pub(super) fn open_find(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.marked.is_some() {
+        if self.composing() {
             return;
         }
         self.find.open = true;
@@ -496,7 +496,7 @@ mod tests {
                     view.editor.selection().range(),
                     target..target + "目标".len()
                 );
-                assert!(view.scroll.offset().y < px(0.));
+                assert!(view.native_layout.top_item_index() > 0);
                 view.find_match("missing", false);
                 assert_eq!(view.find.count, 0);
                 assert_eq!(

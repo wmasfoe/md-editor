@@ -10,7 +10,7 @@ mod workspace;
 use futures::{StreamExt, channel::mpsc};
 use gpui_kit::*;
 use inkpoint_editor_gpui::{
-    BlockFormat, Copy, Cut, HostCommand::*, InlineFormat, Paste, TypesetView,
+    BlockFormat, Copy, Cut, HostCommand::*, InlineFormat, Paste, ToggleSourceMode, TypesetView,
 };
 use settings::OpenSettings;
 use std::path::PathBuf;
@@ -30,8 +30,9 @@ mod shortcuts {
     pub const CLOSE: Shortcut = ("Close document", "cmd-w", "ctrl-w");
     pub const QUIT: Shortcut = ("Quit", "cmd-q", "ctrl-q");
     pub const OUTLINE: Shortcut = ("Show outline", "cmd-shift-b", "ctrl-shift-b");
+    pub const SOURCE_MODE: Shortcut = ("Toggle Markdown source", "cmd-/", "ctrl-/");
     pub const SETTINGS: Shortcut = ("Settings", "cmd-,", "ctrl-,");
-    pub const ALL: [Shortcut; 8] = [
+    pub const ALL: [Shortcut; 9] = [
         NEW,
         OPEN,
         OPEN_FOLDER,
@@ -39,6 +40,7 @@ mod shortcuts {
         SAVE_AS,
         CLOSE,
         OUTLINE,
+        SOURCE_MODE,
         SETTINGS,
     ];
 
@@ -139,14 +141,15 @@ fn main() {
                 MenuItem::action("Save As…", SaveAs),
                 MenuItem::action("Close", CloseDocument),
             ]),
-            // The source / block / split entries are gone: the GPUI editor
-            // renders and edits at once, so there is no mode to switch between.
             Menu::new("Edit").items([
                 MenuItem::action("Cut", Cut),
                 MenuItem::action("Copy", Copy),
                 MenuItem::action("Paste", Paste),
             ]),
-            Menu::new("View").items([MenuItem::action("Toggle Outline", ToggleOutline)]),
+            Menu::new("View").items([
+                MenuItem::action("Toggle Outline", ToggleOutline),
+                MenuItem::action("Toggle Markdown Source", ToggleSourceMode),
+            ]),
             Menu::new("Format").items([
                 MenuItem::action("Bold", FormatInline(InlineFormat::Bold)),
                 MenuItem::action("Italic", FormatInline(InlineFormat::Italic)),

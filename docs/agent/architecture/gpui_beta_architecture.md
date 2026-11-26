@@ -1,76 +1,54 @@
-# GPUI 桌面编辑区架构
+# GPUI 桌面编辑器架构
 
-用途：记录桌面端与 Playground 的编辑器边界、构建入口，以及「为什么桌面正文是纯 Rust 而不是 WebView」这个决定的完整理由。
+本文描述 Beta 分支当前原生桌面编辑器的分层、输入与排版边界。旧版 Web、WebView 和 WASM 实现不属于当前架构。
 
-## 目录职责
+## Crate 职责
 
-| 目录 | 职责 |
+| 路径 | 职责 |
 | --- | --- |
-| `packages/editor-core` | Markdown 源文档、UTF-8 字节偏移、语法投影和格式操作原语 |
-| `packages/editor-typeset` | 排版与编辑引擎：文档解析、光标与选区、编辑操作、垂直移动、SVG 通道、mermaid 与数学公式渲染 |
-| `packages/editor-gpui` | GPUI 视图层：`TypesetView`，桌面与 Playground 共用 |
-| `packages/editor-web` | 浏览器 WASM 入口 |
-| `apps/desktop` | GPUI 窗口与侧栏、文件与图片读写、本地模型调用 |
-| `apps/web` | Playground 页面、文件导入和下载 |
+| `packages/editor-core` | Markdown 源文档、编辑会话、选区、撤销/重做、输入事务与命令语义。 |
+| `packages/editor-typeset` | Markdown 排版投影、源文本与显示文本的偏移映射、叶节点几何与图表/公式渲染。 |
+| `packages/editor-gpui` | `TypesetView`、GPUI 绘制、原生键盘/IME 接入和视图交互。 |
+| `apps/desktop` | GPUI 应用窗口、文档与目录操作、图片资源、设置和本地 llama.cpp 调用。 |
 
-`packages/editor`（CodeMirror 6）仍服务于 Web 应用，桌面端不再使用它。
+crate 依赖以各自 `Cargo.toml` 为准：排版 crate 使用编辑核心，GPUI 视图使用核心和排版 crate，桌面应用将视图接入原生窗口与文件系统。
 
-## 分层与依赖方向
+## 编辑与排版边界
 
-```
-editor-core      文档模型（无 DOM、无 GPUI）
-     ↓
-editor-typeset   排版 + 编辑引擎
-     ↓
-editor-gpui      GPUI 视图
-     ↓
-apps/desktop     GPUI 宿主
-apps/web         Playground
-```
-
-排版渲染由上游 `gpui-base` 承担，编辑层由 `editor-typeset` 承担。这条分界的依据见下方 ADR。
-
-桌面与 Playground 都通过 `TypesetView` 编辑，旧的块卡片式 `EditorView` 已删除。
-
-## 本地构建
-
-- `pnpm dev:desktop` 直接启动原生桌面应用，可在命令后传入 Markdown 路径。桌面端不再有独立的编辑器资源构建步骤。
-- `pnpm dev:web` 构建 WASM 并启动 Playground。构建需要 WASM 工具链与 `wasm-bindgen-cli`，版本以 Beta CI 为准。
-- `pnpm --filter @md-editor/editor-web test:packed` 在临时目录安装生成的包并检查入口。该包为私有 workspace 依赖。
-
-Beta CI 生成 Apple Silicon DMG 与独立的 Playground ZIP。Playground ZIP 解压后从静态 HTTP 服务打开。
-
-## 排版与编辑的分工
-
-`gpui-base` 的 `editor_host` 模块就是为「外部编辑器 + gpui 渲染」设计的。它的契约原文：
-
-> An editor that lives outside gpui-kit keeps its own document model and hands gpui-kit a `BlockNode` tree, the same tree `TextView` renders. gpui-kit renders it and gives back, per text leaf, the geometry the editor needs for hit-testing, caret placement and platform input (IME) bounds.
->
-> The host owns editing semantics, document revisions, accessibility and native input integration.
-
-因此职责是：
+GPUI 的 `editor_host` 将源文档交给排版树，并为文本叶返回命中测试、插入光标和平台输入法所需的几何信息。职责划分如下：
 
 | 能力 | 归属 |
 | --- | --- |
-| Markdown → 块树 | `gpui-base::editor_host::parse_markdown` |
-| 标题字号层级、行内样式、表格、代码块、图片排版 | `gpui-base` 渲染器（`TextViewStyle`） |
-| 文本叶几何（位置、行高、命中、光标） | `gpui-base::editor_host::collect_leaf_geometry` |
-| 选区状态、编辑操作、撤销、文档版本 | `editor-typeset` |
-| 垂直光标导航 | `editor-typeset`（上游明确不提供） |
-| UTF-16 / UTF-8 偏移转换、IME 接线 | `editor-gpui`（`EntityInputHandler`） |
+| Markdown 源文档、选区、编辑事务、撤销和版本 | `editor-core::session::EditorSession` |
+| Markdown 解析为块树 | `gpui-base::editor_host::parse_markdown` |
+| 正文布局、段落间距与滚动区域 | `editor-gpui` 的原生布局视图 |
+| 段内排版与文本整形 | `gpui-base` 的 `TextView` 渲染器 |
+| 文本叶位置、行高与命中区域 | `gpui-base::editor_host::collect_leaf_geometry` |
+| 源码标记展开及源码/显示偏移映射 | `editor-typeset::TypesetDocument` |
+| 垂直光标导航 | `editor-typeset` 的几何与编辑辅助能力 |
+| UTF-16 / UTF-8 转换和 IME 接线 | `editor-core::text` 与 `editor-gpui` 的 `EntityInputHandler` |
 
-### 两个必须记住的实现约束
+### 实现约束
 
-**leaf key 必须下达到真正承载文本的那一层。** 标题的文本在内嵌的 `Paragraph` 里，把 key 只挂在 `BlockNode::Heading` 外层会导致该标题完全不上报几何。
+- **叶节点 key 必须挂到实际承载文本的节点。** 标题文本位于内嵌 `Paragraph` 中；只给外层 `BlockNode::Heading` 设置 key 不会收集到该文本的几何。
+- **命中几何只在编辑视图自己的布局过程中收集。** `TypesetView` 通过绘制期数据定位文本叶与光标；`TypesetDocument::render_blocks` 用于生成排版块，独立的 `render` 接口会自行收集几何。
+- **光标位置以 Markdown 源偏移为准。** 排版显示隐藏或展开语法标记时，`TypesetDocument` 提供源与显示偏移映射，编辑会话仍保存原始 Markdown。
+- **IME 组词是临时投影。** 组词期间更新组合文本与选中范围；确认后再提交源文档事务，使一次已确认输入对应一次撤销操作。
 
-**几何收集作用域是隔离的。** 宿主若在自己的 `prepaint` 里收集几何，必须调用 `TypesetDocument::render_blocks` 而不是 `render`；后者自带一层收集作用域，嵌套后外层什么都拿不到。
+## 本地开发与验证
 
-## 当前功能差异
+从仓库根目录运行应用，可在命令后追加 Markdown 文件路径：
 
-桌面端与 Playground 都能编辑 Markdown、渲染标题层级、表格单元格编辑与中文输入。
+```sh
+cargo run --locked -p inkpoint-gpui -- path/to/document.md
+```
 
-mermaid 与 math fence 会被渲染成图片显示（`DiagramRenderer` → PNG `data:` URL），渲染失败时该块保持源码显示，不阻塞编辑。为什么走 PNG 而不是 SVG 见 ADR。
+运行 Rust workspace 检查：
 
-尚未迁移到桌面端的能力：外部插件运行、会话恢复、文档历史、AI 纠错与风格学习、PDF/HTML 导出、Quick Look、Sentry。
+```sh
+cargo fmt --all -- --check
+cargo clippy --locked --workspace --all-targets -- -D warnings
+cargo test --locked --workspace
+```
 
-mermaid 与数学公式在渲染失败时降级为源码展示，不阻塞编辑。macOS 简体拼音已在桌面端实机验证候选框定位、选词上屏及一次撤销。
+macOS Beta DMG 打包流程见[桌面应用开发说明](../../../apps/desktop/README.md)和[发布指南](../../human/release.md)。

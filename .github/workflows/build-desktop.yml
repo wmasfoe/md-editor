@@ -1,9 +1,5 @@
-name: Build Desktop App
+name: Rust Validation
 
-# Tauri 退役后，桌面端由 Rust GPUI workspace 承载（apps/desktop 的 inkpoint-gpui
-# 加 packages/editor-*）。这里只做跨平台 lint / typecheck / 测试与 Rust 验证；
-# 真正的 macOS DMG 与 Playground 产物由 release-beta.yml（beta）和
-# release-desktop.yml（stable tag）构建。
 on:
   workflow_dispatch:
   pull_request:
@@ -22,151 +18,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  lint:
-    name: Lint & Format
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11.6.0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: .node-version
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Lint (Oxlint)
-        run: pnpm lint:oxlint
-
-      - name: Format (Prettier)
-        run: pnpm format:prettier:check
-
-      # Structure guard 与 Rust fmt/clippy 需要 Rust 工具链。
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@1.99.0
-        with:
-          components: clippy, rustfmt
-
-      - name: Lint (Structure)
-        run: pnpm lint:structure
-
-      - name: Lint (Rust)
-        run: pnpm lint:rust
-
-      - name: Check Changeset
-        if: github.event_name == 'pull_request'
-        run: node scripts/packages/check-changeset.mjs --strict
-
-  typecheck:
-    name: Typecheck
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11.6.0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: .node-version
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Typecheck
-        run: pnpm typecheck
-
-  test-unit:
-    name: Unit Tests
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11.6.0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: .node-version
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Run unit tests
-        run: pnpm test
-
-      - name: Verify npm tarball consumers
-        run: pnpm verify:packages
-
-      - name: Verify core/editor npm closure
-        run: pnpm verify:editor-packages
-
-      # 生产构建 smoke：apps/web 的产物此前只在 web-v* tag 发布时才构建，
-      # PR 阶段发现不了构建期问题（例如幽灵依赖导致的 CSS 解析失败）。
-      - name: Build Web app (production)
-        run: pnpm build:web
-
-      - name: Assert web output has no sourcemaps
-        run: node scripts/release/assert-no-sourcemaps.mjs apps/web/dist
-
-      - name: Validate release version files
-        run: node scripts/release/validate-release-version.mjs
-
-  test-e2e:
-    name: Browser E2E
-    runs-on: macos-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11.6.0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: .node-version
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Install Chromium for web diagram tests
-        run: pnpm --filter @md-editor/web exec playwright install chromium
-
-      - name: Run web Mermaid diagram tests
-        run: pnpm --filter @md-editor/web exec playwright test --config playwright.diagram.config.ts
-
-      - name: Upload web Mermaid test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: web-mermaid-diagram-test-results
-          path: apps/web/test-results/diagram-e2e
-          if-no-files-found: ignore
-          retention-days: 7
-
-  test-rust:
+  rust-validation:
     name: Rust Validation (${{ matrix.platform.name }})
     runs-on: ${{ matrix.platform.os }}
     strategy:
@@ -175,8 +27,6 @@ jobs:
         platform:
           - name: macOS
             os: macos-latest
-          # GPUI 当前交付矩阵是 Apple Silicon。Linux/Windows 的窗口后端尚未验证，
-          # 在这里跑只会暴露上游 gpui-kit 的平台缺口，不反映本仓库状态。
           - name: Linux
             os: ubuntu-22.04
     steps:
@@ -207,26 +57,3 @@ jobs:
 
       - name: Test Rust
         run: cargo test --locked --workspace
-
-  ci-status:
-    name: All Checks Passed
-    if: always()
-    needs:
-      - lint
-      - typecheck
-      - test-unit
-      - test-e2e
-      - test-rust
-    runs-on: ubuntu-latest
-    steps:
-      - name: Evaluate status
-        run: |
-          results="${{ needs.lint.result }} ${{ needs.typecheck.result }} ${{ needs.test-unit.result }} ${{ needs.test-e2e.result }} ${{ needs.test-rust.result }}"
-          echo "Job results: $results"
-          for res in $results; do
-            if [[ "$res" != "success" ]]; then
-              echo "❌ One or more CI jobs failed (status: $res)."
-              exit 1
-            fi
-          done
-          echo "✅ All CI jobs succeeded!"

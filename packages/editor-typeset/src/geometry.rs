@@ -7,7 +7,19 @@
 use std::collections::HashMap;
 
 use gpui_kit::base::text::editor_host::{Caret, LeafGeometry};
-use gpui_kit::{Pixels, Point};
+use gpui_kit::{Bounds, Pixels, Point, px, size};
+
+/// Places a font-height caret inside its shaped line box. GPUI uses half the
+/// leading above the glyphs, so the unadjusted line origin sits too high.
+pub fn caret_bounds_at(leaf: &LeafGeometry, caret: Caret) -> Bounds<Pixels> {
+    let height = leaf.caret_height();
+    let mut origin = leaf.position_for_caret(caret);
+    origin.y += (leaf.line_height() - height) / 2.;
+    Bounds {
+        origin,
+        size: size(px(2.), height),
+    }
+}
 
 /// Laid-out geometry for every keyed leaf of one rendered frame.
 ///

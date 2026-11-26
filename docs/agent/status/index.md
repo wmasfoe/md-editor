@@ -1,22 +1,10 @@
-# 状态记录目录
+# 状态与历史记录
 
-用途：记录阶段实现状态、尖刺结论和已完成打磨项。需要判断“当前做到哪里、还有哪些缺口、历史验证情况如何”时读本目录。
+用途：记录阶段性实施状态和历史技术验证。旧记录中的 branch、工作树、Tauri/Web parity、WASM 或 pnpm 命令都属于当时快照，不是当前 Beta 指引。
 
-## 文档
+## 仍可参考的记录
 
-- GPUI 对齐当前未提交工作、局部验证与后续交接：[gpui-tauri-editor-parity-handoff.md](./gpui-tauri-editor-parity-handoff.md)
+- [GPUI 编辑器迁移交接记录](./gpui-tauri-editor-parity-handoff.md)：2026-11-20 的 GPUI 编辑器状态快照。其迁移前提和工作树信息已经过期；当前 crate 结构、功能和验证以 Rust 代码与 [GPUI 架构文档](../architecture/gpui_beta_architecture.md)为准。
+- [本地模型生命周期记录](./local_ai_model_multi_tier_and_lifecycle_status.md)：旧版多档位模型方案的历史记录；当前实现以 `apps/desktop/src/local_ai.rs` 为准。
 
-- GPUI 原生排版合并后的 Tauri 差距、旧补丁取舍、修改顺序与验收：[gpui-tauri-editor-parity.md](./gpui-tauri-editor-parity.md)
-
-- Mermaid 可视化编辑 P0 的固定依赖、浏览器原型、能力缺口与生产接入门槛：[mermaid-visual-editing-p0.md](./mermaid-visual-editing-p0.md)
-- Mermaid 默认布局的新一轮图形操作、渲染修补和编辑器事务进度（PR #261 已合入 `main`，随 v0.23.0 发布）：[mermaid-default-layout-editing.md](./mermaid-default-layout-editing.md)
-- CM6 单编辑器迁移实时状态（S1-M5 已验证，M6 收口进行中且被 S6 性能基线阻塞；v0.18.0 已交付 Hot Exit、文档历史、MarkdownLint 与 HTML/PDF 导出；v0.20.0 已交付智能粘贴、HTML 块就地编辑与文末虚拟空行）： [codemirror_renderer_migration_status.md](./codemirror_renderer_migration_status.md)
-- 迁移前 M0 技术尖刺结论： [markdown_editor_m0_spike_findings.md](./markdown_editor_m0_spike_findings.md)
-- 迁移前 v0.1 侧栏、Runtime 托管和 Raw 编辑状态： [markdown_editor_v0_1_sidebar_runtime_mdx_status.md](./markdown_editor_v0_1_sidebar_runtime_mdx_status.md)
-- 迁移前 v0.1 打磨改进记录： [v0_1_polish_improvements.md](./v0_1_polish_improvements.md)
-- 本地小模型多档位、硬件检测与生命周期管理状态记录： [local_ai_model_multi_tier_and_lifecycle_status.md](./local_ai_model_multi_tier_and_lifecycle_status.md)
-
-## 使用规则
-
-- 已完成的状态及时标注已完成，确保代码和文档状态保持一致。
-- Beta 可用与完整迁移完成必须分开记录；没有代码和验证证据时不得提前更新状态。
+其他历史迁移和 spike 记录不作为当前代码说明；需要追溯时查看 Git 历史。

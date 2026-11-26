@@ -1,16 +1,13 @@
 # 发布文档目录
 
-用途：记录发版流程、GitHub Release、Homebrew tap、官网部署和公开仓库 workflow 备份。处理打包、发布、仓库公开或 CI workflow 时读本目录。
+这里记录 Rust Beta 桌面应用的构建与发布入口。
 
-人类维护者的操作说明见：[../../human/release.md](../../human/release.md)。
+## 当前流程
 
-## 文档
+- [Beta 桌面应用发布](../../human/release.md)：beta 分支 CI、macOS Apple Silicon DMG 与本地打包说明。
+- [桌面开发说明](../../../apps/desktop/README.md)：Rust workspace 本地构建、检查和打包命令。
 
-- npm 子包基于 Changesets 的自动化版本管理、变更意向声明与发版流程： [npm_automated_release_changesets.md](./npm_automated_release_changesets.md)
-- npm core/editor 最小发布闭包、验证与发布命令：[npm 分发收口](./npm_package_readiness.md)；版本及消费变更：[中文](./npm-editor-sdk/CHANGELOG.md)、[English](./npm-editor-sdk/CHANGELOG_EN.md)
-- macOS DMG、GitHub Release、Homebrew tap、官网与 Cloudflare Worker 边缘网关发版流程： [release_workflow.md](./release_workflow.md)
-- Linux / Windows / ARM 多平台构建、发布与一键安装方案： [../architecture/cross_platform_support_plan.md](../architecture/cross_platform_support_plan.md)
-- 多平台分发、Cloudflare R2 存储与 Worker 边缘加速方案： [../architecture/multi_platform_distribution_architecture.md](../architecture/multi_platform_distribution_architecture.md)
-- 公开仓库后可恢复的 macOS workflow 备份： [build_macos_workflow_public_repo_backup.md](./build_macos_workflow_public_repo_backup.md)
-- 更新内容链路（CHANGELOG 为唯一事实源、updater manifest notes、客户端两段式提示、「稍后 / 跳过此版本」语义、主窗口唯一执行者）： [update_content_pipeline.md](./update_content_pipeline.md)
+## 历史记录
 
+- [桌面变更日志](../../../apps/desktop/CHANGELOG.md)：保留既有版本历史；旧版实现说明不代表当前 Beta 功能。
+- 旧 npm SDK 发布日志仍保留在 `npm-editor-sdk/` 作为历史记录，不再提供 npm 发布说明或变更集流程。

@@ -14,12 +14,11 @@ body:
       label: 目标模块 (Target Scope)
       description: 该特性主要影响哪个模块？
       options:
-        - "Desktop App (Tauri 桌面端应用/窗口/工作区管理)"
-        - "Editor & Renderer (编辑器渲染/CodeMirror 交互/排版)"
-        - "Syntax Plugins (Markdown 语法扩展/自定义容器/数学/图表)"
-        - "AI Capabilities (智能补全/生成/改写)"
-        - "Web Playground (在线演练场)"
-        - "Ecosystem & Plugins (插件系统与开放生态)"
+        - "Desktop (GPUI 窗口、文件与工作区)"
+        - "Editor (光标、选区与输入)"
+        - "Typesetting (Markdown 排版与渲染)"
+        - "Core (文档模型与编辑会话)"
+        - "Local AI (本地续写)"
         - "Other (其他)"
     validations:
       required: true

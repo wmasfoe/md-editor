@@ -1,6 +1,10 @@
-//! Shared Markdown source operations used by the GPUI desktop and WebAssembly
-//! editor. Renderers own their native text buffer and undo history. Parsing
-//! never serializes an AST over user-authored source.
+//! Markdown source operations for the editor. The editing session owns source
+//! and history. Parsing never serializes an AST over user-authored source.
+
+mod list_newline;
+pub mod session;
+pub mod table_navigation;
+pub mod text;
 
 use std::ops::Range;
 
@@ -60,6 +64,27 @@ pub enum InlineMarkKind {
     Link { destination: String },
     Image { source: String, alt: String },
     InlineMath,
+}
+
+/// Decodes a complete CommonMark character reference, including its delimiters.
+pub fn decode_character_reference(reference: &str) -> Option<String> {
+    let value = reference.strip_prefix('&')?.strip_suffix(';')?;
+    match value.strip_prefix('#') {
+        Some(digits) => {
+            let (digits, radix, limit) = match digits.strip_prefix(['x', 'X']) {
+                Some(hex) => (hex, 16, 6),
+                None => (digits, 10, 7),
+            };
+            if digits.is_empty()
+                || digits.len() > limit
+                || !digits.chars().all(|digit| digit.is_digit(radix))
+            {
+                return None;
+            }
+            Some(markdown::decode_numeric(digits, radix))
+        }
+        None => markdown::decode_named(value, true),
+    }
 }
 
 /// Inline Markdown delimiters supported by the formatting commands.
@@ -910,8 +935,7 @@ pub fn replace_all_matches(
     })
 }
 
-/// Computes document metrics matching Tauri: word count (CJK character = 1 word + alphanumeric words),
-/// line count, and character count.
+/// Counts lines, characters, and words. Each CJK character counts as one word.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct DocumentMetrics {
     pub words: usize,

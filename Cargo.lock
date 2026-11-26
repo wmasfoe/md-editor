@@ -3677,6 +3677,7 @@ version = "0.23.4"
 dependencies = [
  "markdown",
  "regex",
+ "unicode-segmentation",
 ]
 
 [[package]]
@@ -3700,16 +3701,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "inkpoint-editor-web"
-version = "0.0.0"
-dependencies = [
- "console_error_panic_hook",
- "gpui-kit",
- "inkpoint-editor-gpui",
- "wasm-bindgen",
-]
-
-[[package]]
 name = "inkpoint-gpui"
 version = "0.23.4"
 dependencies = [
@@ -3718,7 +3709,6 @@ dependencies = [
  "gpui-kit",
  "inkpoint-editor-core",
  "inkpoint-editor-gpui",
- "inkpoint-editor-typeset",
  "serde",
  "serde_json",
  "tempfile",

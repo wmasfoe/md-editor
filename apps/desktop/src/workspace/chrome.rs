@@ -243,12 +243,23 @@ impl Workspace {
     }
 
     fn mode_button(&self, palette: Palette, cx: &mut Context<Self>) -> Button {
-        let (icon, label, mode) = (IconName::BookOpen, "Rendered Markdown", "Typeset");
+        let source_mode = self.editor.read(cx).source_mode();
+        let (icon, label, mode) = if source_mode {
+            (
+                IconName::FileCode,
+                "Switch to Rendered Markdown",
+                "Markdown Source",
+            )
+        } else {
+            (IconName::BookOpen, "Switch to Markdown Source", "Typeset")
+        };
 
         let button = icon_button("editor-mode-toggle", icon, label, palette, cx).on_click(
             cx.listener(|this, _, window, cx| {
-                this.editor
-                    .update(cx, |editor, cx| editor.focus(window, cx));
+                this.editor.update(cx, |editor, cx| {
+                    editor.toggle_source_mode(cx);
+                    editor.focus(window, cx);
+                });
             }),
         );
         if self.sidebar_visible {
@@ -913,13 +924,9 @@ impl Render for Workspace {
     }
 }
 
-/// Maps a host menu command to the formatting command the typeset editor runs.
-///
-/// The menu keeps naming the commands it always did; the view modes it used to
-/// toggle no longer exist because the GPUI editor renders and edits at once, so
-/// those return `None` and the menu entry becomes inert.
-fn host_command(command: HostCommand) -> Option<inkpoint_editor_typeset::EditorCommand> {
-    use inkpoint_editor_typeset::EditorCommand as Typeset;
+/// Maps formatting actions from the menu to editor commands.
+fn host_command(command: HostCommand) -> Option<inkpoint_editor_core::session::EditorCommand> {
+    use inkpoint_editor_core::session::EditorCommand as Typeset;
     match command {
         HostCommand::FormatInline(format) => Some(match format {
             InlineFormat::Bold => Typeset::ToggleBold,

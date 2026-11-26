@@ -13,7 +13,7 @@ body:
     attributes:
       label: 涉及的文档 (Target Document)
       description: 指出需要修改或补充的文档路径或在线链接
-      placeholder: 例如：docs/human/plugin_development_guide.md 中的装饰器策略章节
+      placeholder: apps/desktop/README.md 中的本地构建说明
     validations:
       required: true
 

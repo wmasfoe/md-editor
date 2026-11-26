@@ -1,42 +1,20 @@
 # Agent 文档目录
 
-用途：作为 agent 的第一层导航。只记录当前目录下有哪些文档集合；具体文档请进入对应子目录的 `index.md` 按需查找。
+用途：作为 agent 文档的第一层导航。先从本页选择相关主题，再按需查看对应文档。
 
 ## 目录
 
-- 产品需求、路线与竞品分析（含 VMark 能力现状、AI 隐私边界和风格学习实现）： [product/index.md](./product/index.md)
-- 设计规范（含编辑器提示卡片的留白与源码披露约束）： [design/index.md](./design/index.md)
-- 技术架构、能力边界与方案（含 GPUI Beta、文档保存与图片插入职责契约及 IME 延迟限制、GitHub 外部插件、用户命令快捷键与跨窗口即时冲突校验、SDK/host、AI Harness/本地 SLM 接口契约、macOS 本地推理打包与签名、PR3 模块拆分与结构护栏）： [architecture/index.md](./architecture/index.md)
-- 实现状态、迁移进度、Beta 缺口与阶段验证记录（含 GPUI 与 Tauri 编辑差距、当前交接与迁移顺序、Mermaid 可视化编辑 P0、默认布局验收及探针依赖升级维护）： [status/index.md](./status/index.md)
-- 高风险行为规范（编辑器交互、macOS 桌面全选、桌面系统文件打开及平台限制契约）： [specs/index.md](./specs/index.md)
-- 发布与仓库流程： [release/index.md](./release/index.md)
-- 评审、体验与问题审查记录： [review/index.md](./review/index.md)
+- [架构](./architecture/index.md)：Rust workspace、GPUI 编辑器和仍适用的职责边界。
+- [设计](./design/index.md)：产品视觉与交互设计原则。
+- [产品](./product/index.md)：产品目标、需求与优先级。
+- [规范](./specs/index.md)：编辑器行为契约和回归场景；旧实现专属规范会标明历史状态。
+- [状态](./status/index.md)：Beta 编辑器当前状态和仍有效的技术记录。
+- [发布](./release/index.md)：Rust beta 桌面应用构建与发布流程。
+- [评审](./review/index.md)：审查记录与体验问题。
 
-## 文档分类判据
+## 文档规则
 
-写新文档前先判断它属于哪一类，避免放错目录导致重复与漂移：
-
-| 目录 | 判据（回答什么问题） | 典型内容 |
-| --- | --- | --- |
-| `architecture/` | **稳定的设计与契约来源**："系统为什么这样分层、边界在哪" | 能力边界、渲染器架构、结构/命名规范 |
-| `specs/` | **高风险交互契约**："改这块代码前必须知道的不可变量" | 选区完整性、表格编辑生命周期、Inclusivity 契约 |
-| `status/` | **进度快照**："现在做到哪、还缺什么" | 迁移进度、Beta 缺口、阶段验证记录 |
-| `review/` | **审查与体检记录**："某次评审发现了什么" | UX 审查、问题清单 |
-| `design/` | **视觉与交互语言**："长什么样、动效如何" | DESIGN.md（含图表选中、拖拽连线与关联删除交互）、玻璃材质、动效系统 |
-| `product/` | **需求与路线**："为什么做、优先做什么" | PRD、竞品分析、任务优先级 |
-| `release/` | **发布与仓库流程**："怎么发、怎么回滚" | 发版流程、分发链路 |
-
-若一份文档同时符合多类：**契约放 `specs/`、设计放 `architecture/`、进度放 `status/`**；同一事实只在一处定义，其他文档引用它。
-
-## 使用规则
-
-- 先读本文件判断方向，再读对应子目录的 `index.md`。
-- 根目录索引只保留一层导航，不展开具体文档清单。
-- 新增子目录时必须同步更新本文件。
-- 及时更新对应的文档，文档和代码的状态要保持同步。
-
-- 编辑器三包职责、React 子入口、独立性护栏与保留依赖的 npm 分发约定：[编辑器包边界](./architecture/editor_package_boundaries.md)
-
-- npm 公开子包基于 Changesets 的自动化版本管理、变更集声明与发版规范：[npm Changesets 自动化发版](./release/npm_automated_release_changesets.md)
-- npm 实际发布结果、公开包范围、版本闭包、SDK 补丁兼容、定向 CI、宿主隔离与路径/文末块审查记录：[npm 分发收口](./release/npm_package_readiness.md)
-- core/editor 首发与 SDK 0.2.0 的版本、消费变更和运行要求：[中文发布记录](./release/npm-editor-sdk/CHANGELOG.md)、[English changelog](./release/npm-editor-sdk/CHANGELOG_EN.md)
+- 本目录记录 agent 需要的项目背景、稳定约束和已知状态；面向维护者的说明放在 [`docs/human/`](../human/index.md)。
+- 新增文档时同步更新对应子目录的 `index.md`，并在本页保持一层导航。
+- 文档只描述经代码或流程验证的现状。方案、目标与历史记录应明确标注，不作为当前实现承诺。
+- 当前 Rust workspace 结构与验证命令见[架构索引](./architecture/index.md)和[桌面开发说明](../../apps/desktop/README.md)。

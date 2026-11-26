@@ -1,28 +1,17 @@
-# Dependencies
+# Legacy checkout caches
 node_modules/
 .pnpm-store/
-
-# JavaScript / TypeScript build output
 dist/
-# Sentry 插件会自动读取这个文件里的 token，禁止入库。CI 只用 SENTRY_AUTH_TOKEN。
-.env.sentry-build-plugin
 build/
 .next/
 *.tsbuildinfo
 .vite/
 .turbo/
-infra/distribution-worker/public/
-# Vercel CLI link：只允许 monorepo 根 .vercel/（不要 apps/site/.vercel）
-.vercel/*
-!.vercel/project.json
-apps/site/.vercel/
+.vercel/
+apps/desktop/src-tauri/
 
 # Rust build output
 target/
-# Tauri 退役后 apps/desktop/src-tauri 只剩构建产物与生成的 schema，
-# 没有源码。它们由旧构建留下，不应进入版本库或格式化检查。
-apps/desktop/src-tauri/gen/
-apps/desktop/src-tauri/binaries/
 
 # Swift / iOS / Android build output
 .build/
@@ -37,8 +26,7 @@ apps/desktop/src-tauri/binaries/
 **/Resources/editor/
 /inkpoint/
 
-# GPUI llama.cpp runtime: 运行时由 prepare-llama-runtime.mjs 下载/刷新。
-# 只忽略下载器生成的顶层临时与平台二进制，已随仓库分发的 aarch64 payload 保持跟踪。
+# Keep the vendored Apple Silicon runtime tracked and ignore local overrides.
 apps/desktop/runtime/llama/llama-server-*
 !apps/desktop/runtime/llama/llama-server-aarch64-apple-darwin
 apps/desktop/runtime/llama/tmp-llama-*

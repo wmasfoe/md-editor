@@ -1,12 +1,8 @@
 //! Editable Markdown typesetting surface built on gpui-kit text rendering.
-
 //!
-//! gpui-kit owns Markdown parsing, block layout and typography: a heading is
-//! larger than body text because the renderer shapes each block at its own
-//! size. This crate owns the editing side of that boundary — the document
-//! model, caret and selection state, hit testing, and the platform input
-//! contract — because `gpui_base::text::editor_host` deliberately stops at
-//! rendering and geometry reporting.
+//! This crate projects the source into the renderer's block tree and maps
+//! between source offsets and shaped leaf geometry. The session owns source
+//! and selection in `editor-core`; platform input is handled by `editor-gpui`.
 //!
 //! The seam this crate depends on:
 //!
@@ -16,25 +12,16 @@
 //!   geometry the caret needs: bounds, line height, and the byte index at a
 //!   window point.
 
-mod table_navigation;
-pub use table_navigation::{
-    TableNavigation, exit_table, generate_empty_table, navigate_table, navigate_table_vertical,
-    soft_break_in_table,
-};
-
 mod diagram;
-mod edit;
 mod geometry;
-mod list_newline;
 mod math;
 mod mermaid;
 mod movement;
+mod projection;
 mod svg;
-mod text;
 
 pub use diagram::DiagramRenderer;
-pub use edit::{EditorCommand, Selection, TypesetEditor, TypesetError};
-pub use geometry::{LeafIndex, caret_at};
+pub use geometry::{LeafIndex, caret_at, caret_bounds_at};
 pub use math::{Formula, FormulaError, MATH_LANGUAGE, MathRenderer, is_math_fence};
 pub use mermaid::{Diagram, DiagramError, MERMAID_LANGUAGE, is_mermaid_fence, render_diagram};
 pub use movement::{
@@ -42,7 +29,6 @@ pub use movement::{
     move_vertical_with_goal, move_word_left, move_word_right, word_range_at,
 };
 pub use svg::{SvgError, SvgImageChannel, to_png_data_url};
-pub use text::{byte_offset, line_start, utf16_offset};
 
 use std::cell::OnceCell;
 use std::collections::HashMap;
@@ -51,6 +37,11 @@ use std::ops::Range;
 use gpui_kit::base::text::editor_host::{BlockNode, FlowPosition, RenderContext, parse_markdown};
 use gpui_kit::{App, Pixels, SharedString, Window, div, prelude::*};
 use inkpoint_editor_core::{BlockKind, MarkdownDocument, SourceBlock};
+
+use self::projection::{
+    collect_rendered_text, map_code_to_source, map_display_to_source, retain_empty_lines,
+    reveal_in_block, source_line,
+};
 
 /// The leaf key assigned to the first text leaf of a document.
 ///
@@ -93,6 +84,7 @@ impl LeafSpan {
 /// A parsed document ready to be rendered and edited.
 pub struct TypesetDocument {
     blocks: Vec<BlockNode>,
+    block_ranges: Vec<Option<Range<usize>>>,
     /// The first leaf key of each block, in block order.
     ///
     /// `None` for a block that renders no text (a rule, a definition). A table
@@ -101,6 +93,19 @@ pub struct TypesetDocument {
     spans: Vec<LeafSpan>,
     source: String,
     rendered_maps: HashMap<u64, Vec<usize>>,
+    rendered_before_maps: HashMap<u64, Vec<usize>>,
+    inline_marks: Vec<inkpoint_editor_core::InlineMark>,
+    active_projection: Option<LocalProjection>,
+}
+
+/// Saves the one block and byte map replaced by revealing inline syntax.
+struct LocalProjection {
+    syntax: Range<usize>,
+    block_index: usize,
+    original_block: BlockNode,
+    key: u64,
+    original_leading: Vec<usize>,
+    original_trailing: Vec<usize>,
 }
 
 impl TypesetDocument {
@@ -111,8 +116,8 @@ impl TypesetDocument {
     /// the outer block alone would leave that block reporting no geometry. A
     /// table therefore consumes several keys and a block's key is not its index.
     ///
-    /// The parser reports an error for input it cannot structure; the caller
-    /// keeps showing the previous document rather than losing the buffer.
+    /// The parser reports an error for input it cannot structure. A caller can
+    /// project those same bytes with [`Self::plain_source`].
     pub fn parse(source: impl Into<String>) -> Result<Self, SharedString> {
         Self::parse_with(source, None)
     }
@@ -128,6 +133,18 @@ impl TypesetDocument {
         Self::parse_at(source, diagrams, gpui_kit::SvgSize::ScaleFactor(1.0))
     }
 
+    /// Typesets Markdown with caret positions for otherwise invisible empty lines.
+    pub fn parse_for_editing(
+        source: impl Into<String>,
+        diagrams: Option<&DiagramRenderer>,
+    ) -> Result<Self, SharedString> {
+        let source = source.into();
+        if source.trim().is_empty() {
+            return Ok(Self::plain_source(source));
+        }
+        Self::parse_projection(source, diagrams, gpui_kit::SvgSize::ScaleFactor(1.0), true)
+    }
+
     /// Parses `source`, rasterizing diagrams at `scale`.
     ///
     /// Scale is a display fact — DPI or zoom — so the caller decides it rather
@@ -138,7 +155,15 @@ impl TypesetDocument {
         diagrams: Option<&DiagramRenderer>,
         scale: gpui_kit::SvgSize,
     ) -> Result<Self, SharedString> {
-        let source = source.into();
+        Self::parse_projection(source.into(), diagrams, scale, false)
+    }
+
+    fn parse_projection(
+        source: String,
+        diagrams: Option<&DiagramRenderer>,
+        scale: gpui_kit::SvgSize,
+        editable: bool,
+    ) -> Result<Self, SharedString> {
         let parsed = parse_markdown(&source, Default::default())?;
         // Record each block's source range before any rendering replaces it. A
         // rendered diagram becomes a paragraph built from scratch, which carries
@@ -166,6 +191,11 @@ impl TypesetDocument {
                 }
             }
             None => parsed,
+        };
+        let (parsed, spans_before) = if editable {
+            retain_empty_lines(parsed, spans_before, &source)
+        } else {
+            (parsed, spans_before)
         };
         // Keys are handed out in document order and a table consumes one per
         // cell, so a block's key is no longer its index.
@@ -197,49 +227,192 @@ impl TypesetDocument {
         let inline_marks = MarkdownDocument::new(&source)
             .inline_marks()
             .unwrap_or_default();
-        let rendered_maps = spans
+        // Inline marks are sorted by start. Prefix maxima let us skip marks in
+        // earlier leaves while retaining an enclosing mark around nested ones.
+        let mark_prefix_ends: Vec<_> = inline_marks
             .iter()
-            .filter_map(|leaf| {
-                let span = leaf.span.as_ref()?;
-                let marks: Vec<_> = inline_marks
-                    .iter()
-                    .filter(|mark| {
-                        mark.syntax_range.start < span.end && mark.syntax_range.end > span.start
-                    })
-                    .collect();
-                // Escapes, entities, and images can transform text rather
-                // than merely hide delimiters; do not guess their byte mapping.
-                if marks.is_empty()
-                    || source.get(span.clone())?.contains(['\\', '&'])
-                    || marks.iter().any(|mark| {
-                        matches!(
-                            mark.kind,
-                            inkpoint_editor_core::InlineMarkKind::Image { .. }
-                                | inkpoint_editor_core::InlineMarkKind::InlineMath
-                        )
-                    })
-                {
-                    return None;
-                }
-                let mut positions = Vec::new();
-                for offset in span.clone() {
-                    if !marks.iter().any(|mark| {
-                        mark.syntax_range.contains(&offset) && !mark.range.contains(&offset)
-                    }) {
-                        positions.push(offset);
-                    }
-                }
-                positions.push(positions.last().map_or(span.start, |offset| offset + 1));
-                Some((leaf.key, positions))
+            .scan(0, |end, mark| {
+                *end = (*end).max(mark.syntax_range.end);
+                Some(*end)
             })
             .collect();
+        let mut rendered_texts = HashMap::new();
+        let mut rendered_key = FIRST_LEAF_KEY;
+        for block in &blocks {
+            collect_rendered_text(block, &mut rendered_key, &mut rendered_texts);
+        }
+        let mut rendered_maps = HashMap::new();
+        let mut rendered_before_maps = HashMap::new();
+        for leaf in &spans {
+            let (Some(span), Some(display)) = (leaf.span.as_ref(), rendered_texts.get(&leaf.key))
+            else {
+                continue;
+            };
+            let first = mark_prefix_ends.partition_point(|end| *end <= span.start);
+            let last = inline_marks.partition_point(|mark| mark.syntax_range.start < span.end);
+            let marks = &inline_marks[first.min(last)..last];
+            let (leading, trailing) = if display.code {
+                map_code_to_source(span, &display.text, &source)
+            } else {
+                map_display_to_source(span, &display.text, &source, marks)
+            };
+            rendered_maps.insert(leaf.key, leading);
+            rendered_before_maps.insert(leaf.key, trailing);
+        }
         Ok(Self {
             rendered_maps,
+            rendered_before_maps,
+            inline_marks,
             blocks,
+            block_ranges: spans_before,
             block_keys,
             spans,
             source,
+            active_projection: None,
         })
+    }
+
+    /// Displays every source line literally, with identity source mapping.
+    pub fn plain_source(source: impl Into<String>) -> Self {
+        use gpui_kit::base::text::editor_host::{InlineNode, Paragraph};
+
+        let source = source.into();
+        let mut start = 0;
+        let mut blocks = Vec::new();
+        let mut block_ranges = Vec::new();
+        let mut block_keys = Vec::new();
+        let mut spans = Vec::new();
+        loop {
+            let (text, ending) = source_line(&source[start..]);
+            let key = FIRST_LEAF_KEY + blocks.len() as u64;
+            let mut paragraph = Paragraph::default();
+            paragraph.push(InlineNode::new(text.to_owned()));
+            blocks.push(BlockNode::Paragraph(paragraph.with_leaf_key(key)));
+            block_ranges.push(Some(start..start + text.len()));
+            block_keys.push(Some(key));
+            spans.push(LeafSpan {
+                key,
+                span: Some(start..start + text.len()),
+            });
+            if ending == 0 {
+                break;
+            }
+            start += text.len() + ending;
+        }
+        Self {
+            source,
+            blocks,
+            block_ranges,
+            block_keys,
+            spans,
+            rendered_maps: HashMap::new(),
+            rendered_before_maps: HashMap::new(),
+            inline_marks: Vec::new(),
+            active_projection: None,
+        }
+    }
+
+    /// The parsed block tree, with stable leaf keys assigned for geometry.
+    pub fn blocks(&self) -> &[BlockNode] {
+        &self.blocks
+    }
+
+    /// Original Markdown ranges for the top-level blocks, in render order.
+    /// Rebuilding a table or rendering a diagram can replace a node's own span.
+    pub fn block_ranges(&self) -> &[Option<Range<usize>>] {
+        &self.block_ranges
+    }
+
+    /// Update which inline syntax range is locally revealed.
+    ///
+    /// `active_source` is a collapsed caret or selection range in source bytes.
+    /// Caret movement within the same mark does not invalidate the projection;
+    /// callers can use the returned flag to avoid rebuilding their view. The
+    /// renderer uses [`Self::active_reveal`] to paint/reveal only that mark.
+    pub fn prepare_projection(&mut self, active_source: Option<Range<usize>>) -> bool {
+        let active_mark = active_source.and_then(|active| {
+            self.inline_marks
+                .iter()
+                .filter(|mark| {
+                    if matches!(
+                        mark.kind,
+                        inkpoint_editor_core::InlineMarkKind::Image { .. }
+                            | inkpoint_editor_core::InlineMarkKind::InlineMath
+                    ) {
+                        return false;
+                    }
+                    if active.is_empty() {
+                        mark.syntax_range.contains(&active.start)
+                    } else {
+                        mark.syntax_range.start < active.end && active.start < mark.syntax_range.end
+                    }
+                })
+                .min_by_key(|mark| mark.syntax_range.len())
+                .cloned()
+        });
+        if active_mark.as_ref().map(|mark| &mark.syntax_range)
+            == self
+                .active_projection
+                .as_ref()
+                .map(|previous| &previous.syntax)
+        {
+            return false;
+        }
+        if let Some(previous) = self.active_projection.take() {
+            self.blocks[previous.block_index] = previous.original_block;
+            self.rendered_maps
+                .insert(previous.key, previous.original_leading);
+            self.rendered_before_maps
+                .insert(previous.key, previous.original_trailing);
+        }
+        self.active_projection = active_mark.and_then(|mark| self.reveal_mark(&mark));
+        true
+    }
+
+    fn reveal_mark(&mut self, mark: &inkpoint_editor_core::InlineMark) -> Option<LocalProjection> {
+        let key = self.leaf_at(mark.range.start)?;
+        let block_index = self.block_of(key)?;
+        let mut first_key = self.leaf_key(block_index)?;
+        let leading = self.rendered_maps.get_mut(&key)?;
+        let trailing = self.rendered_before_maps.get_mut(&key)?;
+        let block = &mut self.blocks[block_index];
+        let revealed = reveal_in_block(
+            block,
+            key,
+            &mark.range,
+            &mark.syntax_range,
+            &self.source,
+            leading,
+            &mut first_key,
+        );
+        let start = leading
+            .partition_point(|offset| *offset < mark.range.start)
+            .min(leading.len() - 1);
+        let end = leading
+            .partition_point(|offset| *offset < mark.range.end)
+            .min(leading.len() - 1);
+        let mut revealed_leading = leading[..start].to_vec();
+        revealed_leading.extend(mark.syntax_range.clone());
+        revealed_leading.push(mark.syntax_range.end);
+        revealed_leading.extend_from_slice(&leading[end + 1..]);
+        let mut revealed_trailing = trailing[..=start].to_vec();
+        revealed_trailing.extend(mark.syntax_range.start + 1..=mark.syntax_range.end);
+        revealed_trailing.extend_from_slice(&trailing[end + 1..]);
+        Some(LocalProjection {
+            syntax: mark.syntax_range.clone(),
+            block_index,
+            original_block: std::mem::replace(block, revealed),
+            key,
+            original_leading: std::mem::replace(leading, revealed_leading),
+            original_trailing: std::mem::replace(trailing, revealed_trailing),
+        })
+    }
+
+    /// The source syntax range selected for local reveal, if any.
+    pub fn active_reveal(&self) -> Option<Range<usize>> {
+        self.active_projection
+            .as_ref()
+            .map(|projection| projection.syntax.clone())
     }
 
     /// The Markdown this document was parsed from.
@@ -269,9 +442,8 @@ impl TypesetDocument {
     /// document-wide offset. Callers convert between the two with this span.
     pub fn span_of(&self, key: u64) -> Option<Range<usize>> {
         self.spans
-            .iter()
-            .find(|leaf| leaf.key == key)
-            .and_then(|leaf| leaf.span())
+            .get(usize::try_from(key.checked_sub(FIRST_LEAF_KEY)?).ok()?)?
+            .span()
     }
 
     /// Maps a rendered byte offset to the source, skipping known inline delimiters.
@@ -288,8 +460,8 @@ impl TypesetDocument {
         if rendered == 0 {
             return self.source_offset(key, 0);
         }
-        match self.rendered_maps.get(&key) {
-            Some(positions) => Some(positions[(rendered - 1).min(positions.len() - 1)] + 1),
+        match self.rendered_before_maps.get(&key) {
+            Some(positions) => Some(positions[rendered.min(positions.len() - 1)]),
             None => self.source_offset(key, rendered),
         }
     }
@@ -463,7 +635,7 @@ impl TypesetDocument {
     /// Each leaf gets the part of the selection that falls inside its span,
     /// rebased to leaf-local bytes. An empty selection paints nothing, which is
     /// why a bare caret needs no decoration of its own.
-    fn selection_decorations(&self, selection: Option<Range<usize>>) -> Decorations {
+    pub fn selection_decorations(&self, selection: Option<Range<usize>>) -> Decorations {
         let Some(selection) = selection else {
             return HashMap::new();
         };
@@ -620,6 +792,89 @@ mod tests {
             document.rendered_offset(key, emoji),
             Some("中文 链接 ".len())
         );
+    }
+
+    #[test]
+    fn local_reveal_tracks_only_active_inline_syntax_and_caches_transitions() {
+        let mut document = TypesetDocument::parse("before **bold** after").unwrap();
+        assert!(!document.blocks().is_empty());
+        assert!(document.prepare_projection(Some(10..10)));
+        assert_eq!(document.active_reveal(), Some(7..15));
+        let BlockNode::Paragraph(paragraph) = &document.blocks()[0] else {
+            panic!("expected paragraph")
+        };
+        assert_eq!(
+            paragraph
+                .children()
+                .iter()
+                .map(|run| run.text())
+                .collect::<String>(),
+            "before **bold** after"
+        );
+        let key = document.leaf_key(0).unwrap();
+        assert_eq!(document.source_offset(key, 9), Some(9));
+        assert_eq!(document.source_offset_before(key, 9), Some(9));
+        assert_eq!(document.rendered_offset(key, 11), Some(11));
+        assert!(!document.prepare_projection(Some(12..12)));
+        assert!(document.prepare_projection(Some(0..0)));
+        assert_eq!(document.active_reveal(), None);
+        assert!(!document.prepare_projection(None));
+
+        let source = "**outer *inner* tail**";
+        let mut nested = TypesetDocument::parse(source).unwrap();
+        let caret = source.find("inner").unwrap() + 2;
+        assert!(nested.prepare_projection(Some(caret..caret)));
+        let start = source.find("*inner*").unwrap();
+        assert_eq!(nested.active_reveal(), Some(start..start + "*inner*".len()));
+    }
+
+    #[test]
+    fn display_map_handles_entities_escapes_and_atomic_images() {
+        let entity_source = "a &amp; b";
+        let entity = TypesetDocument::parse(entity_source).unwrap();
+        let key = entity.leaf_key(0).unwrap();
+        assert_eq!(entity.source_offset(key, 2), Some(2));
+        assert_eq!(entity.source_offset_before(key, 3), Some(7));
+
+        let escaped_source = "a \\* b";
+        let escaped = TypesetDocument::parse(escaped_source).unwrap();
+        let key = escaped.leaf_key(0).unwrap();
+        assert_eq!(escaped.source_offset(key, 2), Some(3));
+        assert_eq!(escaped.source_offset_before(key, 3), Some(4));
+
+        let image_source = "a ![alt](img) b";
+        let image = TypesetDocument::parse(image_source).unwrap();
+        let key = image.leaf_key(0).unwrap();
+        let image_start = image_source.find("![alt]").unwrap();
+        let image_end = image_source.find(" b").unwrap();
+        assert_eq!(image.source_offset_before(key, 2), Some(image_start));
+        assert_eq!(image.source_offset(key, 2), Some(image_start));
+        assert_eq!(
+            image.source_offset(key, 2 + '\u{fffc}'.len_utf8()),
+            Some(image_end)
+        );
+
+        let utf8 = TypesetDocument::parse("**中**").unwrap();
+        let key = utf8.leaf_key(0).unwrap();
+        assert_eq!(utf8.source_offset_before(key, "中".len()), Some(5));
+        assert_eq!(utf8.source_offset(key, "中".len()), Some(7));
+
+        for source in ["**a \\* b**", "**a &amp; b**"] {
+            let mut document = TypesetDocument::parse(source).unwrap();
+            let caret = source.find("a ").unwrap() + 1;
+            assert!(document.prepare_projection(Some(caret..caret)));
+            let BlockNode::Paragraph(paragraph) = &document.blocks()[0] else {
+                panic!("expected paragraph")
+            };
+            assert_eq!(
+                paragraph
+                    .children()
+                    .iter()
+                    .map(|run| run.text())
+                    .collect::<String>(),
+                source
+            );
+        }
     }
 
     #[test]

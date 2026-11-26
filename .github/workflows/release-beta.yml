@@ -34,15 +34,6 @@ jobs:
           targets: aarch64-apple-darwin
           components: rustfmt, clippy
 
-      # dtolnay/rust-toolchain 的 ref 只能是分支/tag（stable、nightly、1.99.0…），
-      # 不能写 `nightly-2026-11-17` 这种日期——那会直接报 unable to resolve action。
-      # 具体日期版通过 `toolchain` 输入传给 action。
-      - name: Set up WebAssembly toolchain
-        uses: dtolnay/rust-toolchain@nightly
-        with:
-          toolchain: nightly-2026-11-17
-          targets: wasm32-unknown-unknown
-
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
         with:
@@ -74,59 +65,10 @@ jobs:
       - name: Run Rust tests
         run: cargo +1.99.0 test --locked --workspace
 
-      - name: Install JavaScript workspace
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11.6.0
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: .node-version
-          cache: pnpm
-
-      - name: Install JavaScript dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Install WebAssembly bindings CLI
-        run: cargo +1.99.0 install wasm-bindgen-cli --version 0.2.127 --locked
-
-      - name: Build private WebAssembly editor package
-        run: pnpm --filter @md-editor/editor-web build
-
-      - name: Smoke test packed private WebAssembly package
-        run: pnpm --filter @md-editor/editor-web test:packed
-
-      - name: Build Playground
-        env:
-          VITE_BASE_PATH: /
-        run: pnpm --filter @md-editor/web build
-
-      - name: Install Playwright browser
-        run: pnpm --filter @md-editor/web exec playwright install chromium
-
-      # 注意：不要写成 `test:browser -- --grep GPUI`。pnpm 会把独立的 `--` 一并传给
-      # Playwright，其后的 `--grep` 就不再作为选项解析，结果是整个文件都跑一遍。
-      - name: Smoke test packaged GPUI Playground
-        env:
-          VITE_BASE_PATH: /
-        run: pnpm --filter @md-editor/web test:browser --grep GPUI
-
-      - name: Package browser Playground
-        env:
-          GPUI_VERSION: ${{ steps.version.outputs.version }}
+      - name: Verify vendored llama runtime
         run: |
-          cat > apps/web/dist/README.txt <<'EOF'
-          Inkpoint GPUI Preview Playground
-
-          Extract this archive and run `python3 -m http.server 4173` from the extracted directory.
-          Open http://127.0.0.1:4173/ in a browser.
-          EOF
-          mkdir -p target/gpui-preview
-          ditto -c -k --sequesterRsrc --keepParent apps/web/dist "target/gpui-preview/Inkpoint-GPUI-Playground_${GPUI_VERSION}.zip"
-
-      - name: Prepare local AI runtime
-        run: node scripts/release/prepare-llama-runtime.mjs --target aarch64-apple-darwin
+          test -x apps/desktop/runtime/llama/llama-server-aarch64-apple-darwin
+          test -d apps/desktop/runtime/llama/llama-runtime-macos-arm64
 
       - name: Build GPUI release binary
         run: cargo +1.99.0 build --locked --release --target aarch64-apple-darwin --package inkpoint-gpui
@@ -135,7 +77,7 @@ jobs:
         env:
           GPUI_VERSION: ${{ steps.version.outputs.version }}
           CARGO_BUILD_TARGET: aarch64-apple-darwin
-        run: node apps/desktop/scripts/package-macos.mjs
+        run: bash apps/desktop/scripts/package-macos.sh
 
       - name: Verify DMG
         shell: bash
@@ -150,7 +92,6 @@ jobs:
           name: inkpoint-gpui-preview-${{ steps.version.outputs.version }}
           path: |
             target/gpui-preview/*.dmg
-            target/gpui-preview/*.zip
           if-no-files-found: error
           retention-days: 30
 
@@ -176,7 +117,7 @@ jobs:
           SHORT_SHA: ${{ github.sha }}
         shell: bash
         run: |
-          notes="$(printf 'Inkpoint GPUI Preview %s\n\nNative GPUI desktop beta from beta commit %s. Includes one macOS Apple Silicon DMG and a browser Playground ZIP. Extract the Playground ZIP and serve its contents with `python3 -m http.server 4173`. The private editor npm package is packed for the build and is not published. The preview app does not update the stable Inkpoint installation.' "$RELEASE_VERSION" "$SHORT_SHA")"
+          notes="$(printf 'Inkpoint GPUI Preview %s\n\nNative GPUI desktop beta from beta commit %s. Includes one macOS Apple Silicon DMG. The preview app does not update the stable Inkpoint installation.' "$RELEASE_VERSION" "$SHORT_SHA")"
           if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             existing_target="$(gh api "repos/$GITHUB_REPOSITORY/commits/$RELEASE_TAG" --jq .sha)"
             if [[ "$existing_target" != "$GITHUB_SHA" ]]; then
@@ -188,11 +129,11 @@ jobs:
               --title "Inkpoint GPUI Preview ${RELEASE_VERSION}" \
               --notes "$notes" \
               --prerelease
-            gh release upload "$RELEASE_TAG" release-assets/*.dmg release-assets/*.zip \
+            gh release upload "$RELEASE_TAG" release-assets/*.dmg \
               --repo "$GITHUB_REPOSITORY" \
               --clobber
           else
-            gh release create "$RELEASE_TAG" release-assets/*.dmg release-assets/*.zip \
+            gh release create "$RELEASE_TAG" release-assets/*.dmg \
               --repo "$GITHUB_REPOSITORY" \
               --target "$GITHUB_SHA" \
               --title "Inkpoint GPUI Preview ${RELEASE_VERSION}" \
