@@ -83,6 +83,89 @@ fn return_splits_a_paragraph_and_shift_return_breaks_its_line(cx: &mut TestAppCo
 }
 
 #[gpui_kit::test]
+fn return_in_a_list_moves_the_caret_to_the_continued_item(cx: &mut TestAppContext) {
+    let source = "- 列表";
+    let (view, vcx) = open_focused(cx, source);
+    vcx.update(|_, cx| view.update(cx, |view, cx| view.set_caret(source.len(), cx)));
+    draw(vcx);
+    let before = view.read_with(&*vcx, |view, _| view.caret_bounds().unwrap());
+
+    vcx.simulate_keystrokes("enter");
+    draw(vcx);
+    let after = view.read_with(&*vcx, |view, _| {
+        assert_eq!(view.markdown(), "- 列表\n- ");
+        assert_eq!(view.selected_range(), source.len() + 3..source.len() + 3);
+        let caret = view.caret_bounds().expect("the continued item has a caret");
+        assert!(caret.top() > before.bottom());
+        caret
+    });
+
+    vcx.simulate_input("后续");
+    view.read_with(&*vcx, |view, _| {
+        assert_eq!(view.markdown(), "- 列表\n- 后续");
+        assert!(view.caret_bounds().unwrap().top() >= after.top());
+    });
+}
+
+#[gpui_kit::test]
+fn return_in_a_blockquote_moves_the_caret_to_the_continued_quote(cx: &mut TestAppContext) {
+    let source = "> 引用";
+    let (view, vcx) = open_focused(cx, source);
+    vcx.update(|_, cx| view.update(cx, |view, cx| view.set_caret(source.len(), cx)));
+    draw(vcx);
+    let before = view.read_with(&*vcx, |view, _| view.caret_bounds().unwrap());
+
+    vcx.simulate_keystrokes("enter");
+    draw(vcx);
+    view.read_with(&*vcx, |view, _| {
+        let continued = "> 引用  \n> ";
+        assert_eq!(view.markdown(), continued);
+        assert_eq!(view.selected_range(), continued.len()..continued.len());
+        let caret = view
+            .caret_bounds()
+            .expect("the continued quote has a caret");
+        assert!(caret.top() > before.bottom());
+    });
+
+    vcx.simulate_input("后续");
+    draw(vcx);
+    view.read_with(&*vcx, |view, _| {
+        assert_eq!(view.markdown(), "> 引用  \n> 后续");
+        assert!(view.caret_bounds().unwrap().top() > before.bottom());
+    });
+}
+
+#[gpui_kit::test]
+fn blank_lines_between_structured_blocks_keep_distinct_caret_rows(cx: &mut TestAppContext) {
+    let source = "> 下一行可以继续引用或回到正文。\n\n\n\n1. 调整列表层级。\n\n\n---";
+    let (view, vcx) = open_focused(cx, source);
+    let line_ends: Vec<_> = source
+        .split_inclusive('\n')
+        .scan(0, |offset, line| {
+            *offset += line.len();
+            Some(*offset)
+        })
+        .take_while(|end| *end < source.len())
+        .map(|end| end - 1)
+        .collect();
+    vcx.update(|_, cx| view.update(cx, |view, cx| view.set_caret(line_ends[0], cx)));
+    draw(vcx);
+    let mut previous = view.read_with(&*vcx, |view, _| view.caret_bounds().unwrap());
+    for offset in line_ends.into_iter().skip(1) {
+        vcx.simulate_keystrokes("down");
+        draw(vcx);
+        let bounds = view.read_with(&*vcx, |view, _| {
+            assert_eq!(view.selected_range(), offset..offset);
+            view.caret_bounds()
+                .expect("each Markdown blank line has a visible caret row")
+        });
+        assert!(bounds.top() > previous.bottom());
+        previous = bounds;
+    }
+    view.read_with(&*vcx, |view, _| assert_eq!(view.markdown(), source));
+}
+
+#[gpui_kit::test]
 fn caret_centers_on_wrapped_chinese_text_with_line_leading(cx: &mut TestAppContext) {
     let source = "这是一段中英文 mixed text，用来检查自动换行后的光标。".repeat(12);
     let (view, vcx) = open_focused(cx, &source);

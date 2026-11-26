@@ -34,13 +34,15 @@ use std::cell::OnceCell;
 use std::collections::HashMap;
 use std::ops::Range;
 
-use gpui_kit::base::text::editor_host::{BlockNode, FlowPosition, RenderContext, parse_markdown};
+use gpui_kit::base::text::editor_host::{
+    BlockNode, FlowPosition, Paragraph, RenderContext, parse_markdown,
+};
 use gpui_kit::{App, Pixels, SharedString, Window, div, prelude::*};
 use inkpoint_editor_core::{BlockKind, MarkdownDocument, SourceBlock};
 
 use self::projection::{
-    collect_rendered_text, map_code_to_source, map_display_to_source, retain_empty_lines,
-    reveal_in_block, source_line,
+    collect_rendered_text, map_code_to_source, map_display_to_source, quote_blank_line_offsets,
+    retain_empty_lines, reveal_in_block, source_line,
 };
 
 /// The leaf key assigned to the first text leaf of a document.
@@ -73,11 +75,11 @@ impl LeafSpan {
         self.span.clone()
     }
 
-    /// Whether `offset` falls inside this leaf.
+    /// Whether `offset` falls inside this leaf or names its empty caret row.
     pub fn contains(&self, offset: usize) -> bool {
         self.span
             .as_ref()
-            .is_some_and(|span| span.contains(&offset))
+            .is_some_and(|span| span.contains(&offset) || (span.is_empty() && offset == span.start))
     }
 }
 
@@ -214,6 +216,7 @@ impl TypesetDocument {
             blocks.push(with_leaf_keys(
                 block,
                 spans_before[index].as_ref(),
+                editable.then_some(source.as_str()),
                 &parse_source_blocks,
                 &mut |span| {
                     let key = next_key;
@@ -274,7 +277,7 @@ impl TypesetDocument {
 
     /// Displays every source line literally, with identity source mapping.
     pub fn plain_source(source: impl Into<String>) -> Self {
-        use gpui_kit::base::text::editor_host::{InlineNode, Paragraph};
+        use gpui_kit::base::text::editor_host::InlineNode;
 
         let source = source.into();
         let mut start = 0;
@@ -667,6 +670,7 @@ impl TypesetDocument {
 fn with_leaf_keys<'a>(
     block: BlockNode,
     fallback: Option<&Range<usize>>,
+    editable_source: Option<&str>,
     source_blocks: &impl Fn() -> &'a [SourceBlock],
     register: &mut impl FnMut(Option<Range<usize>>) -> u64,
 ) -> BlockNode {
@@ -675,7 +679,7 @@ fn with_leaf_keys<'a>(
     let mut map_children = |children: Vec<BlockNode>| {
         children
             .into_iter()
-            .map(|child| with_leaf_keys(child, range, source_blocks, register))
+            .map(|child| with_leaf_keys(child, range, editable_source, source_blocks, register))
             .collect()
     };
     match block {
@@ -705,6 +709,36 @@ fn with_leaf_keys<'a>(
             children: map_children(children),
             span,
         },
+        BlockNode::Blockquote { children, span }
+            if let (Some(source), Some(range)) = (editable_source, own_range.as_ref()) =>
+        {
+            let mut projected = Vec::with_capacity(children.len());
+            let mut gap_start = range.start;
+            for child in children {
+                if let Some(child_span) = child.span() {
+                    projected.extend(
+                        quote_blank_line_offsets(source, gap_start..child_span.start)
+                            .map(|offset| empty_caret_row(offset, register)),
+                    );
+                    gap_start = child_span.end;
+                }
+                projected.push(with_leaf_keys(
+                    child,
+                    Some(range),
+                    editable_source,
+                    source_blocks,
+                    register,
+                ));
+            }
+            projected.extend(
+                quote_blank_line_offsets(source, gap_start..range.end)
+                    .map(|offset| empty_caret_row(offset, register)),
+            );
+            BlockNode::Blockquote {
+                children: projected,
+                span,
+            }
+        }
         BlockNode::Blockquote { children, span } => BlockNode::Blockquote {
             children: map_children(children),
             span,
@@ -736,7 +770,15 @@ fn with_leaf_keys<'a>(
             task_marker,
             span,
         } => BlockNode::ListItem {
-            children: map_children(children),
+            children: if children.is_empty()
+                && editable_source.is_some()
+                && let Some(range) = &own_range
+            {
+                // List items need a paragraph for the marker and caret to render.
+                vec![empty_caret_row(range.end, register)]
+            } else {
+                map_children(children)
+            },
             spread,
             checked,
             task_marker,
@@ -774,9 +816,72 @@ fn with_leaf_keys<'a>(
     }
 }
 
+fn empty_caret_row(
+    offset: usize,
+    register: &mut impl FnMut(Option<Range<usize>>) -> u64,
+) -> BlockNode {
+    BlockNode::Paragraph(Paragraph::default().with_leaf_key(register(Some(offset..offset))))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn editable_blank_lines_keep_their_source_ranges() {
+        for (source, expected) in [
+            ("\r\n- list\r\n \t\r\n\r\n---\r\n", &[1, 3, 4, 6][..]),
+            ("- list\n  - nested\n\n\n---", &[3, 4][..]),
+            ("- ```\n  code\n\n  ```\n\n---", &[5][..]),
+            ("- ```\n  code\n\n\n", &[][..]),
+            ("paragraph\n\n", &[2, 3][..]),
+        ] {
+            let document = TypesetDocument::parse_for_editing(source, None).unwrap();
+            let mut blank_lines = Vec::new();
+            for (block, range) in document.blocks().iter().zip(document.block_ranges()) {
+                if let (BlockNode::Paragraph(paragraph), Some(range)) = (block, range)
+                    && paragraph.children().is_empty()
+                {
+                    let key = document.leaf_at(range.start).unwrap();
+                    assert_eq!(document.span_of(key).as_ref(), Some(range));
+                    assert_eq!(document.source_offset(key, 0), Some(range.end));
+                    assert_eq!(
+                        source_line(&source[range.start..]).0,
+                        &source[range.clone()]
+                    );
+                    blank_lines.push(
+                        source[..range.start]
+                            .bytes()
+                            .filter(|b| *b == b'\n')
+                            .count()
+                            + 1,
+                    );
+                }
+            }
+            assert_eq!(blank_lines, expected, "{source:?}");
+        }
+    }
+
+    #[test]
+    fn editable_containers_project_empty_lines_at_the_end_of_the_marker() {
+        for (source, empty_line) in [
+            ("1. parent\n   - first\n   - \n   - last", "   - \n"),
+            (">> first\r\n>> \r\n>> last", ">> \r\n"),
+        ] {
+            let offset = source.find(empty_line).unwrap() + source_line(empty_line).0.len();
+            let document = TypesetDocument::parse_for_editing(source, None).unwrap();
+            let key = document.leaf_at(offset).unwrap();
+            assert_eq!(document.span_of(key), Some(offset..offset));
+            assert_eq!(document.source_offset(key, 0), Some(offset));
+            let preview = TypesetDocument::parse(source).unwrap();
+            assert!(
+                preview
+                    .leaf_spans()
+                    .iter()
+                    .all(|leaf| leaf.span() != Some(offset..offset))
+            );
+        }
+    }
 
     #[test]
     fn inline_syntax_maps_rendered_offsets_to_source() {

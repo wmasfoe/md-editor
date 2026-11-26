@@ -243,14 +243,19 @@ pub(crate) fn toggle_task_checkbox(
 }
 
 /// Continues or exits a blockquote (`> `) on Enter.
-pub(crate) fn blockquote_newline(document: &MarkdownDocument, caret: usize) -> Option<SourceEdit> {
+pub(crate) fn blockquote_newline(
+    document: &MarkdownDocument,
+    caret: usize,
+    line_ending: &str,
+) -> Option<SourceEdit> {
     let source = document.source();
     let before = source.get(..caret)?;
     let start = before.rfind('\n').map_or(0, |offset| offset + 1);
     let end = source[caret..]
         .find('\n')
         .map_or(source.len(), |offset| caret + offset);
-    let line = &source[start..end];
+    let line = source[start..end].trim_end_matches('\r');
+    let end = start + line.len();
     let indent = line
         .bytes()
         .take_while(|b| matches!(b, b' ' | b'\t'))
@@ -301,17 +306,56 @@ pub(crate) fn blockquote_newline(document: &MarkdownDocument, caret: usize) -> O
         });
     }
 
-    if caret < start + indent + quote_prefix_len {
+    let content_start = start + indent + quote_prefix_len;
+    if caret < content_start {
         return None;
     }
 
-    let at_end = source[caret..end].chars().count() <= 1 || source[caret..end].trim().is_empty();
+    let remaining = source.get(caret..end)?;
+    let at_end = remaining.chars().count() <= 1 || remaining.trim().is_empty();
     let at = if at_end { end } else { caret };
-    let replacement = format!("\n{prefix}");
+    let preceding = &source[content_start..at];
+    let text_end = content_start + preceding.trim_end_matches([' ', '\t']).len();
+    let padding = if paragraph_ends_at_or_contains(&blocks, text_end) {
+        // A soft break in a quoted paragraph folds to a space once text is
+        // typed after it. Add only the padding the Markdown hard break needs.
+        let spaces = preceding
+            .bytes()
+            .rev()
+            .take_while(|byte| *byte == b' ')
+            .take(2)
+            .count();
+        let existing_backslash_break = at == end
+            && end < source.len()
+            && preceding
+                .bytes()
+                .rev()
+                .take_while(|byte| *byte == b'\\')
+                .count()
+                % 2
+                == 1;
+        if existing_backslash_break {
+            ""
+        } else {
+            &"  "[spaces..]
+        }
+    } else {
+        ""
+    };
+    let replacement = format!("{padding}{line_ending}{prefix}");
     let after = at + replacement.len();
     Some(SourceEdit {
         range: at..at,
         replacement,
         selection_after: after..after,
+    })
+}
+
+fn paragraph_ends_at_or_contains(blocks: &[SourceBlock], offset: usize) -> bool {
+    blocks.iter().any(|block| {
+        block.range.start < offset
+            && offset <= block.range.end
+            && (matches!(block.kind, BlockKind::Paragraph)
+                || paragraph_ends_at_or_contains(&block.children, offset))
     })
 }
