@@ -99,10 +99,30 @@ fn continues_and_exits_blockquotes() {
     let mut editor = EditorSession::new("> 引用文本");
     editor.set_selection(editor.source().len(), editor.source().len());
     editor.insert_newline().unwrap();
-    assert_eq!(editor.source(), "> 引用文本\n> ");
+    assert_eq!(editor.source(), "> 引用文本  \n> ");
     assert_eq!(editor.selection().head(), editor.source().len());
 
     // Press enter on empty quote line exits
     editor.insert_newline().unwrap();
-    assert_eq!(editor.source(), "> 引用文本\n");
+    assert_eq!(editor.source(), "> 引用文本  \n");
+}
+
+#[test]
+fn quoted_newlines_preserve_line_endings_and_existing_hard_breaks() {
+    for (source, line, expected) in [
+        ("> 甲\r\n> 乙", "> 甲", "> 甲  \r\n> \r\n> 乙"),
+        ("> 甲  \n> 乙", "> 甲", "> 甲  \n> \n> 乙"),
+        ("> 甲\\\n> 乙", "> 甲", "> 甲\\\n> \n> 乙"),
+        ("> # 标题", "> # 标题", "> # 标题\n> "),
+    ] {
+        let mut editor = EditorSession::new(source);
+        editor.set_selection(line.len(), line.len());
+        editor.insert_newline().unwrap();
+        assert_eq!(editor.source(), expected);
+        let continued = "\n> ";
+        assert_eq!(
+            editor.selection().head(),
+            expected.find(continued).unwrap() + continued.len()
+        );
+    }
 }

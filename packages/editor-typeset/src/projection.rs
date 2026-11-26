@@ -5,8 +5,7 @@ use std::ops::Range;
 
 use gpui_kit::base::text::editor_host::{BlockNode, Paragraph};
 
-/// Markdown drops blank lines around its top-level blocks. Keep empty caret
-/// rows where the visual paragraph spacing does not already represent a gap.
+/// Restores editable rows for blank source lines between top-level blocks.
 pub(super) fn retain_empty_lines(
     blocks: Vec<BlockNode>,
     ranges: Vec<Option<Range<usize>>>,
@@ -15,55 +14,102 @@ pub(super) fn retain_empty_lines(
     let mut projected_blocks = Vec::with_capacity(blocks.len());
     let mut projected_ranges = Vec::with_capacity(ranges.len());
     let mut previous_end = None;
-    for (block, range) in blocks.into_iter().zip(ranges) {
-        if let Some(range) = &range {
+    for (block, mut range) in blocks.into_iter().zip(ranges) {
+        if let Some(range) = &mut range {
             let gap = previous_end.unwrap_or(0)..range.start;
-            for offset in empty_line_offsets(source, gap, previous_end.is_some(), true) {
+            for line in blank_line_ranges(source, gap, true) {
                 projected_blocks.push(BlockNode::Paragraph(Paragraph::default()));
-                projected_ranges.push(Some(offset..offset));
+                projected_ranges.push(Some(line));
             }
+            range.end = block_content_end(&block, range.end, source);
             previous_end = Some(range.end);
         }
         projected_blocks.push(block);
         projected_ranges.push(range);
     }
     let gap = previous_end.unwrap_or(0)..source.len();
-    for offset in empty_line_offsets(source, gap, previous_end.is_some(), false) {
+    for line in blank_line_ranges(source, gap, false) {
         projected_blocks.push(BlockNode::Paragraph(Paragraph::default()));
-        projected_ranges.push(Some(offset..offset));
+        projected_ranges.push(Some(line));
     }
     (projected_blocks, projected_ranges)
 }
 
-fn empty_line_offsets(
+/// List and item spans can include separator lines beyond their last child.
+/// A terminal code block keeps its own contents, including any blank lines.
+fn block_content_end(block: &BlockNode, end: usize, source: &str) -> usize {
+    let (BlockNode::List { children, .. } | BlockNode::ListItem { children, .. }) = block else {
+        return end;
+    };
+    let Some(child) = children.last() else {
+        return end;
+    };
+    let Some(span) = child.span() else {
+        return end;
+    };
+    if source
+        .get(span.end..end)
+        .is_some_and(|tail| tail.bytes().all(|byte| byte.is_ascii_whitespace()))
+    {
+        block_content_end(child, span.end, source)
+    } else {
+        end
+    }
+}
+
+fn blank_line_ranges(
     source: &str,
     gap: Range<usize>,
-    has_previous: bool,
     has_next: bool,
-) -> impl Iterator<Item = usize> + '_ {
-    let whitespace = source
-        .get(gap.clone())
-        .filter(|text| text.bytes().all(|byte| byte.is_ascii_whitespace()))
-        .unwrap_or_default();
-    let initial_line = !has_previous && whitespace.contains(['\n', '\r']);
-    let mut starts = std::iter::successors(Some(0), move |&start| {
-        let (line, end) = source_line(&whitespace[start..]);
-        (end > 0).then_some(start + line.len() + end)
-    });
-    if has_previous {
-        starts.next();
-        let (line, ending) = source_line(whitespace);
-        // Paragraph spacing covers the first boundary before a blank source
-        // line. An isolated trailing break still needs an insertion row.
-        if has_next || whitespace[line.len() + ending..].contains(['\n', '\r']) {
-            starts.next();
-        }
-    }
-    let mut starts = starts.peekable();
+) -> impl Iterator<Item = Range<usize>> + '_ {
+    let previous = source
+        .as_bytes()
+        .get(..gap.start)
+        .and_then(|bytes| bytes.last());
+    let starts_on_line = gap.start == 0
+        || previous == Some(&b'\n')
+        || (previous == Some(&b'\r') && source.as_bytes().get(gap.start) != Some(&b'\n'));
+    let mut next = if gap.is_empty() {
+        None
+    } else if starts_on_line {
+        Some(gap.start)
+    } else {
+        // Skip the rest of the preceding content line.
+        let (line, ending) = source_line(&source[gap.clone()]);
+        (ending > 0).then_some(gap.start + line.len() + ending)
+    };
     std::iter::from_fn(move || {
-        while let Some(start) = starts.next() {
-            if (start > 0 || initial_line) && !(has_next && starts.peek().is_none()) {
-                return Some(gap.start + start);
+        while let Some(start) = next.take() {
+            let (line, ending) = source_line(&source[start..gap.end]);
+            let end = start + line.len();
+            next = (ending > 0).then_some(end + ending);
+            // Before another block, an unfinished line belongs to that block.
+            if (ending > 0 || !has_next) && line.bytes().all(|b| matches!(b, b' ' | b'\t')) {
+                return Some(start..end);
+            }
+        }
+        None
+    })
+}
+
+/// Finds marker-only quote lines that the parser leaves between its child blocks.
+pub(super) fn quote_blank_line_offsets(
+    source: &str,
+    gap: Range<usize>,
+) -> impl Iterator<Item = usize> + '_ {
+    let mut start = gap.start;
+    std::iter::from_fn(move || {
+        while start < gap.end {
+            let (line, ending) = source_line(&source[start..]);
+            let line_end = start + line.len();
+            // The next child's marker prefix can also consist of '>' and spaces.
+            // Only a complete source line can represent an empty caret row.
+            if line_end > gap.end {
+                break;
+            }
+            start = line_end + ending;
+            if line.contains('>') && line.trim_matches([' ', '\t', '>']).is_empty() {
+                return Some(line_end);
             }
         }
         None

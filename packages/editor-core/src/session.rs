@@ -990,7 +990,9 @@ impl EditorSession {
             if let Some(edit) = crate::list_newline::list_newline(&self.document, head) {
                 return self.apply_recording(edit);
             }
-            if let Some(edit) = crate::list_newline::blockquote_newline(&self.document, head) {
+            if let Some(edit) =
+                crate::list_newline::blockquote_newline(&self.document, head, self.line_ending())
+            {
                 return self.apply_recording(edit);
             }
         } else if self.selection_in_block(|kind| {
