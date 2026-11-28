@@ -122,6 +122,15 @@ impl SystemOpenQueue {
         accepted
     }
 
+    /// The next request, without consuming it.
+    ///
+    /// The consumer waits on this rather than dequeuing eagerly. Dequeuing first
+    /// and then finding the workspace busy loses the item: it is already marked
+    /// consumed, so nothing retries it and the file never opens (OPEN-03).
+    pub(crate) fn front(&self) -> Option<&SystemOpenRequest> {
+        self.pending.front()
+    }
+
     /// Removes and returns the next request, marking its identity consumed.
     pub(crate) fn dequeue(&mut self) -> Option<SystemOpenRequest> {
         let request = self.pending.pop_front()?;
@@ -338,6 +347,34 @@ mod tests {
         );
         assert!(queue.dequeue().is_some());
         assert!(queue.dequeue().is_none(), "the identity is consumed once");
+    }
+
+    /// OPEN-03: looking at the next request must not consume it.
+    ///
+    /// The consumer waits for the workspace to be ready before dequeuing. If the
+    /// wait path consumed the item, a busy workspace would lose the file: the
+    /// identity is spent and nothing retries it.
+    #[test]
+    fn open03_peeking_does_not_consume_the_request() {
+        let mut queue = SystemOpenQueue::default();
+        let request = requests_from_urls(0, vec!["file:///tmp/a.md".to_owned()], markdown)
+            .into_iter()
+            .next()
+            .expect("one request");
+        queue.enqueue([request.clone()]);
+
+        // Repeated peeks, as a consumer waiting for readiness would do.
+        for _ in 0..3 {
+            assert_eq!(
+                queue.front().map(|queued| queued.identity.clone()),
+                Some(request.identity.clone())
+            );
+        }
+        // The item is still deliverable afterwards.
+        assert_eq!(
+            queue.dequeue().map(|queued| queued.path),
+            Some(request.path)
+        );
     }
 
     /// OPEN-03: a consumed identity stays consumed, so a wake-up that arrives

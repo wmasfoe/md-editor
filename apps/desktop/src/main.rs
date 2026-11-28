@@ -233,18 +233,34 @@ fn main() {
         })
         .expect("open Inkpoint GPUI window");
         let workspace = workspace.downgrade();
-        // One FIFO consumer: each dequeued request is attempted exactly once.
-        // A dirty cancel or a failed save consumes the attempt and moves on
-        // instead of retrying, so a blocked item cannot starve later ones.
+        // One FIFO consumer. Each request is attempted exactly once, but only
+        // when the workspace can accept it: dequeuing into a busy workspace loses
+        // the item, because the open path refuses silently and the identity is
+        // already consumed (OPEN-03).
         let mut queue = system_open::SystemOpenQueue::default();
         let consume_log = ingress_log.clone();
         cx.spawn(async move |cx| {
             while let Some(request) = pending_requests.next().await {
                 queue.enqueue([request]);
-                while let Some(request) = queue.dequeue() {
+                while let Some(next) = queue.front().cloned() {
                     let Some(workspace) = workspace.upgrade() else {
                         break;
                     };
+                    // Wait for the workspace to be ready instead of consuming the
+                    // request into a refusal. `file_busy` clears when the current
+                    // operation finishes and `composing` when the IME commits.
+                    let ready =
+                        cx.update(|cx| workspace.read_with(cx, |w, cx| w.can_accept_open(cx)));
+                    if !ready {
+                        cx.background_executor()
+                            .timer(std::time::Duration::from_millis(20))
+                            .await;
+                        continue;
+                    }
+                    let Some(request) = queue.dequeue() else {
+                        break;
+                    };
+                    debug_assert_eq!(request.identity, next.identity);
                     consume_log.record(system_open::IngressEvent::Consumed {
                         identity: request.identity.clone(),
                         path: request.path.clone(),
@@ -254,6 +270,8 @@ fn main() {
                             workspace.open_path(request.path, window, cx)
                         });
                     });
+                    // The open just started may itself be busy; the next iteration
+                    // waits for it rather than dropping the following item.
                 }
             }
         })

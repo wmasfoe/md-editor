@@ -432,6 +432,16 @@ impl Workspace {
         self.message("Opening folder…", cx);
     }
 
+    /// Whether an incoming open can be attempted right now.
+    ///
+    /// A queued system-open request must not be consumed while the workspace
+    /// cannot act on it: `with_committed_editor` refuses silently in that case, so
+    /// an already-consumed item would simply vanish (OPEN-03). The consumer asks
+    /// this before dequeuing.
+    pub(crate) fn can_accept_open(&self, cx: &App) -> bool {
+        !self.file_busy && !self.editor.read(cx).composing()
+    }
+
     pub(crate) fn open_path(&mut self, path: PathBuf, window: &mut Window, cx: &mut Context<Self>) {
         self.file_action(FileAction::OpenPath(path), window, cx);
     }
