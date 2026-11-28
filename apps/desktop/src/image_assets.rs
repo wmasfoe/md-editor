@@ -78,9 +78,18 @@ fn expand_filename(setting: &str, document_path: &Path) -> String {
     let base = document_path
         .file_stem()
         .and_then(|stem| stem.to_str())
-        .filter(|stem| !stem.is_empty())
+        // A stem that is only dots carries path meaning, not a name: `...md` has
+        // the stem `..`, so `./assets/${filename}` would normalise to the
+        // document's own folder instead of a folder inside `assets/`.
+        .filter(|stem| !stem.is_empty() && !is_dot_only(stem))
         .unwrap_or("untitled");
     setting.replace(FILENAME_VARIABLE, base)
+}
+
+/// Whether `name` is nothing but dots, i.e. it names a directory rather than a
+/// file.
+fn is_dot_only(name: &str) -> bool {
+    !name.is_empty() && name.chars().all(|ch| ch == '.')
 }
 
 /// Resolves `.` and `..` without touching the filesystem.

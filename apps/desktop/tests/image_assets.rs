@@ -52,6 +52,35 @@ fn rejects_an_assets_directory_pointing_outside_the_workspace() {
     assert_eq!(fs::read_dir(external.path()).unwrap().count(), 0);
 }
 
+/// A document name that is only dots must not turn `${filename}` into `..`.
+///
+/// The regression this pins: `...md` has the file stem `..`, so
+/// `./assets/${filename}` expanded to `./assets/..` and normalised to the
+/// document's own folder. The image then landed outside the per-document
+/// folder the setting asked for, which is the same class of escape the symlink
+/// guard exists to prevent.
+#[test]
+fn filename_variable_does_not_expand_to_a_directory_traversal() {
+    let root = tempfile::tempdir().unwrap();
+    for name in ["...md", "..md", "....md"] {
+        let document = root.path().join(name);
+        let destination =
+            resolve_destination(Some(&document), "./assets/${filename}").expect("a destination");
+        assert!(
+            destination
+                .directory
+                .starts_with(root.path().join("assets")),
+            "{name} must stay inside assets/, got {}",
+            destination.directory.display()
+        );
+        assert!(
+            destination.directory.ends_with("untitled"),
+            "{name} falls back to the neutral folder name, got {}",
+            destination.directory.display()
+        );
+    }
+}
+
 /// `${filename}` gives each note its own folder, and the reference follows.
 #[test]
 fn filename_variable_places_the_image_in_a_per_document_folder() {
