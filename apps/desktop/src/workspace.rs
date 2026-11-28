@@ -8,7 +8,7 @@ use crate::{
     APP_NAME,
     document::{Document, is_markdown},
     folder::FolderEntry,
-    image_assets::store_image,
+    image_assets::{create_missing_directories, resolve_destination, store_image_in},
     local_ai::LocalAiService,
     settings,
 };
@@ -616,11 +616,91 @@ impl Workspace {
             return;
         };
 
+        // Resolve the configured directory against this document. An untitled
+        // document has no folder to be relative to, so it takes the save path
+        // above instead of guessing a location.
+        let setting = settings::current(cx)
+            .read(cx)
+            .editor
+            .image_directory
+            .clone();
+        let Some(destination) = resolve_destination(Some(&path), &setting) else {
+            self.message(
+                "The image directory could not be resolved from this document's location.",
+                cx,
+            );
+            return;
+        };
+
+        // Creating folders inside the user's workspace is their decision, so a
+        // missing directory is confirmed first. Cancelling leaves the document
+        // and the filesystem exactly as they were.
+        if let Some(missing) = destination.missing_directory.clone() {
+            self.confirm_image_directory(missing, image, target, path, window, cx);
+            return;
+        }
+        self.write_pasted_image(image, target, path, destination.directory, window, cx);
+    }
+
+    /// Asks before creating a directory that does not exist yet.
+    fn confirm_image_directory(
+        &mut self,
+        missing: PathBuf,
+        image: Image,
+        target: PasteTarget,
+        document_path: PathBuf,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.file_busy {
+            self.message(
+                "Wait for the current file operation before pasting an image.",
+                cx,
+            );
+            return;
+        }
+        self.file_busy = true;
+        let answer = window.prompt(
+            PromptLevel::Warning,
+            "Create the image folder?",
+            Some(&format!(
+                "The image would be copied to {}, which does not exist yet. Create it?",
+                missing.display()
+            )),
+            &["Create Folder", "Cancel"],
+            cx,
+        );
+        cx.spawn_in(window, async move |workspace, cx| {
+            let answer = answer.await;
+            let _ = workspace.update_in(cx, |this, window, cx| {
+                this.file_busy = false;
+                if !matches!(answer, Ok(0)) {
+                    // Cancelled: no directory, no file, no document change.
+                    this.message("Image insert cancelled", cx);
+                    return;
+                }
+                this.write_pasted_image(image, target, document_path, missing, window, cx);
+            });
+        })
+        .detach();
+    }
+
+    /// Writes the image into `directory` and inserts the reference.
+    fn write_pasted_image(
+        &mut self,
+        image: Image,
+        target: PasteTarget,
+        path: PathBuf,
+        directory: PathBuf,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let generation = self.document_generation;
         let image_path = path.clone();
-        let job = cx
-            .background_executor()
-            .spawn(async move { store_image(&path, &image) });
+        let job = cx.background_executor().spawn(async move {
+            create_missing_directories(&directory)?;
+            store_image_in(&path, &directory, &image)
+        });
         cx.spawn_in(window, async move |workspace, cx| {
             let result = job.await;
             let _ = workspace.update_in(cx, |this, _window, cx| {
