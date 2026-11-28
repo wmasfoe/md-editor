@@ -360,3 +360,36 @@ fn document_metrics_calculation() {
     assert!(metrics.characters > 30);
     assert!(metrics.words > 10);
 }
+
+/// One parse must produce exactly what two separate parses produced.
+///
+/// `blocks_and_inline_marks` exists only to avoid building the same AST twice,
+/// so the whole point is that nothing about the products may change. Comparing
+/// against the single-product methods is the assertion that keeps this a pure
+/// optimization: if either walk ever diverges, this fails instead of silently
+/// rendering a document that differs from what the parse reported.
+#[test]
+fn shared_parse_matches_the_individual_products() {
+    let sources = [
+        "# 标题\n\n段落 **加粗** 与 [链接](https://example.test)\n",
+        "| 左 | 右 |\n| --- | --- |\n| 甲 | 乙 |\n",
+        "> 引用\n> 续行\n\n- 一\n- 二\n\n```rust\nfn main() {}\n```\n",
+        "中文 **加粗 _强调_** 与 `「全角」` 结束\n",
+        "纯文本，没有任何语法。\n",
+        "",
+    ];
+    for source in sources {
+        let document = MarkdownDocument::new(source);
+        let (blocks, marks) = document.blocks_and_inline_marks().unwrap();
+        assert_eq!(
+            blocks,
+            document.blocks().unwrap(),
+            "blocks differ for {source:?}"
+        );
+        assert_eq!(
+            marks,
+            document.inline_marks().unwrap(),
+            "marks differ for {source:?}"
+        );
+    }
+}

@@ -215,12 +215,18 @@ impl TypesetDocument {
         let mut block_keys = Vec::with_capacity(parsed.len());
         let mut spans = Vec::with_capacity(parsed.len());
         let mut blocks = Vec::with_capacity(parsed.len());
-        let source_blocks = OnceCell::new();
-        let parse_source_blocks = || {
-            source_blocks
-                .get_or_init(|| MarkdownDocument::new(&source).blocks().unwrap_or_default())
-                .as_slice()
+        let products = OnceCell::new();
+        // One AST serves both source products. Asking `blocks()` and
+        // `inline_marks()` separately parsed the document twice, and a document
+        // with a heading or a table already pays a parse for its render tree.
+        let load_products = || {
+            products.get_or_init(|| {
+                MarkdownDocument::new(&source)
+                    .blocks_and_inline_marks()
+                    .unwrap_or_default()
+            })
         };
+        let parse_source_blocks = || load_products().0.as_slice();
         for (index, block) in parsed.into_iter().enumerate() {
             let first = next_key;
             blocks.push(with_leaf_keys(
@@ -240,15 +246,15 @@ impl TypesetDocument {
         // Tables reuse the source blocks this parse already built. The cell is
         // only populated when a table block asked for it, so an empty cell here
         // means "no table", which is the common case and costs nothing.
-        let table_cells = match source_blocks.get() {
-            Some(blocks) if blocks.iter().any(|block| block.kind == BlockKind::Table) => {
+        let table_cells = match products.get() {
+            Some((blocks, _)) if blocks.iter().any(|block| block.kind == BlockKind::Table) => {
                 inkpoint_editor_core::table_edit::table_cells_in(&source, blocks)
             }
             _ => Vec::new(),
         };
-        let inline_marks = MarkdownDocument::new(&source)
-            .inline_marks()
-            .unwrap_or_default();
+        // Already sorted by the core walk; cloning the list is far cheaper than
+        // the parse it would otherwise take to produce.
+        let inline_marks = load_products().1.clone();
         // Inline marks are sorted by start. Prefix maxima let us skip marks in
         // earlier leaves while retaining an enclosing mark around nested ones.
         let mark_prefix_ends: Vec<_> = inline_marks

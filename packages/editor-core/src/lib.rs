@@ -173,13 +173,28 @@ impl MarkdownDocument {
         let root = parse_markdown(&self.source)?;
         let mut marks = Vec::new();
         collect_inline_marks(&root, &self.source, &mut marks);
-        marks.sort_by(|left, right| {
-            left.syntax_range
-                .start
-                .cmp(&right.syntax_range.start)
-                .then_with(|| right.syntax_range.end.cmp(&left.syntax_range.end))
-        });
+        sort_inline_marks(&mut marks);
         Ok(marks)
+    }
+
+    /// Both products of a single parse.
+    ///
+    /// [`Self::blocks`] and [`Self::inline_marks`] are two walks of the same
+    /// AST; only building the AST is expensive. A caller that needs both and
+    /// asks for them separately therefore parses the document twice, and pays
+    /// that a third time over the renderer's own parse. On a 1,000-block
+    /// document with one heading, that avoidable parse cost 7.7 ms of a 33 ms
+    /// input budget.
+    ///
+    /// Both products are empty when the source cannot be parsed, matching what
+    /// the single-product methods return: one AST, so one error.
+    pub fn blocks_and_inline_marks(&self) -> Result<(Vec<SourceBlock>, Vec<InlineMark>), String> {
+        let root = parse_markdown(&self.source)?;
+        let blocks = flow_children(&root, &self.source);
+        let mut marks = Vec::new();
+        collect_inline_marks(&root, &self.source, &mut marks);
+        sort_inline_marks(&mut marks);
+        Ok((blocks, marks))
     }
 
     pub fn apply(&self, edit: &SourceEdit) -> Result<Self, EditError> {
@@ -416,6 +431,19 @@ impl MarkdownDocument {
             selection_after: start..start + selection_length,
         })
     }
+}
+
+/// Orders marks by start, then outermost-first.
+///
+/// Inline marks are consumed as a sorted list with prefix maxima, so the order
+/// is part of the contract rather than a presentation detail.
+fn sort_inline_marks(marks: &mut [InlineMark]) {
+    marks.sort_by(|left, right| {
+        left.syntax_range
+            .start
+            .cmp(&right.syntax_range.start)
+            .then_with(|| right.syntax_range.end.cmp(&left.syntax_range.end))
+    });
 }
 
 fn parse_markdown(source: &str) -> Result<Node, String> {

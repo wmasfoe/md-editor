@@ -345,12 +345,24 @@ fn perf_paragraph(index: usize) -> String {
     format!("第 {index} 段。中英文 mixed text 和 **格式** 会一起换行。")
 }
 
-/// Builds `blocks` paragraphs separated by blank lines.
+/// Builds `blocks` paragraphs separated by blank lines, under one heading.
+///
+/// The heading is load-bearing, not decoration. A heading makes the renderer
+/// look up its content range, and that lookup is what pulls in the source-block
+/// parse. A paragraph-only fixture never takes that path, so the gate measured
+/// a document shape the app rarely sees and hid a third full parse behind it:
+/// one heading was worth 7.7 ms of a 33 ms budget on 1,000 blocks, enough to
+/// push a passing document over the gate. Changing this text changes the
+/// reported fixture hash, so it invalidates comparison against earlier runs.
 fn long_document_fixture(blocks: usize) -> String {
-    (0..blocks)
-        .map(perf_paragraph)
-        .collect::<Vec<_>>()
-        .join("\n\n")
+    let mut source = String::from("# 标题\n\n");
+    source.push_str(
+        &(0..blocks)
+            .map(perf_paragraph)
+            .collect::<Vec<_>>()
+            .join("\n\n"),
+    );
+    source
 }
 
 /// FNV-1a over the fixture bytes.
