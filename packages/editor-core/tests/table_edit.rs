@@ -276,7 +276,6 @@ fn table_handle01_a_cell_reports_its_address_and_shape() {
     assert_eq!(
         cell,
         TableCell {
-            table_start: 0,
             row: 2,
             column: 1,
             rows: 3,
@@ -297,12 +296,14 @@ fn table_handle01_text_outside_a_table_has_no_cell() {
     assert_eq!(groups.len(), 1, "only the table is a group");
     let cells = groups.first().expect("one table");
     assert_eq!(cells.len(), 6, "the surrounding paragraphs add no cells");
-    let table_start = "before\n\n".len();
-    assert!(
-        cells
-            .iter()
-            .all(|slot| slot.cell.table_start == table_start),
-        "no cell comes from the surrounding paragraphs"
+    let texts: Vec<_> = cells
+        .iter()
+        .map(|slot| source.get(slot.range.clone()).unwrap_or("").trim())
+        .collect();
+    assert_eq!(
+        texts,
+        vec!["left", "right", "----", "-----", "x", "y"],
+        "every cell comes from the table, none from the paragraphs"
     );
 }
 
@@ -342,24 +343,34 @@ fn table_handle01_cells_are_reported_in_row_major_order() {
         .collect();
     assert_eq!(texts, vec!["left", "right", "----", "-----", "x", "y"]);
     assert!(
-        cells.iter().all(|slot| slot.cell.table_start == 0),
-        "one table starts at offset 0"
+        cells
+            .iter()
+            .all(|slot| TABLE.get(slot.range.clone()).is_some()),
+        "every slot addresses the table's own bytes"
     );
 }
 
-/// TABLE-HANDLE-01: two tables in one document report distinct `table_start`
-/// values, so handles for one table never group cells from the other.
+/// TABLE-HANDLE-01: two tables in one document are two groups, so handles for
+/// one table never group cells from the other.
 #[test]
 fn table_handle01_two_tables_are_told_apart() {
     let source = format!("{TABLE}\ntext\n\n{TABLE}");
     let groups = groups(&source);
     let first = groups.first().expect("the first table");
     let second = groups.get(1).expect("the second table");
-    assert_ne!(
-        first[0].cell.table_start, second[0].cell.table_start,
-        "each table has its own identity"
-    );
     assert_eq!(first.len(), second.len(), "both tables have the same shape");
+    let first_text = source
+        .get(first[0].range.clone())
+        .expect("the first table's slot addresses its bytes");
+    let second_text = source
+        .get(second[0].range.clone())
+        .expect("the second table's slot addresses its bytes");
+    assert_eq!(first_text.trim(), "left");
+    assert_eq!(second_text.trim(), "left");
+    assert!(
+        first[0].range.start < second[0].range.start,
+        "the groups follow document order"
+    );
 }
 
 /// TABLE-HANDLE-01: the whole document's tables come back as one group each, so
@@ -371,16 +382,11 @@ fn table_handle01_each_table_is_its_own_group() {
     assert_eq!(tables.len(), 2, "two tables, two groups");
     for group in &tables {
         assert_eq!(group.len(), 6, "each table is 3x2");
-        assert!(
-            group
-                .iter()
-                .all(|slot| slot.cell.table_start == group[0].cell.table_start),
-            "a group never mixes cells from another table"
-        );
+        assert_eq!(group.len(), 6, "each group is one table's cells");
     }
-    assert_ne!(
-        tables[0][0].cell.table_start, tables[1][0].cell.table_start,
-        "the groups are told apart by their table's start offset"
+    assert!(
+        tables[0][0].range.start < tables[1][0].range.start,
+        "the groups follow document order"
     );
 }
 

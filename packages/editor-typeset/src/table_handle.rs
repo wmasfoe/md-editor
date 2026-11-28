@@ -256,7 +256,6 @@ mod tests {
             for column in 0..2 {
                 cells.push(PlacedCell {
                     cell: TableCell {
-                        table_start: 0,
                         row,
                         column,
                         rows: 3,
@@ -337,7 +336,6 @@ mod tests {
         let handles = table_handles(&grid());
         let row = handles
             .find(HandleTarget::RowAbove(TableCell {
-                table_start: 0,
                 row: 2,
                 column: 0,
                 rows: 3,
@@ -367,7 +365,6 @@ mod tests {
         let cells: Vec<_> = (0..2)
             .map(|row| PlacedCell {
                 cell: TableCell {
-                    table_start: 0,
                     row,
                     column: 0,
                     rows: 2,
@@ -401,7 +398,6 @@ mod tests {
         let cells = vec![
             PlacedCell {
                 cell: TableCell {
-                    table_start: 0,
                     row: 0,
                     column: 0,
                     rows: 3,
@@ -418,7 +414,6 @@ mod tests {
             },
             PlacedCell {
                 cell: TableCell {
-                    table_start: 0,
                     row: 2,
                     column: 0,
                     rows: 3,
@@ -437,7 +432,6 @@ mod tests {
         let handles = table_handles(&cells);
         let row = handles
             .find(HandleTarget::RowAbove(TableCell {
-                table_start: 0,
                 row: 2,
                 column: 0,
                 rows: 3,
@@ -455,7 +449,6 @@ mod tests {
         let handles = table_handles(&grid());
         let row = handles
             .find(HandleTarget::RowAbove(TableCell {
-                table_start: 0,
                 row: 2,
                 column: 0,
                 rows: 3,

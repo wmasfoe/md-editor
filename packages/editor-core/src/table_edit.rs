@@ -225,11 +225,6 @@ fn padded_cells<'a>(source: &'a str, row: &RowLayout, columns: usize) -> Vec<&'a
 /// clicks it, instead of letting the click fail afterwards.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct TableCell {
-    /// Byte offset of the table block that owns this cell.
-    ///
-    /// Two tables in one document are two independent handle groups, so a
-    /// caller needs to tell their cells apart without re-parsing per cell.
-    pub table_start: usize,
     /// Index into the table's source lines: 0 header, 1 delimiter, 2.. body.
     pub row: usize,
     /// Index into the row's cells.
@@ -282,13 +277,11 @@ fn cells_of(source: &str, table: &SourceBlock) -> Option<Vec<TableCellSlot>> {
     let layout = layout_of(source, table)?;
     let rows = layout.rows.len();
     let columns = layout.columns();
-    let table_start = table.range.start;
     let mut slots = Vec::with_capacity(rows * columns);
     for (row, line) in layout.rows.iter().enumerate() {
         for (column, range) in line.cells.iter().enumerate() {
             slots.push(TableCellSlot {
                 cell: TableCell {
-                    table_start,
                     row,
                     column,
                     rows,
