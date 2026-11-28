@@ -19,6 +19,7 @@ mod mermaid;
 mod movement;
 mod projection;
 mod svg;
+mod table_handle;
 
 pub use diagram::DiagramRenderer;
 pub use geometry::{LeafIndex, caret_at, caret_bounds_at};
@@ -29,6 +30,9 @@ pub use movement::{
     move_vertical_with_goal, move_word_left, move_word_right, word_range_at,
 };
 pub use svg::{SvgError, SvgImageChannel, to_png_data_url};
+pub use table_handle::{
+    HandleTarget, PlacedCell, TableHandle, TableHandles, placed_cells, table_handles,
+};
 
 use std::cell::OnceCell;
 use std::collections::HashMap;

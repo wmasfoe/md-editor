@@ -217,6 +217,122 @@ fn padded_cells<'a>(source: &'a str, row: &RowLayout, columns: usize) -> Vec<&'a
     cells
 }
 
+/// A cell address inside a table, together with that table's shape.
+///
+/// A pointer lands on one cell; the row handle and the column handle are then
+/// two questions about that same address. Reporting the shape alongside lets a
+/// caller hide a handle whose edit would be unrepresentable *before* the user
+/// clicks it, instead of letting the click fail afterwards.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct TableCell {
+    /// Byte offset of the table block that owns this cell.
+    ///
+    /// Two tables in one document are two independent handle groups, so a
+    /// caller needs to tell their cells apart without re-parsing per cell.
+    pub table_start: usize,
+    /// Index into the table's source lines: 0 header, 1 delimiter, 2.. body.
+    pub row: usize,
+    /// Index into the row's cells.
+    pub column: usize,
+    /// How many source lines the table has.
+    pub rows: usize,
+    /// How many cells the widest row has.
+    pub columns: usize,
+    /// A byte offset inside this cell.
+    ///
+    /// The insert commands take an offset and resolve the row themselves, so a
+    /// handle click has to carry one: without it the caller would have to
+    /// re-derive the offset from a row and column index.
+    pub offset: usize,
+}
+
+/// The cell containing `offset`, when `offset` falls inside a table.
+///
+/// Offsets between cells (on a pipe) resolve to the cell that ends there, which
+/// matches [`RowLayout::cell_at`]'s inclusive end. An offset outside every
+/// table yields `None`, so a caller can treat "not in a table" as "no handles".
+pub fn cell_at(source: &str, offset: usize) -> Option<TableCell> {
+    let table = table_at(source, offset)?;
+    let layout = layout_of(source, &table)?;
+    let row = layout.row_at(offset)?;
+    let column = layout.rows.get(row)?.cell_at(offset)?;
+    Some(TableCell {
+        table_start: table.range.start,
+        row,
+        column,
+        rows: layout.rows.len(),
+        columns: layout.columns(),
+        offset,
+    })
+}
+
+/// One cell of a table with the byte slot it occupies.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TableCellSlot {
+    /// The cell's address.
+    pub cell: TableCell,
+    /// The cell's raw byte slot, padding included.
+    pub range: Range<usize>,
+}
+
+/// Every cell of the table containing `offset`, in row-major order.
+///
+/// One parse for the whole table, because a caller that builds handles needs
+/// every cell and re-parsing per cell would be quadratic on a long document.
+pub fn table_cells_at(source: &str, offset: usize) -> Option<Vec<TableCellSlot>> {
+    cells_of(source, &table_at(source, offset)?)
+}
+
+/// Every table's cells, one group per table, in document order.
+///
+/// Handles are drawn per table, so a caller needs the groups rather than one
+/// table's cells. Parsing once for the whole document keeps this off the
+/// pointer-move path: the view calls it when the source changes, not per frame.
+pub fn document_table_cells(source: &str) -> Vec<Vec<TableCellSlot>> {
+    let Ok(blocks) = MarkdownDocument::new(source).blocks() else {
+        return Vec::new();
+    };
+    let mut tables = Vec::new();
+    collect_tables(&blocks, &mut tables);
+    tables
+        .into_iter()
+        .filter_map(|table| cells_of(source, &table))
+        .collect()
+}
+
+fn collect_tables(blocks: &[SourceBlock], out: &mut Vec<SourceBlock>) {
+    for block in blocks {
+        if block.kind == BlockKind::Table {
+            out.push(block.clone());
+        }
+        collect_tables(&block.children, out);
+    }
+}
+
+fn cells_of(source: &str, table: &SourceBlock) -> Option<Vec<TableCellSlot>> {
+    let layout = layout_of(source, table)?;
+    let rows = layout.rows.len();
+    let columns = layout.columns();
+    let table_start = table.range.start;
+    let mut slots = Vec::with_capacity(rows * columns);
+    for (row, line) in layout.rows.iter().enumerate() {
+        for (column, range) in line.cells.iter().enumerate() {
+            slots.push(TableCellSlot {
+                cell: TableCell {
+                    table_start,
+                    row,
+                    column,
+                    rows,
+                    columns,
+                    offset: range.start,
+                },
+                range: range.clone(),
+            });
+        }
+    }
+    Some(slots)
+}
+
 /// Inserts a body row above the row containing `caret`.
 pub fn insert_row_above(source: &str, caret: usize) -> Option<SourceEdit> {
     let layout = layout_at(source, caret)?;

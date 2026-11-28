@@ -11,8 +11,9 @@ use inkpoint_editor_core::{
     MarkdownDocument,
     session::EditorSession,
     table_edit::{
-        TableAlignment, delete_column, delete_row, insert_column_left, insert_column_right,
-        insert_row_above, insert_row_below, set_column_alignment,
+        TableAlignment, TableCell, cell_at, delete_column, delete_row, document_table_cells,
+        insert_column_left, insert_column_right, insert_row_above, insert_row_below,
+        set_column_alignment, table_cells_at,
     },
 };
 
@@ -251,4 +252,118 @@ fn table_align01_sets_alignment_on_the_second_column_only() {
         session.source(),
         "| left | right |\n| ---- | :---: |\n| x    | y     |\n"
     );
+}
+
+/// TABLE-HANDLE-01: a pointer inside a cell reports that cell and the table's
+/// shape, which is what a handle needs to decide where to draw and whether the
+/// edit it offers is representable.
+#[test]
+fn table_handle01_a_cell_reports_its_address_and_shape() {
+    let offset = caret(TABLE, "y     ");
+    let cell = cell_at(TABLE, offset).expect("the caret is inside a cell");
+    assert_eq!(
+        cell,
+        TableCell {
+            table_start: 0,
+            row: 2,
+            column: 1,
+            rows: 3,
+            columns: 2,
+            offset,
+        },
+        "the second body cell, in a 3x2 table, carrying the offset it was asked about"
+    );
+}
+
+/// TABLE-HANDLE-01: an offset outside every table has no cell, so no handle.
+#[test]
+fn table_handle01_text_outside_a_table_has_no_cell() {
+    let source = format!("before\n\n{TABLE}\nafter\n");
+    assert!(cell_at(&source, caret(&source, "before")).is_none());
+    assert!(cell_at(&source, caret(&source, "after")).is_none());
+}
+
+/// TABLE-HANDLE-01: a ragged row still reports the table's full column count,
+/// because a handle must offer a column insert that pads it consistently.
+#[test]
+fn table_handle01_ragged_row_reports_the_widest_column_count() {
+    let source = "| a | b |\n| - | - |\n| c |\n";
+    let cell = cell_at(source, caret(source, "c")).expect("inside the table");
+    assert_eq!(cell.row, 2);
+    assert_eq!(cell.column, 0);
+    assert_eq!(cell.columns, 2, "the header still defines two columns");
+    assert_eq!(cell.rows, 3);
+}
+
+/// TABLE-HANDLE-01: every cell of a table is reported once, in row-major order,
+/// with slots that hold exactly that cell's bytes. This is the order the
+/// renderer lays cells out in, so a handle can group by row or by column.
+#[test]
+fn table_handle01_cells_are_reported_in_row_major_order() {
+    let cells = table_cells_at(TABLE, caret(TABLE, "x    ")).expect("inside the table");
+    let addresses: Vec<_> = cells
+        .iter()
+        .map(|slot| (slot.cell.row, slot.cell.column))
+        .collect();
+    assert_eq!(
+        addresses,
+        vec![(0, 0), (0, 1), (1, 0), (1, 1), (2, 0), (2, 1)],
+        "row-major, matching the renderer"
+    );
+    let texts: Vec<_> = cells
+        .iter()
+        .map(|slot| TABLE.get(slot.range.clone()).unwrap_or("").trim())
+        .collect();
+    assert_eq!(texts, vec!["left", "right", "----", "-----", "x", "y"]);
+    assert!(
+        cells.iter().all(|slot| slot.cell.table_start == 0),
+        "one table starts at offset 0"
+    );
+}
+
+/// TABLE-HANDLE-01: two tables in one document report distinct `table_start`
+/// values, so handles for one table never group cells from the other.
+#[test]
+fn table_handle01_two_tables_are_told_apart() {
+    let source = format!("{TABLE}\ntext\n\n{TABLE}");
+    let first = table_cells_at(&source, 0).expect("the first table");
+    let second_at = source
+        .rfind("x    ")
+        .expect("the second table has its body row");
+    let second = table_cells_at(&source, second_at).expect("the second table");
+    assert_ne!(
+        first[0].cell.table_start, second[0].cell.table_start,
+        "each table has its own identity"
+    );
+    assert_eq!(first.len(), second.len(), "both tables have the same shape");
+}
+
+/// TABLE-HANDLE-01: the whole document's tables come back as one group each, so
+/// the view can build handles per table without parsing again per frame.
+#[test]
+fn table_handle01_each_table_is_its_own_group() {
+    let source = format!("{TABLE}\ntext\n\n{TABLE}");
+    let tables = document_table_cells(&source);
+    assert_eq!(tables.len(), 2, "two tables, two groups");
+    for group in &tables {
+        assert_eq!(group.len(), 6, "each table is 3x2");
+        assert!(
+            group
+                .iter()
+                .all(|slot| slot.cell.table_start == group[0].cell.table_start),
+            "a group never mixes cells from another table"
+        );
+    }
+    assert_ne!(
+        tables[0][0].cell.table_start, tables[1][0].cell.table_start,
+        "the groups are told apart by their table's start offset"
+    );
+}
+
+/// TABLE-HANDLE-01: a document with no table has no groups, and one with a
+/// broken table does not panic.
+#[test]
+fn table_handle01_a_document_without_tables_has_no_groups() {
+    assert!(document_table_cells("just a paragraph\n").is_empty());
+    assert!(document_table_cells("").is_empty());
 }

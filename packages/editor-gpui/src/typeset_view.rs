@@ -17,7 +17,7 @@ use gpui_kit::base::text::editor_host::{Caret, CaretAffinity, RenderContext};
 use gpui_kit::{
     AnyElement, App, Bounds, Context, Element, ElementId, ElementInputHandler, Entity, FocusHandle,
     GlobalElementId, InspectorElementId, IntoElement, KeyBinding, LayoutId, Pixels, Point, Render,
-    SharedString, Window, actions, div, prelude::*, px,
+    SharedString, Window, actions, div, prelude::*, px, size,
 };
 use inkpoint_editor_core::{
     SourceEdit,
@@ -32,6 +32,8 @@ use inkpoint_editor_typeset::{LeafIndex, TypesetDocument, caret_bounds_at};
 mod ime;
 #[path = "typeset_view/source_mode.rs"]
 mod source_mode;
+#[path = "typeset_view/table_handles.rs"]
+mod table_handles;
 
 #[cfg(test)]
 use gpui_kit::EntityInputHandler;
@@ -368,6 +370,14 @@ pub struct TypesetView {
     /// for editing, but the host has to be able to say so instead of showing an
     /// empty page with no explanation.
     parse_error: Option<SharedString>,
+    /// Every table's cells, cached per parse.
+    ///
+    /// Handles need this on the pointer-move path, which runs many times per
+    /// second; re-parsing the Markdown there would make hovering a table cost
+    /// as much as typing into it.
+    table_slots: Vec<Vec<inkpoint_editor_core::table_edit::TableCellSlot>>,
+    /// Row and column handles for the current frame.
+    table_handles: table_handles::TableHandleState,
 }
 
 impl TypesetView {
@@ -383,6 +393,10 @@ impl TypesetView {
         focus.focus(window, cx);
         let find = find::FindState::new(window, cx);
         let document_revision = Some(editor.revision());
+        // The revision is already known, so `reparse` will short-circuit on the
+        // first call. Table handles need their cells now, or a freshly opened
+        // document would grow handles only after its first edit.
+        let table_slots = inkpoint_editor_core::table_edit::document_table_cells(editor.source());
         Self {
             find,
             typography: TypesetTypography::default(),
@@ -409,6 +423,8 @@ impl TypesetView {
             drag_start_point: None,
             goal_x: None,
             parse_error,
+            table_slots,
+            table_handles: table_handles::TableHandleState::default(),
         }
     }
 
@@ -581,6 +597,13 @@ impl TypesetView {
         self.document_revision = Some(revision);
         (self.document, self.parse_error) =
             source_mode::parse_document(self.editor.source(), self.source_mode, &self.diagrams);
+        // Source mode renders literal lines, so a table there is not a table and
+        // must not grow handles.
+        self.table_slots = if self.source_mode {
+            Vec::new()
+        } else {
+            inkpoint_editor_core::table_edit::document_table_cells(self.editor.source())
+        };
     }
 
     /// Applies an edit, then re-parses and notifies.
@@ -1685,6 +1708,9 @@ impl Render for TypesetView {
             )
             .on_mouse_move(
                 cx.listener(|this, event: &gpui_kit::MouseMoveEvent, _, cx| {
+                    // Hover is tracked on every move: it decides whether the
+                    // table handles are showing.
+                    this.track_pointer(event.position, cx);
                     // Only while a button is held: a bare hover must not move the
                     // caret.
                     if event.pressed_button != Some(gpui_kit::MouseButton::Left) {
@@ -1878,6 +1904,47 @@ impl TypesetView {
         self.drag_mode = DragMode::Char;
     }
 
+    /// Records the pointer position, repainting only when it changes what shows.
+    ///
+    /// Every move would otherwise notify, which turns a hover across the
+    /// document into a continuous repaint. The handles are the only thing that
+    /// depends on the pointer, so only their visibility counts as a change.
+    fn track_pointer(&mut self, position: Point<Pixels>, cx: &mut Context<Self>) {
+        let was_visible = self.table_handles.is_visible();
+        let previous = self.table_handles.pointer();
+        self.table_handles.set_pointer(Some(position));
+        if previous != Some(position) && self.table_handles.is_visible() != was_visible {
+            cx.notify();
+        }
+    }
+
+    /// Runs the table command a handle click names.
+    ///
+    /// A refusal is surfaced as an error message rather than dropped, matching
+    /// the table menu: a handle that cannot insert must say so.
+    fn click_table_handle(
+        &mut self,
+        target: inkpoint_editor_typeset::HandleTarget,
+        cx: &mut Context<Self>,
+    ) {
+        let source = self.editor.source().to_owned();
+        let result = match table_handles::apply(target, &source) {
+            Some(edit) => self
+                .editor
+                .apply_edit(edit)
+                .map_err(|error| error.to_string()),
+            None => Err("No table cell to insert beside here.".to_owned()),
+        };
+        match result {
+            Ok(()) => {
+                self.last_error = None;
+                self.reparse();
+            }
+            Err(message) => self.last_error = Some(message),
+        }
+        cx.notify();
+    }
+
     /// Handles mouse-down events, supporting single click, double-click (word),
     /// triple-click (line), shift-click (range extension), and task checkbox toggle.
     fn handle_mouse_down(
@@ -1888,6 +1955,15 @@ impl TypesetView {
     ) {
         self.focus.focus(window, cx);
         if self.composing() {
+            return;
+        }
+        // A handle sits outside the text, so it is checked before any caret
+        // placement: otherwise the click would move the caret to the nearest
+        // leaf and the handle would appear to do nothing.
+        if event.click_count == 1
+            && let Some(handle) = self.table_handles.hit_at(event.position)
+        {
+            self.click_table_handle(handle.target, cx);
             return;
         }
         self.goal_x = None;
@@ -2423,6 +2499,18 @@ impl Element for InputSurface {
         );
         self.view.update(cx, |view, _cx| {
             view.geometry = LeafIndex::new(leaves);
+            // Handles are placed from this frame's rectangles, so they are
+            // rebuilt here rather than in `render`: `render` runs before the
+            // frame's geometry exists and would place them from stale bounds.
+            let leaf_rects: Vec<(Range<usize>, Bounds<Pixels>)> = view
+                .document
+                .leaf_spans()
+                .iter()
+                .filter_map(|leaf| Some((leaf.span()?, view.geometry.get(leaf.key())?.bounds())))
+                .collect();
+            let slots = std::mem::take(&mut view.table_slots);
+            view.table_handles.rebuild(&slots, &leaf_rects);
+            view.table_slots = slots;
             if view.native_layout.resolve_pending_reveal() {
                 _cx.notify();
             }
@@ -2484,6 +2572,39 @@ impl Element for InputSurface {
         let caret = self.view.read(cx).caret_bounds();
         if let Some(caret) = caret {
             window.paint_quad(gpui_kit::fill(caret, self.caret_color));
+        }
+        // Table handles float in the gutters beside a table, so they are painted
+        // after the text: a control that the text can cover is a control the
+        // user cannot click.
+        let theme = gpui_kit::component::theme::Theme::global(cx);
+        let handles = self.view.read(cx).table_handles.visible_handles();
+        for (bounds, hovered) in handles {
+            let (background, mark) = if hovered {
+                (theme.colors.primary, theme.colors.primary_foreground)
+            } else {
+                (theme.colors.muted, theme.colors.muted_foreground)
+            };
+            window.paint_quad(gpui_kit::fill(bounds, background));
+            // The plus mark is two bars rather than a glyph: a glyph would need
+            // a shaped run inside `paint`, and the affordance reads the same.
+            let bar = px(1.5);
+            let inset = px(4.0);
+            let vertical = Bounds {
+                origin: Point {
+                    x: bounds.origin.x + (bounds.size.width - bar) / 2.,
+                    y: bounds.origin.y + inset,
+                },
+                size: size(bar, bounds.size.height - inset * 2.),
+            };
+            let horizontal = Bounds {
+                origin: Point {
+                    x: bounds.origin.x + inset,
+                    y: bounds.origin.y + (bounds.size.height - bar) / 2.,
+                },
+                size: size(bounds.size.width - inset * 2., bar),
+            };
+            window.paint_quad(gpui_kit::fill(vertical, mark));
+            window.paint_quad(gpui_kit::fill(horizontal, mark));
         }
         // This is the line that makes typing work: it tells the window which
         // entity answers the platform's text and IME calls.
