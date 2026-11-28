@@ -283,12 +283,16 @@ fn block_flows(blocks: &[BlockNode]) -> Vec<FlowPosition> {
 }
 
 fn stable_block_ids(signatures: &[BlockSignature]) -> Vec<u64> {
-    let mut occurrences = HashMap::<(std::mem::Discriminant<BlockNode>, String), usize>::new();
+    // The keys borrow from `signatures` instead of cloning each block's source
+    // text: this runs on every frame, and a clone per block meant 2,000 string
+    // allocations per keystroke on a 2,000-block document.
+    let mut occurrences = HashMap::<(std::mem::Discriminant<BlockNode>, &str), usize>::new();
     signatures
         .iter()
         .map(|signature| {
-            let identity = (signature.kind, signature.source.clone());
-            let occurrence = occurrences.entry(identity).or_default();
+            let occurrence = occurrences
+                .entry((signature.kind, signature.source.as_str()))
+                .or_default();
             let mut hasher = DefaultHasher::new();
             signature.kind.hash(&mut hasher);
             signature.source.hash(&mut hasher);
