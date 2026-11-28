@@ -317,6 +317,14 @@ pub struct TypesetView {
     editor: EditorSession,
     document: TypesetDocument,
     source_mode: bool,
+    /// Incremented on every presentation switch.
+    ///
+    /// A suggestion computed in one mode must not become acceptable in another:
+    /// the same byte offsets mean different things once the projection changes,
+    /// and the audit found a pending suggestion still insertable after
+    /// `Cmd+/`. Revision alone cannot catch this because a mode switch does not
+    /// edit the source.
+    mode_generation: u64,
     geometry: LeafIndex,
     focus: FocusHandle,
     /// The leaf the caret is in, as reported by the last frame's geometry.
@@ -368,6 +376,7 @@ impl TypesetView {
             editor,
             document,
             source_mode: false,
+            mode_generation: 0,
             geometry: LeafIndex::default(),
             focus,
             caret_leaf: None,
@@ -434,6 +443,16 @@ impl TypesetView {
     /// A revision counter that changes on every edit.
     pub fn revision(&self) -> u64 {
         self.editor.revision()
+    }
+
+    /// Counter that changes on every presentation switch.
+    ///
+    /// Callers capture it with [`revision`](Self::revision) when starting an
+    /// async request and pass it back to
+    /// [`insert_if_unchanged`](Self::insert_if_unchanged), so a reply computed
+    /// in one mode is refused in the other.
+    pub fn mode_generation(&self) -> u64 {
+        self.mode_generation
     }
 
     /// Why the last parse failed, when it did.
@@ -855,6 +874,7 @@ impl TypesetView {
                 image,
                 target: PasteTarget {
                     revision: self.editor.revision(),
+                    mode_generation: self.mode_generation,
                     selection: self.editor.selection().range(),
                 },
             });
@@ -1679,6 +1699,8 @@ impl gpui_kit::EventEmitter<ImagePaste> for TypesetView {}
 pub struct PasteTarget {
     /// The revision the paste was taken against.
     pub revision: u64,
+    /// The presentation generation the paste was taken against.
+    pub mode_generation: u64,
     /// The selection at paste time.
     pub selection: Range<usize>,
 }
@@ -1692,12 +1714,16 @@ impl TypesetView {
     pub fn insert_if_unchanged(
         &mut self,
         expected_revision: u64,
+        expected_mode_generation: u64,
         expected_range: Range<usize>,
         text: &str,
         cx: &mut Context<Self>,
     ) -> Result<u64, &'static str> {
         if self.editor.is_readonly() {
             return Err("The editor is read-only.");
+        }
+        if self.mode_generation != expected_mode_generation {
+            return Err("The editor mode changed while the insert was pending.");
         }
         if self.editor.revision() != expected_revision
             || self.editor.selection().range() != expected_range
@@ -1743,7 +1769,13 @@ impl TypesetView {
             return Err("The image path is not a safe relative assets path.");
         }
         let markdown = format!("![image]({reference})");
-        self.insert_if_unchanged(target.revision, target.selection.clone(), &markdown, cx)?;
+        self.insert_if_unchanged(
+            target.revision,
+            target.mode_generation,
+            target.selection.clone(),
+            &markdown,
+            cx,
+        )?;
         Ok(())
     }
 }

@@ -35,6 +35,8 @@ impl TypesetView {
         // back to the document start, which is the audited defect (VIEW-01).
         let reading_position = self.native_layout.top_source_offset();
         self.source_mode = source_mode;
+        // A mode switch invalidates every in-flight suggestion and paste target.
+        self.mode_generation = self.mode_generation.wrapping_add(1);
         self.document_revision = None;
         self.reparse();
         if let Some(offset) = reading_position {

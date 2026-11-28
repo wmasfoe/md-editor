@@ -143,3 +143,89 @@ fn table_source01_source_mode_tab_inserts_a_literal_tab(cx: &mut TestAppContext)
 // VIEW-01 lives in `tests/support/audit_view.rs`, which is compiled into the
 // crate so it can read the private scroll position. The public surface here has
 // no accessor for it, and adding one just for a test would widen the API.
+
+/// AI-01: a suggestion computed in one mode cannot be inserted after a mode
+/// switch, even though the source and selection are unchanged.
+///
+/// The audit repro injected an already-returned suggestion, pressed `Cmd+/`, and
+/// the suggestion was still visible and still inserted. Revision alone cannot
+/// catch this: a mode switch changes what the offsets mean without editing the
+/// source, which is why the guard is a separate mode generation.
+#[gpui_kit::test]
+fn ai01_a_suggestion_cannot_land_after_a_mode_switch(cx: &mut TestAppContext) {
+    let source = "paragraph text";
+    let (view, vcx) = open_focused(cx, source);
+    vcx.update(|_, cx| view.update(cx, |view, cx| view.set_caret(source.len(), cx)));
+    draw(vcx);
+
+    let target = view.read_with(&*vcx, |view, _| {
+        (
+            view.revision(),
+            view.mode_generation(),
+            view.selected_range(),
+        )
+    });
+
+    // The mode changes while the reply is in flight.
+    vcx.simulate_keystrokes("cmd-/");
+    draw(vcx);
+
+    let after_switch = view.read_with(&*vcx, |view, _| view.mode_generation());
+    assert_ne!(
+        after_switch, target.1,
+        "a mode switch must advance the mode generation"
+    );
+    assert_eq!(
+        view.read_with(&*vcx, |view, _| view.revision()),
+        target.0,
+        "the source is untouched, which is why revision alone is not enough"
+    );
+
+    let result = vcx.update(|_, cx| {
+        view.update(cx, |view, cx| {
+            view.insert_if_unchanged(target.0, target.1, target.2, "SUGGESTION", cx)
+        })
+    });
+    assert_eq!(
+        result,
+        Err("The editor mode changed while the insert was pending."),
+        "a suggestion from the other mode must be refused"
+    );
+    assert_eq!(
+        view.read_with(&*vcx, |view, _| view.markdown().to_owned()),
+        source,
+        "the body is untouched"
+    );
+}
+
+/// AI-01 companion: the same suggestion still lands when nothing changed.
+///
+/// Without this, a guard that always refuses would pass the test above.
+#[gpui_kit::test]
+fn ai01_a_suggestion_still_lands_when_the_mode_is_unchanged(cx: &mut TestAppContext) {
+    let source = "paragraph text";
+    let (view, vcx) = open_focused(cx, source);
+    vcx.update(|_, cx| view.update(cx, |view, cx| view.set_caret(source.len(), cx)));
+    draw(vcx);
+
+    let target = view.read_with(&*vcx, |view, _| {
+        (
+            view.revision(),
+            view.mode_generation(),
+            view.selected_range(),
+        )
+    });
+    let result = vcx.update(|_, cx| {
+        view.update(cx, |view, cx| {
+            view.insert_if_unchanged(target.0, target.1, target.2, "X", cx)
+        })
+    });
+    assert!(
+        result.is_ok(),
+        "an unchanged document must accept the insert: {result:?}"
+    );
+    assert_eq!(
+        view.read_with(&*vcx, |view, _| view.markdown().to_owned()),
+        format!("{source}X")
+    );
+}

@@ -40,6 +40,12 @@ enum FileAction {
 
 struct Suggestion {
     revision: u64,
+    /// The presentation generation the suggestion was computed in.
+    ///
+    /// A mode switch changes what these byte offsets mean, and it does not
+    /// change the revision, so the revision check alone would let a suggestion
+    /// from the other mode be accepted (AI-01).
+    mode_generation: u64,
     selection: Range<usize>,
     text: String,
 }
@@ -101,35 +107,40 @@ impl Workspace {
         let _settings_observer = cx.observe(&settings_entity, move |this, _, cx| {
             apply_typography(&this.editor, cx);
         });
-        let _editor_observer =
-            cx.observe_in(&editor, window, |this, _, window, cx| {
-                this.update_title(window, cx);
-                if this.suggestion.as_ref().is_some_and(|suggestion| {
-                    this.editor.read(cx).revision() != suggestion.revision
-                }) {
-                    this.suggestion = None;
-                }
-                // A rejected edit — typing into a read-only document, or past a
-                // boundary — used to be silent. Report it once, when it appears,
-                // rather than leaving the user with a key that does nothing.
-                let error = this.editor.read(cx).last_error().map(ToString::to_string);
-                let has_error = error.is_some();
-                match error {
-                    Some(error) => {
-                        if this.status.as_ref() != error {
-                            this.message(error, cx);
-                        }
+        let _editor_observer = cx.observe_in(&editor, window, |this, _, window, cx| {
+            this.update_title(window, cx);
+            // Drop the suggestion when the document moved on *or* the
+            // presentation changed. The observer fires on editor changes,
+            // which includes the mode switch, so this is where a stale
+            // suggestion disappears from the UI (AI-01).
+            if this.suggestion.as_ref().is_some_and(|suggestion| {
+                let editor = this.editor.read(cx);
+                editor.revision() != suggestion.revision
+                    || editor.mode_generation() != suggestion.mode_generation
+            }) {
+                this.suggestion = None;
+            }
+            // A rejected edit — typing into a read-only document, or past a
+            // boundary — used to be silent. Report it once, when it appears,
+            // rather than leaving the user with a key that does nothing.
+            let error = this.editor.read(cx).last_error().map(ToString::to_string);
+            let has_error = error.is_some();
+            match error {
+                Some(error) => {
+                    if this.status.as_ref() != error {
+                        this.message(error, cx);
                     }
-                    None if this.editor_error_shown => {
-                        // The rejection was resolved by a later successful edit,
-                        // so the stale message goes away instead of sitting there.
-                        this.message("Ready", cx);
-                    }
-                    None => {}
                 }
-                this.editor_error_shown = has_error;
-                cx.notify();
-            });
+                None if this.editor_error_shown => {
+                    // The rejection was resolved by a later successful edit,
+                    // so the stale message goes away instead of sitting there.
+                    this.message("Ready", cx);
+                }
+                None => {}
+            }
+            this.editor_error_shown = has_error;
+            cx.notify();
+        });
         let image_paste_subscription = cx.subscribe_in(
             &editor,
             window,
@@ -657,6 +668,7 @@ impl Workspace {
         let editor = self.editor.read(cx);
         let markdown = editor.markdown().to_string();
         let revision = editor.revision();
+        let mode_generation = editor.mode_generation();
         let selection = editor.selected_range();
         let Some(prefix) = markdown.get(..selection.start) else {
             return;
@@ -691,7 +703,10 @@ impl Workspace {
                 this.ai_busy = false;
                 let editor = this.editor.read(cx);
                 let unstable = editor.composing();
-                if unstable || editor.revision() != revision || editor.selected_range() != selection
+                if unstable
+                    || editor.revision() != revision
+                    || editor.mode_generation() != mode_generation
+                    || editor.selected_range() != selection
                 {
                     this.message(
                         "Suggestion expired because the document or selection changed.",
@@ -703,6 +718,7 @@ impl Workspace {
                     Ok(text) if !text.trim().is_empty() => {
                         this.suggestion = Some(Suggestion {
                             revision,
+                            mode_generation,
                             selection,
                             text,
                         });
@@ -723,6 +739,7 @@ impl Workspace {
         let result = self.editor.update(cx, |editor, cx| {
             editor.insert_if_unchanged(
                 suggestion.revision,
+                suggestion.mode_generation,
                 suggestion.selection,
                 &suggestion.text,
                 cx,
