@@ -586,3 +586,30 @@ mod tests {
         assert_eq!(layout.columns(), 2);
     }
 }
+
+#[cfg(test)]
+mod pipe_tests {
+    use super::pipe_offsets;
+
+    /// A pipe inside a code span or behind an escape is text, not a delimiter.
+    ///
+    /// Every table command slices rows with this scanner, so a wrong answer here
+    /// splits a cell at the wrong byte. The cases are the ones a cell can
+    /// legitimately contain: escaped pipes, doubled backslashes (where the
+    /// second escapes the first and the pipe *is* a delimiter), and pipes inside
+    /// single- and double-backtick spans.
+    #[test]
+    fn pipes_inside_code_spans_and_escapes_are_not_delimiters() {
+        for (input, want) in [
+            (r"a \| b", vec![]),
+            (r"a \\| b", vec![4]),
+            ("`a|b`", vec![]),
+            ("``a|b``", vec![]),
+            ("a|b", vec![1]),
+            (r"\|", vec![]),
+            ("`|`|x", vec![3]),
+        ] {
+            assert_eq!(pipe_offsets(input), want, "input {input:?}");
+        }
+    }
+}
