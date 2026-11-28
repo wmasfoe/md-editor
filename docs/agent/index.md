@@ -10,7 +10,7 @@
 - [规范](./specs/index.md)：编辑器行为契约和回归场景；旧实现专属规范会标明历史状态。
 - [状态](./status/index.md)：Beta 编辑器当前状态和仍有效的技术记录。
 - [发布](./release/index.md)：Rust beta 桌面应用构建与发布流程。
-- [评审](./review/index.md)：审查记录与体验问题。
+- [评审](./review/index.md)收录 Rust Beta 交互审计、历史体验问题和代码评审记录。
 
 ## 文档规则
 

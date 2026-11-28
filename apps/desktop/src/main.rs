@@ -1,3 +1,4 @@
+mod app_data;
 mod appearance;
 mod document;
 mod folder;
@@ -5,6 +6,7 @@ mod image_assets;
 mod local_ai;
 pub(crate) mod session;
 mod settings;
+mod system_open;
 mod workspace;
 
 use futures::{StreamExt, channel::mpsc};
@@ -72,18 +74,29 @@ const APP_NAME: &str = "Inkpoint";
 
 fn main() {
     let startup_path = std::env::args_os().nth(1).map(PathBuf::from);
-    let (open_paths, mut pending_paths) = mpsc::unbounded();
+    let (open_requests, mut pending_requests) = mpsc::unbounded();
     let app = application()
         .with_assets(assets::Assets)
         .with_quit_mode(QuitMode::LastWindowClosed);
+    // Each `on_open_urls` callback is one delivery. Giving it a sequence number
+    // is what lets the queue tell a repeated wake-up for the same request (drop
+    // the duplicate) apart from two deliberate opens of one file (keep both).
+    let mut deliveries = system_open::DeliverySequence::default();
+    let ingress_log = system_open::IngressLog::from_env();
+    let ingress_writer = ingress_log.clone();
     app.on_open_urls(move |urls| {
-        let path = urls
-            .into_iter()
-            .filter_map(|url| url::Url::parse(&url).ok())
-            .filter_map(|url| url.to_file_path().ok())
-            .find(|path| document::is_markdown(path));
-        if let Some(path) = path {
-            let _ = open_paths.unbounded_send(path);
+        let delivery = deliveries.next();
+        let requests = system_open::requests_from_urls(delivery, urls, document::is_markdown);
+        // A callback that delivered nothing supported is not an error: macOS
+        // also reports non-file and non-Markdown items here. Logging the raw
+        // count is what separates "the OS never delivered it" from "the app
+        // dropped it" during a rehearsal.
+        ingress_writer.record(system_open::IngressEvent::Delivered {
+            delivery,
+            url_count: requests.len(),
+        });
+        for request in requests {
+            let _ = open_requests.unbounded_send(request);
         }
     });
     app.run(move |cx| {
@@ -190,14 +203,28 @@ fn main() {
         })
         .expect("open Inkpoint GPUI window");
         let workspace = workspace.downgrade();
+        // One FIFO consumer: each dequeued request is attempted exactly once.
+        // A dirty cancel or a failed save consumes the attempt and moves on
+        // instead of retrying, so a blocked item cannot starve later ones.
+        let mut queue = system_open::SystemOpenQueue::default();
+        let consume_log = ingress_log.clone();
         cx.spawn(async move |cx| {
-            while let Some(path) = pending_paths.next().await {
-                let Some(workspace) = workspace.upgrade() else {
-                    break;
-                };
-                let _ = cx.update_window(window, |_, window, cx| {
-                    workspace.update(cx, |workspace, cx| workspace.open_path(path, window, cx));
-                });
+            while let Some(request) = pending_requests.next().await {
+                queue.enqueue([request]);
+                while let Some(request) = queue.dequeue() {
+                    let Some(workspace) = workspace.upgrade() else {
+                        break;
+                    };
+                    consume_log.record(system_open::IngressEvent::Consumed {
+                        identity: request.identity.clone(),
+                        path: request.path.clone(),
+                    });
+                    let _ = cx.update_window(window, |_, window, cx| {
+                        workspace.update(cx, |workspace, cx| {
+                            workspace.open_path(request.path, window, cx)
+                        });
+                    });
+                }
             }
         })
         .detach();

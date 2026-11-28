@@ -542,4 +542,96 @@ mod tests {
             });
         });
     }
+
+    /// FIND-01: editing before the current match and then replacing must act on
+    /// the match's *current* location.
+    ///
+    /// The audit repro typed `X` at the document start with the panel still open,
+    /// then pressed replace, and got `XoneDOGt two` instead of `Xone DOG two`: the
+    /// cached `4..7` byte range was applied to bytes that no longer spell `cat`.
+    #[gpui_kit::test]
+    #[ignore = "red until G002 fixes it; run with --ignored to see the failure"]
+    fn find01_replace_after_typing_before_the_match_targets_the_live_range(
+        cx: &mut TestAppContext,
+    ) {
+        cx.update(gpui_kit::init);
+        cx.update(TypesetView::bind_keys);
+        let (view, vcx) =
+            cx.add_window_view(|window, cx| TypesetView::new(window, cx, "one cat two"));
+        vcx.update(|window, cx| {
+            view.update(cx, |v, cx| {
+                v.find
+                    .input
+                    .update(cx, |input, cx| input.set_value("cat", window, cx));
+                v.find
+                    .replace_input
+                    .update(cx, |input, cx| input.set_value("DOG", window, cx));
+                // `set_value` does not emit the `Change` event the panel subscribes
+                // to, so drive the search the way the UI does.
+                v.find_match("cat", false);
+                assert_eq!(
+                    v.editor.selection().range(),
+                    4..7,
+                    "the panel selects the first match"
+                );
+
+                // The user returns to the body start and types, panel still open.
+                v.editor.set_caret(0);
+                v.editor.insert("X").unwrap();
+                assert_eq!(v.editor.source(), "Xone cat two");
+
+                v.replace_current(window, cx);
+                assert_eq!(
+                    v.editor.source(),
+                    "Xone DOG two",
+                    "replace must target the match's current bytes, not a stale range"
+                );
+                assert!(v.editor.undo());
+                assert_eq!(v.editor.source(), "Xone cat two");
+            });
+        });
+    }
+
+    /// FIND-02: when the cached match no longer exists, replace must be refused
+    /// rather than overwriting whatever bytes now occupy that range.
+    ///
+    /// The audit's concern is silent corruption: a guarded edit has to prove the
+    /// bytes at the cached range are still the match before writing.
+    #[gpui_kit::test]
+    #[ignore = "red until G002 fixes it; run with --ignored to see the failure"]
+    fn find02_replace_refuses_a_stale_match_instead_of_corrupting_the_body(
+        cx: &mut TestAppContext,
+    ) {
+        cx.update(gpui_kit::init);
+        cx.update(TypesetView::bind_keys);
+        let (view, vcx) =
+            cx.add_window_view(|window, cx| TypesetView::new(window, cx, "one cat two"));
+        vcx.update(|window, cx| {
+            view.update(cx, |v, cx| {
+                v.find
+                    .input
+                    .update(cx, |input, cx| input.set_value("cat", window, cx));
+                v.find
+                    .replace_input
+                    .update(cx, |input, cx| input.set_value("DOG", window, cx));
+                // Without this the panel has no cached match at all and
+                // `replace_current` would return early, making the assertion
+                // below pass for the wrong reason.
+                v.find_match("cat", false);
+                assert_eq!(v.find.current, Some(4..7), "the panel caches the match");
+
+                // Delete the match itself while the panel stays open.
+                v.editor.set_selection(4, 7);
+                v.editor.delete_backward().unwrap();
+                assert_eq!(v.editor.source(), "one  two");
+
+                v.replace_current(window, cx);
+                assert_eq!(
+                    v.editor.source(),
+                    "one  two",
+                    "a replace whose match no longer exists must leave the body untouched"
+                );
+            });
+        });
+    }
 }

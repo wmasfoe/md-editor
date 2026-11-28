@@ -2928,3 +2928,7 @@ mod native_writing_tests;
 #[cfg(test)]
 #[path = "../tests/support/native_task_hit.rs"]
 mod native_task_hit_tests;
+
+#[cfg(test)]
+#[path = "../tests/support/audit_view.rs"]
+mod audit_view_tests;

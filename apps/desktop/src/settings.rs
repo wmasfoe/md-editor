@@ -19,7 +19,8 @@ struct Settings {
 impl Global for Settings {}
 
 pub(crate) fn init(cx: &mut App) {
-    let path = dirs::data_dir().map(|directory| directory.join("md-editor/settings.json"));
+    let path = crate::app_data::data_root()
+        .map(|directory| crate::app_data::data_path(&directory, "settings.json"));
     let initial = path.as_deref().map_or_else(Preferences::default, |path| {
         Preferences::load(path).unwrap_or_else(|error| {
             eprintln!("Could not load settings: {error}");

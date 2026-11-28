@@ -787,8 +787,5 @@ fn local_ai_service() -> Option<LocalAiService> {
     let executable = std::env::current_exe().ok()?;
     let resources = executable.parent()?.parent()?.join("Resources");
     let sidecar = resources.join("llama/llama-server");
-    Some(LocalAiService::new(
-        sidecar,
-        dirs::data_dir()?.join("md-editor"),
-    ))
+    Some(LocalAiService::new(sidecar, crate::app_data::data_root()?))
 }

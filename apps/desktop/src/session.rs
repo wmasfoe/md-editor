@@ -38,7 +38,8 @@ pub struct PendingDraftInfo {
 
 impl HotExitSession {
     pub fn session_file_path() -> Option<PathBuf> {
-        dirs::data_dir().map(|dir| dir.join("md-editor/session.json"))
+        let root = crate::app_data::data_root()?;
+        Some(crate::app_data::data_path(&root, "session.json"))
     }
 
     pub fn load_from(path: &Path) -> io::Result<Option<Self>> {
