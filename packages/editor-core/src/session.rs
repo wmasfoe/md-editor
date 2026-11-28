@@ -244,6 +244,20 @@ pub enum EditorCommand {
     ToggleTaskList,
     /// Set every selected line to a heading of this level (1-6).
     Heading(u8),
+    /// Insert a table body row above the caret's row.
+    TableInsertRowAbove,
+    /// Insert a table body row below the caret's row.
+    TableInsertRowBelow,
+    /// Delete the caret's body row.
+    TableDeleteRow,
+    /// Insert a column to the left of the caret's column.
+    TableInsertColumnLeft,
+    /// Insert a column to the right of the caret's column.
+    TableInsertColumnRight,
+    /// Delete the caret's column.
+    TableDeleteColumn,
+    /// Set the caret column's alignment.
+    TableSetAlignment(crate::table_edit::TableAlignment),
 }
 
 /// An undo record stores only the changed slice and selection state.

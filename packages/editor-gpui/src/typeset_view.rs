@@ -2232,37 +2232,123 @@ impl TypesetView {
             cx.notify();
             return;
         }
-        let result = match command {
+        let result: Result<(), String> = match command {
             EditorCommand::ToggleBold => self
                 .editor
-                .toggle_inline_mark(inkpoint_editor_core::InlineFormat::Bold),
+                .toggle_inline_mark(inkpoint_editor_core::InlineFormat::Bold)
+                .map_err(|error| error.to_string()),
             EditorCommand::ToggleItalic => self
                 .editor
-                .toggle_inline_mark(inkpoint_editor_core::InlineFormat::Italic),
+                .toggle_inline_mark(inkpoint_editor_core::InlineFormat::Italic)
+                .map_err(|error| error.to_string()),
             EditorCommand::ToggleInlineCode => self
                 .editor
-                .toggle_inline_mark(inkpoint_editor_core::InlineFormat::Code),
+                .toggle_inline_mark(inkpoint_editor_core::InlineFormat::Code)
+                .map_err(|error| error.to_string()),
             EditorCommand::ToggleStrikethrough => self
                 .editor
-                .toggle_inline_mark(inkpoint_editor_core::InlineFormat::Strikethrough),
-            EditorCommand::ToggleQuote => self.editor.toggle_line_prefix("> "),
-            EditorCommand::ToggleBulletList => self.editor.toggle_line_prefix("- "),
-            EditorCommand::ToggleOrderedList => self.editor.toggle_line_prefix("1. "),
-            EditorCommand::ToggleTaskList => self.editor.toggle_line_prefix("- [ ] "),
-            EditorCommand::Heading(level) => self.editor.set_heading(level),
+                .toggle_inline_mark(inkpoint_editor_core::InlineFormat::Strikethrough)
+                .map_err(|error| error.to_string()),
+            EditorCommand::ToggleQuote => self
+                .editor
+                .toggle_line_prefix("> ")
+                .map_err(|error| error.to_string()),
+            EditorCommand::ToggleBulletList => self
+                .editor
+                .toggle_line_prefix("- ")
+                .map_err(|error| error.to_string()),
+            EditorCommand::ToggleOrderedList => self
+                .editor
+                .toggle_line_prefix("1. ")
+                .map_err(|error| error.to_string()),
+            EditorCommand::ToggleTaskList => self
+                .editor
+                .toggle_line_prefix("- [ ] ")
+                .map_err(|error| error.to_string()),
+            EditorCommand::Heading(level) => self
+                .editor
+                .set_heading(level)
+                .map_err(|error| error.to_string()),
+            // Table structure commands come from the core, so a row handle, a
+            // column handle and a menu item all produce identical bytes. The
+            // core returns `None` when the request is not representable (no
+            // table, last column, header row), which is reported rather than
+            // applied as a partial edit.
+            EditorCommand::TableInsertRowAbove => self.apply_table_edit(
+                inkpoint_editor_core::table_edit::insert_row_above,
+                "No table row to insert above here.",
+            ),
+            EditorCommand::TableInsertRowBelow => self.apply_table_edit(
+                inkpoint_editor_core::table_edit::insert_row_below,
+                "No table row to insert below here.",
+            ),
+            EditorCommand::TableDeleteRow => self.apply_table_edit(
+                inkpoint_editor_core::table_edit::delete_row,
+                "This row cannot be deleted.",
+            ),
+            EditorCommand::TableInsertColumnLeft => self.apply_table_edit(
+                inkpoint_editor_core::table_edit::insert_column_left,
+                "No table column to insert left of here.",
+            ),
+            EditorCommand::TableInsertColumnRight => self.apply_table_edit(
+                inkpoint_editor_core::table_edit::insert_column_right,
+                "No table column to insert right of here.",
+            ),
+            EditorCommand::TableDeleteColumn => self.apply_table_edit(
+                inkpoint_editor_core::table_edit::delete_column,
+                "This column cannot be deleted.",
+            ),
+            EditorCommand::TableSetAlignment(alignment) => {
+                let source = self.editor.source().to_owned();
+                let caret = self.editor.selection().head();
+                match inkpoint_editor_core::table_edit::set_column_alignment(
+                    &source, caret, alignment,
+                ) {
+                    Some(edit) => self
+                        .editor
+                        .apply_edit(edit)
+                        .map_err(|error| error.to_string()),
+                    None => Err("No table column to align here.".to_owned()),
+                }
+            }
         };
-        // A rejected command is kept rather than dropped: a read-only document or
-        // a range the source cannot take would otherwise fail silently, and the
-        // user would see a menu click do nothing. Re-parsing only on success
-        // keeps a rejected command from rebuilding the tree for nothing.
+        // A rejected command is kept rather than dropped: a read-only document, a
+        // range the source cannot take, or a table command the source cannot
+        // represent would otherwise fail silently, and the user would see a menu
+        // click do nothing. Re-parsing only on success keeps a rejected command
+        // from rebuilding the tree for nothing.
         match result {
             Ok(()) => {
                 self.last_error = None;
                 self.reparse();
             }
-            Err(error) => self.last_error = Some(error.to_string()),
+            Err(message) => self.last_error = Some(message),
         }
         cx.notify();
+    }
+
+    /// Applies a core table command against the live source and caret.
+    ///
+    /// `command` receives the current source and caret and returns either an
+    /// edit or `None` when the request is not representable. `refusal` is the
+    /// message for that case, so a menu item that does nothing explains itself.
+    fn apply_table_edit(
+        &mut self,
+        command: impl Fn(&str, usize) -> Option<inkpoint_editor_core::SourceEdit>,
+        refusal: &str,
+    ) -> Result<(), String> {
+        let source = self.editor.source().to_owned();
+        let caret = self.editor.selection().head();
+        match command(&source, caret) {
+            Some(edit) => self
+                .editor
+                .apply_edit(edit)
+                .map_err(|error| error.to_string()),
+            // A refusal is an error with an explanation, not a silent success:
+            // otherwise the caller's success arm clears the message and the menu
+            // item appears to do nothing at all.
+            None => Err(refusal.to_owned()),
+        }
     }
 
     /// Why the last command was rejected, when it was.

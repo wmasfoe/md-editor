@@ -17,8 +17,9 @@ use gpui_kit::{
     prelude::FluentBuilder as _,
     *,
 };
+use inkpoint_editor_core::table_edit::TableAlignment;
 use inkpoint_editor_core::{BlockKind, MarkdownDocument, SourceBlock};
-use inkpoint_editor_gpui::{BlockFormat, HostCommand, InlineFormat};
+use inkpoint_editor_gpui::{AlignmentChoice, BlockFormat, HostCommand, InlineFormat, TableCommand};
 
 const TITLE_BAR_HEIGHT: Pixels = px(36.);
 const SIDEBAR_FOOTER_HEIGHT: Pixels = px(38.);
@@ -940,6 +941,20 @@ fn host_command(command: HostCommand) -> Option<inkpoint_editor_core::session::E
             BlockFormat::UnorderedList => Typeset::ToggleBulletList,
             BlockFormat::OrderedList => Typeset::ToggleOrderedList,
             BlockFormat::TaskList => Typeset::ToggleTaskList,
+        }),
+        HostCommand::Table(table) => Some(match table {
+            TableCommand::InsertRowAbove => Typeset::TableInsertRowAbove,
+            TableCommand::InsertRowBelow => Typeset::TableInsertRowBelow,
+            TableCommand::DeleteRow => Typeset::TableDeleteRow,
+            TableCommand::InsertColumnLeft => Typeset::TableInsertColumnLeft,
+            TableCommand::InsertColumnRight => Typeset::TableInsertColumnRight,
+            TableCommand::DeleteColumn => Typeset::TableDeleteColumn,
+            TableCommand::SetAlignment(alignment) => Typeset::TableSetAlignment(match alignment {
+                AlignmentChoice::Default => TableAlignment::Default,
+                AlignmentChoice::Left => TableAlignment::Left,
+                AlignmentChoice::Center => TableAlignment::Center,
+                AlignmentChoice::Right => TableAlignment::Right,
+            }),
         }),
         HostCommand::ToggleOutline => None,
     }
