@@ -607,6 +607,47 @@ impl EditorSession {
         self.history.clear();
     }
 
+    /// Replaces the whole document as one undoable step.
+    ///
+    /// Used when the content changes but the *document identity* does not: a
+    /// draft restore is the case that matters. `replace_source` is the wrong
+    /// tool there because it clears history, which is correct for opening a
+    /// different file and destructive for restoring a draft: the audit found
+    /// `Cmd+Z` unable to recover edits the user had just made.
+    ///
+    /// Recording the replacement as a single whole-document edit keeps both
+    /// texts reachable: undo returns to what was on screen before the restore,
+    /// redo returns to the draft.
+    pub fn replace_source_undoable(
+        &mut self,
+        source: impl Into<String>,
+        caret: Option<usize>,
+    ) -> Result<(), SessionError> {
+        if self.readonly {
+            return Err(SessionError::ReadOnly);
+        }
+        let replacement = source.into();
+        if replacement == self.document.source() {
+            // Nothing to record; still honour the requested caret.
+            if let Some(caret) = caret {
+                self.set_caret(caret);
+            }
+            return Ok(());
+        }
+        let len = replacement.len();
+        let caret = caret
+            .map(|caret| normalize_offset(&replacement, caret.min(len), false))
+            .unwrap_or_else(|| {
+                normalize_offset(&replacement, self.selection.head().min(len), false)
+            });
+        let edit = SourceEdit {
+            range: 0..self.document.source().len(),
+            replacement,
+            selection_after: caret..caret,
+        };
+        self.apply_recording(edit)
+    }
+
     /// Moves the caret to `offset`, clamped to the source length.
     pub fn set_caret(&mut self, offset: usize) {
         self.set_selection(offset, offset);
@@ -2039,6 +2080,55 @@ mod undo_sequence_tests {
             "abc",
             "one undo removes the composition only, not the earlier typing"
         );
+    }
+
+    /// DRAFT-01: restoring a draft must not destroy the edits made since the
+    /// draft was saved.
+    ///
+    /// The audit repro opened a file with a pending draft, typed more text, then
+    /// restored the draft: the document switched to the old content and `Cmd+Z`
+    /// could not bring the new text back, because the restore went through a
+    /// document-replacement path that deliberately clears history.
+    #[test]
+    fn draft01_restoring_a_draft_is_undoable() {
+        let mut editor = EditorSession::new("on-disk content");
+        editor.set_caret(4);
+        editor.insert(" plus my edits").expect("typing applies");
+        assert_eq!(editor.source(), "on-d plus my editsisk content");
+
+        // Restoring the draft replaces the whole document.
+        editor
+            .replace_source_undoable("the older draft", Some(3))
+            .expect("the restore applies");
+        assert_eq!(editor.source(), "the older draft");
+        assert_eq!(editor.selection().head(), 3, "the draft caret is restored");
+
+        // The user's unsaved work must still be reachable.
+        assert!(editor.undo(), "the restore is one undo step");
+        assert_eq!(
+            editor.source(),
+            "on-d plus my editsisk content",
+            "undo returns to the edits the user had made"
+        );
+
+        // And the draft is reachable again, so the choice is not one-way.
+        assert!(editor.redo(), "the draft is still reachable");
+        assert_eq!(editor.source(), "the older draft");
+    }
+
+    /// A restore of identical content must not push an empty history step that
+    /// swallows the next undo.
+    #[test]
+    fn draft01_restoring_identical_content_records_no_step() {
+        let mut editor = EditorSession::new("same");
+        editor.set_caret(0);
+        editor.insert("X").expect("typing applies");
+        assert_eq!(editor.source(), "Xsame");
+        editor
+            .replace_source_undoable("Xsame", Some(0))
+            .expect("a no-op restore is accepted");
+        assert!(editor.undo(), "the earlier typing is still the top step");
+        assert_eq!(editor.source(), "same");
     }
 
     /// Consecutive characters at one place still merge.

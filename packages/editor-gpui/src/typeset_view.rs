@@ -480,6 +480,39 @@ impl TypesetView {
         cx.notify();
     }
 
+    /// Replaces the document as one undoable step, optionally placing the caret.
+    ///
+    /// For content swaps that keep the same document open — restoring a draft is
+    /// the case this exists for. [`replace_markdown`](Self::replace_markdown) is
+    /// for opening a different file, where clearing history is correct; using it
+    /// for a draft restore made the user's unsaved edits unrecoverable (DRAFT-01).
+    pub fn replace_markdown_undoable(
+        &mut self,
+        source: impl Into<String>,
+        caret: Option<usize>,
+        cx: &mut Context<Self>,
+    ) -> Result<(), &'static str> {
+        self.goal_x = None;
+        self.reset_drag();
+        self.reveal_caret = None;
+        let result =
+            self.editor
+                .replace_source_undoable(source, caret)
+                .map_err(|error| match error {
+                    SessionError::ReadOnly => "The editor is read-only.",
+                    SessionError::Source(_) => "The draft could not be applied to the document.",
+                    SessionError::StaleMatch => {
+                        "The document changed while the draft was being restored."
+                    }
+                });
+        if result.is_ok() {
+            self.last_error = None;
+            self.reparse();
+            cx.notify();
+        }
+        result
+    }
+
     /// Sets whether the view rejects edits.
     pub fn set_readonly(&mut self, readonly: bool, cx: &mut Context<Self>) {
         if readonly && self.composing() {

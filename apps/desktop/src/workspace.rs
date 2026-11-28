@@ -835,16 +835,21 @@ impl Workspace {
         let Some(draft) = self.pending_draft.take() else {
             return;
         };
-        self.editor.update(cx, |editor, cx| {
-            editor.replace_markdown(&draft.draft_content, cx);
-            if let Some(cursor) = draft.cursor_offset {
-                editor.set_selected_range(cursor..cursor, cx);
-            }
+        // A draft restore replaces the document's content, not its identity, so
+        // it must be one undoable step. Restoring used to clear history, which
+        // made the edits the user had just made unrecoverable (DRAFT-01).
+        let result = self.editor.update(cx, |editor, cx| {
+            let result =
+                editor.replace_markdown_undoable(&draft.draft_content, draft.cursor_offset, cx);
             editor.focus(window, cx);
+            result
         });
         self.draft_preview_open = false;
         self.update_title(window, cx);
-        self.message("Draft restored", cx);
+        match result {
+            Ok(()) => self.message("Draft restored. Cmd+Z returns to your edits.", cx),
+            Err(error) => self.message(format!("Draft could not be restored. {error}"), cx),
+        }
     }
 
     pub(crate) fn discard_pending_draft(&mut self, cx: &mut Context<Self>) {
