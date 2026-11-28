@@ -142,9 +142,20 @@ cargo test --release --locked -p inkpoint-editor-gpui --lib \
 | B7 | 设置里分别用自定义目录和 `${filename}` 各粘一次 | 两次落点是否符合预期 |
 | B8 | 改文档不保存，从 Finder 打开另一文件 | 选 Cancel / Discard 后最终文档 |
 | B12 | 长文连打、滚动、选词 | 手感是否跟手 |
-| B13 | 投递 `chmod 000` 的文件 | 界面是否显示 `Open failed: ...`（代码路径已确认存在） |
+| B13 | 投递 `chmod 000` 的文件 | 状态栏消息是否清晰可读。链路已由代码确认：投递→消费正常、`load_document` 的 `Err` 分支产生 `Open failed: ...`、`chrome.rs:911` 的渲染条件不排除它 |
 
 按 brief 第 4 检查点「实机证据缺项时保持待交付」，G004 在 B 类完成前**不标记完成**。
+
+### 两条自动取证路径已试过，均不可用
+
+想让代理直接取证 B13，两条路都因环境限制失败，不是应用缺陷：
+
+| 路径 | 结果 |
+|---|---|
+| `screencapture -x` 截图 | 产出 PNG 尺寸正常但**内容全黑** —— 无屏幕录制权限 |
+| 辅助功能 API（`System Events` 读 `static text`） | `count of windows` 为 **0**，唯一可见元素是 `AXMenuBar` —— GPUI 未暴露辅助功能树 |
+
+不要重复尝试这两条。B 类只能由人在真机上完成。
 
 ## 未实现
 
