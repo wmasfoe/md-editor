@@ -67,9 +67,9 @@ cargo test --release --locked -p inkpoint-editor-gpui --lib \
 | `tab_outside_a_table_keeps_text_input_behavior` | **改写并更名**为 `tab_on_plain_prose_indents_the_line`。原断言锁定「正文 Tab 插入字面 `\t`」，审计判定为缺陷；按历史用户契约改为「缩进两空格」 |
 | `find_options_and_replacement_work` | **未改动**，与基线逐字节相同。find 缺陷由**新增**的 `find01_*`/`find02_*` 覆盖 |
 
-## 收尾自查修掉的缺陷（11 项）
+## 收尾自查修掉的缺陷（13 项）
 
-交付前逐项审计自己新增的代码，每项都先写探针确认旧行为，再改成回归测试。
+交付前逐项审计自己新增的代码，每项都先写探针确认旧行为，再改成回归测试。分三类：应用缺陷 9 项、性能缺陷 2 项（另有 1 项记录未修）、验收脚本缺陷 2 项。
 
 ### 应用缺陷（9 项）
 
@@ -87,7 +87,7 @@ cargo test --release --locked -p inkpoint-editor-gpui --lib \
 
 后两项同源：解析结果来自 CJK 改写文本，却拿去原文查找。抽出 `find_parsed_value` 回退到改写文本查找——因改写保持字节长度，偏移对原文有效。
 
-### 性能缺陷（2 项已修，1 项记录）
+### 性能缺陷（2 项已修，另 1 项记录未修）
 
 | 缺陷 | 修复前 | 修复后 |
 |---|---|---|
