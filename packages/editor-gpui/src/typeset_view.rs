@@ -8,7 +8,7 @@
 //! offset that is wrong by one byte in the middle of a CJK character shows up as
 //! a caret in the wrong place or a composing region that swallows text.
 
-use std::ops::Range;
+use std::{ops::Range, path::PathBuf};
 
 #[path = "find.rs"]
 mod find;
@@ -17,7 +17,7 @@ use gpui_kit::base::text::editor_host::{Caret, CaretAffinity, RenderContext};
 use gpui_kit::{
     AnyElement, App, Bounds, Context, Element, ElementId, ElementInputHandler, Entity, FocusHandle,
     GlobalElementId, InspectorElementId, IntoElement, KeyBinding, LayoutId, Pixels, Point, Render,
-    SharedString, Window, actions, div, prelude::*, px,
+    SharedString, Window, actions, div, prelude::*, px, size,
 };
 use inkpoint_editor_core::{
     SourceEdit,
@@ -32,6 +32,8 @@ use inkpoint_editor_typeset::{LeafIndex, TypesetDocument, caret_bounds_at};
 mod ime;
 #[path = "typeset_view/source_mode.rs"]
 mod source_mode;
+#[path = "typeset_view/table_handles.rs"]
+mod table_handles;
 
 #[cfg(test)]
 use gpui_kit::EntityInputHandler;
@@ -123,7 +125,14 @@ impl Default for TypesetTypography {
 }
 
 impl TypesetTypography {
-    fn render_context(&self, cx: &App) -> RenderContext {
+    /// Builds the render context, including local image resolution.
+    ///
+    /// `document_directory` is the folder of the active document. A relative
+    /// image reference is relative to *that*, so the resolver turns it into a
+    /// local path and the renderer reads the file directly. Without it the
+    /// reference reaches the renderer as a URI and is fetched over HTTP, which is
+    /// the audited defect: the PNG was on disk and the preview was empty.
+    fn render_context(&self, cx: &App, document_directory: Option<PathBuf>) -> RenderContext {
         let mut context = RenderContext::from_app(cx);
         if !self.code_font_family.is_empty() {
             let family: SharedString = self.code_font_family.clone().into();
@@ -136,7 +145,17 @@ impl TypesetTypography {
                     .with_inline_code_style(inline_code),
             );
         }
-        context
+        // Remote and inline sources keep the default resolution: only a local
+        // reference is turned into a path.
+        context.with_image_source(move |uri| {
+            match crate::image_source::local_image_path(uri.as_ref(), document_directory.as_deref())
+            {
+                Some(path) => gpui_kit::ImageSource::Resource(gpui_kit::Resource::Path(
+                    std::sync::Arc::from(path.as_path()),
+                )),
+                None => gpui_kit::ImageSource::Resource(gpui_kit::Resource::Uri(uri.clone())),
+            }
+        })
     }
 }
 
@@ -309,6 +328,8 @@ struct PendingVerticalMove {
 /// A GPUI element that renders and edits Markdown.
 pub struct TypesetView {
     typography: TypesetTypography,
+    /// Folder of the active document, for resolving relative image references.
+    document_directory: Option<PathBuf>,
     native_layout: crate::native_layout::NativeLayoutState,
     pending_vertical: Option<PendingVerticalMove>,
     reveal_caret: Option<usize>,
@@ -317,6 +338,14 @@ pub struct TypesetView {
     editor: EditorSession,
     document: TypesetDocument,
     source_mode: bool,
+    /// Incremented on every presentation switch.
+    ///
+    /// A suggestion computed in one mode must not become acceptable in another:
+    /// the same byte offsets mean different things once the projection changes,
+    /// and the audit found a pending suggestion still insertable after
+    /// `Cmd+/`. Revision alone cannot catch this because a mode switch does not
+    /// edit the source.
+    mode_generation: u64,
     geometry: LeafIndex,
     focus: FocusHandle,
     /// The leaf the caret is in, as reported by the last frame's geometry.
@@ -341,6 +370,14 @@ pub struct TypesetView {
     /// for editing, but the host has to be able to say so instead of showing an
     /// empty page with no explanation.
     parse_error: Option<SharedString>,
+    /// Every table's cells, cached per parse.
+    ///
+    /// Handles need this on the pointer-move path, which runs many times per
+    /// second; re-parsing the Markdown there would make hovering a table cost
+    /// as much as typing into it.
+    table_slots: Vec<Vec<inkpoint_editor_core::table_edit::TableCellSlot>>,
+    /// Row and column handles for the current frame.
+    table_handles: table_handles::TableHandleState,
 }
 
 impl TypesetView {
@@ -356,9 +393,14 @@ impl TypesetView {
         focus.focus(window, cx);
         let find = find::FindState::new(window, cx);
         let document_revision = Some(editor.revision());
+        // The revision is already known, so `reparse` will short-circuit on the
+        // first call. Table handles need their cells now, or a freshly opened
+        // document would grow handles only after its first edit.
+        let table_slots = document.table_cells().to_vec();
         Self {
             find,
             typography: TypesetTypography::default(),
+            document_directory: None,
             native_layout: crate::native_layout::NativeLayoutState::new(
                 crate::native_layout::NativeLayoutConfig::default(),
             ),
@@ -368,6 +410,7 @@ impl TypesetView {
             editor,
             document,
             source_mode: false,
+            mode_generation: 0,
             geometry: LeafIndex::default(),
             focus,
             caret_leaf: None,
@@ -380,12 +423,26 @@ impl TypesetView {
             drag_start_point: None,
             goal_x: None,
             parse_error,
+            table_slots,
+            table_handles: table_handles::TableHandleState::default(),
         }
     }
 
     /// Enables image paste events when the host can persist clipboard images.
     pub fn set_image_paste_enabled(&mut self, enabled: bool) {
         self.image_paste_enabled = enabled;
+    }
+
+    /// Sets the folder that relative image references resolve against.
+    ///
+    /// The host calls this when it installs a document. Passing `None` (an
+    /// unsaved document) leaves relative references to the default resolver,
+    /// because there is no folder to be relative to.
+    pub fn set_document_directory(&mut self, directory: Option<PathBuf>, cx: &mut Context<Self>) {
+        if self.document_directory != directory {
+            self.document_directory = directory;
+            cx.notify();
+        }
     }
 
     /// Applies typography without changing the document or editing state.
@@ -436,6 +493,16 @@ impl TypesetView {
         self.editor.revision()
     }
 
+    /// Counter that changes on every presentation switch.
+    ///
+    /// Callers capture it with [`revision`](Self::revision) when starting an
+    /// async request and pass it back to
+    /// [`insert_if_unchanged`](Self::insert_if_unchanged), so a reply computed
+    /// in one mode is refused in the other.
+    pub fn mode_generation(&self) -> u64 {
+        self.mode_generation
+    }
+
     /// Why the last parse failed, when it did.
     ///
     /// `None` once the source parses again.
@@ -459,6 +526,39 @@ impl TypesetView {
         self.last_error = None;
         self.reparse();
         cx.notify();
+    }
+
+    /// Replaces the document as one undoable step, optionally placing the caret.
+    ///
+    /// For content swaps that keep the same document open — restoring a draft is
+    /// the case this exists for. [`replace_markdown`](Self::replace_markdown) is
+    /// for opening a different file, where clearing history is correct; using it
+    /// for a draft restore made the user's unsaved edits unrecoverable (DRAFT-01).
+    pub fn replace_markdown_undoable(
+        &mut self,
+        source: impl Into<String>,
+        caret: Option<usize>,
+        cx: &mut Context<Self>,
+    ) -> Result<(), &'static str> {
+        self.goal_x = None;
+        self.reset_drag();
+        self.reveal_caret = None;
+        let result =
+            self.editor
+                .replace_source_undoable(source, caret)
+                .map_err(|error| match error {
+                    SessionError::ReadOnly => "The editor is read-only.",
+                    SessionError::Source(_) => "The draft could not be applied to the document.",
+                    SessionError::StaleMatch => {
+                        "The document changed while the draft was being restored."
+                    }
+                });
+        if result.is_ok() {
+            self.last_error = None;
+            self.reparse();
+            cx.notify();
+        }
+        result
     }
 
     /// Sets whether the view rejects edits.
@@ -497,6 +597,11 @@ impl TypesetView {
         self.document_revision = Some(revision);
         (self.document, self.parse_error) =
             source_mode::parse_document(self.editor.source(), self.source_mode, &self.diagrams);
+        // The projection already parsed the source, and it reports its tables'
+        // cells. Re-parsing here would double the cost of every keystroke: on a
+        // 1,000-block document that second parse alone was 13 ms of a 30 ms
+        // budget. Source mode renders literal lines, so it reports none.
+        self.table_slots = self.document.table_cells().to_vec();
     }
 
     /// Applies an edit, then re-parses and notifies.
@@ -549,13 +654,67 @@ impl TypesetView {
 
     /// Moves the caret one line up, crossing into the previous leaf at the top.
     fn caret_up(&mut self, cx: &mut Context<Self>) {
+        // Inside a table the unit of vertical travel is a cell, not a visual
+        // line: the layout treats a whole table as one block, so the generic
+        // walk would jump past the table instead of moving one row up
+        // (TABLE-NAV-01).
+        if self.try_table_vertical(true, cx) {
+            return;
+        }
         self.move_vertical(true, false, cx);
     }
 
     /// Moves the caret one visual line down, crossing into the next leaf at the
     /// bottom of this one.
     fn caret_down(&mut self, cx: &mut Context<Self>) {
+        if self.try_table_vertical(false, cx) {
+            return;
+        }
         self.move_vertical(false, false, cx);
+    }
+
+    /// One table-cell step, or `false` when the caret is not in a table.
+    ///
+    /// Returns `true` whenever the core navigation produced a destination, so
+    /// the caller knows not to fall back to visual-line movement. Reaching the
+    /// last row still yields a destination (the appended row), which is the
+    /// historical behaviour.
+    fn try_table_vertical(&mut self, up: bool, cx: &mut Context<Self>) -> bool {
+        if self.composing() || self.source_mode() {
+            return false;
+        }
+        let head = self.editor.selection().head();
+        let Some(target) = inkpoint_editor_core::table_navigation::navigate_table_vertical(
+            self.editor.source(),
+            head,
+            !up,
+        ) else {
+            return false;
+        };
+        self.goal_x = None;
+        match target {
+            TableNavigation::Select(range) => {
+                self.editor.set_selection(range.start, range.end);
+                self.scroll_caret_into_view();
+                cx.notify();
+            }
+            TableNavigation::AppendRow {
+                offset,
+                text,
+                caret,
+            } => {
+                if self.editor.is_readonly() {
+                    return false;
+                }
+                let result = self.editor.apply_edit(SourceEdit {
+                    range: offset..offset,
+                    replacement: text,
+                    selection_after: caret..caret,
+                });
+                self.apply(result, cx);
+            }
+        }
+        true
     }
 
     /// One vertical step, staying inside the leaf or crossing into a neighbour.
@@ -801,6 +960,7 @@ impl TypesetView {
                 image,
                 target: PasteTarget {
                     revision: self.editor.revision(),
+                    mode_generation: self.mode_generation,
                     selection: self.editor.selection().range(),
                 },
             });
@@ -1015,6 +1175,35 @@ impl TypesetView {
         }
     }
 
+    /// The key-binding context for the current caret and mode.
+    ///
+    /// Two things the audit found wrong live here:
+    ///
+    /// * Source mode must not claim the table-cell context. Cell navigation and
+    ///   last-cell row growth belong to the rendered view; in source mode Tab is
+    ///   plain text editing (TABLE-SOURCE-01).
+    /// * A collapsed caret in prose still needs the general `Indent` action. It
+    ///   used to fall through to the bare context with no Tab binding, so the
+    ///   keystroke reached the text input and inserted a literal tab (TAB-01).
+    fn key_context(&mut self) -> &'static str {
+        if self.source_mode() {
+            return if self.editor.selection().is_collapsed() {
+                KEY_CONTEXT
+            } else {
+                "TypesetView has_selection"
+            };
+        }
+        if self.editor.navigate_table(false).is_some() {
+            "TypesetView table_cell"
+        } else if self.editor.is_in_list() {
+            "TypesetView list_item"
+        } else if !self.editor.selection().is_collapsed() {
+            "TypesetView has_selection"
+        } else {
+            KEY_CONTEXT
+        }
+    }
+
     fn block_index_for_offset(&self, offset: usize) -> Option<usize> {
         let ranges = self.document.block_ranges();
         ranges
@@ -1081,6 +1270,10 @@ impl TypesetView {
                 Some("TypesetView && list_item"),
             ),
             KeyBinding::new("tab", Indent, Some("TypesetView && has_selection")),
+            // A collapsed caret in prose is the common Tab case. Without this the
+            // keystroke falls through to the text input, which inserts a literal
+            // tab instead of indenting the line (TAB-01).
+            KeyBinding::new("tab", Indent, Some(KEY_CONTEXT)),
             KeyBinding::new("shift-tab", Outdent, Some(KEY_CONTEXT)),
             KeyBinding::new("shift-enter", InsertPlainNewline, Some(KEY_CONTEXT)),
             KeyBinding::new("left", MoveLeft, Some(KEY_CONTEXT)),
@@ -1216,6 +1409,18 @@ impl Render for TypesetView {
             if this.composing() {
                 return;
             }
+            // Source mode edits text literally. Cell navigation and line
+            // indentation are rendered-view semantics, so a collapsed caret here
+            // inserts one real tab and a selection keeps the line-indent rule
+            // (TABLE-SOURCE-01).
+            if this.source_mode() {
+                if this.editor.selection().is_collapsed() {
+                    this.insert("\t", cx);
+                } else if let Ok(true) = this.editor.indent_selection(true) {
+                    this.apply(Ok(()), cx);
+                }
+                return;
+            }
             if this.editor.navigate_table(false).is_some() {
                 this.navigate_table(false, cx);
                 return;
@@ -1228,6 +1433,12 @@ impl Render for TypesetView {
         });
         let on_outdent_general = cx.listener(|this, _: &Outdent, _, cx| {
             if this.composing() {
+                return;
+            }
+            if this.source_mode() {
+                if let Ok(true) = this.editor.indent_selection(false) {
+                    this.apply(Ok(()), cx);
+                }
                 return;
             }
             if this.editor.navigate_table(true).is_some() {
@@ -1362,7 +1573,9 @@ impl Render for TypesetView {
         let on_select_doc_end =
             cx.listener(|this, _: &SelectToDocumentEnd, _, cx| this.move_to(false, true, true, cx));
 
-        let context = self.typography.render_context(cx);
+        let context = self
+            .typography
+            .render_context(cx, self.document_directory.clone());
         // Pass the selection through so the selected text is visibly highlighted:
         // without it, cmd-a and shift-arrow change state the user cannot see.
         let selection = self.editor.display_selection();
@@ -1424,15 +1637,7 @@ impl Render for TypesetView {
             .id("typeset-view")
             .cursor_text()
             .track_focus(&self.focus)
-            .key_context(if self.editor.navigate_table(false).is_some() {
-                "TypesetView table_cell"
-            } else if self.editor.is_in_list() {
-                "TypesetView list_item"
-            } else if !self.editor.selection().is_collapsed() {
-                "TypesetView has_selection"
-            } else {
-                KEY_CONTEXT
-            })
+            .key_context(self.key_context())
             .w_full()
             .flex_1()
             .min_h_0()
@@ -1499,8 +1704,19 @@ impl Render for TypesetView {
                     this.handle_mouse_down(event, window, cx);
                 }),
             )
+            .on_hover(cx.listener(|this, hovered: &bool, _, cx| {
+                // Leaving the editor has no mouse-move event of its own, so the
+                // handles are hidden here rather than waiting for a move that
+                // never arrives.
+                if !hovered {
+                    this.clear_pointer(cx);
+                }
+            }))
             .on_mouse_move(
                 cx.listener(|this, event: &gpui_kit::MouseMoveEvent, _, cx| {
+                    // Hover is tracked on every move: it decides whether the
+                    // table handles are showing.
+                    this.track_pointer(event.position, cx);
                     // Only while a button is held: a bare hover must not move the
                     // caret.
                     if event.pressed_button != Some(gpui_kit::MouseButton::Left) {
@@ -1576,12 +1792,38 @@ pub struct ImagePaste {
 
 impl gpui_kit::EventEmitter<ImagePaste> for TypesetView {}
 
+/// What a click on a link asked for.
+///
+/// The editor decides *what* the target is; the host decides what to do about
+/// it. A fragment resolves inside the editor and never reaches the host, so this
+/// only carries destinations that need host capabilities.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum LinkAction {
+    /// Open a whitelisted external URL.
+    External(String),
+    /// Open a local resource or document, resolved against the active document.
+    Local(String),
+    /// The click landed in a link but the target must not be opened.
+    /// Carries the destination so the host can report it without opening.
+    Refused(String),
+}
+
+/// Emitted when a modifier-click asks to open a link's target.
+#[derive(Clone, Debug)]
+pub struct LinkActivated {
+    pub action: LinkAction,
+}
+
+impl gpui_kit::EventEmitter<LinkActivated> for TypesetView {}
+
 /// What a paste target remembers, so an async image insert can verify the
 /// document has not moved on before it lands.
 #[derive(Clone, Debug)]
 pub struct PasteTarget {
     /// The revision the paste was taken against.
     pub revision: u64,
+    /// The presentation generation the paste was taken against.
+    pub mode_generation: u64,
     /// The selection at paste time.
     pub selection: Range<usize>,
 }
@@ -1595,12 +1837,16 @@ impl TypesetView {
     pub fn insert_if_unchanged(
         &mut self,
         expected_revision: u64,
+        expected_mode_generation: u64,
         expected_range: Range<usize>,
         text: &str,
         cx: &mut Context<Self>,
     ) -> Result<u64, &'static str> {
         if self.editor.is_readonly() {
             return Err("The editor is read-only.");
+        }
+        if self.mode_generation != expected_mode_generation {
+            return Err("The editor mode changed while the insert was pending.");
         }
         if self.editor.revision() != expected_revision
             || self.editor.selection().range() != expected_range
@@ -1617,6 +1863,10 @@ impl TypesetView {
             return Err(match error {
                 SessionError::ReadOnly => "The editor is read-only.",
                 SessionError::Source(_) => "The insert was rejected by the document.",
+                // Not reachable through `insert`: the guard above already compared
+                // the revision and selection. Mapped explicitly rather than with a
+                // wildcard so a future error variant has to be considered here.
+                SessionError::StaleMatch => "The document changed while the insert was pending.",
             });
         }
         self.reparse();
@@ -1642,7 +1892,13 @@ impl TypesetView {
             return Err("The image path is not a safe relative assets path.");
         }
         let markdown = format!("![image]({reference})");
-        self.insert_if_unchanged(target.revision, target.selection.clone(), &markdown, cx)?;
+        self.insert_if_unchanged(
+            target.revision,
+            target.mode_generation,
+            target.selection.clone(),
+            &markdown,
+            cx,
+        )?;
         Ok(())
     }
 }
@@ -1652,6 +1908,74 @@ impl TypesetView {
         self.drag_anchor = None;
         self.drag_start_point = None;
         self.drag_mode = DragMode::Char;
+    }
+
+    /// Records the pointer position, repainting only when it changes what shows.
+    ///
+    /// Every move would otherwise notify, which turns a hover across the
+    /// document into a continuous repaint. The handles are the only thing that
+    /// depends on the pointer, so only their visibility counts as a change.
+    fn track_pointer(&mut self, position: Point<Pixels>, cx: &mut Context<Self>) {
+        let was_visible = self.table_handles.is_visible();
+        let was_hovered = self.table_handles.hovered();
+        let previous = self.table_handles.pointer();
+        if previous == Some(position) {
+            return;
+        }
+        self.table_handles.set_pointer(Some(position));
+        // Repaint when the handles appear, disappear, or when the pointer moves
+        // onto a different handle: moving between two handles of one table keeps
+        // the group showing, so visibility alone would leave the highlight on
+        // the handle the pointer left.
+        if self.table_handles.is_visible() != was_visible
+            || self.table_handles.hovered() != was_hovered
+        {
+            cx.notify();
+        }
+    }
+
+    /// Forgets the pointer position when it leaves the editor.
+    ///
+    /// `track_pointer` only runs on moves inside the editor, so moving the
+    /// pointer onto the toolbar or out of the window left the last position
+    /// standing: the handles stayed lit beside a table the user is no longer
+    /// pointing at.
+    fn clear_pointer(&mut self, cx: &mut Context<Self>) {
+        if self.table_handles.pointer().is_none() {
+            return;
+        }
+        let was_visible = self.table_handles.is_visible();
+        self.table_handles.set_pointer(None);
+        if was_visible {
+            cx.notify();
+        }
+    }
+
+    /// Runs the table command a handle click names.
+    ///
+    /// A refusal is surfaced as an error message rather than dropped, matching
+    /// the table menu: a handle that cannot insert must say so.
+    fn click_table_handle(
+        &mut self,
+        target: inkpoint_editor_typeset::HandleTarget,
+        cx: &mut Context<Self>,
+    ) {
+        let source = self.editor.source().to_owned();
+        let result = match table_handles::apply(target, &source) {
+            Some(edit) => self
+                .editor
+                .apply_edit(edit)
+                .map_err(|error| error.to_string()),
+            None => Err("No table cell to insert beside here.".to_owned()),
+        };
+        match result {
+            Ok(()) => {
+                self.last_error = None;
+                self.reparse();
+            }
+            Err(message) => self.last_error = Some(message),
+        }
+        cx.notify();
     }
 
     /// Handles mouse-down events, supporting single click, double-click (word),
@@ -1664,6 +1988,15 @@ impl TypesetView {
     ) {
         self.focus.focus(window, cx);
         if self.composing() {
+            return;
+        }
+        // A handle sits outside the text, so it is checked before any caret
+        // placement: otherwise the click would move the caret to the nearest
+        // leaf and the handle would appear to do nothing.
+        if event.click_count == 1
+            && let Some(handle) = self.table_handles.hit_at(event.position)
+        {
+            self.click_table_handle(handle.target, cx);
             return;
         }
         self.goal_x = None;
@@ -1704,6 +2037,29 @@ impl TypesetView {
             return;
         }
 
+        // A click inside a link is not ordinary caret placement. Plain click
+        // selects the visible label so the link can be edited; a modifier click
+        // asks to follow it (LINK-01/LINK-02). Doing this before caret placement
+        // keeps the external opener off a plain click, which was the audited
+        // defect.
+        if event.click_count == 1
+            && !event.modifiers.shift
+            && let Some(link) = self.link_at_offset(offset).cloned()
+        {
+            if event.modifiers.secondary(cx) {
+                self.activate_link(&link, cx);
+            } else {
+                // Keep the caret inside the label so the source is revealed for
+                // editing, but select the label rather than the raw syntax.
+                self.editor.set_selection(link.range.start, link.range.end);
+                self.drag_anchor = Some(link.range.start);
+                self.drag_mode = DragMode::Char;
+                self.scroll_caret_into_view();
+                cx.notify();
+            }
+            return;
+        }
+
         if event.modifiers.shift {
             let anchor = self.editor.selection().anchor();
             self.editor.set_selection(anchor, offset);
@@ -1726,6 +2082,60 @@ impl TypesetView {
         }
         self.scroll_caret_into_view();
         cx.notify();
+    }
+
+    /// The link mark whose syntax contains `offset`.
+    ///
+    /// Reads the projection's marks rather than re-parsing: the same marks the
+    /// renderer used to draw the link, so hit testing and drawing agree.
+    fn link_at_offset(&self, offset: usize) -> Option<&inkpoint_editor_core::InlineMark> {
+        inkpoint_editor_core::links::link_at(self.document.inline_marks(), offset)
+    }
+
+    /// Follows a link: anchors scroll in-document, openable targets are emitted.
+    ///
+    /// The classification lives in the core, so this method only decides what to
+    /// do with each outcome. A missing anchor reports a miss and leaves the
+    /// caret and the document alone, per the anchor contract.
+    fn activate_link(&mut self, link: &inkpoint_editor_core::InlineMark, cx: &mut Context<Self>) {
+        let inkpoint_editor_core::InlineMarkKind::Link { destination } = &link.kind else {
+            return;
+        };
+        match inkpoint_editor_core::links::classify(self.editor.source(), destination) {
+            inkpoint_editor_core::links::LinkTarget::Anchor { offset } => {
+                self.editor.set_caret(offset);
+                self.reveal_caret = Some(offset);
+                self.scroll_offset_into_view(offset);
+                cx.notify();
+            }
+            inkpoint_editor_core::links::LinkTarget::DocumentTop => {
+                self.editor.set_caret(0);
+                self.reveal_caret = Some(0);
+                self.scroll_offset_into_view(0);
+                cx.notify();
+            }
+            inkpoint_editor_core::links::LinkTarget::External(url) => {
+                cx.emit(LinkActivated {
+                    action: LinkAction::External(url),
+                });
+            }
+            inkpoint_editor_core::links::LinkTarget::Local(path) => {
+                cx.emit(LinkActivated {
+                    action: LinkAction::Local(path),
+                });
+            }
+            inkpoint_editor_core::links::LinkTarget::Rejected(url) => {
+                // Editable text, but never opened. The host decides how to say so.
+                cx.emit(LinkActivated {
+                    action: LinkAction::Refused(url),
+                });
+            }
+            inkpoint_editor_core::links::LinkTarget::MissingAnchor(fragment) => {
+                // Report without moving the caret or touching the document.
+                self.last_error = Some(format!("没有找到标题 #{fragment}"));
+                cx.notify();
+            }
+        }
     }
 
     // The rendered checkbox is immediately left of the first line's text. A
@@ -1931,37 +2341,123 @@ impl TypesetView {
             cx.notify();
             return;
         }
-        let result = match command {
+        let result: Result<(), String> = match command {
             EditorCommand::ToggleBold => self
                 .editor
-                .toggle_inline_mark(inkpoint_editor_core::InlineFormat::Bold),
+                .toggle_inline_mark(inkpoint_editor_core::InlineFormat::Bold)
+                .map_err(|error| error.to_string()),
             EditorCommand::ToggleItalic => self
                 .editor
-                .toggle_inline_mark(inkpoint_editor_core::InlineFormat::Italic),
+                .toggle_inline_mark(inkpoint_editor_core::InlineFormat::Italic)
+                .map_err(|error| error.to_string()),
             EditorCommand::ToggleInlineCode => self
                 .editor
-                .toggle_inline_mark(inkpoint_editor_core::InlineFormat::Code),
+                .toggle_inline_mark(inkpoint_editor_core::InlineFormat::Code)
+                .map_err(|error| error.to_string()),
             EditorCommand::ToggleStrikethrough => self
                 .editor
-                .toggle_inline_mark(inkpoint_editor_core::InlineFormat::Strikethrough),
-            EditorCommand::ToggleQuote => self.editor.toggle_line_prefix("> "),
-            EditorCommand::ToggleBulletList => self.editor.toggle_line_prefix("- "),
-            EditorCommand::ToggleOrderedList => self.editor.toggle_line_prefix("1. "),
-            EditorCommand::ToggleTaskList => self.editor.toggle_line_prefix("- [ ] "),
-            EditorCommand::Heading(level) => self.editor.set_heading(level),
+                .toggle_inline_mark(inkpoint_editor_core::InlineFormat::Strikethrough)
+                .map_err(|error| error.to_string()),
+            EditorCommand::ToggleQuote => self
+                .editor
+                .toggle_line_prefix("> ")
+                .map_err(|error| error.to_string()),
+            EditorCommand::ToggleBulletList => self
+                .editor
+                .toggle_line_prefix("- ")
+                .map_err(|error| error.to_string()),
+            EditorCommand::ToggleOrderedList => self
+                .editor
+                .toggle_line_prefix("1. ")
+                .map_err(|error| error.to_string()),
+            EditorCommand::ToggleTaskList => self
+                .editor
+                .toggle_line_prefix("- [ ] ")
+                .map_err(|error| error.to_string()),
+            EditorCommand::Heading(level) => self
+                .editor
+                .set_heading(level)
+                .map_err(|error| error.to_string()),
+            // Table structure commands come from the core, so a row handle, a
+            // column handle and a menu item all produce identical bytes. The
+            // core returns `None` when the request is not representable (no
+            // table, last column, header row), which is reported rather than
+            // applied as a partial edit.
+            EditorCommand::TableInsertRowAbove => self.apply_table_edit(
+                inkpoint_editor_core::table_edit::insert_row_above,
+                "No table row to insert above here.",
+            ),
+            EditorCommand::TableInsertRowBelow => self.apply_table_edit(
+                inkpoint_editor_core::table_edit::insert_row_below,
+                "No table row to insert below here.",
+            ),
+            EditorCommand::TableDeleteRow => self.apply_table_edit(
+                inkpoint_editor_core::table_edit::delete_row,
+                "This row cannot be deleted.",
+            ),
+            EditorCommand::TableInsertColumnLeft => self.apply_table_edit(
+                inkpoint_editor_core::table_edit::insert_column_left,
+                "No table column to insert left of here.",
+            ),
+            EditorCommand::TableInsertColumnRight => self.apply_table_edit(
+                inkpoint_editor_core::table_edit::insert_column_right,
+                "No table column to insert right of here.",
+            ),
+            EditorCommand::TableDeleteColumn => self.apply_table_edit(
+                inkpoint_editor_core::table_edit::delete_column,
+                "This column cannot be deleted.",
+            ),
+            EditorCommand::TableSetAlignment(alignment) => {
+                let source = self.editor.source().to_owned();
+                let caret = self.editor.selection().head();
+                match inkpoint_editor_core::table_edit::set_column_alignment(
+                    &source, caret, alignment,
+                ) {
+                    Some(edit) => self
+                        .editor
+                        .apply_edit(edit)
+                        .map_err(|error| error.to_string()),
+                    None => Err("No table column to align here.".to_owned()),
+                }
+            }
         };
-        // A rejected command is kept rather than dropped: a read-only document or
-        // a range the source cannot take would otherwise fail silently, and the
-        // user would see a menu click do nothing. Re-parsing only on success
-        // keeps a rejected command from rebuilding the tree for nothing.
+        // A rejected command is kept rather than dropped: a read-only document, a
+        // range the source cannot take, or a table command the source cannot
+        // represent would otherwise fail silently, and the user would see a menu
+        // click do nothing. Re-parsing only on success keeps a rejected command
+        // from rebuilding the tree for nothing.
         match result {
             Ok(()) => {
                 self.last_error = None;
                 self.reparse();
             }
-            Err(error) => self.last_error = Some(error.to_string()),
+            Err(message) => self.last_error = Some(message),
         }
         cx.notify();
+    }
+
+    /// Applies a core table command against the live source and caret.
+    ///
+    /// `command` receives the current source and caret and returns either an
+    /// edit or `None` when the request is not representable. `refusal` is the
+    /// message for that case, so a menu item that does nothing explains itself.
+    fn apply_table_edit(
+        &mut self,
+        command: impl Fn(&str, usize) -> Option<inkpoint_editor_core::SourceEdit>,
+        refusal: &str,
+    ) -> Result<(), String> {
+        let source = self.editor.source().to_owned();
+        let caret = self.editor.selection().head();
+        match command(&source, caret) {
+            Some(edit) => self
+                .editor
+                .apply_edit(edit)
+                .map_err(|error| error.to_string()),
+            // A refusal is an error with an explanation, not a silent success:
+            // otherwise the caller's success arm clears the message and the menu
+            // item appears to do nothing at all.
+            None => Err(refusal.to_owned()),
+        }
     }
 
     /// Why the last command was rejected, when it was.
@@ -2036,6 +2532,31 @@ impl Element for InputSurface {
         );
         self.view.update(cx, |view, _cx| {
             view.geometry = LeafIndex::new(leaves);
+            // Handles are placed from this frame's rectangles, so they are
+            // rebuilt here rather than in `render`: `render` runs before the
+            // frame's geometry exists and would place them from stale bounds.
+            //
+            // The guard is not an optimisation detail: a document with no table
+            // has no handles, and building the rectangle list for it walks every
+            // leaf on every frame. On a 1,000-block document that cost 11 ms of
+            // a 29 ms budget for nothing.
+            if view.table_slots.is_empty() {
+                // No tables: drop any groups left from the previous frame, or a
+                // table the user just deleted would keep its handles.
+                view.table_handles.clear();
+            } else {
+                let leaf_rects: Vec<(Range<usize>, Bounds<Pixels>)> = view
+                    .document
+                    .leaf_spans()
+                    .iter()
+                    .filter_map(|leaf| {
+                        Some((leaf.span()?, view.geometry.get(leaf.key())?.bounds()))
+                    })
+                    .collect();
+                let slots = std::mem::take(&mut view.table_slots);
+                view.table_handles.rebuild(&slots, &leaf_rects);
+                view.table_slots = slots;
+            }
             if view.native_layout.resolve_pending_reveal() {
                 _cx.notify();
             }
@@ -2097,6 +2618,39 @@ impl Element for InputSurface {
         let caret = self.view.read(cx).caret_bounds();
         if let Some(caret) = caret {
             window.paint_quad(gpui_kit::fill(caret, self.caret_color));
+        }
+        // Table handles float in the gutters beside a table, so they are painted
+        // after the text: a control that the text can cover is a control the
+        // user cannot click.
+        let theme = gpui_kit::component::theme::Theme::global(cx);
+        let handles = self.view.read(cx).table_handles.visible_handles();
+        for (bounds, hovered) in handles {
+            let (background, mark) = if hovered {
+                (theme.colors.primary, theme.colors.primary_foreground)
+            } else {
+                (theme.colors.muted, theme.colors.muted_foreground)
+            };
+            window.paint_quad(gpui_kit::fill(bounds, background));
+            // The plus mark is two bars rather than a glyph: a glyph would need
+            // a shaped run inside `paint`, and the affordance reads the same.
+            let bar = px(1.5);
+            let inset = px(4.0);
+            let vertical = Bounds {
+                origin: Point {
+                    x: bounds.origin.x + (bounds.size.width - bar) / 2.,
+                    y: bounds.origin.y + inset,
+                },
+                size: size(bar, bounds.size.height - inset * 2.),
+            };
+            let horizontal = Bounds {
+                origin: Point {
+                    x: bounds.origin.x + inset,
+                    y: bounds.origin.y + (bounds.size.height - bar) / 2.,
+                },
+                size: size(bounds.size.width - inset * 2., bar),
+            };
+            window.paint_quad(gpui_kit::fill(vertical, mark));
+            window.paint_quad(gpui_kit::fill(horizontal, mark));
         }
         // This is the line that makes typing work: it tells the window which
         // entity answers the platform's text and IME calls.
@@ -2928,3 +3482,7 @@ mod native_writing_tests;
 #[cfg(test)]
 #[path = "../tests/support/native_task_hit.rs"]
 mod native_task_hit_tests;
+
+#[cfg(test)]
+#[path = "../tests/support/audit_view.rs"]
+mod audit_view_tests;

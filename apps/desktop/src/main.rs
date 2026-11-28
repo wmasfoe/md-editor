@@ -1,16 +1,20 @@
+mod app_data;
 mod appearance;
 mod document;
 mod folder;
 mod image_assets;
+mod link_target;
 mod local_ai;
 pub(crate) mod session;
 mod settings;
+mod system_open;
 mod workspace;
 
 use futures::{StreamExt, channel::mpsc};
 use gpui_kit::*;
 use inkpoint_editor_gpui::{
-    BlockFormat, Copy, Cut, HostCommand::*, InlineFormat, Paste, ToggleSourceMode, TypesetView,
+    AlignmentChoice, BlockFormat, Copy, Cut, HostCommand::*, InlineFormat, Paste, TableCommand,
+    ToggleSourceMode, TypesetView,
 };
 use settings::OpenSettings;
 use std::path::PathBuf;
@@ -72,18 +76,29 @@ const APP_NAME: &str = "Inkpoint";
 
 fn main() {
     let startup_path = std::env::args_os().nth(1).map(PathBuf::from);
-    let (open_paths, mut pending_paths) = mpsc::unbounded();
+    let (open_requests, mut pending_requests) = mpsc::unbounded();
     let app = application()
         .with_assets(assets::Assets)
         .with_quit_mode(QuitMode::LastWindowClosed);
+    // Each `on_open_urls` callback is one delivery. Giving it a sequence number
+    // is what lets the queue tell a repeated wake-up for the same request (drop
+    // the duplicate) apart from two deliberate opens of one file (keep both).
+    let mut deliveries = system_open::DeliverySequence::default();
+    let ingress_log = system_open::IngressLog::from_env();
+    let ingress_writer = ingress_log.clone();
     app.on_open_urls(move |urls| {
-        let path = urls
-            .into_iter()
-            .filter_map(|url| url::Url::parse(&url).ok())
-            .filter_map(|url| url.to_file_path().ok())
-            .find(|path| document::is_markdown(path));
-        if let Some(path) = path {
-            let _ = open_paths.unbounded_send(path);
+        let delivery = deliveries.next();
+        let requests = system_open::requests_from_urls(delivery, urls, document::is_markdown);
+        // A callback that delivered nothing supported is not an error: macOS
+        // also reports non-file and non-Markdown items here. Logging the raw
+        // count is what separates "the OS never delivered it" from "the app
+        // dropped it" during a rehearsal.
+        ingress_writer.record(system_open::IngressEvent::Delivered {
+            delivery,
+            url_count: requests.len(),
+        });
+        for request in requests {
+            let _ = open_requests.unbounded_send(request);
         }
     });
     app.run(move |cx| {
@@ -162,6 +177,35 @@ fn main() {
                 MenuItem::action("Numbered List", FormatBlock(BlockFormat::OrderedList)),
                 MenuItem::action("Task List", FormatBlock(BlockFormat::TaskList)),
             ]),
+            Menu::new("Table").items([
+                MenuItem::action("Insert Row Above", Table(TableCommand::InsertRowAbove)),
+                MenuItem::action("Insert Row Below", Table(TableCommand::InsertRowBelow)),
+                MenuItem::action("Delete Row", Table(TableCommand::DeleteRow)),
+                MenuItem::separator(),
+                MenuItem::action("Insert Column Left", Table(TableCommand::InsertColumnLeft)),
+                MenuItem::action(
+                    "Insert Column Right",
+                    Table(TableCommand::InsertColumnRight),
+                ),
+                MenuItem::action("Delete Column", Table(TableCommand::DeleteColumn)),
+                MenuItem::separator(),
+                MenuItem::action(
+                    "Align Default",
+                    Table(TableCommand::SetAlignment(AlignmentChoice::Default)),
+                ),
+                MenuItem::action(
+                    "Align Left",
+                    Table(TableCommand::SetAlignment(AlignmentChoice::Left)),
+                ),
+                MenuItem::action(
+                    "Align Center",
+                    Table(TableCommand::SetAlignment(AlignmentChoice::Center)),
+                ),
+                MenuItem::action(
+                    "Align Right",
+                    Table(TableCommand::SetAlignment(AlignmentChoice::Right)),
+                ),
+            ]),
             Menu::new("AI").items([MenuItem::action(
                 "Continue with Local AI",
                 ContinueWithLocalAi,
@@ -190,14 +234,46 @@ fn main() {
         })
         .expect("open Inkpoint GPUI window");
         let workspace = workspace.downgrade();
+        // One FIFO consumer. Each request is attempted exactly once, but only
+        // when the workspace can accept it: dequeuing into a busy workspace loses
+        // the item, because the open path refuses silently and the identity is
+        // already consumed (OPEN-03).
+        let mut queue = system_open::SystemOpenQueue::default();
+        let consume_log = ingress_log.clone();
         cx.spawn(async move |cx| {
-            while let Some(path) = pending_paths.next().await {
-                let Some(workspace) = workspace.upgrade() else {
-                    break;
-                };
-                let _ = cx.update_window(window, |_, window, cx| {
-                    workspace.update(cx, |workspace, cx| workspace.open_path(path, window, cx));
-                });
+            while let Some(request) = pending_requests.next().await {
+                queue.enqueue([request]);
+                while let Some(next) = queue.front().cloned() {
+                    let Some(workspace) = workspace.upgrade() else {
+                        break;
+                    };
+                    // Wait for the workspace to be ready instead of consuming the
+                    // request into a refusal. `file_busy` clears when the current
+                    // operation finishes and `composing` when the IME commits.
+                    let ready =
+                        cx.update(|cx| workspace.read_with(cx, |w, cx| w.can_accept_open(cx)));
+                    if !ready {
+                        cx.background_executor()
+                            .timer(std::time::Duration::from_millis(20))
+                            .await;
+                        continue;
+                    }
+                    let Some(request) = queue.dequeue() else {
+                        break;
+                    };
+                    debug_assert_eq!(request.identity, next.identity);
+                    consume_log.record(system_open::IngressEvent::Consumed {
+                        identity: request.identity.clone(),
+                        path: request.path.clone(),
+                    });
+                    let _ = cx.update_window(window, |_, window, cx| {
+                        workspace.update(cx, |workspace, cx| {
+                            workspace.open_path(request.path, window, cx)
+                        });
+                    });
+                    // The open just started may itself be busy; the next iteration
+                    // waits for it rather than dropping the following item.
+                }
             }
         })
         .detach();

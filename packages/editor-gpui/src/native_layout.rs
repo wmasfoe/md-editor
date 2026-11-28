@@ -153,6 +153,37 @@ impl NativeLayoutState {
         self.list.logical_scroll_top().item_ix
     }
 
+    /// Source offset of the block currently at the top of the viewport.
+    ///
+    /// This is the reader's place, expressed in a form that survives a reparse:
+    /// block indices change when the block tree is rebuilt for the other mode,
+    /// but a source offset means the same thing in both projections.
+    pub fn top_source_offset(&self) -> Option<usize> {
+        let index = self.list.logical_scroll_top().item_ix;
+        self.blocks
+            .get(index)
+            .and_then(|block| block.span())
+            .map(|span| span.start)
+    }
+
+    /// Scrolls so the block containing `offset` sits at the top.
+    ///
+    /// Used to restore the reading position after a mode switch. Deferred to the
+    /// next layout like a caret reveal, because the new block tree has not been
+    /// measured yet.
+    pub fn restore_top_offset(&self, offset: usize) {
+        let index = self
+            .blocks
+            .iter()
+            .position(|block| {
+                block.span().is_some_and(|span| {
+                    span.start <= offset && offset < span.end.max(span.start + 1)
+                })
+            })
+            .unwrap_or(0);
+        self.reveal_after_layout(index);
+    }
+
     fn sync(
         &mut self,
         blocks: &[BlockNode],
@@ -252,12 +283,16 @@ fn block_flows(blocks: &[BlockNode]) -> Vec<FlowPosition> {
 }
 
 fn stable_block_ids(signatures: &[BlockSignature]) -> Vec<u64> {
-    let mut occurrences = HashMap::<(std::mem::Discriminant<BlockNode>, String), usize>::new();
+    // The keys borrow from `signatures` instead of cloning each block's source
+    // text: this runs on every frame, and a clone per block meant 2,000 string
+    // allocations per keystroke on a 2,000-block document.
+    let mut occurrences = HashMap::<(std::mem::Discriminant<BlockNode>, &str), usize>::new();
     signatures
         .iter()
         .map(|signature| {
-            let identity = (signature.kind, signature.source.clone());
-            let occurrence = occurrences.entry(identity).or_default();
+            let occurrence = occurrences
+                .entry((signature.kind, signature.source.as_str()))
+                .or_default();
             let mut hasher = DefaultHasher::new();
             signature.kind.hash(&mut hasher);
             signature.source.hash(&mut hasher);

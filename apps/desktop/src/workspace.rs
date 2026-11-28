@@ -8,13 +8,14 @@ use crate::{
     APP_NAME,
     document::{Document, is_markdown},
     folder::FolderEntry,
-    image_assets::store_image,
+    image_assets::{create_missing_directories, resolve_destination, store_image_in},
     local_ai::LocalAiService,
     settings,
 };
 use gpui_kit::{component::tree::TreeState, *};
 use inkpoint_editor_gpui::{
-    ImagePaste, PasteTarget, TypesetTypography, TypesetView as DesktopEditor,
+    ImagePaste, LinkAction, LinkActivated, PasteTarget, TypesetTypography,
+    TypesetView as DesktopEditor,
 };
 
 actions!(
@@ -40,6 +41,12 @@ enum FileAction {
 
 struct Suggestion {
     revision: u64,
+    /// The presentation generation the suggestion was computed in.
+    ///
+    /// A mode switch changes what these byte offsets mean, and it does not
+    /// change the revision, so the revision check alone would let a suggestion
+    /// from the other mode be accepted (AI-01).
+    mode_generation: u64,
     selection: Range<usize>,
     text: String,
 }
@@ -74,6 +81,7 @@ pub(crate) struct Workspace {
     pub(crate) metric_kind: DocumentMetricKind,
     _editor_observer: Subscription,
     _image_paste_subscription: Subscription,
+    _link_activated_subscription: Subscription,
     _appearance_observer: Subscription,
     _settings_observer: Subscription,
     _ai_shutdown: Subscription,
@@ -101,35 +109,40 @@ impl Workspace {
         let _settings_observer = cx.observe(&settings_entity, move |this, _, cx| {
             apply_typography(&this.editor, cx);
         });
-        let _editor_observer =
-            cx.observe_in(&editor, window, |this, _, window, cx| {
-                this.update_title(window, cx);
-                if this.suggestion.as_ref().is_some_and(|suggestion| {
-                    this.editor.read(cx).revision() != suggestion.revision
-                }) {
-                    this.suggestion = None;
-                }
-                // A rejected edit — typing into a read-only document, or past a
-                // boundary — used to be silent. Report it once, when it appears,
-                // rather than leaving the user with a key that does nothing.
-                let error = this.editor.read(cx).last_error().map(ToString::to_string);
-                let has_error = error.is_some();
-                match error {
-                    Some(error) => {
-                        if this.status.as_ref() != error {
-                            this.message(error, cx);
-                        }
+        let _editor_observer = cx.observe_in(&editor, window, |this, _, window, cx| {
+            this.update_title(window, cx);
+            // Drop the suggestion when the document moved on *or* the
+            // presentation changed. The observer fires on editor changes,
+            // which includes the mode switch, so this is where a stale
+            // suggestion disappears from the UI (AI-01).
+            if this.suggestion.as_ref().is_some_and(|suggestion| {
+                let editor = this.editor.read(cx);
+                editor.revision() != suggestion.revision
+                    || editor.mode_generation() != suggestion.mode_generation
+            }) {
+                this.suggestion = None;
+            }
+            // A rejected edit — typing into a read-only document, or past a
+            // boundary — used to be silent. Report it once, when it appears,
+            // rather than leaving the user with a key that does nothing.
+            let error = this.editor.read(cx).last_error().map(ToString::to_string);
+            let has_error = error.is_some();
+            match error {
+                Some(error) => {
+                    if this.status.as_ref() != error {
+                        this.message(error, cx);
                     }
-                    None if this.editor_error_shown => {
-                        // The rejection was resolved by a later successful edit,
-                        // so the stale message goes away instead of sitting there.
-                        this.message("Ready", cx);
-                    }
-                    None => {}
                 }
-                this.editor_error_shown = has_error;
-                cx.notify();
-            });
+                None if this.editor_error_shown => {
+                    // The rejection was resolved by a later successful edit,
+                    // so the stale message goes away instead of sitting there.
+                    this.message("Ready", cx);
+                }
+                None => {}
+            }
+            this.editor_error_shown = has_error;
+            cx.notify();
+        });
         let image_paste_subscription = cx.subscribe_in(
             &editor,
             window,
@@ -137,6 +150,16 @@ impl Workspace {
                 if this.has_active_document {
                     this.paste_image(event.image.clone(), event.target.clone(), window, cx);
                 }
+            },
+        );
+        // Following a link is a host decision: the editor classifies the target,
+        // the host opens it. A fragment never reaches here because the editor
+        // resolves those itself.
+        let link_activated_subscription = cx.subscribe_in(
+            &editor,
+            window,
+            |this, _, event: &LinkActivated, window, cx| {
+                this.follow_link(event.action.clone(), window, cx);
             },
         );
         let appearance_observer = window.observe_window_appearance(settings::sync_system_theme);
@@ -207,6 +230,7 @@ impl Workspace {
             metric_kind: DocumentMetricKind::Words,
             _editor_observer,
             _image_paste_subscription: image_paste_subscription,
+            _link_activated_subscription: link_activated_subscription,
             _appearance_observer: appearance_observer,
             _settings_observer,
             _ai_shutdown: ai_shutdown,
@@ -263,7 +287,16 @@ impl Workspace {
     ) {
         self.has_active_document = true;
         self.document_generation = self.document_generation.wrapping_add(1);
+        // Relative image references resolve against this document's folder. Set
+        // before the first parse so the very first frame can load local images
+        // instead of fetching them over HTTP (IMAGE-01).
+        let document_directory = document
+            .path
+            .as_ref()
+            .and_then(|path| path.parent())
+            .map(|parent| parent.to_path_buf());
         self.editor.update(cx, |editor, cx| {
+            editor.set_document_directory(document_directory, cx);
             editor.replace_markdown(&document.markdown, cx);
             editor.focus(window, cx);
         });
@@ -274,6 +307,14 @@ impl Workspace {
             self.document.path.as_deref(),
             &self.document.markdown,
         );
+        // Copy the draft into its own file. Autosave rewrites the hot-exit
+        // session on every edit, so a draft left only there would be destroyed by
+        // the next keystroke (DRAFT-02).
+        if let Some(draft) = self.pending_draft.as_ref()
+            && let Err(error) = crate::session::store_pending_draft(draft)
+        {
+            eprintln!("Could not persist the pending draft: {error}");
+        }
         self.update_title(window, cx);
         // A file the parser cannot structure still opens, so the user keeps
         // their buffer, but saying so beats an unexplained empty page.
@@ -391,8 +432,61 @@ impl Workspace {
         self.message("Opening folder…", cx);
     }
 
+    /// Whether an incoming open can be attempted right now.
+    ///
+    /// A queued system-open request must not be consumed while the workspace
+    /// cannot act on it: `with_committed_editor` refuses silently in that case, so
+    /// an already-consumed item would simply vanish (OPEN-03). The consumer asks
+    /// this before dequeuing.
+    pub(crate) fn can_accept_open(&self, cx: &App) -> bool {
+        !self.file_busy && !self.editor.read(cx).composing()
+    }
+
     pub(crate) fn open_path(&mut self, path: PathBuf, window: &mut Window, cx: &mut Context<Self>) {
         self.file_action(FileAction::OpenPath(path), window, cx);
+    }
+
+    /// Acts on a link the editor classified and asked the host to follow.
+    ///
+    /// Fragments never arrive here: the editor resolves those itself, because
+    /// they are document navigation rather than a host capability. This handles
+    /// only the three outcomes that need the platform.
+    fn follow_link(&mut self, action: LinkAction, window: &mut Window, cx: &mut Context<Self>) {
+        match action {
+            LinkAction::External(url) => {
+                // The editor only classifies whitelisted schemes as external, so
+                // no further check is needed here; the whitelist is the gate.
+                cx.open_url(&url);
+                self.message(format!("Opened {url}"), cx);
+            }
+            LinkAction::Local(target) => {
+                // The path rules live in `link_target` so they are testable: a
+                // relative link is relative to the document's folder, an absolute
+                // one ignores it, and a `?query`/`#fragment` suffix is not part of
+                // the name.
+                match crate::link_target::resolve_local_link(self.document.path.as_deref(), &target)
+                {
+                    crate::link_target::LocalLink::Document(path) => {
+                        self.open_path(path, window, cx);
+                    }
+                    crate::link_target::LocalLink::Asset(path) => {
+                        cx.open_with_system(&path);
+                        self.message(format!("Opened {target}"), cx);
+                    }
+                    crate::link_target::LocalLink::Missing(path) => {
+                        self.message(format!("Could not find {}", path.display()), cx);
+                    }
+                    crate::link_target::LocalLink::NoBaseDirectory => {
+                        self.message("Save the document before opening local links.", cx);
+                    }
+                }
+            }
+            LinkAction::Refused(target) => {
+                // Editable text, never opened. Saying so is better than a click
+                // that appears to do nothing.
+                self.message(format!("This link cannot be opened: {target}"), cx);
+            }
+        }
     }
 
     fn run_file_action(&mut self, action: FileAction, window: &mut Window, cx: &mut Context<Self>) {
@@ -550,8 +644,11 @@ impl Workspace {
                         this.document = Arc::new(saved);
                         this.update_title(window, cx);
                         if !this.dirty(cx) {
+                            // The document matches disk, so there is nothing to
+                            // hot-exit. The pending draft is a separate owner and
+                            // is left alone: saving current edits must not decide
+                            // what happens to older text.
                             let _ = crate::session::HotExitSession::clear();
-                            this.pending_draft = None;
                         }
                         if let Some(next) = next {
                             this.with_committed_editor(window, cx, move |this, window, cx| {
@@ -605,11 +702,91 @@ impl Workspace {
             return;
         };
 
+        // Resolve the configured directory against this document. An untitled
+        // document has no folder to be relative to, so it takes the save path
+        // above instead of guessing a location.
+        let setting = settings::current(cx)
+            .read(cx)
+            .editor
+            .image_directory
+            .clone();
+        let Some(destination) = resolve_destination(Some(&path), &setting) else {
+            self.message(
+                "The image directory could not be resolved from this document's location.",
+                cx,
+            );
+            return;
+        };
+
+        // Creating folders inside the user's workspace is their decision, so a
+        // missing directory is confirmed first. Cancelling leaves the document
+        // and the filesystem exactly as they were.
+        if let Some(missing) = destination.missing_directory.clone() {
+            self.confirm_image_directory(missing, image, target, path, window, cx);
+            return;
+        }
+        self.write_pasted_image(image, target, path, destination.directory, window, cx);
+    }
+
+    /// Asks before creating a directory that does not exist yet.
+    fn confirm_image_directory(
+        &mut self,
+        missing: PathBuf,
+        image: Image,
+        target: PasteTarget,
+        document_path: PathBuf,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.file_busy {
+            self.message(
+                "Wait for the current file operation before pasting an image.",
+                cx,
+            );
+            return;
+        }
+        self.file_busy = true;
+        let answer = window.prompt(
+            PromptLevel::Warning,
+            "Create the image folder?",
+            Some(&format!(
+                "The image would be copied to {}, which does not exist yet. Create it?",
+                missing.display()
+            )),
+            &["Create Folder", "Cancel"],
+            cx,
+        );
+        cx.spawn_in(window, async move |workspace, cx| {
+            let answer = answer.await;
+            let _ = workspace.update_in(cx, |this, window, cx| {
+                this.file_busy = false;
+                if !matches!(answer, Ok(0)) {
+                    // Cancelled: no directory, no file, no document change.
+                    this.message("Image insert cancelled", cx);
+                    return;
+                }
+                this.write_pasted_image(image, target, document_path, missing, window, cx);
+            });
+        })
+        .detach();
+    }
+
+    /// Writes the image into `directory` and inserts the reference.
+    fn write_pasted_image(
+        &mut self,
+        image: Image,
+        target: PasteTarget,
+        path: PathBuf,
+        directory: PathBuf,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let generation = self.document_generation;
         let image_path = path.clone();
-        let job = cx
-            .background_executor()
-            .spawn(async move { store_image(&path, &image) });
+        let job = cx.background_executor().spawn(async move {
+            create_missing_directories(&directory)?;
+            store_image_in(&path, &directory, &image)
+        });
         cx.spawn_in(window, async move |workspace, cx| {
             let result = job.await;
             let _ = workspace.update_in(cx, |this, _window, cx| {
@@ -657,6 +834,7 @@ impl Workspace {
         let editor = self.editor.read(cx);
         let markdown = editor.markdown().to_string();
         let revision = editor.revision();
+        let mode_generation = editor.mode_generation();
         let selection = editor.selected_range();
         let Some(prefix) = markdown.get(..selection.start) else {
             return;
@@ -691,7 +869,10 @@ impl Workspace {
                 this.ai_busy = false;
                 let editor = this.editor.read(cx);
                 let unstable = editor.composing();
-                if unstable || editor.revision() != revision || editor.selected_range() != selection
+                if unstable
+                    || editor.revision() != revision
+                    || editor.mode_generation() != mode_generation
+                    || editor.selected_range() != selection
                 {
                     this.message(
                         "Suggestion expired because the document or selection changed.",
@@ -703,6 +884,7 @@ impl Workspace {
                     Ok(text) if !text.trim().is_empty() => {
                         this.suggestion = Some(Suggestion {
                             revision,
+                            mode_generation,
                             selection,
                             text,
                         });
@@ -723,6 +905,7 @@ impl Workspace {
         let result = self.editor.update(cx, |editor, cx| {
             editor.insert_if_unchanged(
                 suggestion.revision,
+                suggestion.mode_generation,
                 suggestion.selection,
                 &suggestion.text,
                 cx,
@@ -738,22 +921,37 @@ impl Workspace {
         let Some(draft) = self.pending_draft.take() else {
             return;
         };
-        self.editor.update(cx, |editor, cx| {
-            editor.replace_markdown(&draft.draft_content, cx);
-            if let Some(cursor) = draft.cursor_offset {
-                editor.set_selected_range(cursor..cursor, cx);
-            }
+        // A draft restore replaces the document's content, not its identity, so
+        // it must be one undoable step. Restoring used to clear history, which
+        // made the edits the user had just made unrecoverable (DRAFT-01).
+        let result = self.editor.update(cx, |editor, cx| {
+            let result =
+                editor.replace_markdown_undoable(&draft.draft_content, draft.cursor_offset, cx);
             editor.focus(window, cx);
+            result
         });
         self.draft_preview_open = false;
         self.update_title(window, cx);
-        self.message("Draft restored", cx);
+        match result {
+            Ok(()) => {
+                // The draft has been applied, so its stored copy is spent.
+                let _ = crate::session::clear_pending_draft();
+                self.message("Draft restored. Cmd+Z returns to your edits.", cx);
+            }
+            Err(error) => {
+                // Keep the stored draft: the restore failed, so it is still the
+                // only copy of that text.
+                self.message(format!("Draft could not be restored. {error}"), cx);
+            }
+        }
     }
 
     pub(crate) fn discard_pending_draft(&mut self, cx: &mut Context<Self>) {
         self.pending_draft = None;
         self.draft_preview_open = false;
-        let _ = crate::session::HotExitSession::clear();
+        // Only the draft. Clearing the hot-exit session here threw away the
+        // current unsaved edits while appearing to dismiss the draft.
+        let _ = crate::session::clear_pending_draft();
         self.message("Draft discarded", cx);
     }
 
@@ -769,15 +967,72 @@ impl Workspace {
     }
 
     pub(crate) fn check_initial_session(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if let Ok(Some(session)) = crate::session::HotExitSession::load()
-            && let Some(active) = session.active_document
-        {
-            if let Some(path) = active.file_path {
-                if path.exists() {
-                    self.load_document(path, window, cx);
-                }
-            } else if active.is_untitled && !session.draft_markdown.is_empty() {
+        // The stored draft is its own owner and takes precedence: it is the copy
+        // that survived every autosave, while the session may already describe a
+        // newer state of the same document.
+        let stored_draft = crate::session::load_pending_draft();
+
+        let Ok(Some(session)) = crate::session::HotExitSession::load() else {
+            // No session, but a draft may still exist: opening the document it
+            // belongs to is what makes the draft reachable again.
+            if let Some(draft) = stored_draft {
+                self.recover_stored_draft(draft, window, cx);
+            }
+            return;
+        };
+
+        // A named draft whose file is gone comes first: recovering its text as an
+        // untitled document is the only way the user keeps it, and the audit found
+        // such a draft left in the session file with no entry point at all
+        // (DRAFT-03). The session module decides when a draft is orphaned; the
+        // workspace only presents it.
+        if let Some(draft) = crate::session::orphaned_draft_in(&session) {
+            self.install_document(Document::default(), window, cx);
+            self.pending_draft = Some(draft);
+            self.message(
+                "The original file is missing. A saved draft was recovered; save it to keep the text.",
+                cx,
+            );
+            return;
+        }
+
+        let Some(active) = session.active_document else {
+            return;
+        };
+        if let Some(path) = active.file_path {
+            if path.exists() {
+                self.load_document(path, window, cx);
+            }
+        } else if active.is_untitled && !session.draft_markdown.is_empty() {
+            self.install_document(Document::default(), window, cx);
+        }
+
+        // Attach the surviving draft to whatever was just opened, so the banner
+        // offers it. `install_document` may have found a session-derived draft;
+        // the stored copy is the one that cannot have been overwritten.
+        if let Some(draft) = stored_draft {
+            self.pending_draft = Some(draft);
+        }
+    }
+
+    /// Opens the document a stored draft belongs to, so its text is reachable.
+    fn recover_stored_draft(
+        &mut self,
+        draft: crate::session::PendingDraftInfo,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        match draft.file_path.clone() {
+            Some(path) if path.exists() => {
+                self.load_document(path, window, cx);
+                self.pending_draft = Some(draft);
+            }
+            // The file is gone: recover as an untitled document so the text can
+            // still be saved somewhere (DRAFT-03).
+            _ => {
                 self.install_document(Document::default(), window, cx);
+                self.pending_draft = Some(draft);
+                self.message("A saved draft was recovered; save it to keep the text.", cx);
             }
         }
     }
@@ -787,8 +1042,5 @@ fn local_ai_service() -> Option<LocalAiService> {
     let executable = std::env::current_exe().ok()?;
     let resources = executable.parent()?.parent()?.join("Resources");
     let sidecar = resources.join("llama/llama-server");
-    Some(LocalAiService::new(
-        sidecar,
-        dirs::data_dir()?.join("md-editor"),
-    ))
+    Some(LocalAiService::new(sidecar, crate::app_data::data_root()?))
 }

@@ -336,20 +336,135 @@ fn native_layout_reveals_end_after_a_trailing_newline(cx: &mut TestAppContext) {
     });
 }
 
-#[gpui_kit::test]
-#[ignore = "run on the Mac used for release acceptance"]
-fn native_long_document_input_to_paint(cx: &mut TestAppContext) {
-    cx.update(gpui_kit::init);
-    let source = (0..1000)
-        .map(|i| format!("第 {i} 段。中英文 mixed text 和 **格式** 会一起换行。"))
-        .collect::<Vec<_>>()
-        .join("\n\n");
-    let (view, vcx) =
-        cx.add_window_view(|window, cx| TypesetView::new(window, cx, source.as_str()));
+/// One paragraph of the long-document latency fixture.
+///
+/// Mixed CJK/Latin prose with inline emphasis: the shape the interaction audit
+/// measured. Changing this text invalidates comparison against earlier runs, so
+/// the reported fixture hash covers it.
+fn perf_paragraph(index: usize) -> String {
+    format!("第 {index} 段。中英文 mixed text 和 **格式** 会一起换行。")
+}
+
+/// Builds `blocks` paragraphs separated by blank lines, under one heading.
+///
+/// The heading is load-bearing, not decoration. A heading makes the renderer
+/// look up its content range, and that lookup is what pulls in the source-block
+/// parse. A paragraph-only fixture never takes that path, so the gate measured
+/// a document shape the app rarely sees and hid a third full parse behind it:
+/// one heading was worth 7.7 ms of a 33 ms budget on 1,000 blocks, enough to
+/// push a passing document over the gate. Changing this text changes the
+/// reported fixture hash, so it invalidates comparison against earlier runs.
+fn long_document_fixture(blocks: usize) -> String {
+    let mut source = String::from("# 标题\n\n");
+    source.push_str(
+        &(0..blocks)
+            .map(perf_paragraph)
+            .collect::<Vec<_>>()
+            .join("\n\n"),
+    );
+    source
+}
+
+/// FNV-1a over the fixture bytes.
+///
+/// A stable, dependency-free digest is enough here: the point is proving two
+/// reported runs measured the same Markdown, not cryptographic strength.
+fn fixture_hash(source: &str) -> u64 {
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for byte in source.as_bytes() {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    hash
+}
+
+/// The commit the benchmark binary was built from.
+///
+/// CI and release scripts can pin `INKPOINT_BUILD_SHA`; local runs fall back to
+/// asking git so the printed report still identifies its source.
+fn build_sha() -> String {
+    if let Some(sha) = option_env!("INKPOINT_BUILD_SHA") {
+        return sha.to_owned();
+    }
+    std::process::Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .output()
+        .ok()
+        .filter(|output| output.status.success())
+        .and_then(|output| String::from_utf8(output.stdout).ok())
+        .map_or_else(|| "unknown".to_owned(), |sha| sha.trim().to_owned())
+}
+
+/// CPU and OS identity, so a number is never quoted without its machine.
+fn machine_label() -> String {
+    let cpu = std::process::Command::new("sysctl")
+        .args(["-n", "machdep.cpu.brand_string"])
+        .output()
+        .ok()
+        .filter(|output| output.status.success())
+        .and_then(|output| String::from_utf8(output.stdout).ok())
+        .map_or_else(
+            || std::env::consts::ARCH.to_owned(),
+            |name| name.trim().to_owned(),
+        );
+    let rustc = std::process::Command::new("rustc")
+        .arg("--version")
+        .output()
+        .ok()
+        .filter(|output| output.status.success())
+        .and_then(|output| String::from_utf8(output.stdout).ok())
+        .map_or_else(|| "unknown rustc".to_owned(), |line| line.trim().to_owned());
+    format!("{cpu} / {} / {rustc}", std::env::consts::OS)
+}
+
+/// Nearest-rank percentile: index `ceil(pct/100 * n)` in 1-based terms.
+fn nearest_rank(sorted: &[Duration], percent: usize) -> Duration {
+    sorted[(sorted.len() * percent).div_ceil(100) - 1]
+}
+
+/// Restores the exact pre-sample state outside the timed region.
+///
+/// Every sample must start from identical bytes, caret and focus, otherwise the
+/// series measures fixture drift instead of input latency.
+fn reset_before_sample(
+    view: &Entity<TypesetView>,
+    vcx: &mut VisualTestContext,
+    source: &str,
+    caret: usize,
+) {
+    vcx.update(|window, cx| {
+        view.update(cx, |view, cx| {
+            view.replace_markdown(source, cx);
+            view.set_caret(caret, cx);
+            view.focus(window, cx);
+        });
+    });
+    // Draw to a settled state so the timed sample only pays for its own input.
     draw(vcx);
-    const SAMPLE_COUNT: usize = 35;
+    draw(vcx);
+}
+
+/// Measures `SAMPLE_COUNT` input-to-paint samples for one document size.
+fn measure_input_to_paint(
+    view: &Entity<TypesetView>,
+    vcx: &mut VisualTestContext,
+    source: &str,
+    caret: usize,
+) -> Vec<Duration> {
+    // Fixed warm-up so the first timed sample is not paying one-time setup.
+    for _ in 0..WARM_UP_COUNT {
+        reset_before_sample(view, vcx, source, caret);
+        vcx.update(|window, cx| {
+            view.update(cx, |view, cx| {
+                view.replace_text_in_range(None, "中", window, cx)
+            });
+            window.draw(cx).clear(cx);
+        });
+    }
     let mut samples = Vec::with_capacity(SAMPLE_COUNT);
     for _ in 0..SAMPLE_COUNT {
+        reset_before_sample(view, vcx, source, caret);
+        // Timed section: production text-input entry, then through to GPUI draw.
         let elapsed = vcx.update(|window, cx| {
             let start = Instant::now();
             view.update(cx, |view, cx| {
@@ -360,11 +475,198 @@ fn native_long_document_input_to_paint(cx: &mut TestAppContext) {
         });
         samples.push(elapsed);
     }
-    samples.sort_unstable();
-    let p95 = samples[(samples.len() * 95).div_ceil(100) - 1];
-    eprintln!("1000 blocks, native input to paint p95 {p95:?}");
-    assert!(
-        p95 <= Duration::from_millis(33),
-        "native long-document p95: {p95:?}"
+    samples
+}
+
+/// Prints every duration plus the percentiles the acceptance gate uses.
+fn report_latency(label: &str, source: &str, samples: &[Duration], gate: Duration) -> Duration {
+    let mut sorted = samples.to_vec();
+    sorted.sort_unstable();
+    let p50 = nearest_rank(&sorted, 50);
+    let p95 = nearest_rank(&sorted, 95);
+    let durations = sorted
+        .iter()
+        .map(|sample| format!("{:.2}", sample.as_secs_f64() * 1000.0))
+        .collect::<Vec<_>>()
+        .join(", ");
+    eprintln!(
+        "[{label}] fixture fnv1a64={:#018x} bytes={} build={} machine={}",
+        fixture_hash(source),
+        source.len(),
+        build_sha(),
+        machine_label()
     );
+    eprintln!("[{label}] samples_ms=[{durations}]");
+    eprintln!(
+        "[{label}] p50={:.2}ms p95={:.2}ms gate={:.0}ms samples={}",
+        p50.as_secs_f64() * 1000.0,
+        p95.as_secs_f64() * 1000.0,
+        gate.as_secs_f64() * 1000.0,
+        sorted.len()
+    );
+    p95
+}
+
+const SAMPLE_COUNT: usize = 35;
+const WARM_UP_COUNT: usize = 5;
+
+/// Long-document input latency gate: 1,000 blocks p95 <= 33 ms, 2,000 <= 45 ms.
+///
+/// The timed section runs through the production text-input entry and stops at
+/// the GPUI draw call, matching the interaction audit's measurement window. The
+/// audit's own 1k=30.16 ms / 2k=66.06 ms series used a different fixture and is
+/// not merged with these numbers.
+#[gpui_kit::test]
+#[ignore = "run on the Mac used for release acceptance"]
+fn native_long_document_input_to_paint(cx: &mut TestAppContext) {
+    cx.update(gpui_kit::init);
+    cx.update(TypesetView::bind_keys);
+    for (blocks, gate_ms) in [(1000usize, 33u64), (2000, 45)] {
+        let source = long_document_fixture(blocks);
+        // Type mid-document: the realistic hot path is one block relaid out
+        // between neighbours, not an append at EOF.
+        let mut caret = source.len() / 2;
+        while !source.is_char_boundary(caret) {
+            caret += 1;
+        }
+        let (view, vcx) =
+            cx.add_window_view(|window, cx| TypesetView::new(window, cx, source.as_str()));
+        vcx.update(|window, cx| view.update(cx, |view, cx| view.focus(window, cx)));
+        draw(vcx);
+        draw(vcx);
+        let samples = measure_input_to_paint(&view, vcx, source.as_str(), caret);
+        let gate = Duration::from_millis(gate_ms);
+        let p95 = report_latency(&format!("{blocks} blocks"), source.as_str(), &samples, gate);
+        assert!(
+            p95 <= gate,
+            "{blocks}-block native input-to-paint p95 {p95:?} exceeds gate {gate:?}"
+        );
+    }
+}
+
+/// PERF-MIXED-01: prose, a GFM table, a Mermaid flowchart and Chinese input
+/// stay consistent through a round of edits.
+///
+/// This is the regression the perf work must not break, and it is deliberately
+/// separate from the 1k/2k fixtures: those measure latency, this one measures
+/// that a mixed document still holds together. There is no threshold here.
+#[gpui_kit::test]
+fn perf_mixed01_a_table_diagram_and_chinese_input_stay_consistent(cx: &mut TestAppContext) {
+    let source = "开头段落。\n\n| 列一 | 列二 |\n| --- | --- |\n| a | b |\n\n```mermaid\nflowchart LR\nA-->B\n```\n\n结尾段落。\n";
+    let (view, vcx) = open_focused(cx, source);
+
+    // Initial state: one table with all six cells, nothing failed to parse.
+    view.read_with(&*vcx, |view, _| {
+        assert_eq!(view.markdown(), source, "the fixture opens unchanged");
+        let groups = view.document.table_cells();
+        assert_eq!(groups.len(), 1, "one table");
+        assert_eq!(groups[0].len(), 6, "3x2 cells");
+        assert!(view.parse_error().is_none(), "the fixture parses");
+    });
+
+    // 1. Edit prose.
+    let prose = source.find("开头段落。").expect("the opening paragraph") + "开头段落。".len();
+    vcx.update(|_, cx| view.update(cx, |view, cx| view.set_caret(prose, cx)));
+    vcx.simulate_input("补充");
+    draw(vcx);
+    view.read_with(&*vcx, |view, _| {
+        assert!(
+            view.markdown().contains("开头段落。补充"),
+            "the prose edit landed: {:?}",
+            view.markdown()
+        );
+    });
+
+    // 2. Edit a table cell: the table must still be one table with six cells.
+    let cell = view.read_with(&*vcx, |view, _| {
+        view.markdown().find("| a |").expect("the cell")
+    });
+    let caret = cell + "| ".len();
+    vcx.update(|_, cx| view.update(cx, |view, cx| view.set_caret(caret, cx)));
+    vcx.simulate_input("单元");
+    draw(vcx);
+    view.read_with(&*vcx, |view, _| {
+        assert!(
+            view.markdown().contains("| 单元a |"),
+            "the cell edit stayed inside the cell: {:?}",
+            view.markdown()
+        );
+        let groups = view.document.table_cells();
+        assert_eq!(groups.len(), 1, "still one table");
+        assert_eq!(groups[0].len(), 6, "the table did not gain or lose cells");
+    });
+
+    // 3. Commit Chinese composition at the end of the document.
+    let end = view.read_with(&*vcx, |view, _| view.markdown().len());
+    vcx.update(|_, cx| view.update(cx, |view, cx| view.set_caret(end, cx)));
+    vcx.simulate_input("中文组合");
+    draw(vcx);
+    view.read_with(&*vcx, |view, _| {
+        assert!(
+            view.markdown().contains("中文组合"),
+            "the composed text is in the source: {:?}",
+            view.markdown()
+        );
+        assert!(
+            view.document.table_cells().len() == 1,
+            "composing outside the table left it intact"
+        );
+    });
+
+    // 4. Update the Mermaid diagram's content.
+    let arrow = view.read_with(&*vcx, |view, _| {
+        view.markdown().find("A-->B").expect("the edge")
+    });
+    let target = arrow + "A-->B".len();
+    vcx.update(|_, cx| view.update(cx, |view, cx| view.set_caret(target, cx)));
+    vcx.simulate_input("C");
+    draw(vcx);
+    view.read_with(&*vcx, |view, _| {
+        assert!(
+            view.markdown().contains("A-->BC"),
+            "the diagram source changed: {:?}",
+            view.markdown()
+        );
+        assert!(
+            view.document.table_cells().len() == 1,
+            "editing the fence left the table intact"
+        );
+    });
+
+    // 5. Break the diagram: the source must survive and the document must stay
+    //    editable. A failed diagram degrades to its source rather than failing
+    //    the whole document.
+    // Deleting the header through the keyboard is what a user does; two
+    // `set_caret` calls are not a selection, so typing would insert instead of
+    // replace.
+    let header_end = view.read_with(&*vcx, |view, _| {
+        let markdown = view.markdown().to_owned();
+        let at = markdown.find("flowchart LR").expect("the diagram header");
+        at + "flowchart LR".len()
+    });
+    vcx.update(|_, cx| view.update(cx, |view, cx| view.set_caret(header_end, cx)));
+    for _ in 0.."flowchart LR".len() {
+        vcx.simulate_keystrokes("backspace");
+    }
+    draw(vcx);
+    view.read_with(&*vcx, |view, _| {
+        assert!(
+            !view.markdown().contains("flowchart LR"),
+            "the header was deleted: {:?}",
+            view.markdown()
+        );
+        assert!(
+            view.markdown().contains("```mermaid"),
+            "the fence itself survives, so the source is preserved: {:?}",
+            view.markdown()
+        );
+        assert!(
+            view.document.table_cells().len() == 1,
+            "an invalid diagram does not disturb the table"
+        );
+        assert!(
+            view.markdown().contains("中文组合"),
+            "the composed text survived every later edit"
+        );
+    });
 }

@@ -35,6 +35,13 @@ pub(super) struct FindState {
     pub(super) show_replace: bool,
     pub(super) options: FindOptions,
     pub(super) current: Option<Range<usize>>,
+    /// The query `current` was found with.
+    ///
+    /// Recorded here rather than read back from the input widget: `find_match`
+    /// is also called directly (Enter, next/previous, and tests), and in those
+    /// paths the widget value is not what produced the match. Reading the widget
+    /// would make replace act on a query the panel never searched for.
+    pub(super) current_query: String,
     pub(super) matches: Vec<Range<usize>>,
     pub(super) count: usize,
 }
@@ -85,6 +92,7 @@ impl FindState {
             show_replace: false,
             options: FindOptions::default(),
             current: None,
+            current_query: String::new(),
             matches: Vec::new(),
             count: 0,
         }
@@ -124,6 +132,7 @@ impl TypesetView {
             self.find.count = 0;
             self.find.matches.clear();
             self.find.current = None;
+            self.find.current_query.clear();
             return;
         }
         let matches = inkpoint_editor_core::find_matches(source, query, &self.find.options);
@@ -131,6 +140,7 @@ impl TypesetView {
         self.find.matches = matches.clone();
         if matches.is_empty() {
             self.find.current = None;
+            self.find.current_query.clear();
             return;
         }
         let anchor = self
@@ -158,6 +168,7 @@ impl TypesetView {
         let range = matches[index].clone();
         self.editor.set_selection(range.start, range.end);
         self.find.current = Some(range.clone());
+        self.find.current_query = query.to_owned();
         self.scroll_range_into_view(&range);
     }
 
@@ -170,10 +181,48 @@ impl TypesetView {
             return;
         };
         let repl = self.find.replace_input.read(cx).value().to_string();
-        let result = self.editor.replace_match(current, &repl);
+        // The query that produced `current`, not whatever the widget now holds.
+        let query = self.find.current_query.clone();
+
+        // The cached range was found before the user's latest edits. Re-run the
+        // search first: a stale range must never be written over, and the match
+        // the user means is the one that is still there.
+        let live = self.locate_live_match(&query, &current);
+        let Some(live) = live else {
+            // Nothing to replace any more. Re-run the search so the panel stops
+            // highlighting a range that no longer exists, and leave the body
+            // untouched.
+            self.find_match(&query, false);
+            cx.notify();
+            return;
+        };
+
+        let expected = query.clone();
+        let result = self.editor.replace_match_guarded(live, &expected, &repl);
         self.apply(result, cx);
-        let query = self.find.input.read(cx).value().to_string();
         self.find_match(&query, false);
+    }
+
+    /// The range a replace should act on, or `None` when the match is gone.
+    ///
+    /// Preferred source of truth is a fresh search: if the query still occurs,
+    /// the match nearest the previously highlighted position is the one the user
+    /// is looking at. Falling back to the cached range only when it still holds
+    /// the query keeps the guard meaningful rather than cosmetic.
+    fn locate_live_match(&self, query: &str, cached: &Range<usize>) -> Option<Range<usize>> {
+        if query.is_empty() {
+            return None;
+        }
+        let source = self.editor.source();
+        let matches = inkpoint_editor_core::find_matches(source, query, &self.find.options);
+        if matches.is_empty() {
+            return None;
+        }
+        // The match the user saw: the one starting closest to the cached start.
+        let nearest = matches
+            .iter()
+            .min_by_key(|range| (range.start.abs_diff(cached.start), range.start))?;
+        Some(nearest.clone())
     }
 
     pub(super) fn replace_all(&mut self, cx: &mut Context<Self>) {
@@ -539,6 +588,96 @@ mod tests {
                 assert_eq!(v.editor.source(), "beta beta beta");
                 assert!(v.editor.undo());
                 assert_eq!(v.editor.source(), "Alpha alpha ALPHA");
+            });
+        });
+    }
+
+    /// FIND-01: editing before the current match and then replacing must act on
+    /// the match's *current* location.
+    ///
+    /// The audit repro typed `X` at the document start with the panel still open,
+    /// then pressed replace, and got `XoneDOGt two` instead of `Xone DOG two`: the
+    /// cached `4..7` byte range was applied to bytes that no longer spell `cat`.
+    #[gpui_kit::test]
+    fn find01_replace_after_typing_before_the_match_targets_the_live_range(
+        cx: &mut TestAppContext,
+    ) {
+        cx.update(gpui_kit::init);
+        cx.update(TypesetView::bind_keys);
+        let (view, vcx) =
+            cx.add_window_view(|window, cx| TypesetView::new(window, cx, "one cat two"));
+        vcx.update(|window, cx| {
+            view.update(cx, |v, cx| {
+                v.find
+                    .input
+                    .update(cx, |input, cx| input.set_value("cat", window, cx));
+                v.find
+                    .replace_input
+                    .update(cx, |input, cx| input.set_value("DOG", window, cx));
+                // `set_value` does not emit the `Change` event the panel subscribes
+                // to, so drive the search the way the UI does.
+                v.find_match("cat", false);
+                assert_eq!(
+                    v.editor.selection().range(),
+                    4..7,
+                    "the panel selects the first match"
+                );
+
+                // The user returns to the body start and types, panel still open.
+                v.editor.set_caret(0);
+                v.editor.insert("X").unwrap();
+                assert_eq!(v.editor.source(), "Xone cat two");
+
+                v.replace_current(window, cx);
+                assert_eq!(
+                    v.editor.source(),
+                    "Xone DOG two",
+                    "replace must target the match's current bytes, not a stale range"
+                );
+                assert!(v.editor.undo());
+                assert_eq!(v.editor.source(), "Xone cat two");
+            });
+        });
+    }
+
+    /// FIND-02: when the cached match no longer exists, replace must be refused
+    /// rather than overwriting whatever bytes now occupy that range.
+    ///
+    /// The audit's concern is silent corruption: a guarded edit has to prove the
+    /// bytes at the cached range are still the match before writing.
+    #[gpui_kit::test]
+    fn find02_replace_refuses_a_stale_match_instead_of_corrupting_the_body(
+        cx: &mut TestAppContext,
+    ) {
+        cx.update(gpui_kit::init);
+        cx.update(TypesetView::bind_keys);
+        let (view, vcx) =
+            cx.add_window_view(|window, cx| TypesetView::new(window, cx, "one cat two"));
+        vcx.update(|window, cx| {
+            view.update(cx, |v, cx| {
+                v.find
+                    .input
+                    .update(cx, |input, cx| input.set_value("cat", window, cx));
+                v.find
+                    .replace_input
+                    .update(cx, |input, cx| input.set_value("DOG", window, cx));
+                // Without this the panel has no cached match at all and
+                // `replace_current` would return early, making the assertion
+                // below pass for the wrong reason.
+                v.find_match("cat", false);
+                assert_eq!(v.find.current, Some(4..7), "the panel caches the match");
+
+                // Delete the match itself while the panel stays open.
+                v.editor.set_selection(4, 7);
+                v.editor.delete_backward().unwrap();
+                assert_eq!(v.editor.source(), "one  two");
+
+                v.replace_current(window, cx);
+                assert_eq!(
+                    v.editor.source(),
+                    "one  two",
+                    "a replace whose match no longer exists must leave the body untouched"
+                );
             });
         });
     }

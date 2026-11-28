@@ -41,6 +41,34 @@ fn block_ranges_use_utf8_bytes_and_slice_original_source() {
     assert_eq!(&source[range.clone()], "rust");
 }
 
+/// A fence info string holding full-width punctuation still resolves.
+///
+/// Same root cause as the code-span mark: the info string is parsed from the
+/// CJK-rewritten text, so ` ```「rust」 ` arrives carrying `一` and a plain
+/// search in the original source found nothing. The language then silently
+/// became `None`. Measured before the fix: `None` for the punctuated fence,
+/// `Some("rust")` for the plain one.
+#[test]
+fn a_fence_info_string_with_cjk_punctuation_resolves() {
+    let source = "```「rust」\ncode\n```\n";
+    let blocks = MarkdownDocument::new(source).blocks().unwrap();
+    let code = blocks
+        .iter()
+        .find(|block| matches!(block.kind, BlockKind::Code { .. }))
+        .expect("the fence is a code block");
+    let BlockKind::Code {
+        language: Some(range),
+    } = &code.kind
+    else {
+        panic!("the punctuated info string must resolve to a range");
+    };
+    assert_eq!(
+        &source[range.clone()],
+        "「rust」",
+        "the range addresses the user's own bytes, punctuation intact"
+    );
+}
+
 #[test]
 fn markdown_source_round_trips_exactly_without_ast_serialization() {
     let source = "---\r\ntitle: exact\r\n---\r\n\r\n## Heading ##  \r\n\r\nText  \r\nline  \r\n\r\n<Table attr='x'>\r\n";
@@ -168,6 +196,35 @@ fn inline_marks_separate_content_syntax_and_nested_ranges() {
         &source[link.syntax_range.clone()],
         "[链接](https://example.test)"
     );
+}
+
+/// A code span holding full-width punctuation still gets its mark.
+///
+/// The regression this pins: the parsed literal comes from the CJK-rewritten
+/// text, so a span holding `「a」` carries `一a一`. Searching the original for
+/// that value found nothing and the mark was dropped, which made the span stop
+/// being treated as code — measured before the fix as zero code marks for
+/// `` `「a」` `` while `` `a` `` produced one.
+#[test]
+fn a_code_span_with_cjk_punctuation_keeps_its_mark() {
+    for source in ["值 `「a」` 结束", "值 `、` 结束", "值 `**「x」**` 结束"] {
+        let marks = MarkdownDocument::new(source).inline_marks().unwrap();
+        let code = marks
+            .iter()
+            .find(|mark| mark.kind == InlineMarkKind::Code)
+            .unwrap_or_else(|| panic!("no code mark for {source:?}"));
+
+        // The mark must address the original bytes, punctuation intact.
+        let content = &source[code.range.clone()];
+        assert!(
+            content.contains('「') || content.contains('、'),
+            "the mark keeps the source punctuation for {source:?}, got {content:?}"
+        );
+        assert!(
+            source[code.syntax_range.clone()].starts_with('`'),
+            "the syntax range still covers the backticks for {source:?}"
+        );
+    }
 }
 
 #[test]
@@ -302,4 +359,37 @@ fn document_metrics_calculation() {
     assert_eq!(metrics.lines, 5);
     assert!(metrics.characters > 30);
     assert!(metrics.words > 10);
+}
+
+/// One parse must produce exactly what two separate parses produced.
+///
+/// `blocks_and_inline_marks` exists only to avoid building the same AST twice,
+/// so the whole point is that nothing about the products may change. Comparing
+/// against the single-product methods is the assertion that keeps this a pure
+/// optimization: if either walk ever diverges, this fails instead of silently
+/// rendering a document that differs from what the parse reported.
+#[test]
+fn shared_parse_matches_the_individual_products() {
+    let sources = [
+        "# 标题\n\n段落 **加粗** 与 [链接](https://example.test)\n",
+        "| 左 | 右 |\n| --- | --- |\n| 甲 | 乙 |\n",
+        "> 引用\n> 续行\n\n- 一\n- 二\n\n```rust\nfn main() {}\n```\n",
+        "中文 **加粗 _强调_** 与 `「全角」` 结束\n",
+        "纯文本，没有任何语法。\n",
+        "",
+    ];
+    for source in sources {
+        let document = MarkdownDocument::new(source);
+        let (blocks, marks) = document.blocks_and_inline_marks().unwrap();
+        assert_eq!(
+            blocks,
+            document.blocks().unwrap(),
+            "blocks differ for {source:?}"
+        );
+        assert_eq!(
+            marks,
+            document.inline_marks().unwrap(),
+            "marks differ for {source:?}"
+        );
+    }
 }

@@ -120,6 +120,12 @@ pub enum SessionError {
     ReadOnly,
     /// The edit could not be applied to the source.
     Source(EditError),
+    /// A cached match range no longer holds the bytes it was found at.
+    ///
+    /// Separate from `Source(InvalidRange)` because it is not a caller bug: the
+    /// document legitimately changed since the match was found, and the right
+    /// response is to re-run the search rather than report a malformed edit.
+    StaleMatch,
 }
 
 /// A renderer-independent user editing intent.
@@ -151,6 +157,8 @@ impl std::fmt::Display for SessionError {
         match self {
             Self::ReadOnly => formatter.write_str("The document is read-only."),
             Self::Source(error) => error.fmt(formatter),
+            Self::StaleMatch => formatter
+                .write_str("The document changed since this match was found; search again."),
         }
     }
 }
@@ -236,6 +244,20 @@ pub enum EditorCommand {
     ToggleTaskList,
     /// Set every selected line to a heading of this level (1-6).
     Heading(u8),
+    /// Insert a table body row above the caret's row.
+    TableInsertRowAbove,
+    /// Insert a table body row below the caret's row.
+    TableInsertRowBelow,
+    /// Delete the caret's body row.
+    TableDeleteRow,
+    /// Insert a column to the left of the caret's column.
+    TableInsertColumnLeft,
+    /// Insert a column to the right of the caret's column.
+    TableInsertColumnRight,
+    /// Delete the caret's column.
+    TableDeleteColumn,
+    /// Set the caret column's alignment.
+    TableSetAlignment(crate::table_edit::TableAlignment),
 }
 
 /// An undo record stores only the changed slice and selection state.
@@ -599,6 +621,47 @@ impl EditorSession {
         self.history.clear();
     }
 
+    /// Replaces the whole document as one undoable step.
+    ///
+    /// Used when the content changes but the *document identity* does not: a
+    /// draft restore is the case that matters. `replace_source` is the wrong
+    /// tool there because it clears history, which is correct for opening a
+    /// different file and destructive for restoring a draft: the audit found
+    /// `Cmd+Z` unable to recover edits the user had just made.
+    ///
+    /// Recording the replacement as a single whole-document edit keeps both
+    /// texts reachable: undo returns to what was on screen before the restore,
+    /// redo returns to the draft.
+    pub fn replace_source_undoable(
+        &mut self,
+        source: impl Into<String>,
+        caret: Option<usize>,
+    ) -> Result<(), SessionError> {
+        if self.readonly {
+            return Err(SessionError::ReadOnly);
+        }
+        let replacement = source.into();
+        if replacement == self.document.source() {
+            // Nothing to record; still honour the requested caret.
+            if let Some(caret) = caret {
+                self.set_caret(caret);
+            }
+            return Ok(());
+        }
+        let len = replacement.len();
+        let caret = caret
+            .map(|caret| normalize_offset(&replacement, caret.min(len), false))
+            .unwrap_or_else(|| {
+                normalize_offset(&replacement, self.selection.head().min(len), false)
+            });
+        let edit = SourceEdit {
+            range: 0..self.document.source().len(),
+            replacement,
+            selection_after: caret..caret,
+        };
+        self.apply_recording(edit)
+    }
+
     /// Moves the caret to `offset`, clamped to the source length.
     pub fn set_caret(&mut self, offset: usize) {
         self.set_selection(offset, offset);
@@ -625,12 +688,16 @@ impl EditorSession {
         let (range, replacement, typing) = match intent {
             EditorIntent::Insert(text) => {
                 let range = self.selection.range();
-                let typing = text.graphemes(true).count() == 1;
-                (
-                    range.clone(),
-                    self.escape_table_pipes(&range, &text),
-                    typing,
-                )
+                if let Some(text) = self.with_trailing_paragraph_break(&range, &text) {
+                    (range, text, false)
+                } else {
+                    let typing = text.graphemes(true).count() == 1;
+                    (
+                        range.clone(),
+                        self.normalize_table_cell_text(&range, &text),
+                        typing,
+                    )
+                }
             }
             EditorIntent::DeleteBackward => {
                 let range = self.selection.range();
@@ -687,6 +754,14 @@ impl EditorSession {
         if range.is_empty() {
             let pos = range.start;
             let source = self.document.source();
+            // The byte before a fenced code body's first character is the
+            // opening fence's newline, which is syntax, not text. Deleting it
+            // merges the code into the info string (` ```jsconst n = 1; `) and
+            // silently destroys the block. Refusing keeps the fence intact and
+            // leaves the caret where the user put it.
+            if crate::fence::at_code_body_start(source, pos) {
+                return Ok(());
+            }
             // Check for task checkbox deletion: `- [ ] ` -> `- `
             if source[..pos].ends_with("- [ ] ") || source[..pos].ends_with("- [x] ") {
                 return self.apply_recording(SourceEdit {
@@ -885,8 +960,32 @@ impl EditorSession {
             return Err(SessionError::ReadOnly);
         }
         let range = self.selection.range();
-        let text = self.escape_table_pipes(&range, text);
+        // Input below a document-final table must start a paragraph, not extend
+        // the last cell. Checked before cell normalisation: once the break is
+        // there the text is outside the table and must not be folded as if it
+        // were inside a cell.
+        if let Some(text) = self.with_trailing_paragraph_break(&range, text) {
+            return self.insert_at_selection(text);
+        }
+        let text = self.normalize_table_cell_text(&range, text);
         self.insert_at_selection(text)
+    }
+
+    /// Prepends the paragraph break when the caret sits below a final table.
+    ///
+    /// Returns `None` when the caret is not in that position, so the caller keeps
+    /// its ordinary path. One combined edit means one undo step for the whole
+    /// action, not a stray empty paragraph the user has to clean up separately.
+    fn with_trailing_paragraph_break(
+        &mut self,
+        range: &Range<usize>,
+        text: &str,
+    ) -> Option<String> {
+        if !range.is_empty() {
+            return None;
+        }
+        let edit = crate::table_navigation::trailing_paragraph_break(self.source(), range.start)?;
+        Some(format!("{}{text}", edit.replacement))
     }
 
     /// Replaces the selection with literal source text, including table syntax.
@@ -906,30 +1005,37 @@ impl EditorSession {
         self.apply_recording_joining(edit, typing)
     }
 
-    fn escape_table_pipes(&mut self, range: &Range<usize>, text: &str) -> String {
-        if !text.contains('|') {
+    /// Normalises text pasted or typed into a table cell.
+    ///
+    /// Two things must not reach the source verbatim, because both would break
+    /// the row's structure instead of editing the cell:
+    ///
+    /// * `|` ends a column, so it is escaped as `\|`.
+    /// * A real newline ends a row, so it is folded to a space. The audit's
+    ///   repro pasted `first\nsecond` into a header cell and got `first` as a
+    ///   paragraph above the table plus `second` as the new first column.
+    ///
+    /// Newline folding only applies when the text actually contains one. Doing
+    /// it unconditionally would also trim ordinary typing, so a pasted single
+    /// space or a trailing space while typing would silently vanish.
+    fn normalize_table_cell_text(&mut self, range: &Range<usize>, text: &str) -> String {
+        let has_pipe = text.contains('|');
+        let has_newline = text.contains(['\n', '\r']);
+        if !has_pipe && !has_newline {
             return text.to_owned();
         }
-        if self.parsed_blocks.is_none() {
-            self.parsed_blocks = self.document.blocks().ok();
-        }
-        let inside_cell = self.parsed_blocks.as_ref().is_some_and(|blocks| {
-            fn find(blocks: &[crate::SourceBlock], range: &Range<usize>) -> bool {
-                blocks.iter().any(|block| {
-                    (block.kind == crate::BlockKind::TableCell
-                        && range.start >= block.content_range.start
-                        && range.end <= block.content_range.end)
-                        || find(&block.children, range)
-                })
-            }
-            find(blocks, range)
-        });
-        if !inside_cell {
+        if !self.selection_is_inside_table_cell(range) {
             return text.to_owned();
         }
-        let mut escaped = String::with_capacity(text.len() + text.matches('|').count());
+        // Newlines fold first: an escaped pipe inside a line stays escaped.
+        let folded = if has_newline {
+            text.replace("\r\n", " ").replace(['\r', '\n'], " ")
+        } else {
+            text.to_owned()
+        };
+        let mut escaped = String::with_capacity(folded.len() + folded.matches('|').count());
         let mut preceding_slashes = 0usize;
-        for ch in text.chars() {
+        for ch in folded.chars() {
             if ch == '|' && preceding_slashes.is_multiple_of(2) {
                 escaped.push('\\');
             }
@@ -940,7 +1046,31 @@ impl EditorSession {
                 preceding_slashes = 0;
             }
         }
-        escaped
+        // A folded multi-line paste is a block of text, not a prefix of one, so
+        // surrounding whitespace is meaningless. Typing keeps its whitespace.
+        if has_newline {
+            escaped.trim().to_owned()
+        } else {
+            escaped
+        }
+    }
+
+    /// Whether `range` lies inside a table cell's content.
+    fn selection_is_inside_table_cell(&mut self, range: &Range<usize>) -> bool {
+        if self.parsed_blocks.is_none() {
+            self.parsed_blocks = self.document.blocks().ok();
+        }
+        self.parsed_blocks.as_ref().is_some_and(|blocks| {
+            fn find(blocks: &[crate::SourceBlock], range: &Range<usize>) -> bool {
+                blocks.iter().any(|block| {
+                    (block.kind == crate::BlockKind::TableCell
+                        && range.start >= block.content_range.start
+                        && range.end <= block.content_range.end)
+                        || find(&block.children, range)
+                })
+            }
+            find(blocks, range)
+        })
     }
 
     /// Inserts a newline, continuing or exiting a parsed list item or blockquote when appropriate,
@@ -1148,6 +1278,11 @@ impl EditorSession {
     }
 
     /// Replaces a single match range and records it in undo history.
+    ///
+    /// This is the unguarded form: it trusts `range` to still spell the match.
+    /// Callers that cached the range earlier — a find panel does — must use
+    /// [`replace_match_guarded`](Self::replace_match_guarded) instead, because
+    /// the document may have changed under the cached range.
     pub fn replace_match(
         &mut self,
         range: Range<usize>,
@@ -1155,6 +1290,32 @@ impl EditorSession {
     ) -> Result<(), SessionError> {
         if self.readonly {
             return Err(SessionError::ReadOnly);
+        }
+        let edit = crate::replace_single_match(self.source(), range, replacement)
+            .ok_or(SessionError::Source(crate::EditError::InvalidRange))?;
+        self.apply_recording(edit)
+    }
+
+    /// Replaces a match only if the bytes at `range` are still `expected`.
+    ///
+    /// A cached match range goes stale the moment the user edits before it. The
+    /// audit's repro cached `4..7` for `cat`, typed `X` at the document start,
+    /// then replaced: the unguarded path wrote over bytes that now spelled
+    /// `cat` shifted by one, producing `XoneDOGt two`.
+    ///
+    /// Refusing is the safe answer. The caller re-runs the search and retries, so
+    /// the body is never damaged by a stale range.
+    pub fn replace_match_guarded(
+        &mut self,
+        range: Range<usize>,
+        expected: &str,
+        replacement: &str,
+    ) -> Result<(), SessionError> {
+        if self.readonly {
+            return Err(SessionError::ReadOnly);
+        }
+        if self.source().get(range.clone()) != Some(expected) {
+            return Err(SessionError::StaleMatch);
         }
         let edit = crate::replace_single_match(self.source(), range, replacement)
             .ok_or(SessionError::Source(crate::EditError::InvalidRange))?;
@@ -1256,13 +1417,25 @@ impl EditorSession {
         Ok(true)
     }
 
-    /// Indents or outdents the selected lines, or indents a list item under cursor.
+    /// Indents or outdents the selected lines.
+    ///
+    /// With a collapsed caret this indents the *line*, not the caret position.
+    /// The historical contract is a two-space line indent with the caret kept on
+    /// the same text, which is what a prose writer expects from Tab; inserting a
+    /// literal tab at the caret (the audited behaviour) changes the meaning of
+    /// the line instead of its nesting.
+    ///
+    /// A list item is indented through the list rules first, so nested-list
+    /// semantics keep priority over the plain two-space indent.
     pub fn indent_selection(&mut self, forward: bool) -> Result<bool, SessionError> {
         if self.readonly {
             return Err(SessionError::ReadOnly);
         }
         if self.selection.is_collapsed() {
-            return self.indent_list(forward);
+            if self.indent_list(forward)? {
+                return Ok(true);
+            }
+            return self.indent_current_line(forward);
         }
         let range = self.selection.range();
         let source = self.source();
@@ -1291,6 +1464,48 @@ impl EditorSession {
             replacement,
             selection_after: start..new_end,
         })?;
+        Ok(true)
+    }
+
+    /// Adds two leading spaces to the caret's line, or removes up to two.
+    ///
+    /// Keeps the caret on the same character by shifting it with the edit, which
+    /// is the whole point of a line indent: the user is still typing where they
+    /// were, one nesting level deeper.
+    fn indent_current_line(&mut self, forward: bool) -> Result<bool, SessionError> {
+        let source = self.source();
+        let head = self.selection.head();
+        let Some(before) = source.get(..head) else {
+            return Ok(false);
+        };
+        let line_start = before.rfind('\n').map_or(0, |index| index + 1);
+
+        if forward {
+            let edit = SourceEdit {
+                range: line_start..line_start,
+                replacement: "  ".to_owned(),
+                selection_after: head + 2..head + 2,
+            };
+            self.apply_recording(edit)?;
+            return Ok(true);
+        }
+
+        // Outdent removes at most two spaces that are actually there.
+        let spaces = source[line_start..]
+            .bytes()
+            .take_while(|byte| *byte == b' ')
+            .take(2)
+            .count();
+        if spaces == 0 {
+            return Ok(false);
+        }
+        let removed = spaces.min(head.saturating_sub(line_start));
+        let edit = SourceEdit {
+            range: line_start..line_start + spaces,
+            replacement: String::new(),
+            selection_after: head.saturating_sub(removed)..head.saturating_sub(removed),
+        };
+        self.apply_recording(edit)?;
         Ok(true)
     }
 
@@ -1879,6 +2094,55 @@ mod undo_sequence_tests {
             "abc",
             "one undo removes the composition only, not the earlier typing"
         );
+    }
+
+    /// DRAFT-01: restoring a draft must not destroy the edits made since the
+    /// draft was saved.
+    ///
+    /// The audit repro opened a file with a pending draft, typed more text, then
+    /// restored the draft: the document switched to the old content and `Cmd+Z`
+    /// could not bring the new text back, because the restore went through a
+    /// document-replacement path that deliberately clears history.
+    #[test]
+    fn draft01_restoring_a_draft_is_undoable() {
+        let mut editor = EditorSession::new("on-disk content");
+        editor.set_caret(4);
+        editor.insert(" plus my edits").expect("typing applies");
+        assert_eq!(editor.source(), "on-d plus my editsisk content");
+
+        // Restoring the draft replaces the whole document.
+        editor
+            .replace_source_undoable("the older draft", Some(3))
+            .expect("the restore applies");
+        assert_eq!(editor.source(), "the older draft");
+        assert_eq!(editor.selection().head(), 3, "the draft caret is restored");
+
+        // The user's unsaved work must still be reachable.
+        assert!(editor.undo(), "the restore is one undo step");
+        assert_eq!(
+            editor.source(),
+            "on-d plus my editsisk content",
+            "undo returns to the edits the user had made"
+        );
+
+        // And the draft is reachable again, so the choice is not one-way.
+        assert!(editor.redo(), "the draft is still reachable");
+        assert_eq!(editor.source(), "the older draft");
+    }
+
+    /// A restore of identical content must not push an empty history step that
+    /// swallows the next undo.
+    #[test]
+    fn draft01_restoring_identical_content_records_no_step() {
+        let mut editor = EditorSession::new("same");
+        editor.set_caret(0);
+        editor.insert("X").expect("typing applies");
+        assert_eq!(editor.source(), "Xsame");
+        editor
+            .replace_source_undoable("Xsame", Some(0))
+            .expect("a no-op restore is accepted");
+        assert!(editor.undo(), "the earlier typing is still the top step");
+        assert_eq!(editor.source(), "same");
     }
 
     /// Consecutive characters at one place still merge.

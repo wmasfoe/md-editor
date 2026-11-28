@@ -4,5 +4,6 @@
 
 ## 文档
 
-- 编辑器交互体验、流畅度问题与 Bug 审计记录： [ux_interaction_audit_and_bugs.md](./ux_interaction_audit_and_bugs.md)
+- [Rust Beta 编辑器交互审计](./gpui-beta-editor-interaction-audit.md)记录 GPUI 版与历史 spec 的行为差异、复现步骤和实测范围。
+- [CodeMirror 编辑器交互审计](./ux_interaction_audit_and_bugs.md)记录 Tauri/React 版的历史体验问题。
 - PR #31 亲自 review 的分层材料（里程碑分组、关键决策、验证证据、reviewer 验证路径）： [pr31-review-materials.md](./pr31-review-materials.md)

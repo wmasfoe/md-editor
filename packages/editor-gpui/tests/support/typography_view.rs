@@ -46,7 +46,9 @@ fn changing_typography_reflows_without_changing_document_state(cx: &mut TestAppC
     draw(vcx);
     vcx.update(|_, cx| {
         let typography = &view.read(cx).typography;
-        let context = typography.render_context(cx);
+        // No document folder: this test only asserts typography, and image
+        // resolution is covered by `image_source`'s own tests.
+        let context = typography.render_context(cx, None);
         assert_eq!(
             context.style().code_block().text.font_family.as_deref(),
             Some("Menlo")

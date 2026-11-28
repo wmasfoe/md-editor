@@ -13,6 +13,20 @@ pub enum TableNavigation {
     },
 }
 
+/// Whether the source could contain a GFM table at all.
+///
+/// A table's rows are pipe-delimited, so a source with no `|` cannot hold one.
+/// This exists because the Enter and arrow paths each parsed the whole document
+/// to discover there was no table: measured at 8.4 ms per keystroke on a
+/// 1,000-block document and 18.6 ms at 2,000. Returning early keeps a keypress
+/// cheap in the common case of a document with no tables.
+///
+/// It is deliberately conservative: an escaped `\|` still passes, and the
+/// parser then decides. Only the conclusive "no pipe, no table" case skips it.
+fn could_contain_a_table(source: &str) -> bool {
+    source.contains('|')
+}
+
 /// Find the selected cell and navigate in row-major order. Returns `None`
 /// outside a cell, so hosts can leave their ordinary Tab behavior untouched.
 pub fn navigate_table(
@@ -20,6 +34,9 @@ pub fn navigate_table(
     selection: Range<usize>,
     backward: bool,
 ) -> Option<TableNavigation> {
+    if !could_contain_a_table(source) {
+        return None;
+    }
     let blocks = MarkdownDocument::new(source).blocks().ok()?;
     navigate_table_in_blocks(source, &blocks, selection, backward)
 }
@@ -116,6 +133,9 @@ pub fn generate_empty_table(cols: usize, rows: usize) -> String {
 
 /// If cursor is inside a table on an empty cell, exits the table with an empty paragraph line below it.
 pub fn exit_table(source: &str, caret: usize) -> Option<SourceEdit> {
+    if !could_contain_a_table(source) {
+        return None;
+    }
     let blocks = MarkdownDocument::new(source).blocks().ok()?;
     fn find_table_and_cell(
         blocks: &[SourceBlock],
@@ -157,8 +177,48 @@ pub fn exit_table(source: &str, caret: usize) -> Option<SourceEdit> {
     })
 }
 
+/// The paragraph break a caret at the end of a document-final table needs.
+///
+/// A document may end with a table and no trailing newline. A click in the
+/// whitespace below that table resolves to the EOF byte offset, which is still
+/// *inside* the table's source range, so typing there appends to the last cell:
+/// the audit's repro turned `| c | d |` into `| c | d |继续`.
+///
+/// The historical contract (wysiwyg_virtual_trailing_line_spec) is that input
+/// below the block forms its own paragraph. This returns the break that has to
+/// exist before that input, or `None` when the caret is not at the end of a
+/// final table.
+///
+pub fn trailing_paragraph_break(source: &str, caret: usize) -> Option<SourceEdit> {
+    // Only the document end is in question: a caret in the middle of a table is
+    // ordinary cell editing.
+    if caret != source.len() {
+        return None;
+    }
+    if !could_contain_a_table(source) {
+        return None;
+    }
+    let blocks = MarkdownDocument::new(source).blocks().ok()?;
+    let last = blocks.last()?;
+    if last.kind != BlockKind::Table || last.range.end != source.len() {
+        return None;
+    }
+    // Two newlines make a paragraph boundary in Markdown. One would keep the
+    // text attached to the table's last row.
+    let break_start = source.len();
+    let caret_after = break_start + 2;
+    Some(SourceEdit {
+        range: break_start..break_start,
+        replacement: "\n\n".to_owned(),
+        selection_after: caret_after..caret_after,
+    })
+}
+
 /// Navigates vertically (down or up) within a table, or appends a row if pressing down on the last row.
 pub fn navigate_table_vertical(source: &str, caret: usize, down: bool) -> Option<TableNavigation> {
+    if !could_contain_a_table(source) {
+        return None;
+    }
     let blocks = MarkdownDocument::new(source).blocks().ok()?;
     fn find(blocks: &[SourceBlock], caret: usize) -> Option<(SourceBlock, usize, usize)> {
         for block in blocks {
@@ -231,6 +291,9 @@ pub fn navigate_table_vertical(source: &str, caret: usize, down: bool) -> Option
 
 /// Inserts `<br>` inside a table cell when Shift-Enter is pressed.
 pub fn soft_break_in_table(source: &str, caret: usize) -> Option<SourceEdit> {
+    if !could_contain_a_table(source) {
+        return None;
+    }
     let blocks = MarkdownDocument::new(source).blocks().ok()?;
     fn in_table(blocks: &[SourceBlock], caret: usize) -> bool {
         for b in blocks {

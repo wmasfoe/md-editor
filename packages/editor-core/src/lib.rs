@@ -1,8 +1,12 @@
 //! Markdown source operations for the editor. The editing session owns source
 //! and history. Parsing never serializes an AST over user-authored source.
 
+mod cjk;
+mod fence;
+pub mod links;
 mod list_newline;
 pub mod session;
+pub mod table_edit;
 pub mod table_navigation;
 pub mod text;
 
@@ -169,13 +173,28 @@ impl MarkdownDocument {
         let root = parse_markdown(&self.source)?;
         let mut marks = Vec::new();
         collect_inline_marks(&root, &self.source, &mut marks);
-        marks.sort_by(|left, right| {
-            left.syntax_range
-                .start
-                .cmp(&right.syntax_range.start)
-                .then_with(|| right.syntax_range.end.cmp(&left.syntax_range.end))
-        });
+        sort_inline_marks(&mut marks);
         Ok(marks)
+    }
+
+    /// Both products of a single parse.
+    ///
+    /// [`Self::blocks`] and [`Self::inline_marks`] are two walks of the same
+    /// AST; only building the AST is expensive. A caller that needs both and
+    /// asks for them separately therefore parses the document twice, and pays
+    /// that a third time over the renderer's own parse. On a 1,000-block
+    /// document with one heading, that avoidable parse cost 7.7 ms of a 33 ms
+    /// input budget.
+    ///
+    /// Both products are empty when the source cannot be parsed, matching what
+    /// the single-product methods return: one AST, so one error.
+    pub fn blocks_and_inline_marks(&self) -> Result<(Vec<SourceBlock>, Vec<InlineMark>), String> {
+        let root = parse_markdown(&self.source)?;
+        let blocks = flow_children(&root, &self.source);
+        let mut marks = Vec::new();
+        collect_inline_marks(&root, &self.source, &mut marks);
+        sort_inline_marks(&mut marks);
+        Ok((blocks, marks))
     }
 
     pub fn apply(&self, edit: &SourceEdit) -> Result<Self, EditError> {
@@ -414,11 +433,36 @@ impl MarkdownDocument {
     }
 }
 
+/// Orders marks by start, then outermost-first.
+///
+/// Inline marks are consumed as a sorted list with prefix maxima, so the order
+/// is part of the contract rather than a presentation detail.
+fn sort_inline_marks(marks: &mut [InlineMark]) {
+    marks.sort_by(|left, right| {
+        left.syntax_range
+            .start
+            .cmp(&right.syntax_range.start)
+            .then_with(|| right.syntax_range.end.cmp(&left.syntax_range.end))
+    });
+}
+
 fn parse_markdown(source: &str) -> Result<Node, String> {
-    to_mdast(source, &parse_options())
+    // CJK punctuation next to an emphasis delimiter makes CommonMark's flanking
+    // rule reject both runs and match the wrong pair, so `**「a」**到**「b」**`
+    // bolded the `到` instead. The rewrite keeps byte offsets identical, so every
+    // range in the returned tree is still valid against `source`, and callers
+    // keep slicing content from the original text.
+    let rewritten;
+    let parse_input = if crate::cjk::contains_cjk_punctuation(source) {
+        rewritten = crate::cjk::with_cjk_friendly_flanking(source);
+        rewritten.as_str()
+    } else {
+        source
+    };
+    to_mdast(parse_input, &parse_options())
         // Raw HTML is still part of the app's Markdown contract, while MDX
         // intentionally disables HTML. Fall back only when MDX parsing fails.
-        .or_else(|_| to_mdast(source, &ParseOptions::gfm()))
+        .or_else(|_| to_mdast(parse_input, &ParseOptions::gfm()))
         .map_err(|error| error.to_string())
 }
 
@@ -642,7 +686,10 @@ fn block_kind_and_range(node: &Node, source: &str) -> Option<(BlockKind, Range<u
         Node::Code(value) => {
             let range = position(&value.position)?;
             let language = value.lang.as_deref().and_then(|lang| {
-                let offset = source.get(range.clone())?.find(lang)?;
+                // The info string is parsed from the CJK-rewritten text too, so a
+                // fence tagged `「rust」` arrives with `一` in it. Without the
+                // rewritten fallback the language silently became `None`.
+                let offset = find_parsed_value(source.get(range.clone())?, lang)?;
                 Some(range.start + offset..range.start + offset + lang.len())
             });
             (BlockKind::Code { language }, range)
@@ -807,13 +854,24 @@ fn add_literal_mark(
     });
 }
 
+/// Byte offset of a parsed `value` inside `text`, tolerating the CJK rewrite.
+///
+/// Every parsed value — a code span's content, a fence's info string — comes
+/// from the CJK-rewritten text, so it carries `一` where the source still has
+/// `「`. A plain search then finds nothing and the caller silently loses the
+/// range. Searching the rewritten text is exact: the rewrite preserves byte
+/// length, so the offset it yields is valid against the original.
+fn find_parsed_value(text: &str, value: &str) -> Option<usize> {
+    text.find(value)
+        .or_else(|| crate::cjk::with_cjk_friendly_flanking(text).find(value))
+}
+
 fn literal_range(source: &str, syntax_range: &Range<usize>, value: &str) -> Option<Range<usize>> {
     let literal = source.get(syntax_range.clone())?;
-    let relative_start = if value.is_empty() {
-        0
-    } else {
-        literal.find(value)?
-    };
+    if value.is_empty() {
+        return Some(syntax_range.start..syntax_range.start);
+    }
+    let relative_start = find_parsed_value(literal, value)?;
     Some(syntax_range.start + relative_start..syntax_range.start + relative_start + value.len())
 }
 

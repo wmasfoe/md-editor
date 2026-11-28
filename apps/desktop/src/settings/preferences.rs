@@ -24,7 +24,19 @@ pub(crate) struct EditorPreferences {
     pub(crate) show_code_block_line_numbers: bool,
     pub(crate) show_inline_style_markers: bool,
     pub(crate) enable_markdown_lint: bool,
+    /// Where pasted images are written.
+    ///
+    /// Relative to the document (`./assets`, `../assets`), absolute, or
+    /// containing `${filename}`. Resolved by
+    /// [`crate::image_assets::resolve_destination`].
+    pub(crate) image_directory: String,
 }
+
+/// Default image directory for a document that has never configured one.
+///
+/// Owned here because it is the *setting's* default; the image module takes an
+/// explicit destination and has no opinion about where it comes from.
+pub(crate) const DEFAULT_IMAGE_DIRECTORY: &str = "./assets";
 
 impl Default for EditorPreferences {
     fn default() -> Self {
@@ -35,6 +47,7 @@ impl Default for EditorPreferences {
             show_code_block_line_numbers: false,
             show_inline_style_markers: false,
             enable_markdown_lint: true,
+            image_directory: DEFAULT_IMAGE_DIRECTORY.to_owned(),
         }
     }
 }
@@ -88,6 +101,14 @@ impl Preferences {
                 enable_markdown_lint: editor["enableMarkdownLint"]
                     .as_bool()
                     .unwrap_or(defaults.enable_markdown_lint),
+                // An empty stored value means "never configured", so the default
+                // applies rather than an empty directory that resolves to nothing.
+                image_directory: editor["imageDirectory"]
+                    .as_str()
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+                    .unwrap_or(&defaults.image_directory)
+                    .to_owned(),
             },
         })
     }
