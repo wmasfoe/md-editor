@@ -12,7 +12,8 @@ mod workspace;
 use futures::{StreamExt, channel::mpsc};
 use gpui_kit::*;
 use inkpoint_editor_gpui::{
-    BlockFormat, Copy, Cut, HostCommand::*, InlineFormat, Paste, ToggleSourceMode, TypesetView,
+    AlignmentChoice, BlockFormat, Copy, Cut, HostCommand::*, InlineFormat, Paste, TableCommand,
+    ToggleSourceMode, TypesetView,
 };
 use settings::OpenSettings;
 use std::path::PathBuf;
@@ -174,6 +175,35 @@ fn main() {
                 MenuItem::action("Bulleted List", FormatBlock(BlockFormat::UnorderedList)),
                 MenuItem::action("Numbered List", FormatBlock(BlockFormat::OrderedList)),
                 MenuItem::action("Task List", FormatBlock(BlockFormat::TaskList)),
+            ]),
+            Menu::new("Table").items([
+                MenuItem::action("Insert Row Above", Table(TableCommand::InsertRowAbove)),
+                MenuItem::action("Insert Row Below", Table(TableCommand::InsertRowBelow)),
+                MenuItem::action("Delete Row", Table(TableCommand::DeleteRow)),
+                MenuItem::separator(),
+                MenuItem::action("Insert Column Left", Table(TableCommand::InsertColumnLeft)),
+                MenuItem::action(
+                    "Insert Column Right",
+                    Table(TableCommand::InsertColumnRight),
+                ),
+                MenuItem::action("Delete Column", Table(TableCommand::DeleteColumn)),
+                MenuItem::separator(),
+                MenuItem::action(
+                    "Align Default",
+                    Table(TableCommand::SetAlignment(AlignmentChoice::Default)),
+                ),
+                MenuItem::action(
+                    "Align Left",
+                    Table(TableCommand::SetAlignment(AlignmentChoice::Left)),
+                ),
+                MenuItem::action(
+                    "Align Center",
+                    Table(TableCommand::SetAlignment(AlignmentChoice::Center)),
+                ),
+                MenuItem::action(
+                    "Align Right",
+                    Table(TableCommand::SetAlignment(AlignmentChoice::Right)),
+                ),
             ]),
             Menu::new("AI").items([MenuItem::action(
                 "Continue with Local AI",
