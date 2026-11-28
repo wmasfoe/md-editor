@@ -658,7 +658,10 @@ fn block_kind_and_range(node: &Node, source: &str) -> Option<(BlockKind, Range<u
         Node::Code(value) => {
             let range = position(&value.position)?;
             let language = value.lang.as_deref().and_then(|lang| {
-                let offset = source.get(range.clone())?.find(lang)?;
+                // The info string is parsed from the CJK-rewritten text too, so a
+                // fence tagged `「rust」` arrives with `一` in it. Without the
+                // rewritten fallback the language silently became `None`.
+                let offset = find_parsed_value(source.get(range.clone())?, lang)?;
                 Some(range.start + offset..range.start + offset + lang.len())
             });
             (BlockKind::Code { language }, range)
@@ -823,20 +826,24 @@ fn add_literal_mark(
     });
 }
 
+/// Byte offset of a parsed `value` inside `text`, tolerating the CJK rewrite.
+///
+/// Every parsed value — a code span's content, a fence's info string — comes
+/// from the CJK-rewritten text, so it carries `一` where the source still has
+/// `「`. A plain search then finds nothing and the caller silently loses the
+/// range. Searching the rewritten text is exact: the rewrite preserves byte
+/// length, so the offset it yields is valid against the original.
+fn find_parsed_value(text: &str, value: &str) -> Option<usize> {
+    text.find(value)
+        .or_else(|| crate::cjk::with_cjk_friendly_flanking(text).find(value))
+}
+
 fn literal_range(source: &str, syntax_range: &Range<usize>, value: &str) -> Option<Range<usize>> {
     let literal = source.get(syntax_range.clone())?;
     if value.is_empty() {
         return Some(syntax_range.start..syntax_range.start);
     }
-    // The parsed `value` comes from the CJK-rewritten text, so a code span
-    // holding full-width punctuation carries `一` where the source still has
-    // `「` and a plain search finds nothing. Searching the rewritten literal
-    // instead is exact: the rewrite preserves byte length, so the offset it
-    // yields is valid against the original source.
-    let relative_start = match literal.find(value) {
-        Some(found) => found,
-        None => crate::cjk::with_cjk_friendly_flanking(literal).find(value)?,
-    };
+    let relative_start = find_parsed_value(literal, value)?;
     Some(syntax_range.start + relative_start..syntax_range.start + relative_start + value.len())
 }
 

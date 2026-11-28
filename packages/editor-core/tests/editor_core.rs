@@ -41,6 +41,34 @@ fn block_ranges_use_utf8_bytes_and_slice_original_source() {
     assert_eq!(&source[range.clone()], "rust");
 }
 
+/// A fence info string holding full-width punctuation still resolves.
+///
+/// Same root cause as the code-span mark: the info string is parsed from the
+/// CJK-rewritten text, so ` ```「rust」 ` arrives carrying `一` and a plain
+/// search in the original source found nothing. The language then silently
+/// became `None`. Measured before the fix: `None` for the punctuated fence,
+/// `Some("rust")` for the plain one.
+#[test]
+fn a_fence_info_string_with_cjk_punctuation_resolves() {
+    let source = "```「rust」\ncode\n```\n";
+    let blocks = MarkdownDocument::new(source).blocks().unwrap();
+    let code = blocks
+        .iter()
+        .find(|block| matches!(block.kind, BlockKind::Code { .. }))
+        .expect("the fence is a code block");
+    let BlockKind::Code {
+        language: Some(range),
+    } = &code.kind
+    else {
+        panic!("the punctuated info string must resolve to a range");
+    };
+    assert_eq!(
+        &source[range.clone()],
+        "「rust」",
+        "the range addresses the user's own bytes, punctuation intact"
+    );
+}
+
 #[test]
 fn markdown_source_round_trips_exactly_without_ast_serialization() {
     let source = "---\r\ntitle: exact\r\n---\r\n\r\n## Heading ##  \r\n\r\nText  \r\nline  \r\n\r\n<Table attr='x'>\r\n";
