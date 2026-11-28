@@ -1726,6 +1726,30 @@ pub struct ImagePaste {
 
 impl gpui_kit::EventEmitter<ImagePaste> for TypesetView {}
 
+/// What a click on a link asked for.
+///
+/// The editor decides *what* the target is; the host decides what to do about
+/// it. A fragment resolves inside the editor and never reaches the host, so this
+/// only carries destinations that need host capabilities.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum LinkAction {
+    /// Open a whitelisted external URL.
+    External(String),
+    /// Open a local resource or document, resolved against the active document.
+    Local(String),
+    /// The click landed in a link but the target must not be opened.
+    /// Carries the destination so the host can report it without opening.
+    Refused(String),
+}
+
+/// Emitted when a modifier-click asks to open a link's target.
+#[derive(Clone, Debug)]
+pub struct LinkActivated {
+    pub action: LinkAction,
+}
+
+impl gpui_kit::EventEmitter<LinkActivated> for TypesetView {}
+
 /// What a paste target remembers, so an async image insert can verify the
 /// document has not moved on before it lands.
 #[derive(Clone, Debug)]
@@ -1870,6 +1894,29 @@ impl TypesetView {
             return;
         }
 
+        // A click inside a link is not ordinary caret placement. Plain click
+        // selects the visible label so the link can be edited; a modifier click
+        // asks to follow it (LINK-01/LINK-02). Doing this before caret placement
+        // keeps the external opener off a plain click, which was the audited
+        // defect.
+        if event.click_count == 1
+            && !event.modifiers.shift
+            && let Some(link) = self.link_at_offset(offset).cloned()
+        {
+            if event.modifiers.secondary(cx) {
+                self.activate_link(&link, cx);
+            } else {
+                // Keep the caret inside the label so the source is revealed for
+                // editing, but select the label rather than the raw syntax.
+                self.editor.set_selection(link.range.start, link.range.end);
+                self.drag_anchor = Some(link.range.start);
+                self.drag_mode = DragMode::Char;
+                self.scroll_caret_into_view();
+                cx.notify();
+            }
+            return;
+        }
+
         if event.modifiers.shift {
             let anchor = self.editor.selection().anchor();
             self.editor.set_selection(anchor, offset);
@@ -1892,6 +1939,60 @@ impl TypesetView {
         }
         self.scroll_caret_into_view();
         cx.notify();
+    }
+
+    /// The link mark whose syntax contains `offset`.
+    ///
+    /// Reads the projection's marks rather than re-parsing: the same marks the
+    /// renderer used to draw the link, so hit testing and drawing agree.
+    fn link_at_offset(&self, offset: usize) -> Option<&inkpoint_editor_core::InlineMark> {
+        inkpoint_editor_core::links::link_at(self.document.inline_marks(), offset)
+    }
+
+    /// Follows a link: anchors scroll in-document, openable targets are emitted.
+    ///
+    /// The classification lives in the core, so this method only decides what to
+    /// do with each outcome. A missing anchor reports a miss and leaves the
+    /// caret and the document alone, per the anchor contract.
+    fn activate_link(&mut self, link: &inkpoint_editor_core::InlineMark, cx: &mut Context<Self>) {
+        let inkpoint_editor_core::InlineMarkKind::Link { destination } = &link.kind else {
+            return;
+        };
+        match inkpoint_editor_core::links::classify(self.editor.source(), destination) {
+            inkpoint_editor_core::links::LinkTarget::Anchor { offset } => {
+                self.editor.set_caret(offset);
+                self.reveal_caret = Some(offset);
+                self.scroll_offset_into_view(offset);
+                cx.notify();
+            }
+            inkpoint_editor_core::links::LinkTarget::DocumentTop => {
+                self.editor.set_caret(0);
+                self.reveal_caret = Some(0);
+                self.scroll_offset_into_view(0);
+                cx.notify();
+            }
+            inkpoint_editor_core::links::LinkTarget::External(url) => {
+                cx.emit(LinkActivated {
+                    action: LinkAction::External(url),
+                });
+            }
+            inkpoint_editor_core::links::LinkTarget::Local(path) => {
+                cx.emit(LinkActivated {
+                    action: LinkAction::Local(path),
+                });
+            }
+            inkpoint_editor_core::links::LinkTarget::Rejected(url) => {
+                // Editable text, but never opened. The host decides how to say so.
+                cx.emit(LinkActivated {
+                    action: LinkAction::Refused(url),
+                });
+            }
+            inkpoint_editor_core::links::LinkTarget::MissingAnchor(fragment) => {
+                // Report without moving the caret or touching the document.
+                self.last_error = Some(format!("没有找到标题 #{fragment}"));
+                cx.notify();
+            }
+        }
     }
 
     // The rendered checkbox is immediately left of the first line's text. A

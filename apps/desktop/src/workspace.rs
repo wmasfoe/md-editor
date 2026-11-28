@@ -14,7 +14,8 @@ use crate::{
 };
 use gpui_kit::{component::tree::TreeState, *};
 use inkpoint_editor_gpui::{
-    ImagePaste, PasteTarget, TypesetTypography, TypesetView as DesktopEditor,
+    ImagePaste, LinkAction, LinkActivated, PasteTarget, TypesetTypography,
+    TypesetView as DesktopEditor,
 };
 
 actions!(
@@ -80,6 +81,7 @@ pub(crate) struct Workspace {
     pub(crate) metric_kind: DocumentMetricKind,
     _editor_observer: Subscription,
     _image_paste_subscription: Subscription,
+    _link_activated_subscription: Subscription,
     _appearance_observer: Subscription,
     _settings_observer: Subscription,
     _ai_shutdown: Subscription,
@@ -150,6 +152,16 @@ impl Workspace {
                 }
             },
         );
+        // Following a link is a host decision: the editor classifies the target,
+        // the host opens it. A fragment never reaches here because the editor
+        // resolves those itself.
+        let link_activated_subscription = cx.subscribe_in(
+            &editor,
+            window,
+            |this, _, event: &LinkActivated, window, cx| {
+                this.follow_link(event.action.clone(), window, cx);
+            },
+        );
         let appearance_observer = window.observe_window_appearance(settings::sync_system_theme);
         let owner = cx.weak_entity();
         window.on_window_should_close(cx, move |window, cx| {
@@ -218,6 +230,7 @@ impl Workspace {
             metric_kind: DocumentMetricKind::Words,
             _editor_observer,
             _image_paste_subscription: image_paste_subscription,
+            _link_activated_subscription: link_activated_subscription,
             _appearance_observer: appearance_observer,
             _settings_observer,
             _ai_shutdown: ai_shutdown,
@@ -404,6 +417,49 @@ impl Workspace {
 
     pub(crate) fn open_path(&mut self, path: PathBuf, window: &mut Window, cx: &mut Context<Self>) {
         self.file_action(FileAction::OpenPath(path), window, cx);
+    }
+
+    /// Acts on a link the editor classified and asked the host to follow.
+    ///
+    /// Fragments never arrive here: the editor resolves those itself, because
+    /// they are document navigation rather than a host capability. This handles
+    /// only the three outcomes that need the platform.
+    fn follow_link(&mut self, action: LinkAction, window: &mut Window, cx: &mut Context<Self>) {
+        match action {
+            LinkAction::External(url) => {
+                // The editor only classifies whitelisted schemes as external, so
+                // no further check is needed here; the whitelist is the gate.
+                cx.open_url(&url);
+                self.message(format!("Opened {url}"), cx);
+            }
+            LinkAction::Local(target) => {
+                // A local resource resolves against the active document's folder.
+                // Without a saved document there is no base path, so report it
+                // instead of guessing.
+                let Some(base) = self.document.path.as_ref().and_then(|path| path.parent()) else {
+                    self.message("Save the document before opening local links.", cx);
+                    return;
+                };
+                let resolved = base.join(&target);
+                if !resolved.exists() {
+                    self.message(format!("Could not find {target}"), cx);
+                    return;
+                }
+                // A local Markdown file opens as a document; anything else goes
+                // to the system handler (images, PDFs, and so on).
+                if is_markdown(&resolved) {
+                    self.open_path(resolved, window, cx);
+                } else {
+                    cx.open_with_system(&resolved);
+                    self.message(format!("Opened {target}"), cx);
+                }
+            }
+            LinkAction::Refused(target) => {
+                // Editable text, never opened. Saying so is better than a click
+                // that appears to do nothing.
+                self.message(format!("This link cannot be opened: {target}"), cx);
+            }
+        }
     }
 
     fn run_file_action(&mut self, action: FileAction, window: &mut Window, cx: &mut Context<Self>) {

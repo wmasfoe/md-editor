@@ -9,5 +9,6 @@ mod typeset_view;
 
 pub use commands::{BlockFormat, HostCommand, InlineFormat, format_shortcuts};
 pub use typeset_view::{
-    Copy, Cut, ImagePaste, Paste, PasteTarget, ToggleSourceMode, TypesetTypography, TypesetView,
+    Copy, Cut, ImagePaste, LinkAction, LinkActivated, Paste, PasteTarget, ToggleSourceMode,
+    TypesetTypography, TypesetView,
 };

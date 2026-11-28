@@ -418,6 +418,14 @@ impl TypesetDocument {
             .map(|projection| projection.syntax.clone())
     }
 
+    /// Inline marks of the parsed document, sorted by syntax start.
+    ///
+    /// The host needs these to answer "did this click land in a link?" without
+    /// re-parsing: the projection already built them.
+    pub fn inline_marks(&self) -> &[inkpoint_editor_core::InlineMark] {
+        &self.inline_marks
+    }
+
     /// The Markdown this document was parsed from.
     pub fn source(&self) -> &str {
         &self.source
