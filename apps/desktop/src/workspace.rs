@@ -460,25 +460,25 @@ impl Workspace {
                 self.message(format!("Opened {url}"), cx);
             }
             LinkAction::Local(target) => {
-                // A local resource resolves against the active document's folder.
-                // Without a saved document there is no base path, so report it
-                // instead of guessing.
-                let Some(base) = self.document.path.as_ref().and_then(|path| path.parent()) else {
-                    self.message("Save the document before opening local links.", cx);
-                    return;
-                };
-                let resolved = base.join(&target);
-                if !resolved.exists() {
-                    self.message(format!("Could not find {target}"), cx);
-                    return;
-                }
-                // A local Markdown file opens as a document; anything else goes
-                // to the system handler (images, PDFs, and so on).
-                if is_markdown(&resolved) {
-                    self.open_path(resolved, window, cx);
-                } else {
-                    cx.open_with_system(&resolved);
-                    self.message(format!("Opened {target}"), cx);
+                // The path rules live in `link_target` so they are testable: a
+                // relative link is relative to the document's folder, an absolute
+                // one ignores it, and a `?query`/`#fragment` suffix is not part of
+                // the name.
+                match crate::link_target::resolve_local_link(self.document.path.as_deref(), &target)
+                {
+                    crate::link_target::LocalLink::Document(path) => {
+                        self.open_path(path, window, cx);
+                    }
+                    crate::link_target::LocalLink::Asset(path) => {
+                        cx.open_with_system(&path);
+                        self.message(format!("Opened {target}"), cx);
+                    }
+                    crate::link_target::LocalLink::Missing(path) => {
+                        self.message(format!("Could not find {}", path.display()), cx);
+                    }
+                    crate::link_target::LocalLink::NoBaseDirectory => {
+                        self.message("Save the document before opening local links.", cx);
+                    }
                 }
             }
             LinkAction::Refused(target) => {

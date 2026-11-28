@@ -3,6 +3,7 @@ mod appearance;
 mod document;
 mod folder;
 mod image_assets;
+mod link_target;
 mod local_ai;
 pub(crate) mod session;
 mod settings;
