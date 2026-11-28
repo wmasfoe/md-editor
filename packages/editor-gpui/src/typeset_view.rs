@@ -2515,7 +2515,11 @@ impl Element for InputSurface {
             // has no handles, and building the rectangle list for it walks every
             // leaf on every frame. On a 1,000-block document that cost 11 ms of
             // a 29 ms budget for nothing.
-            if !view.table_slots.is_empty() {
+            if view.table_slots.is_empty() {
+                // No tables: drop any groups left from the previous frame, or a
+                // table the user just deleted would keep its handles.
+                view.table_handles.clear();
+            } else {
                 let leaf_rects: Vec<(Range<usize>, Bounds<Pixels>)> = view
                     .document
                     .leaf_spans()

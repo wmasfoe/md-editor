@@ -41,6 +41,10 @@ impl TableHandleState {
         slots: &[Vec<TableCellSlot>],
         leaves: &[(Range<usize>, Bounds<Pixels>)],
     ) {
+        // Assign unconditionally: a document whose last table was just deleted
+        // reports no slots, and keeping the previous groups would leave handles
+        // floating beside text that is no longer a table — painted and
+        // clickable, but describing a table that no longer exists.
         self.groups = slots
             .iter()
             .map(|table| {
@@ -49,6 +53,14 @@ impl TableHandleState {
             })
             .filter(|handles| !handles.is_empty())
             .collect();
+    }
+
+    /// Drops every group.
+    ///
+    /// Used when the document has no tables at all, so the caller can skip
+    /// walking the leaf geometry for rectangles nothing would use.
+    pub(crate) fn clear(&mut self) {
+        self.groups.clear();
     }
 
     /// Records where the pointer is, so the next frame reveals the right group.
@@ -318,6 +330,38 @@ mod tests {
             session.source(),
             "|  | a | b |\n| --- | - | - |\n|  | c | d |\n",
             "a blank column left of the one the handle names"
+        );
+    }
+
+    /// TABLE-HANDLE-01: when the document stops having tables, the handles go.
+    ///
+    /// The regression this pins: the rebuild was skipped when there were no
+    /// slots, so deleting the last table left its handles floating beside text
+    /// that is no longer a table — painted and clickable, describing a table
+    /// that no longer exists.
+    #[test]
+    fn table_handle01_handles_disappear_when_the_last_table_is_deleted() {
+        let source = "| a | b |\n| - | - |\n| c | d |\n";
+        let mut state = TableHandleState::default();
+        state.rebuild(&grid_slots(source), &leaves());
+        state.set_pointer(Some(Point {
+            x: px(250.0),
+            y: px(150.0),
+        }));
+        assert!(state.is_visible(), "the table has handles while it exists");
+
+        state.clear();
+        assert!(!state.is_visible(), "no table means no handles");
+        assert!(state.visible_handles().is_empty());
+        assert_eq!(state.hit_at(Point::default()), None);
+
+        // Rebuilding with no slots must also drop the old groups, not keep them.
+        state.rebuild(&grid_slots(source), &leaves());
+        assert!(state.is_visible(), "rebuilt for the table");
+        state.rebuild(&[], &[]);
+        assert!(
+            !state.is_visible(),
+            "an empty rebuild clears, so a deleted table cannot leave handles"
         );
     }
 
