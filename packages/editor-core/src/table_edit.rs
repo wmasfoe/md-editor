@@ -292,8 +292,16 @@ pub fn document_table_cells(source: &str) -> Vec<Vec<TableCellSlot>> {
     let Ok(blocks) = MarkdownDocument::new(source).blocks() else {
         return Vec::new();
     };
+    table_cells_in(source, &blocks)
+}
+
+/// The same grouping, for a caller that already has the parsed blocks.
+///
+/// Parsing a long document is the expensive part, and a renderer that already
+/// parsed it must not pay for it twice just to place handles.
+pub fn table_cells_in(source: &str, blocks: &[SourceBlock]) -> Vec<Vec<TableCellSlot>> {
     let mut tables = Vec::new();
-    collect_tables(&blocks, &mut tables);
+    collect_tables(blocks, &mut tables);
     tables
         .into_iter()
         .filter_map(|table| cells_of(source, &table))
