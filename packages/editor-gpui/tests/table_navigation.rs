@@ -183,3 +183,54 @@ fn arrows_on_selection_collapse_to_boundaries(cx: &mut TestAppContext) {
     vcx.simulate_keystrokes("right");
     assert_eq!(view.read_with(&*vcx, |v, _| v.selected_range()), 7..7);
 }
+
+/// TABLE-NAV-02: Shift+Enter inside a table cell makes a soft line break
+/// inside that cell, not a new row and not a broken table.
+///
+/// The existing Shift+Enter test uses a plain paragraph. A table cell is the
+/// case that can go wrong: the break has to stay inside the cell, and the row
+/// must still parse as one row with the same number of cells.
+#[gpui_kit::test]
+fn shift_enter_inside_a_table_cell_keeps_the_break_in_the_cell(cx: &mut TestAppContext) {
+    cx.update(gpui_kit::init);
+    cx.update(TypesetView::bind_keys);
+    let source = "| 列一 | 列二 |\n| --- | --- |\n| ab | cd |\n";
+    let (view, vcx) = cx.add_window_view(|window, cx| TypesetView::new(window, cx, source));
+    let caret = source.find("ab").expect("the first body cell") + "a".len();
+    vcx.update(|window, cx| {
+        view.update(cx, |view, cx| {
+            view.focus(window, cx);
+            view.set_caret(caret, cx);
+        })
+    });
+    for _ in 0..3 {
+        vcx.update(|window, cx| window.draw(cx).clear(cx));
+        vcx.run_until_parked();
+    }
+
+    vcx.simulate_keystrokes("shift-enter");
+    let after = view.read_with(&*vcx, |view, _| view.markdown().to_owned());
+
+    // A GFM table row is a single line, so a soft break inside a cell has to be
+    // written as `<br>`. A real newline would end the row and split the table.
+    assert_eq!(
+        after, "| 列一 | 列二 |\n| --- | --- |\n| a<br>b | cd |\n",
+        "the break is a <br> inside the cell"
+    );
+    // The table is unchanged in shape: three lines, one body row, two columns.
+    assert_eq!(after.lines().count(), 3, "still three source lines");
+    let body = after.lines().nth(2).expect("the body row");
+    assert_eq!(
+        body.matches('|').count(),
+        3,
+        "the row still has two cells: {body:?}"
+    );
+    // The caret sits right after the four-character `<br>`, so the next
+    // keystroke continues the cell's text.
+    let after_break = caret + "<br>".len();
+    assert_eq!(
+        view.read_with(&*vcx, |view, _| view.selected_range()),
+        after_break..after_break,
+        "the caret sits after the inserted break"
+    );
+}
