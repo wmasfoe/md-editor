@@ -3,6 +3,7 @@
 
 mod cjk;
 mod fence;
+pub mod links;
 mod list_newline;
 pub mod session;
 pub mod table_edit;
