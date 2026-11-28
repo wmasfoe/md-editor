@@ -5,6 +5,7 @@ mod cjk;
 mod fence;
 mod list_newline;
 pub mod session;
+pub mod table_edit;
 pub mod table_navigation;
 pub mod text;
 
