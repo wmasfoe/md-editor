@@ -26,7 +26,6 @@ const CJK_SAMPLE: &str =
 /// against the *first* closer. The result is not "no bold" but bold across the
 /// wrong pair, which is why this is a P1-class body-integrity bug.
 #[test]
-#[ignore = "red until G002 fixes it; run with --ignored to see the failure"]
 fn cjk01_bold_spans_each_quoted_phrase_and_leaves_the_conjunction_plain() {
     let document = MarkdownDocument::new(CJK_SAMPLE);
     let marks = document.inline_marks().unwrap();
@@ -75,7 +74,6 @@ fn cjk01_keeps_standard_commonmark_emphasis_semantics() {
 /// code into the language line, producing ` ```jsconst n = 1; `. Losing a fence
 /// newline silently changes the document structure.
 #[test]
-#[ignore = "red until G002 fixes it; run with --ignored to see the failure"]
 fn fence01_backspace_at_code_body_start_keeps_the_fence_newline() {
     let source = "```js\nconst n = 1;\n```\n";
     let body_start = source.find("const").unwrap();
@@ -129,7 +127,6 @@ fn fence01_backspace_inside_code_deletes_one_extended_grapheme() {
 /// and `second` into the first column of the header. The historical contract
 /// normalises the newline inside the cell instead.
 #[test]
-#[ignore = "red until G002 fixes it; run with --ignored to see the failure"]
 fn table_paste01_multiline_paste_stays_inside_one_header_cell() {
     let source = "| left | right |\n| ---- | ----- |\n| x    | y     |\n";
     let target = source.find("left").unwrap()..source.find("left").unwrap() + 4;

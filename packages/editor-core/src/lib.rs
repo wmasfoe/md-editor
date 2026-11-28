@@ -1,6 +1,8 @@
 //! Markdown source operations for the editor. The editing session owns source
 //! and history. Parsing never serializes an AST over user-authored source.
 
+mod cjk;
+mod fence;
 mod list_newline;
 pub mod session;
 pub mod table_navigation;
@@ -415,10 +417,22 @@ impl MarkdownDocument {
 }
 
 fn parse_markdown(source: &str) -> Result<Node, String> {
-    to_mdast(source, &parse_options())
+    // CJK punctuation next to an emphasis delimiter makes CommonMark's flanking
+    // rule reject both runs and match the wrong pair, so `**「a」**到**「b」**`
+    // bolded the `到` instead. The rewrite keeps byte offsets identical, so every
+    // range in the returned tree is still valid against `source`, and callers
+    // keep slicing content from the original text.
+    let rewritten;
+    let parse_input = if crate::cjk::contains_cjk_punctuation(source) {
+        rewritten = crate::cjk::with_cjk_friendly_flanking(source);
+        rewritten.as_str()
+    } else {
+        source
+    };
+    to_mdast(parse_input, &parse_options())
         // Raw HTML is still part of the app's Markdown contract, while MDX
         // intentionally disables HTML. Fall back only when MDX parsing fails.
-        .or_else(|_| to_mdast(source, &ParseOptions::gfm()))
+        .or_else(|_| to_mdast(parse_input, &ParseOptions::gfm()))
         .map_err(|error| error.to_string())
 }
 

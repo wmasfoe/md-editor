@@ -30,9 +30,18 @@ impl TypesetView {
         if self.source_mode == source_mode || self.composing() {
             return;
         }
+        // Remember where the reader is before the projection changes. The caret
+        // may be scrolled far off-screen; restoring *it* would yank the viewport
+        // back to the document start, which is the audited defect (VIEW-01).
+        let reading_position = self.native_layout.top_source_offset();
         self.source_mode = source_mode;
         self.document_revision = None;
         self.reparse();
+        if let Some(offset) = reading_position {
+            self.native_layout.restore_top_offset(offset);
+            cx.notify();
+            return;
+        }
         let offset = self.editor.selection().head();
         if let Some(block_index) = self.block_index_for_offset(offset) {
             self.native_layout.reveal_after_layout(block_index);

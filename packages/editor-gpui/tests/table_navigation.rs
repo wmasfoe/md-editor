@@ -88,8 +88,15 @@ fn tab_during_composition_keeps_selection_and_preedit(cx: &mut TestAppContext) {
     assert!(view.read_with(&*vcx, |v, _| v.composing()));
 }
 
+/// Tab on a plain prose line indents the line by two spaces.
+///
+/// This test used to assert `or\tdinary paragraph`: a literal tab inserted at
+/// the caret. The interaction audit lists that as the defect — the historical
+/// contract is a two-space *line* indent with the caret kept on the same text
+/// (spec: TAB-01, editor_interaction_tab_and_links_spec 契约一). The old
+/// assertion locked the bug in, so it is replaced rather than kept alongside.
 #[gpui_kit::test]
-fn tab_outside_a_table_keeps_text_input_behavior(cx: &mut TestAppContext) {
+fn tab_on_plain_prose_indents_the_line(cx: &mut TestAppContext) {
     cx.update(gpui_kit::init);
     cx.update(TypesetView::bind_keys);
     let source = "ordinary paragraph";
@@ -106,8 +113,17 @@ fn tab_outside_a_table_keeps_text_input_behavior(cx: &mut TestAppContext) {
     }
     vcx.simulate_keystrokes("tab");
     assert_eq!(
-        view.read_with(&*vcx, |v, _| v.markdown().to_owned()),
-        "or\tdinary paragraph"
+        view.read_with(&*vcx, |v, _| (v.markdown().to_owned(), v.selected_range())),
+        (format!("  {source}"), 4..4),
+        "Tab must indent the line by two spaces and keep the caret on the same text"
+    );
+
+    // Shift+Tab reverses exactly the same operation.
+    vcx.simulate_keystrokes("shift-tab");
+    assert_eq!(
+        view.read_with(&*vcx, |v, _| (v.markdown().to_owned(), v.selected_range())),
+        (source.to_owned(), 2..2),
+        "Shift+Tab must remove the two-space indent and restore the caret"
     );
 }
 

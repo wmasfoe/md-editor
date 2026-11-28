@@ -157,6 +157,40 @@ pub fn exit_table(source: &str, caret: usize) -> Option<SourceEdit> {
     })
 }
 
+/// The paragraph break a caret at the end of a document-final table needs.
+///
+/// A document may end with a table and no trailing newline. A click in the
+/// whitespace below that table resolves to the EOF byte offset, which is still
+/// *inside* the table's source range, so typing there appends to the last cell:
+/// the audit's repro turned `| c | d |` into `| c | d |继续`.
+///
+/// The historical contract (wysiwyg_virtual_trailing_line_spec) is that input
+/// below the block forms its own paragraph. This returns the break that has to
+/// exist before that input, or `None` when the caret is not at the end of a
+/// final table.
+///
+pub fn trailing_paragraph_break(source: &str, caret: usize) -> Option<SourceEdit> {
+    // Only the document end is in question: a caret in the middle of a table is
+    // ordinary cell editing.
+    if caret != source.len() {
+        return None;
+    }
+    let blocks = MarkdownDocument::new(source).blocks().ok()?;
+    let last = blocks.last()?;
+    if last.kind != BlockKind::Table || last.range.end != source.len() {
+        return None;
+    }
+    // Two newlines make a paragraph boundary in Markdown. One would keep the
+    // text attached to the table's last row.
+    let break_start = source.len();
+    let caret_after = break_start + 2;
+    Some(SourceEdit {
+        range: break_start..break_start,
+        replacement: "\n\n".to_owned(),
+        selection_after: caret_after..caret_after,
+    })
+}
+
 /// Navigates vertically (down or up) within a table, or appends a row if pressing down on the last row.
 pub fn navigate_table_vertical(source: &str, caret: usize, down: bool) -> Option<TableNavigation> {
     let blocks = MarkdownDocument::new(source).blocks().ok()?;

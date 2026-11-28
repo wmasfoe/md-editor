@@ -35,6 +35,13 @@ pub(super) struct FindState {
     pub(super) show_replace: bool,
     pub(super) options: FindOptions,
     pub(super) current: Option<Range<usize>>,
+    /// The query `current` was found with.
+    ///
+    /// Recorded here rather than read back from the input widget: `find_match`
+    /// is also called directly (Enter, next/previous, and tests), and in those
+    /// paths the widget value is not what produced the match. Reading the widget
+    /// would make replace act on a query the panel never searched for.
+    pub(super) current_query: String,
     pub(super) matches: Vec<Range<usize>>,
     pub(super) count: usize,
 }
@@ -85,6 +92,7 @@ impl FindState {
             show_replace: false,
             options: FindOptions::default(),
             current: None,
+            current_query: String::new(),
             matches: Vec::new(),
             count: 0,
         }
@@ -124,6 +132,7 @@ impl TypesetView {
             self.find.count = 0;
             self.find.matches.clear();
             self.find.current = None;
+            self.find.current_query.clear();
             return;
         }
         let matches = inkpoint_editor_core::find_matches(source, query, &self.find.options);
@@ -131,6 +140,7 @@ impl TypesetView {
         self.find.matches = matches.clone();
         if matches.is_empty() {
             self.find.current = None;
+            self.find.current_query.clear();
             return;
         }
         let anchor = self
@@ -158,6 +168,7 @@ impl TypesetView {
         let range = matches[index].clone();
         self.editor.set_selection(range.start, range.end);
         self.find.current = Some(range.clone());
+        self.find.current_query = query.to_owned();
         self.scroll_range_into_view(&range);
     }
 
@@ -170,10 +181,48 @@ impl TypesetView {
             return;
         };
         let repl = self.find.replace_input.read(cx).value().to_string();
-        let result = self.editor.replace_match(current, &repl);
+        // The query that produced `current`, not whatever the widget now holds.
+        let query = self.find.current_query.clone();
+
+        // The cached range was found before the user's latest edits. Re-run the
+        // search first: a stale range must never be written over, and the match
+        // the user means is the one that is still there.
+        let live = self.locate_live_match(&query, &current);
+        let Some(live) = live else {
+            // Nothing to replace any more. Re-run the search so the panel stops
+            // highlighting a range that no longer exists, and leave the body
+            // untouched.
+            self.find_match(&query, false);
+            cx.notify();
+            return;
+        };
+
+        let expected = query.clone();
+        let result = self.editor.replace_match_guarded(live, &expected, &repl);
         self.apply(result, cx);
-        let query = self.find.input.read(cx).value().to_string();
         self.find_match(&query, false);
+    }
+
+    /// The range a replace should act on, or `None` when the match is gone.
+    ///
+    /// Preferred source of truth is a fresh search: if the query still occurs,
+    /// the match nearest the previously highlighted position is the one the user
+    /// is looking at. Falling back to the cached range only when it still holds
+    /// the query keeps the guard meaningful rather than cosmetic.
+    fn locate_live_match(&self, query: &str, cached: &Range<usize>) -> Option<Range<usize>> {
+        if query.is_empty() {
+            return None;
+        }
+        let source = self.editor.source();
+        let matches = inkpoint_editor_core::find_matches(source, query, &self.find.options);
+        if matches.is_empty() {
+            return None;
+        }
+        // The match the user saw: the one starting closest to the cached start.
+        let nearest = matches
+            .iter()
+            .min_by_key(|range| (range.start.abs_diff(cached.start), range.start))?;
+        Some(nearest.clone())
     }
 
     pub(super) fn replace_all(&mut self, cx: &mut Context<Self>) {
@@ -550,7 +599,6 @@ mod tests {
     /// then pressed replace, and got `XoneDOGt two` instead of `Xone DOG two`: the
     /// cached `4..7` byte range was applied to bytes that no longer spell `cat`.
     #[gpui_kit::test]
-    #[ignore = "red until G002 fixes it; run with --ignored to see the failure"]
     fn find01_replace_after_typing_before_the_match_targets_the_live_range(
         cx: &mut TestAppContext,
     ) {
@@ -598,7 +646,6 @@ mod tests {
     /// The audit's concern is silent corruption: a guarded edit has to prove the
     /// bytes at the cached range are still the match before writing.
     #[gpui_kit::test]
-    #[ignore = "red until G002 fixes it; run with --ignored to see the failure"]
     fn find02_replace_refuses_a_stale_match_instead_of_corrupting_the_body(
         cx: &mut TestAppContext,
     ) {

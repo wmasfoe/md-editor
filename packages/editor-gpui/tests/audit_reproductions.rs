@@ -37,7 +37,6 @@ fn open_focused<'a>(
 /// header cell skipped the whole table. The cause is in the view's vertical
 /// move, which steps by laid-out leaf and treats a table as one stop.
 #[gpui_kit::test]
-#[ignore = "red until G002 fixes it; run with --ignored to see the failure"]
 fn table_nav01_down_from_header_reaches_the_same_column(cx: &mut TestAppContext) {
     let source = "| left | right |\n| ---- | ----- |\n| x    | y     |\n\nAfter paragraph.\n";
     let (view, vcx) = open_focused(cx, source);
@@ -62,7 +61,6 @@ fn table_nav01_down_from_header_reaches_the_same_column(cx: &mut TestAppContext)
 /// The audit repro appended `继续` to the last cell because the click below the
 /// table resolves to the EOF byte offset, which is inside the table's source.
 #[gpui_kit::test]
-#[ignore = "red until G002 fixes it; run with --ignored to see the failure"]
 fn table_exit01_typing_below_a_final_table_creates_a_paragraph(cx: &mut TestAppContext) {
     let source = "| a | b |\n| - | - |\n| c | d |";
     let (view, vcx) = open_focused(cx, source);
@@ -89,7 +87,6 @@ fn table_exit01_typing_below_a_final_table_creates_a_paragraph(cx: &mut TestAppC
 /// The audit repro inserted a literal tab at the caret. The historical contract
 /// is a two-space line indent.
 #[gpui_kit::test]
-#[ignore = "red until G002 fixes it; run with --ignored to see the failure"]
 fn tab01_plain_prose_tab_indents_the_line_by_two_spaces(cx: &mut TestAppContext) {
     let source = "plain paragraph text";
     let (view, vcx) = open_focused(cx, source);
@@ -119,7 +116,6 @@ fn tab01_plain_prose_tab_indents_the_line_by_two_spaces(cx: &mut TestAppContext)
 /// The audit repro: caret in the last cell of source mode, Tab added an empty
 /// row. Cell navigation belongs to WYSIWYG only.
 #[gpui_kit::test]
-#[ignore = "red until G002 fixes it; run with --ignored to see the failure"]
 fn table_source01_source_mode_tab_inserts_a_literal_tab(cx: &mut TestAppContext) {
     let source = "| a | b |\n| - | - |\n| c | d |\n";
     let (view, vcx) = open_focused(cx, source);

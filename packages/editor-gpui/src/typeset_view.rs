@@ -549,13 +549,67 @@ impl TypesetView {
 
     /// Moves the caret one line up, crossing into the previous leaf at the top.
     fn caret_up(&mut self, cx: &mut Context<Self>) {
+        // Inside a table the unit of vertical travel is a cell, not a visual
+        // line: the layout treats a whole table as one block, so the generic
+        // walk would jump past the table instead of moving one row up
+        // (TABLE-NAV-01).
+        if self.try_table_vertical(true, cx) {
+            return;
+        }
         self.move_vertical(true, false, cx);
     }
 
     /// Moves the caret one visual line down, crossing into the next leaf at the
     /// bottom of this one.
     fn caret_down(&mut self, cx: &mut Context<Self>) {
+        if self.try_table_vertical(false, cx) {
+            return;
+        }
         self.move_vertical(false, false, cx);
+    }
+
+    /// One table-cell step, or `false` when the caret is not in a table.
+    ///
+    /// Returns `true` whenever the core navigation produced a destination, so
+    /// the caller knows not to fall back to visual-line movement. Reaching the
+    /// last row still yields a destination (the appended row), which is the
+    /// historical behaviour.
+    fn try_table_vertical(&mut self, up: bool, cx: &mut Context<Self>) -> bool {
+        if self.composing() || self.source_mode() {
+            return false;
+        }
+        let head = self.editor.selection().head();
+        let Some(target) = inkpoint_editor_core::table_navigation::navigate_table_vertical(
+            self.editor.source(),
+            head,
+            !up,
+        ) else {
+            return false;
+        };
+        self.goal_x = None;
+        match target {
+            TableNavigation::Select(range) => {
+                self.editor.set_selection(range.start, range.end);
+                self.scroll_caret_into_view();
+                cx.notify();
+            }
+            TableNavigation::AppendRow {
+                offset,
+                text,
+                caret,
+            } => {
+                if self.editor.is_readonly() {
+                    return false;
+                }
+                let result = self.editor.apply_edit(SourceEdit {
+                    range: offset..offset,
+                    replacement: text,
+                    selection_after: caret..caret,
+                });
+                self.apply(result, cx);
+            }
+        }
+        true
     }
 
     /// One vertical step, staying inside the leaf or crossing into a neighbour.
@@ -1015,6 +1069,35 @@ impl TypesetView {
         }
     }
 
+    /// The key-binding context for the current caret and mode.
+    ///
+    /// Two things the audit found wrong live here:
+    ///
+    /// * Source mode must not claim the table-cell context. Cell navigation and
+    ///   last-cell row growth belong to the rendered view; in source mode Tab is
+    ///   plain text editing (TABLE-SOURCE-01).
+    /// * A collapsed caret in prose still needs the general `Indent` action. It
+    ///   used to fall through to the bare context with no Tab binding, so the
+    ///   keystroke reached the text input and inserted a literal tab (TAB-01).
+    fn key_context(&mut self) -> &'static str {
+        if self.source_mode() {
+            return if self.editor.selection().is_collapsed() {
+                KEY_CONTEXT
+            } else {
+                "TypesetView has_selection"
+            };
+        }
+        if self.editor.navigate_table(false).is_some() {
+            "TypesetView table_cell"
+        } else if self.editor.is_in_list() {
+            "TypesetView list_item"
+        } else if !self.editor.selection().is_collapsed() {
+            "TypesetView has_selection"
+        } else {
+            KEY_CONTEXT
+        }
+    }
+
     fn block_index_for_offset(&self, offset: usize) -> Option<usize> {
         let ranges = self.document.block_ranges();
         ranges
@@ -1081,6 +1164,10 @@ impl TypesetView {
                 Some("TypesetView && list_item"),
             ),
             KeyBinding::new("tab", Indent, Some("TypesetView && has_selection")),
+            // A collapsed caret in prose is the common Tab case. Without this the
+            // keystroke falls through to the text input, which inserts a literal
+            // tab instead of indenting the line (TAB-01).
+            KeyBinding::new("tab", Indent, Some(KEY_CONTEXT)),
             KeyBinding::new("shift-tab", Outdent, Some(KEY_CONTEXT)),
             KeyBinding::new("shift-enter", InsertPlainNewline, Some(KEY_CONTEXT)),
             KeyBinding::new("left", MoveLeft, Some(KEY_CONTEXT)),
@@ -1216,6 +1303,18 @@ impl Render for TypesetView {
             if this.composing() {
                 return;
             }
+            // Source mode edits text literally. Cell navigation and line
+            // indentation are rendered-view semantics, so a collapsed caret here
+            // inserts one real tab and a selection keeps the line-indent rule
+            // (TABLE-SOURCE-01).
+            if this.source_mode() {
+                if this.editor.selection().is_collapsed() {
+                    this.insert("\t", cx);
+                } else if let Ok(true) = this.editor.indent_selection(true) {
+                    this.apply(Ok(()), cx);
+                }
+                return;
+            }
             if this.editor.navigate_table(false).is_some() {
                 this.navigate_table(false, cx);
                 return;
@@ -1228,6 +1327,12 @@ impl Render for TypesetView {
         });
         let on_outdent_general = cx.listener(|this, _: &Outdent, _, cx| {
             if this.composing() {
+                return;
+            }
+            if this.source_mode() {
+                if let Ok(true) = this.editor.indent_selection(false) {
+                    this.apply(Ok(()), cx);
+                }
                 return;
             }
             if this.editor.navigate_table(true).is_some() {
@@ -1424,15 +1529,7 @@ impl Render for TypesetView {
             .id("typeset-view")
             .cursor_text()
             .track_focus(&self.focus)
-            .key_context(if self.editor.navigate_table(false).is_some() {
-                "TypesetView table_cell"
-            } else if self.editor.is_in_list() {
-                "TypesetView list_item"
-            } else if !self.editor.selection().is_collapsed() {
-                "TypesetView has_selection"
-            } else {
-                KEY_CONTEXT
-            })
+            .key_context(self.key_context())
             .w_full()
             .flex_1()
             .min_h_0()
@@ -1617,6 +1714,10 @@ impl TypesetView {
             return Err(match error {
                 SessionError::ReadOnly => "The editor is read-only.",
                 SessionError::Source(_) => "The insert was rejected by the document.",
+                // Not reachable through `insert`: the guard above already compared
+                // the revision and selection. Mapped explicitly rather than with a
+                // wildcard so a future error variant has to be considered here.
+                SessionError::StaleMatch => "The document changed while the insert was pending.",
             });
         }
         self.reparse();
