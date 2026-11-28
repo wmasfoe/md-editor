@@ -8,7 +8,7 @@
 //! offset that is wrong by one byte in the middle of a CJK character shows up as
 //! a caret in the wrong place or a composing region that swallows text.
 
-use std::ops::Range;
+use std::{ops::Range, path::PathBuf};
 
 #[path = "find.rs"]
 mod find;
@@ -123,7 +123,14 @@ impl Default for TypesetTypography {
 }
 
 impl TypesetTypography {
-    fn render_context(&self, cx: &App) -> RenderContext {
+    /// Builds the render context, including local image resolution.
+    ///
+    /// `document_directory` is the folder of the active document. A relative
+    /// image reference is relative to *that*, so the resolver turns it into a
+    /// local path and the renderer reads the file directly. Without it the
+    /// reference reaches the renderer as a URI and is fetched over HTTP, which is
+    /// the audited defect: the PNG was on disk and the preview was empty.
+    fn render_context(&self, cx: &App, document_directory: Option<PathBuf>) -> RenderContext {
         let mut context = RenderContext::from_app(cx);
         if !self.code_font_family.is_empty() {
             let family: SharedString = self.code_font_family.clone().into();
@@ -136,7 +143,17 @@ impl TypesetTypography {
                     .with_inline_code_style(inline_code),
             );
         }
-        context
+        // Remote and inline sources keep the default resolution: only a local
+        // reference is turned into a path.
+        context.with_image_source(move |uri| {
+            match crate::image_source::local_image_path(uri.as_ref(), document_directory.as_deref())
+            {
+                Some(path) => gpui_kit::ImageSource::Resource(gpui_kit::Resource::Path(
+                    std::sync::Arc::from(path.as_path()),
+                )),
+                None => gpui_kit::ImageSource::Resource(gpui_kit::Resource::Uri(uri.clone())),
+            }
+        })
     }
 }
 
@@ -309,6 +326,8 @@ struct PendingVerticalMove {
 /// A GPUI element that renders and edits Markdown.
 pub struct TypesetView {
     typography: TypesetTypography,
+    /// Folder of the active document, for resolving relative image references.
+    document_directory: Option<PathBuf>,
     native_layout: crate::native_layout::NativeLayoutState,
     pending_vertical: Option<PendingVerticalMove>,
     reveal_caret: Option<usize>,
@@ -367,6 +386,7 @@ impl TypesetView {
         Self {
             find,
             typography: TypesetTypography::default(),
+            document_directory: None,
             native_layout: crate::native_layout::NativeLayoutState::new(
                 crate::native_layout::NativeLayoutConfig::default(),
             ),
@@ -395,6 +415,18 @@ impl TypesetView {
     /// Enables image paste events when the host can persist clipboard images.
     pub fn set_image_paste_enabled(&mut self, enabled: bool) {
         self.image_paste_enabled = enabled;
+    }
+
+    /// Sets the folder that relative image references resolve against.
+    ///
+    /// The host calls this when it installs a document. Passing `None` (an
+    /// unsaved document) leaves relative references to the default resolver,
+    /// because there is no folder to be relative to.
+    pub fn set_document_directory(&mut self, directory: Option<PathBuf>, cx: &mut Context<Self>) {
+        if self.document_directory != directory {
+            self.document_directory = directory;
+            cx.notify();
+        }
     }
 
     /// Applies typography without changing the document or editing state.
@@ -1520,7 +1552,9 @@ impl Render for TypesetView {
         let on_select_doc_end =
             cx.listener(|this, _: &SelectToDocumentEnd, _, cx| this.move_to(false, true, true, cx));
 
-        let context = self.typography.render_context(cx);
+        let context = self
+            .typography
+            .render_context(cx, self.document_directory.clone());
         // Pass the selection through so the selected text is visibly highlighted:
         // without it, cmd-a and shift-arrow change state the user cannot see.
         let selection = self.editor.display_selection();

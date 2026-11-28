@@ -4,10 +4,12 @@
 //! platform's text-input contract.
 
 mod commands;
+mod image_source;
 mod native_layout;
 mod typeset_view;
 
 pub use commands::{BlockFormat, HostCommand, InlineFormat, format_shortcuts};
+pub use image_source::local_image_path;
 pub use typeset_view::{
     Copy, Cut, ImagePaste, LinkAction, LinkActivated, Paste, PasteTarget, ToggleSourceMode,
     TypesetTypography, TypesetView,

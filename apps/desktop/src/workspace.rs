@@ -287,7 +287,16 @@ impl Workspace {
     ) {
         self.has_active_document = true;
         self.document_generation = self.document_generation.wrapping_add(1);
+        // Relative image references resolve against this document's folder. Set
+        // before the first parse so the very first frame can load local images
+        // instead of fetching them over HTTP (IMAGE-01).
+        let document_directory = document
+            .path
+            .as_ref()
+            .and_then(|path| path.parent())
+            .map(|parent| parent.to_path_buf());
         self.editor.update(cx, |editor, cx| {
+            editor.set_document_directory(document_directory, cx);
             editor.replace_markdown(&document.markdown, cx);
             editor.focus(window, cx);
         });
