@@ -32,8 +32,18 @@ launch() {
 # existed before the step and only ever look at lines appended after that.
 INGRESS_OFFSET=0
 
+# Number of non-empty lines in a file, or 0 when it does not exist.
+#
+# `grep -c` prints 0 *and* exits 1 on an empty file, so `grep -c . || echo 0`
+# yields two lines and every later `$((...))` fails with a syntax error. Count
+# with a command that cannot fail instead.
+line_count() {
+  [ -f "$1" ] || { printf '0\n'; return 0; }
+  awk 'NF { n++ } END { printf "%d\n", n + 0 }' "$1"
+}
+
 mark_ingress() {
-  INGRESS_OFFSET="$(grep -c . "$INGRESS" 2>/dev/null || echo 0)"
+  INGRESS_OFFSET="$(line_count "$INGRESS")"
 }
 
 # Lines appended since the last mark.
@@ -46,7 +56,7 @@ new_ingress() {
 wait_for_ingress() {
   local want="$1" tries=0
   while [ "$tries" -lt 60 ]; do
-    if [ "$(new_ingress | grep -c . || true)" -ge "$want" ]; then
+    if [ "$(new_ingress | awk 'NF { n++ } END { printf "%d\n", n + 0 }')" -ge "$want" ]; then
       return 0
     fi
     sleep 0.5
