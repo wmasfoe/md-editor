@@ -307,6 +307,14 @@ impl Workspace {
             self.document.path.as_deref(),
             &self.document.markdown,
         );
+        // Copy the draft into its own file. Autosave rewrites the hot-exit
+        // session on every edit, so a draft left only there would be destroyed by
+        // the next keystroke (DRAFT-02).
+        if let Some(draft) = self.pending_draft.as_ref()
+            && let Err(error) = crate::session::store_pending_draft(draft)
+        {
+            eprintln!("Could not persist the pending draft: {error}");
+        }
         self.update_title(window, cx);
         // A file the parser cannot structure still opens, so the user keeps
         // their buffer, but saying so beats an unexplained empty page.
@@ -626,8 +634,11 @@ impl Workspace {
                         this.document = Arc::new(saved);
                         this.update_title(window, cx);
                         if !this.dirty(cx) {
+                            // The document matches disk, so there is nothing to
+                            // hot-exit. The pending draft is a separate owner and
+                            // is left alone: saving current edits must not decide
+                            // what happens to older text.
                             let _ = crate::session::HotExitSession::clear();
-                            this.pending_draft = None;
                         }
                         if let Some(next) = next {
                             this.with_committed_editor(window, cx, move |this, window, cx| {
@@ -912,15 +923,25 @@ impl Workspace {
         self.draft_preview_open = false;
         self.update_title(window, cx);
         match result {
-            Ok(()) => self.message("Draft restored. Cmd+Z returns to your edits.", cx),
-            Err(error) => self.message(format!("Draft could not be restored. {error}"), cx),
+            Ok(()) => {
+                // The draft has been applied, so its stored copy is spent.
+                let _ = crate::session::clear_pending_draft();
+                self.message("Draft restored. Cmd+Z returns to your edits.", cx);
+            }
+            Err(error) => {
+                // Keep the stored draft: the restore failed, so it is still the
+                // only copy of that text.
+                self.message(format!("Draft could not be restored. {error}"), cx);
+            }
         }
     }
 
     pub(crate) fn discard_pending_draft(&mut self, cx: &mut Context<Self>) {
         self.pending_draft = None;
         self.draft_preview_open = false;
-        let _ = crate::session::HotExitSession::clear();
+        // Only the draft. Clearing the hot-exit session here threw away the
+        // current unsaved edits while appearing to dismiss the draft.
+        let _ = crate::session::clear_pending_draft();
         self.message("Draft discarded", cx);
     }
 
@@ -936,7 +957,17 @@ impl Workspace {
     }
 
     pub(crate) fn check_initial_session(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        // The stored draft is its own owner and takes precedence: it is the copy
+        // that survived every autosave, while the session may already describe a
+        // newer state of the same document.
+        let stored_draft = crate::session::load_pending_draft();
+
         let Ok(Some(session)) = crate::session::HotExitSession::load() else {
+            // No session, but a draft may still exist: opening the document it
+            // belongs to is what makes the draft reachable again.
+            if let Some(draft) = stored_draft {
+                self.recover_stored_draft(draft, window, cx);
+            }
             return;
         };
 
@@ -964,6 +995,35 @@ impl Workspace {
             }
         } else if active.is_untitled && !session.draft_markdown.is_empty() {
             self.install_document(Document::default(), window, cx);
+        }
+
+        // Attach the surviving draft to whatever was just opened, so the banner
+        // offers it. `install_document` may have found a session-derived draft;
+        // the stored copy is the one that cannot have been overwritten.
+        if let Some(draft) = stored_draft {
+            self.pending_draft = Some(draft);
+        }
+    }
+
+    /// Opens the document a stored draft belongs to, so its text is reachable.
+    fn recover_stored_draft(
+        &mut self,
+        draft: crate::session::PendingDraftInfo,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        match draft.file_path.clone() {
+            Some(path) if path.exists() => {
+                self.load_document(path, window, cx);
+                self.pending_draft = Some(draft);
+            }
+            // The file is gone: recover as an untitled document so the text can
+            // still be saved somewhere (DRAFT-03).
+            _ => {
+                self.install_document(Document::default(), window, cx);
+                self.pending_draft = Some(draft);
+                self.message("A saved draft was recovered; save it to keep the text.", cx);
+            }
         }
     }
 }
