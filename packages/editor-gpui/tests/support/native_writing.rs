@@ -531,3 +531,130 @@ fn native_long_document_input_to_paint(cx: &mut TestAppContext) {
         );
     }
 }
+
+/// PERF-MIXED-01: prose, a GFM table, a Mermaid flowchart and Chinese input
+/// stay consistent through a round of edits.
+///
+/// This is the regression the perf work must not break, and it is deliberately
+/// separate from the 1k/2k fixtures: those measure latency, this one measures
+/// that a mixed document still holds together. There is no threshold here.
+#[gpui_kit::test]
+fn perf_mixed01_a_table_diagram_and_chinese_input_stay_consistent(cx: &mut TestAppContext) {
+    let source = "开头段落。\n\n| 列一 | 列二 |\n| --- | --- |\n| a | b |\n\n```mermaid\nflowchart LR\nA-->B\n```\n\n结尾段落。\n";
+    let (view, vcx) = open_focused(cx, source);
+
+    // Initial state: one table with all six cells, nothing failed to parse.
+    view.read_with(&*vcx, |view, _| {
+        assert_eq!(view.markdown(), source, "the fixture opens unchanged");
+        let groups = view.document.table_cells();
+        assert_eq!(groups.len(), 1, "one table");
+        assert_eq!(groups[0].len(), 6, "3x2 cells");
+        assert!(view.parse_error().is_none(), "the fixture parses");
+    });
+
+    // 1. Edit prose.
+    let prose = source.find("开头段落。").expect("the opening paragraph") + "开头段落。".len();
+    vcx.update(|_, cx| view.update(cx, |view, cx| view.set_caret(prose, cx)));
+    vcx.simulate_input("补充");
+    draw(vcx);
+    view.read_with(&*vcx, |view, _| {
+        assert!(
+            view.markdown().contains("开头段落。补充"),
+            "the prose edit landed: {:?}",
+            view.markdown()
+        );
+    });
+
+    // 2. Edit a table cell: the table must still be one table with six cells.
+    let cell = view.read_with(&*vcx, |view, _| {
+        view.markdown().find("| a |").expect("the cell")
+    });
+    let caret = cell + "| ".len();
+    vcx.update(|_, cx| view.update(cx, |view, cx| view.set_caret(caret, cx)));
+    vcx.simulate_input("单元");
+    draw(vcx);
+    view.read_with(&*vcx, |view, _| {
+        assert!(
+            view.markdown().contains("| 单元a |"),
+            "the cell edit stayed inside the cell: {:?}",
+            view.markdown()
+        );
+        let groups = view.document.table_cells();
+        assert_eq!(groups.len(), 1, "still one table");
+        assert_eq!(groups[0].len(), 6, "the table did not gain or lose cells");
+    });
+
+    // 3. Commit Chinese composition at the end of the document.
+    let end = view.read_with(&*vcx, |view, _| view.markdown().len());
+    vcx.update(|_, cx| view.update(cx, |view, cx| view.set_caret(end, cx)));
+    vcx.simulate_input("中文组合");
+    draw(vcx);
+    view.read_with(&*vcx, |view, _| {
+        assert!(
+            view.markdown().contains("中文组合"),
+            "the composed text is in the source: {:?}",
+            view.markdown()
+        );
+        assert!(
+            view.document.table_cells().len() == 1,
+            "composing outside the table left it intact"
+        );
+    });
+
+    // 4. Update the Mermaid diagram's content.
+    let arrow = view.read_with(&*vcx, |view, _| {
+        view.markdown().find("A-->B").expect("the edge")
+    });
+    let target = arrow + "A-->B".len();
+    vcx.update(|_, cx| view.update(cx, |view, cx| view.set_caret(target, cx)));
+    vcx.simulate_input("C");
+    draw(vcx);
+    view.read_with(&*vcx, |view, _| {
+        assert!(
+            view.markdown().contains("A-->BC"),
+            "the diagram source changed: {:?}",
+            view.markdown()
+        );
+        assert!(
+            view.document.table_cells().len() == 1,
+            "editing the fence left the table intact"
+        );
+    });
+
+    // 5. Break the diagram: the source must survive and the document must stay
+    //    editable. A failed diagram degrades to its source rather than failing
+    //    the whole document.
+    // Deleting the header through the keyboard is what a user does; two
+    // `set_caret` calls are not a selection, so typing would insert instead of
+    // replace.
+    let header_end = view.read_with(&*vcx, |view, _| {
+        let markdown = view.markdown().to_owned();
+        let at = markdown.find("flowchart LR").expect("the diagram header");
+        at + "flowchart LR".len()
+    });
+    vcx.update(|_, cx| view.update(cx, |view, cx| view.set_caret(header_end, cx)));
+    for _ in 0.."flowchart LR".len() {
+        vcx.simulate_keystrokes("backspace");
+    }
+    draw(vcx);
+    view.read_with(&*vcx, |view, _| {
+        assert!(
+            !view.markdown().contains("flowchart LR"),
+            "the header was deleted: {:?}",
+            view.markdown()
+        );
+        assert!(
+            view.markdown().contains("```mermaid"),
+            "the fence itself survives, so the source is preserved: {:?}",
+            view.markdown()
+        );
+        assert!(
+            view.document.table_cells().len() == 1,
+            "an invalid diagram does not disturb the table"
+        );
+        assert!(
+            view.markdown().contains("中文组合"),
+            "the composed text survived every later edit"
+        );
+    });
+}
