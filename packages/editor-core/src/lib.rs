@@ -825,10 +825,17 @@ fn add_literal_mark(
 
 fn literal_range(source: &str, syntax_range: &Range<usize>, value: &str) -> Option<Range<usize>> {
     let literal = source.get(syntax_range.clone())?;
-    let relative_start = if value.is_empty() {
-        0
-    } else {
-        literal.find(value)?
+    if value.is_empty() {
+        return Some(syntax_range.start..syntax_range.start);
+    }
+    // The parsed `value` comes from the CJK-rewritten text, so a code span
+    // holding full-width punctuation carries `一` where the source still has
+    // `「` and a plain search finds nothing. Searching the rewritten literal
+    // instead is exact: the rewrite preserves byte length, so the offset it
+    // yields is valid against the original source.
+    let relative_start = match literal.find(value) {
+        Some(found) => found,
+        None => crate::cjk::with_cjk_friendly_flanking(literal).find(value)?,
     };
     Some(syntax_range.start + relative_start..syntax_range.start + relative_start + value.len())
 }

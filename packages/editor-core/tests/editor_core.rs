@@ -170,6 +170,35 @@ fn inline_marks_separate_content_syntax_and_nested_ranges() {
     );
 }
 
+/// A code span holding full-width punctuation still gets its mark.
+///
+/// The regression this pins: the parsed literal comes from the CJK-rewritten
+/// text, so a span holding `「a」` carries `一a一`. Searching the original for
+/// that value found nothing and the mark was dropped, which made the span stop
+/// being treated as code — measured before the fix as zero code marks for
+/// `` `「a」` `` while `` `a` `` produced one.
+#[test]
+fn a_code_span_with_cjk_punctuation_keeps_its_mark() {
+    for source in ["值 `「a」` 结束", "值 `、` 结束", "值 `**「x」**` 结束"] {
+        let marks = MarkdownDocument::new(source).inline_marks().unwrap();
+        let code = marks
+            .iter()
+            .find(|mark| mark.kind == InlineMarkKind::Code)
+            .unwrap_or_else(|| panic!("no code mark for {source:?}"));
+
+        // The mark must address the original bytes, punctuation intact.
+        let content = &source[code.range.clone()];
+        assert!(
+            content.contains('「') || content.contains('、'),
+            "the mark keeps the source punctuation for {source:?}, got {content:?}"
+        );
+        assert!(
+            source[code.syntax_range.clone()].starts_with('`'),
+            "the syntax range still covers the backticks for {source:?}"
+        );
+    }
+}
+
 #[test]
 fn markdown_commands_preserve_surrounding_source_and_check_utf8_ranges() {
     let document = MarkdownDocument::new("# 原题\n\n中文 body  \n");
