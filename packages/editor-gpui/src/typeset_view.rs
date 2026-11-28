@@ -1704,6 +1704,14 @@ impl Render for TypesetView {
                     this.handle_mouse_down(event, window, cx);
                 }),
             )
+            .on_hover(cx.listener(|this, hovered: &bool, _, cx| {
+                // Leaving the editor has no mouse-move event of its own, so the
+                // handles are hidden here rather than waiting for a move that
+                // never arrives.
+                if !hovered {
+                    this.clear_pointer(cx);
+                }
+            }))
             .on_mouse_move(
                 cx.listener(|this, event: &gpui_kit::MouseMoveEvent, _, cx| {
                     // Hover is tracked on every move: it decides whether the
@@ -1922,6 +1930,23 @@ impl TypesetView {
         if self.table_handles.is_visible() != was_visible
             || self.table_handles.hovered() != was_hovered
         {
+            cx.notify();
+        }
+    }
+
+    /// Forgets the pointer position when it leaves the editor.
+    ///
+    /// `track_pointer` only runs on moves inside the editor, so moving the
+    /// pointer onto the toolbar or out of the window left the last position
+    /// standing: the handles stayed lit beside a table the user is no longer
+    /// pointing at.
+    fn clear_pointer(&mut self, cx: &mut Context<Self>) {
+        if self.table_handles.pointer().is_none() {
+            return;
+        }
+        let was_visible = self.table_handles.is_visible();
+        self.table_handles.set_pointer(None);
+        if was_visible {
             cx.notify();
         }
     }

@@ -365,6 +365,30 @@ mod tests {
         );
     }
 
+    /// TABLE-HANDLE-01: forgetting the pointer hides the handles.
+    ///
+    /// The regression this pins: pointer tracking only ran on moves *inside* the
+    /// editor, so moving onto the toolbar or out of the window left the last
+    /// position standing and the handles stayed lit beside a table the user was
+    /// no longer pointing at.
+    #[test]
+    fn table_handle01_forgetting_the_pointer_hides_the_handles() {
+        let source = "| a | b |\n| - | - |\n| c | d |\n";
+        let mut state = TableHandleState::default();
+        state.rebuild(&grid_slots(source), &leaves());
+        state.set_pointer(Some(Point {
+            x: px(250.0),
+            y: px(150.0),
+        }));
+        assert!(state.is_visible(), "the table shows while hovered");
+        assert!(!state.visible_handles().is_empty());
+
+        state.set_pointer(None);
+        assert!(!state.is_visible(), "no pointer means nothing showing");
+        assert!(state.visible_handles().is_empty());
+        assert_eq!(state.pointer(), None);
+    }
+
     /// TABLE-HANDLE-01: a document with no tables has no groups and no handles,
     /// so a plain paragraph never grows a floating button.
     #[test]
