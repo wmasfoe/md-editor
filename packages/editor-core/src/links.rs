@@ -332,7 +332,12 @@ fn normalize_fragment(fragment: &str) -> String {
 }
 
 /// Percent-decodes `text`, or `None` when a `%` sequence is malformed.
-fn percent_decode(text: &str) -> Option<String> {
+///
+/// Public because a link destination is a URL on both sides of the `#`: the
+/// fragment resolver below decodes its half, and a host resolving the path half
+/// against the filesystem must decode it the same way. Decoding only the
+/// fragment left `my%20file.md` looking for a file literally named that.
+pub fn percent_decode(text: &str) -> Option<String> {
     let bytes = text.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());
     let mut index = 0;

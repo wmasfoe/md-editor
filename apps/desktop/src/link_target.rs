@@ -43,7 +43,13 @@ pub(crate) fn resolve_local_link(document_path: Option<&Path>, target: &str) -> 
         // itself, so reaching here means a stray call rather than a local target.
         return LocalLink::NoBaseDirectory;
     }
-    let raw = PathBuf::from(path_part);
+    // A link destination is a URL, so a path with a space may arrive as
+    // `my%20file.md`. The fragment half is decoded by the editor's anchor
+    // resolver; decoding only that half left the path looking for a file
+    // literally named `my%20file.md`. A malformed sequence stays literal, which
+    // matches the fragment rule for hand-written text like `100%.md`.
+    let decoded = inkpoint_editor_core::links::percent_decode(path_part);
+    let raw = PathBuf::from(decoded.as_deref().unwrap_or(path_part));
     let resolved = if raw.is_absolute() {
         normalize(&raw)
     } else {
@@ -118,6 +124,47 @@ mod tests {
             resolve_local_link(Some(&doc), "./notes.md"),
             LocalLink::Document(root.path().join("docs/notes.md")),
             "the link is relative to the document's folder, not the process"
+        );
+    }
+
+    /// A link destination is a URL, so a space may arrive percent-encoded.
+    ///
+    /// The regression this pins: only the `#fragment` half was decoded, so
+    /// `my%20file.md` looked for a file literally named that and was reported
+    /// missing even though `my file.md` sat right beside the document.
+    #[test]
+    fn a_percent_encoded_target_resolves_to_the_decoded_file() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(root.path().join("docs")).unwrap();
+        std::fs::write(root.path().join("docs/my file.md"), "# spaced").unwrap();
+        let doc = document(root.path());
+
+        assert_eq!(
+            resolve_local_link(Some(&doc), "my%20file.md"),
+            LocalLink::Document(root.path().join("docs/my file.md")),
+            "the encoded target names the file with the space"
+        );
+        assert_eq!(
+            resolve_local_link(Some(&doc), "my%20file.md#part"),
+            LocalLink::Document(root.path().join("docs/my file.md")),
+            "the fragment is still stripped before decoding"
+        );
+    }
+
+    /// A malformed percent sequence stays literal rather than failing.
+    ///
+    /// A hand-written target like `100%.md` is legitimate text; rejecting it
+    /// would make a real file unreachable.
+    #[test]
+    fn a_malformed_percent_sequence_stays_literal() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(root.path().join("docs")).unwrap();
+        std::fs::write(root.path().join("docs/100%.md"), "# percent").unwrap();
+        let doc = document(root.path());
+
+        assert_eq!(
+            resolve_local_link(Some(&doc), "100%.md"),
+            LocalLink::Document(root.path().join("docs/100%.md"))
         );
     }
 
