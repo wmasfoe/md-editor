@@ -1909,9 +1909,19 @@ impl TypesetView {
     /// depends on the pointer, so only their visibility counts as a change.
     fn track_pointer(&mut self, position: Point<Pixels>, cx: &mut Context<Self>) {
         let was_visible = self.table_handles.is_visible();
+        let was_hovered = self.table_handles.hovered();
         let previous = self.table_handles.pointer();
+        if previous == Some(position) {
+            return;
+        }
         self.table_handles.set_pointer(Some(position));
-        if previous != Some(position) && self.table_handles.is_visible() != was_visible {
+        // Repaint when the handles appear, disappear, or when the pointer moves
+        // onto a different handle: moving between two handles of one table keeps
+        // the group showing, so visibility alone would leave the highlight on
+        // the handle the pointer left.
+        if self.table_handles.is_visible() != was_visible
+            || self.table_handles.hovered() != was_hovered
+        {
             cx.notify();
         }
     }

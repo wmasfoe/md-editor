@@ -72,6 +72,15 @@ impl TableHandleState {
         self.visible().is_some()
     }
 
+    /// Which handle the pointer is over, if any.
+    ///
+    /// Visibility alone is not enough to decide whether to repaint: moving from
+    /// one handle to another keeps the group showing, but the highlight has to
+    /// follow the pointer or it stays on the handle the pointer left.
+    pub(crate) fn hovered(&self) -> Option<TableHandle> {
+        self.hit_at(self.pointer?)
+    }
+
     /// The handle under `point`, when the pointer is on one.
     pub(crate) fn hit_at(&self, point: Point<Pixels>) -> Option<TableHandle> {
         self.groups
@@ -174,6 +183,70 @@ mod tests {
         }));
         assert!(!state.is_visible(), "far below the table");
         assert!(state.visible_handles().is_empty());
+    }
+
+    /// TABLE-HANDLE-01: moving from one handle to another changes which handle
+    /// is hovered, even though the group stays visible.
+    ///
+    /// This is the signal the repaint decision keys off. Without it, dragging
+    /// the pointer along a column of handles leaves the highlight on whichever
+    /// handle the pointer first touched.
+    #[test]
+    fn table_handle01_moving_between_handles_changes_the_hovered_one() {
+        let source = "| a | b |\n| - | - |\n| c | d |\n";
+        let mut state = TableHandleState::default();
+        state.rebuild(&grid_slots(source), &leaves());
+
+        // Two different column handles: both keep the group visible.
+        let handles = {
+            state.set_pointer(Some(Point {
+                x: px(250.0),
+                y: px(150.0),
+            }));
+            state
+                .visible()
+                .expect("the table is showing")
+                .all()
+                .to_vec()
+        };
+        let first = handles
+            .iter()
+            .find(|handle| matches!(handle.target, HandleTarget::ColumnLeft(_)))
+            .copied()
+            .expect("a column handle exists");
+        let second = handles
+            .iter()
+            .filter(|handle| matches!(handle.target, HandleTarget::ColumnLeft(_)))
+            .nth(1)
+            .copied()
+            .expect("a second column handle exists");
+
+        let centre = |handle: TableHandle| Point {
+            x: handle.bounds.origin.x + px(7.0),
+            y: handle.bounds.origin.y + px(7.0),
+        };
+
+        state.set_pointer(Some(centre(first)));
+        assert_eq!(
+            state.hovered().map(|handle| handle.target),
+            Some(first.target)
+        );
+        assert!(state.is_visible(), "still showing between the two");
+
+        state.set_pointer(Some(centre(second)));
+        assert!(
+            state.is_visible(),
+            "the group stays visible, so visibility alone cannot detect this move"
+        );
+        assert_eq!(
+            state.hovered().map(|handle| handle.target),
+            Some(second.target),
+            "the hovered handle must follow the pointer"
+        );
+        assert_ne!(
+            first.target, second.target,
+            "the test must move between two distinct handles"
+        );
     }
 
     /// TABLE-HANDLE-01: a click on a handle reports the insert it performs, and
