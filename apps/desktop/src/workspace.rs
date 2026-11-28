@@ -871,16 +871,34 @@ impl Workspace {
     }
 
     pub(crate) fn check_initial_session(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if let Ok(Some(session)) = crate::session::HotExitSession::load()
-            && let Some(active) = session.active_document
-        {
-            if let Some(path) = active.file_path {
-                if path.exists() {
-                    self.load_document(path, window, cx);
-                }
-            } else if active.is_untitled && !session.draft_markdown.is_empty() {
-                self.install_document(Document::default(), window, cx);
+        let Ok(Some(session)) = crate::session::HotExitSession::load() else {
+            return;
+        };
+
+        // A named draft whose file is gone comes first: recovering its text as an
+        // untitled document is the only way the user keeps it, and the audit found
+        // such a draft left in the session file with no entry point at all
+        // (DRAFT-03). The session module decides when a draft is orphaned; the
+        // workspace only presents it.
+        if let Some(draft) = crate::session::orphaned_draft_in(&session) {
+            self.install_document(Document::default(), window, cx);
+            self.pending_draft = Some(draft);
+            self.message(
+                "The original file is missing. A saved draft was recovered; save it to keep the text.",
+                cx,
+            );
+            return;
+        }
+
+        let Some(active) = session.active_document else {
+            return;
+        };
+        if let Some(path) = active.file_path {
+            if path.exists() {
+                self.load_document(path, window, cx);
             }
+        } else if active.is_untitled && !session.draft_markdown.is_empty() {
+            self.install_document(Document::default(), window, cx);
         }
     }
 }

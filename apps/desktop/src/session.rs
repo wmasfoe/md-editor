@@ -165,6 +165,30 @@ pub fn check_pending_draft(
     check_pending_draft_at(&session_path, file_path, current_disk_content)
 }
 
+/// A named draft whose original file no longer exists, given an already-loaded
+/// session.
+///
+/// A named draft normally pairs with its file: recovery compares draft and disk
+/// content, so it needs both. When the file is gone there is nothing to compare
+/// against, and the audit found the draft simply unreachable — it stayed in the
+/// session file with no entry point, while an untitled draft recovered fine.
+///
+/// Reporting it separately is what lets the caller offer recovery instead of
+/// silently dropping the text.
+pub fn orphaned_draft_in(session: &HotExitSession) -> Option<PendingDraftInfo> {
+    let active_doc = session.active_document.as_ref()?;
+    let path = active_doc.file_path.as_ref()?;
+    if path.exists() || session.draft_markdown.is_empty() {
+        return None;
+    }
+    Some(PendingDraftInfo {
+        file_path: Some(path.clone()),
+        draft_content: session.draft_markdown.clone(),
+        cursor_offset: active_doc.cursor_offset,
+        last_modified_at: active_doc.last_modified_at,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -204,6 +228,52 @@ mod tests {
         let pending = check_pending_draft_at(&session_file, Some(doc_path), "# Clean Content");
         assert!(pending.is_none());
         assert!(!session_file.exists());
+    }
+
+    /// DRAFT-03: a named draft whose original file is gone must be reported so
+    /// the workspace can offer recovery.
+    ///
+    /// The audit repro persisted a named draft, removed the file, restarted, and
+    /// landed on the welcome screen: the draft was still in the session file but
+    /// nothing surfaced it, while an untitled draft recovered fine.
+    #[test]
+    fn draft03_reports_a_named_draft_whose_file_is_gone() {
+        let dir = tempdir().unwrap();
+        let session_file = dir.path().join("session.json");
+        let missing = dir.path().join("moved-away.md");
+        HotExitSession::save_to(&session_file, Some(&missing), "# 中文草稿", Some(3), true)
+            .unwrap();
+
+        let loaded = HotExitSession::load_from(&session_file).unwrap().unwrap();
+        let draft = orphaned_draft_in(&loaded).expect("the orphan is reported");
+        assert_eq!(draft.draft_content, "# 中文草稿");
+        assert_eq!(draft.cursor_offset, Some(3));
+        assert_eq!(draft.file_path.as_deref(), Some(missing.as_path()));
+    }
+
+    /// A draft whose file still exists is not orphaned: the normal pending-draft
+    /// flow owns it, and reporting it twice would offer two competing recoveries.
+    #[test]
+    fn draft03_does_not_report_a_draft_whose_file_still_exists() {
+        let dir = tempdir().unwrap();
+        let session_file = dir.path().join("session.json");
+        let present = dir.path().join("present.md");
+        std::fs::write(&present, "# saved").unwrap();
+        HotExitSession::save_to(&session_file, Some(&present), "# draft", None, true).unwrap();
+
+        let loaded = HotExitSession::load_from(&session_file).unwrap().unwrap();
+        assert_eq!(orphaned_draft_in(&loaded), None);
+    }
+
+    /// An untitled draft has its own recovery path, so it is not an orphan.
+    #[test]
+    fn draft03_does_not_report_an_untitled_draft() {
+        let dir = tempdir().unwrap();
+        let session_file = dir.path().join("session.json");
+        HotExitSession::save_to(&session_file, None, "untitled text", None, true).unwrap();
+
+        let loaded = HotExitSession::load_from(&session_file).unwrap().unwrap();
+        assert_eq!(orphaned_draft_in(&loaded), None);
     }
 
     #[test]
