@@ -130,3 +130,71 @@ fn table_handle01_source_mode_has_no_table_handles(cx: &mut TestAppContext) {
         "the table is a table again"
     );
 }
+
+/// TABLE-HANDLE-01 / G004 第 4 项：通过真实窗口鼠标事件操作表格手柄。
+///
+/// 此前 B9 的证据只直接调用 `TableHandleState`，没有经过窗口、事件分发和命中
+/// 测试。这一条走真实路径：把指针移到手柄矩形上、点击、然后断言源文档真的多出
+/// 一行——即用户能用手柄插入行。
+#[gpui_kit::test]
+fn table_handle01_a_window_click_on_a_handle_inserts_a_row(cx: &mut TestAppContext) {
+    let source = "| a | b |\n| - | - |\n| c | d |\n";
+    let (view, vcx) = open_focused(cx, source);
+    draw(vcx);
+    draw(vcx);
+
+    // The handles only show while the pointer is near the table, so aim at the
+    // table first. Its first cell gives the rectangle without needing a handle.
+    let table_point = view.read_with(&*vcx, |view, _| {
+        let key = view
+            .document
+            .leaf_spans()
+            .iter()
+            .find_map(|leaf| leaf.span().map(|_| leaf.key()))?;
+        let bounds = view.geometry.get(key)?.bounds();
+        Some(gpui_kit::Point {
+            x: bounds.origin.x + bounds.size.width / 2.,
+            y: bounds.origin.y + bounds.size.height / 2.,
+        })
+    });
+    let table_point = table_point.expect("the table's first cell was laid out");
+    vcx.simulate_mouse_move(table_point, None, gpui_kit::Modifiers::default());
+    draw(vcx);
+
+    let handles = view.read_with(&*vcx, |view, _| {
+        view.table_handles
+            .visible()
+            .map(|group| group.all().to_vec())
+            .unwrap_or_default()
+    });
+    assert!(!handles.is_empty(), "the table has handles after drawing");
+    let row_handle = handles
+        .iter()
+        .find(|handle| {
+            matches!(
+                handle.target,
+                inkpoint_editor_typeset::HandleTarget::RowAbove(_)
+            )
+        })
+        .copied()
+        .expect("the body row has a handle");
+    let centre = gpui_kit::Point {
+        x: row_handle.bounds.origin.x + row_handle.bounds.size.width / 2.,
+        y: row_handle.bounds.origin.y + row_handle.bounds.size.height / 2.,
+    };
+
+    // Move onto the handle first: the handles only show while the pointer is
+    // near the table, and the click must land on a visible control.
+    vcx.simulate_mouse_move(centre, None, gpui_kit::Modifiers::default());
+    draw(vcx);
+    vcx.simulate_click(centre, gpui_kit::Modifiers::default());
+    draw(vcx);
+
+    let markdown = view.read_with(&*vcx, |view, _| view.markdown().to_string());
+    assert_ne!(markdown, source, "the click must change the document");
+    assert_eq!(
+        markdown.matches('\n').count(),
+        source.matches('\n').count() + 1,
+        "one row was inserted: {markdown:?}"
+    );
+}
