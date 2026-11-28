@@ -124,7 +124,10 @@ mod tests {
 
     /// A 3x2 table laid out as a grid at (200, 100), 100pt columns, 20pt rows.
     fn grid_slots(source: &str) -> Vec<Vec<TableCellSlot>> {
-        table_edit::document_table_cells(source)
+        let blocks = inkpoint_editor_core::MarkdownDocument::new(source)
+            .blocks()
+            .expect("the fixture parses");
+        table_edit::table_cells_in(source, &blocks)
     }
 
     fn leaves() -> Vec<(Range<usize>, Bounds<Pixels>)> {

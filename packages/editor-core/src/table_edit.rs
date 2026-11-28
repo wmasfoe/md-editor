@@ -246,26 +246,6 @@ pub struct TableCell {
     pub offset: usize,
 }
 
-/// The cell containing `offset`, when `offset` falls inside a table.
-///
-/// Offsets between cells (on a pipe) resolve to the cell that ends there, which
-/// matches [`RowLayout::cell_at`]'s inclusive end. An offset outside every
-/// table yields `None`, so a caller can treat "not in a table" as "no handles".
-pub fn cell_at(source: &str, offset: usize) -> Option<TableCell> {
-    let table = table_at(source, offset)?;
-    let layout = layout_of(source, &table)?;
-    let row = layout.row_at(offset)?;
-    let column = layout.rows.get(row)?.cell_at(offset)?;
-    Some(TableCell {
-        table_start: table.range.start,
-        row,
-        column,
-        rows: layout.rows.len(),
-        columns: layout.columns(),
-        offset,
-    })
-}
-
 /// One cell of a table with the byte slot it occupies.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TableCellSlot {
@@ -275,30 +255,11 @@ pub struct TableCellSlot {
     pub range: Range<usize>,
 }
 
-/// Every cell of the table containing `offset`, in row-major order.
-///
-/// One parse for the whole table, because a caller that builds handles needs
-/// every cell and re-parsing per cell would be quadratic on a long document.
-pub fn table_cells_at(source: &str, offset: usize) -> Option<Vec<TableCellSlot>> {
-    cells_of(source, &table_at(source, offset)?)
-}
-
 /// Every table's cells, one group per table, in document order.
 ///
-/// Handles are drawn per table, so a caller needs the groups rather than one
-/// table's cells. Parsing once for the whole document keeps this off the
-/// pointer-move path: the view calls it when the source changes, not per frame.
-pub fn document_table_cells(source: &str) -> Vec<Vec<TableCellSlot>> {
-    let Ok(blocks) = MarkdownDocument::new(source).blocks() else {
-        return Vec::new();
-    };
-    table_cells_in(source, &blocks)
-}
-
-/// The same grouping, for a caller that already has the parsed blocks.
-///
-/// Parsing a long document is the expensive part, and a renderer that already
-/// parsed it must not pay for it twice just to place handles.
+/// Parsing a long document is the expensive part, so this takes the blocks the
+/// caller already parsed rather than parsing again: a renderer that has them
+/// must not pay for the parse twice just to place handles.
 pub fn table_cells_in(source: &str, blocks: &[SourceBlock]) -> Vec<Vec<TableCellSlot>> {
     let mut tables = Vec::new();
     collect_tables(blocks, &mut tables);

@@ -11,13 +11,21 @@ use inkpoint_editor_core::{
     MarkdownDocument,
     session::EditorSession,
     table_edit::{
-        TableAlignment, TableCell, cell_at, delete_column, delete_row, document_table_cells,
-        insert_column_left, insert_column_right, insert_row_above, insert_row_below,
-        set_column_alignment, table_cells_at,
+        TableAlignment, TableCell, delete_column, delete_row, insert_column_left,
+        insert_column_right, insert_row_above, insert_row_below, set_column_alignment,
+        table_cells_in,
     },
 };
 
 const TABLE: &str = "| left | right |\n| ---- | ----- |\n| x    | y     |\n";
+
+/// The document's table groups, via the same entry point the renderer uses.
+fn groups(source: &str) -> Vec<Vec<inkpoint_editor_core::table_edit::TableCellSlot>> {
+    let blocks = MarkdownDocument::new(source)
+        .blocks()
+        .expect("the fixture parses");
+    table_cells_in(source, &blocks)
+}
 
 /// Applies an edit through the session so undo and selection are exercised.
 fn apply(source: &str, edit: Option<inkpoint_editor_core::SourceEdit>) -> EditorSession {
@@ -254,13 +262,17 @@ fn table_align01_sets_alignment_on_the_second_column_only() {
     );
 }
 
-/// TABLE-HANDLE-01: a pointer inside a cell reports that cell and the table's
-/// shape, which is what a handle needs to decide where to draw and whether the
-/// edit it offers is representable.
+/// TABLE-HANDLE-01: every cell reports its address and the table's shape, which
+/// is what a handle needs to decide where to draw.
 #[test]
 fn table_handle01_a_cell_reports_its_address_and_shape() {
-    let offset = caret(TABLE, "y     ");
-    let cell = cell_at(TABLE, offset).expect("the caret is inside a cell");
+    let group = groups(TABLE);
+    let cells = group.first().expect("one table");
+    let cell = cells
+        .iter()
+        .find(|slot| slot.cell.row == 2 && slot.cell.column == 1)
+        .expect("the second body cell exists")
+        .cell;
     assert_eq!(
         cell,
         TableCell {
@@ -269,18 +281,29 @@ fn table_handle01_a_cell_reports_its_address_and_shape() {
             column: 1,
             rows: 3,
             columns: 2,
-            offset,
+            offset: TABLE
+                .find(" y     ")
+                .expect("the slot starts before the text"),
         },
-        "the second body cell, in a 3x2 table, carrying the offset it was asked about"
+        "the second body cell, in a 3x2 table, carrying its own slot offset"
     );
 }
 
-/// TABLE-HANDLE-01: an offset outside every table has no cell, so no handle.
+/// TABLE-HANDLE-01: text outside a table contributes no cells, so no handles.
 #[test]
 fn table_handle01_text_outside_a_table_has_no_cell() {
     let source = format!("before\n\n{TABLE}\nafter\n");
-    assert!(cell_at(&source, caret(&source, "before")).is_none());
-    assert!(cell_at(&source, caret(&source, "after")).is_none());
+    let groups = groups(&source);
+    assert_eq!(groups.len(), 1, "only the table is a group");
+    let cells = groups.first().expect("one table");
+    assert_eq!(cells.len(), 6, "the surrounding paragraphs add no cells");
+    let table_start = "before\n\n".len();
+    assert!(
+        cells
+            .iter()
+            .all(|slot| slot.cell.table_start == table_start),
+        "no cell comes from the surrounding paragraphs"
+    );
 }
 
 /// TABLE-HANDLE-01: a ragged row still reports the table's full column count,
@@ -288,11 +311,13 @@ fn table_handle01_text_outside_a_table_has_no_cell() {
 #[test]
 fn table_handle01_ragged_row_reports_the_widest_column_count() {
     let source = "| a | b |\n| - | - |\n| c |\n";
-    let cell = cell_at(source, caret(source, "c")).expect("inside the table");
-    assert_eq!(cell.row, 2);
-    assert_eq!(cell.column, 0);
-    assert_eq!(cell.columns, 2, "the header still defines two columns");
-    assert_eq!(cell.rows, 3);
+    let groups = groups(source);
+    let cells = groups.first().expect("one table");
+    let last = cells.last().expect("the ragged row has a cell");
+    assert_eq!(last.cell.row, 2);
+    assert_eq!(last.cell.column, 0);
+    assert_eq!(last.cell.columns, 2, "the header still defines two columns");
+    assert_eq!(last.cell.rows, 3);
 }
 
 /// TABLE-HANDLE-01: every cell of a table is reported once, in row-major order,
@@ -300,7 +325,8 @@ fn table_handle01_ragged_row_reports_the_widest_column_count() {
 /// renderer lays cells out in, so a handle can group by row or by column.
 #[test]
 fn table_handle01_cells_are_reported_in_row_major_order() {
-    let cells = table_cells_at(TABLE, caret(TABLE, "x    ")).expect("inside the table");
+    let groups = groups(TABLE);
+    let cells = groups.first().expect("one table");
     let addresses: Vec<_> = cells
         .iter()
         .map(|slot| (slot.cell.row, slot.cell.column))
@@ -326,11 +352,9 @@ fn table_handle01_cells_are_reported_in_row_major_order() {
 #[test]
 fn table_handle01_two_tables_are_told_apart() {
     let source = format!("{TABLE}\ntext\n\n{TABLE}");
-    let first = table_cells_at(&source, 0).expect("the first table");
-    let second_at = source
-        .rfind("x    ")
-        .expect("the second table has its body row");
-    let second = table_cells_at(&source, second_at).expect("the second table");
+    let groups = groups(&source);
+    let first = groups.first().expect("the first table");
+    let second = groups.get(1).expect("the second table");
     assert_ne!(
         first[0].cell.table_start, second[0].cell.table_start,
         "each table has its own identity"
@@ -343,7 +367,7 @@ fn table_handle01_two_tables_are_told_apart() {
 #[test]
 fn table_handle01_each_table_is_its_own_group() {
     let source = format!("{TABLE}\ntext\n\n{TABLE}");
-    let tables = document_table_cells(&source);
+    let tables = groups(&source);
     assert_eq!(tables.len(), 2, "two tables, two groups");
     for group in &tables {
         assert_eq!(group.len(), 6, "each table is 3x2");
@@ -364,6 +388,6 @@ fn table_handle01_each_table_is_its_own_group() {
 /// broken table does not panic.
 #[test]
 fn table_handle01_a_document_without_tables_has_no_groups() {
-    assert!(document_table_cells("just a paragraph\n").is_empty());
-    assert!(document_table_cells("").is_empty());
+    assert!(groups("just a paragraph\n").is_empty());
+    assert!(groups("").is_empty());
 }
