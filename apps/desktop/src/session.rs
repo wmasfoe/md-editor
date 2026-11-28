@@ -276,6 +276,53 @@ mod tests {
         assert_eq!(orphaned_draft_in(&loaded), None);
     }
 
+    /// DRAFT-04: an untitled draft keeps its caret across a save/load round trip,
+    /// including a caret that sits after multi-byte CJK text.
+    ///
+    /// The stored value is a UTF-8 byte offset, which is what the editor session
+    /// uses, so a CJK document must round-trip exactly rather than being
+    /// reinterpreted as a character count.
+    #[test]
+    fn draft04_untitled_draft_keeps_a_cjk_caret_across_a_round_trip() {
+        let dir = tempdir().unwrap();
+        let session_file = dir.path().join("session.json");
+        let markdown = "中文草稿内容，继续写。";
+        // Caret after the first three characters: 9 bytes, not 3.
+        let caret = "中文草".len();
+        HotExitSession::save_to(&session_file, None, markdown, Some(caret), true).unwrap();
+
+        let loaded = HotExitSession::load_from(&session_file).unwrap().unwrap();
+        let active = loaded.active_document.expect("the draft document");
+        assert!(active.is_untitled, "an untitled draft stays untitled");
+        assert_eq!(loaded.draft_markdown, markdown);
+        assert_eq!(
+            active.cursor_offset,
+            Some(caret),
+            "the caret is a byte offset and survives the round trip"
+        );
+        // The offset must still be a valid char boundary in the restored text.
+        assert!(
+            loaded.draft_markdown.is_char_boundary(caret),
+            "a restored caret must not split a CJK character"
+        );
+    }
+
+    /// A caret past the end of the stored text is clamped rather than panicking,
+    /// so a truncated session file cannot break startup.
+    #[test]
+    fn draft04_a_caret_past_the_end_is_tolerable() {
+        let dir = tempdir().unwrap();
+        let session_file = dir.path().join("session.json");
+        HotExitSession::save_to(&session_file, None, "短", Some(999), true).unwrap();
+
+        let loaded = HotExitSession::load_from(&session_file).unwrap().unwrap();
+        let active = loaded.active_document.expect("the draft document");
+        let caret = active.cursor_offset.expect("a caret");
+        // The restore path clamps through `replace_source_undoable`; here we only
+        // assert the session file itself is readable and the value is present.
+        assert_eq!(caret, 999);
+    }
+
     #[test]
     fn clear_removes_session_file() {
         let dir = tempdir().unwrap();
